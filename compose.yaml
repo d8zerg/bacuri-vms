@@ -63,6 +63,16 @@ services:
       PGPASSWORD: bacuri-stand
     command: ["bash"]
 
+  playback-chrome:
+    profiles: ["playback-test"]
+    image: selenium/standalone-chrome:4.35.0@sha256:be55620222a49b5ed58787573c6ae864ed86833668b5a54a792f5419befb1dfd
+    shm_size: 1gb
+
+  playback-firefox:
+    profiles: ["playback-test"]
+    image: selenium/standalone-firefox:4.35.0@sha256:fef003c62e6e172dd5075aad709f3372c585c1d8ae9c7d3c41c7ef489790ec38
+    shm_size: 1gb
+
   tsan:
     profiles: ["tools"]
     image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}
@@ -98,6 +108,8 @@ services:
       - recorder-data:/recorder-data
       - archive-data:/archive
       - catalog-ipc:/catalog-ipc
+      - media-auth:/auth-ipc
+      - media-ipc:/media-ipc
       - control-ipc:/ipc
 
   core:
@@ -115,6 +127,8 @@ services:
       BACURI_CAMERA_NETWORKS: &networks ${BACURI_CAMERA_NETWORKS:-172.16.0.0/12,192.168.0.0/16,10.0.0.0/8}
       BACURI_SOCKET: /ipc/recorder.sock
       BACURI_CATALOG_SOCKET: /catalog-ipc/catalog.sock
+      BACURI_AUTH_SOCKET: /auth-ipc/auth.sock
+      BACURI_MEDIA_SOCKET: /media-ipc/media.sock
       BACURI_ORIGIN: https://localhost:${BACURI_HTTPS_PORT:-8443}
       BACURI_PORT: "8443"
       BACURI_LISTEN: 0.0.0.0
@@ -125,6 +139,9 @@ services:
       - ./build/gcc-debug:/opt/bacuri:ro
       - ./storage/postgresql/migrations:/workspace/storage/postgresql/migrations:ro
       - core-identity:/identity:ro
+      - ./web/archive:/workspace/web/archive:ro
+      - media-auth:/auth-ipc
+      - media-ipc:/media-ipc:ro
       - control-ipc:/ipc:ro
       - catalog-ipc:/catalog-ipc
     ports:
@@ -132,6 +149,28 @@ services:
     command: ["/opt/bacuri/bacuri-vms-core", "serve"]
     healthcheck:
       test: ["CMD-SHELL", "openssl s_client -connect localhost:8443 -verify_return_error -CAfile /identity/tls.crt </dev/null >/dev/null 2>&1"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  media:
+    profiles: ["control"]
+    image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}
+    pull_policy: never
+    user: "11003:11010"
+    network_mode: none
+    environment:
+      BACURI_ARCHIVE_DIR: /archive/recorder
+      BACURI_AUTH_SOCKET: /auth-ipc/auth.sock
+      BACURI_MEDIA_SOCKET: /media-ipc/media.sock
+    volumes:
+      - ./build/gcc-debug:/opt/bacuri:ro
+      - archive-data:/archive:ro
+      - media-auth:/auth-ipc:ro
+      - media-ipc:/media-ipc
+    command: ["/opt/bacuri/bacuri-vms-media"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -S /media-ipc/media.sock"]
       interval: 3s
       timeout: 3s
       retries: 10
@@ -172,3 +211,5 @@ volumes:
   recorder-data:
   control-ipc:
   catalog-ipc:
+  media-auth:
+  media-ipc:

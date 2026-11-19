@@ -1,6 +1,7 @@
 #include "archive/mp4.hpp"
 #include <boost/endian/conversion.hpp>
 #include <unistd.h>
+#include <sodium.h>
 #include <array>
 #include <cerrno>
 #include <stdexcept>
@@ -56,8 +57,36 @@ bool contains_box(int fd, const Box& parent, std::string_view type)
 }
 } // namespace
 
-void verify_fragment_layout(int fd, std::uint64_t size)
+MediaDigest digest_media(int fd)
 {
+    crypto_hash_sha256_state state{};
+    crypto_hash_sha256_init(&state);
+    std::array<unsigned char, 64uz * 1024> buffer;
+    std::int64_t total{};
+    for (;;) {
+        auto count = read(fd, buffer.data(), buffer.size());
+        if (count < 0 && errno == EINTR) {
+            continue;
+        }
+        if (count < 0) {
+            throw std::system_error(errno, std::generic_category(), "Cannot read archive media");
+        }
+        if (count == 0) {
+            break;
+        }
+        crypto_hash_sha256_update(&state, buffer.data(), count);
+        total += count;
+    }
+    std::array<unsigned char, crypto_hash_sha256_BYTES> hash{};
+    std::array<char, crypto_hash_sha256_BYTES * 2 + 1> hex{};
+    crypto_hash_sha256_final(&state, hash.data());
+    sodium_bin2hex(hex.data(), hex.size(), hash.data(), hash.size());
+    return {total, hex.data()};
+}
+
+FragmentLayout verify_fragment_layout(int fd, std::uint64_t size)
+{
+    FragmentLayout result{};
     bool initialized{}, fragment{}, media{}, indexed{};
     for (std::uint64_t offset = 0; offset < size;) {
         const auto box = read_box(fd, offset, size);
@@ -68,12 +97,16 @@ void verify_fragment_layout(int fd, std::uint64_t size)
             initialized = contains_box(fd, box, "trak") && contains_box(fd, box, "mvex");
         }
         if (box.type == "moof") {
+            if (!result.media_begin) {
+                result.media_begin = offset;
+            }
             fragment = initialized && contains_box(fd, box, "traf");
         }
         if (box.type == "mdat") {
             media = fragment && box.content < box.end;
         }
         if (box.type == "mfra") {
+            result.media_end = offset;
             indexed = media && box.end == size && contains_box(fd, box, "tfra") && contains_box(fd, box, "mfro");
         }
         offset = box.end;
@@ -81,5 +114,6 @@ void verify_fragment_layout(int fd, std::uint64_t size)
     if (!indexed) {
         throw std::invalid_argument("Missing fMP4 initialization, media or random-access index");
     }
+    return result;
 }
 } // namespace bacuri::vms::archive

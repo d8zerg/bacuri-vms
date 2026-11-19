@@ -34,6 +34,35 @@ net::awaitable<Response> process(const HttpHandler& handler, const Request& requ
     co_return handler(request, peer);
 }
 
+net::awaitable<MediaChunk> read_chunk(MediaBody& body)
+{
+    co_return body.next();
+}
+
+net::awaitable<void> send_media(TlsStream& stream, net::thread_pool& workers, Response& response)
+{
+    auto& transport = beast::get_lowest_layer(stream);
+    transport.socket().set_option(net::socket_base::send_buffer_size{64 * 1024});
+    response.content_length(response.media_size);
+    http::response<http::empty_body> header{response.base()};
+    auto remaining = response.media_size;
+    bool started = false;
+    while (remaining) {
+        auto chunk = co_await net::co_spawn(workers, read_chunk(*response.media), net::use_awaitable);
+        if (chunk.bytes.empty() || chunk.bytes.size() > remaining ||
+            std::chrono::steady_clock::now() >= chunk.deadline) {
+            throw std::runtime_error("Archive stream interrupted");
+        }
+        transport.expires_at(chunk.deadline);
+        if (!started) {
+            co_await http::async_write(stream, header, net::use_awaitable);
+            started = true;
+        }
+        co_await net::async_write(stream, net::buffer(chunk.bytes), net::use_awaitable);
+        remaining -= chunk.bytes.size();
+    }
+}
+
 net::awaitable<void> exchange(TlsStream& stream, net::thread_pool& workers, const HttpHandler& handler)
 {
     auto& transport = beast::get_lowest_layer(stream);
@@ -62,7 +91,8 @@ net::awaitable<void> exchange(TlsStream& stream, net::thread_pool& workers, cons
                 co_await http::async_write(stream, interim, net::use_awaitable);
             }
             if (!error && !parser.is_done()) {
-                auto result = co_await http::async_read(stream, buffer, parser, net::as_tuple(net::use_awaitable));
+                auto result =
+                    co_await http::async_read(stream, buffer, parser, net::as_tuple(net::use_awaitable));
                 error = std::get<0>(result);
             }
             if (error) {
@@ -79,9 +109,13 @@ net::awaitable<void> exchange(TlsStream& stream, net::thread_pool& workers, cons
                 response = co_await net::co_spawn(workers, process(handler, request, peer), net::use_awaitable);
                 response.version(request.version());
                 response.keep_alive(request.keep_alive() && sequence < max_requests_per_connection);
-                response.prepare_payload();
-                transport.expires_after(io_timeout);
-                co_await http::async_write(stream, response, net::use_awaitable);
+                if (response.media) {
+                    co_await send_media(stream, workers, response);
+                } else {
+                    response.prepare_payload();
+                    transport.expires_after(io_timeout);
+                    co_await http::async_write(stream, response, net::use_awaitable);
+                }
                 if (response.keep_alive()) {
                     continue;
                 }

@@ -29,7 +29,7 @@ class Sessions
 public:
     Sessions(Key key, std::string origin);
     void handle(const Request& request, Response& response, const std::string& peer) const;
-    Identity authenticate(Database& db, const Request& request, bool mutation) const;
+    Identity authenticate(Database& db, const Request& request, bool mutation, bool activity = true) const;
 
 private:
     void login(const Request& request, Response& response, const std::string& peer) const;

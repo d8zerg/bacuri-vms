@@ -8,11 +8,30 @@ service RecorderControl {
   // Persist the accepted configuration before returning APPLIED.
   // A replay of the same site, node and revision returns the recorded decision.
   rpc ApplyConfiguration(ApplyConfigurationRequest) returns (ApplyConfigurationResult);
+  rpc ListPending(PendingQuery) returns (PendingIntervals);
+}
+
+service ArchiveDelivery {
+  // One verified initialization or media segment, in bounded chunks.
+  rpc ReadPart(ReadPartRequest) returns (stream PartChunk);
+}
+
+message ReadPartRequest {
+  AuthorizeDeliveryRequest scope = 1;
+  string block_id = 2;
+  string sha256 = 3;
+  bool initialization = 4;
+}
+
+message PartChunk {
+  uint64 total_bytes = 1;
+  bytes data = 2;
 }
 
 service ArchiveCatalog {
   // Acknowledge only after the catalog transaction commits.
   rpc RegisterBlock(RegisterBlockRequest) returns (RegistrationResult);
+  rpc RegisterGap(RegisterGapRequest) returns (RegistrationResult);
 }
 
 service ObservationIngest {
@@ -27,6 +46,18 @@ service MediaAuthorization {
   // UNAVAILABLE or DEADLINE_EXCEEDED never grants or renews a lease.
   rpc AuthorizeDelivery(AuthorizeDeliveryRequest) returns (DeliveryLease);
 }
+
+message PendingQuery {
+  PointKey point = 1;
+  int64 begin_us = 2;
+  int64 end_us = 3;
+}
+message Coverage { int64 begin_us = 1; int64 end_us = 2; }
+message RegisterGapRequest {
+  PointKey point = 1; string recording_node_id = 2; int64 binding_revision = 3;
+  Coverage interval = 4; string reason = 5;
+}
+message PendingIntervals { repeated Coverage intervals = 1; }
 
 message PointKey {
   string site_id = 1;

@@ -23,7 +23,8 @@ export BACURI_TLS_CERT="$test_dir/server.crt" BACURI_TLS_KEY="$test_dir/server.k
 export BACURI_KEY_FILE="$test_dir/core.key" BACURI_SOCKET="$test_dir/recorder.sock"
 export BACURI_RECORDER_DB="$test_dir/recorder.db"
 export BACURI_CATALOG_SOCKET="$test_dir/catalog.sock" BACURI_ARCHIVE_DIR="$test_dir/archive"
-mkdir "$BACURI_ARCHIVE_DIR"
+export BACURI_AUTH_SOCKET="$test_dir/auth.sock" BACURI_MEDIA_SOCKET="$test_dir/media.sock"
+mkdir -p "$BACURI_ARCHIVE_DIR/blocks"
 export BACURI_LISTEN=127.0.0.1 BACURI_PORT=8443 BACURI_ORIGIN=https://localhost:8443
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -noenc -days 1 -subj /CN=localhost \
     -addext 'subjectAltName=DNS:localhost' -keyout "$BACURI_TLS_KEY" -out "$BACURI_TLS_CERT" 2>/dev/null
@@ -36,5 +37,8 @@ psql -Xq -v ON_ERROR_STOP=1 -c "INSERT INTO bacuri_inventory.sites VALUES ('$BAC
 case "${2:-control}" in
     control) python3 tests/control/registry.py "$test_dir" ;;
     archive) PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/recording.py "$test_dir" ;;
+    playback)
+        export BACURI_LISTEN=0.0.0.0 BACURI_ORIGIN="https://$(hostname -i | awk '{print $1}'):8443"
+        PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/playback.py "$test_dir" ;;
     *) exit 2 ;;
 esac

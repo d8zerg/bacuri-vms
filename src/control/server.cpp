@@ -1,15 +1,15 @@
 #include "control/api.hpp"
 #include "control/delivery.hpp"
 #include "control/archive_catalog.hpp"
+#include "control/media_authority.hpp"
+#include "control/playback.hpp"
+#include <fstream>
 
 #include <charconv>
 #include <thread>
 
 namespace bacuri::vms::control
 {
-namespace
-{
-
 void allow(const Request& req, Response& res, std::initializer_list<http::verb> methods)
 {
     if (std::ranges::find(methods, req.method()) != methods.end()) {
@@ -26,11 +26,40 @@ void allow(const Request& req, Response& res, std::initializer_list<http::verb> 
     throw Failure{405, "invalid_request"};
 }
 
+namespace
+{
 void route(const Request& req, Response& res, const std::string& peer, const Sessions& sessions,
-           const CameraRegistry& registry)
+           const CameraRegistry& registry, const Playback& playback)
 {
     std::string_view path{req.target().data(), req.target().size()};
     path = path.substr(0, path.find('?'));
+    if (path == "/archive/" || path == "/archive/player.js" || path == "/archive/app.js" ||
+        path == "/archive/style.css") {
+        allow(req, res, {http::verb::get});
+        const bool html = path == "/archive/";
+        std::ifstream file{html ? "web/archive/index.html" : "web" + std::string{path}};
+        if (!file) {
+            throw Failure{503, "dependency_unavailable"};
+        }
+        res.result(http::status::ok);
+        res.set(http::field::content_type, html                     ? "text/html; charset=utf-8"
+                                           : path.ends_with(".css") ? "text/css"
+                                                                    : "text/javascript; charset=utf-8");
+        res.set("Content-Security-Policy", "default-src 'self'; media-src 'self' blob:; object-src 'none'; "
+                                           "frame-ancestors 'none'; base-uri 'none'");
+        res.body().assign(std::istreambuf_iterator<char>{file}, {});
+        return;
+    }
+    constexpr std::string_view media_prefix = "/api/v1/media-sessions/";
+    if (path.starts_with(media_prefix)) {
+        path.remove_prefix(media_prefix.size());
+        auto slash = path.find('/');
+        const std::string id{path.substr(0, slash)};
+        if (!canonical_id(id)) {
+            throw Failure{404, "not_found"};
+        }
+        return playback.session(req, res, id, slash == path.npos ? std::string_view{} : path.substr(slash + 1));
+    }
     if (path == "/api/v1/session") {
         return sessions.handle(req, res, peer);
     }
@@ -45,6 +74,18 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     }
     const std::string site{path.substr(0, separator)};
     path.remove_prefix(separator + 1);
+    if (path.starts_with("points/")) {
+        path.remove_prefix(7);
+        const auto slash = path.find('/');
+        const std::string point{path.substr(0, slash)};
+        if (slash != path.npos && canonical_id(point)) {
+            const auto operation = path.substr(slash + 1);
+            if (operation == "archive" || operation == "media-sessions") {
+                return playback.point(req, res, site, point, operation == "archive");
+            }
+        }
+        throw Failure{404, "not_found"};
+    }
     if (path == "points") {
         allow(req, res, {http::verb::get});
         return registry.points(req, res, site);
@@ -99,7 +140,9 @@ void serve()
     }
     setting("BACURI_SOCKET");
     ArchiveCatalog catalog{{setting("BACURI_SITE_ID"), setting("BACURI_NODE_ID")}};
+    MediaAuthority authority;
     const Sessions sessions{key, origin};
+    const Playback playback{sessions, key};
     const CameraRegistry registry{sessions, key, CameraNetworks{setting("BACURI_CAMERA_NETWORKS")}};
     std::jthread worker{[&key](std::stop_token stop) { deliver(stop, key); }};
     const auto handle = [&](const Request& req, const std::string& peer) {
@@ -112,7 +155,7 @@ void serve()
             if (req.version() == 11 && (req.count(http::field::host) != 1 || req[http::field::host].empty())) {
                 throw Failure{400, "invalid_request"};
             }
-            route(req, res, peer, sessions, registry);
+            route(req, res, peer, sessions, registry, playback);
         } catch (const Failure& failure) {
             problem(res, failure, id.get());
         } catch (const std::exception&) {

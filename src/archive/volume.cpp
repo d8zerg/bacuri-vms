@@ -62,29 +62,7 @@ MediaDigest digest_file(const fs::path& path)
         throw std::invalid_argument("Invalid archive media file");
     }
     verify_fragment_layout(file.fd, static_cast<std::uint64_t>(info.st_size));
-    crypto_hash_sha256_state state{};
-    crypto_hash_sha256_init(&state);
-    std::array<unsigned char, 64uz * 1024> buffer;
-    std::int64_t total{};
-    for (;;) {
-        auto count = read(file.fd, buffer.data(), buffer.size());
-        if (count < 0 && errno == EINTR) {
-            continue;
-        }
-        if (count < 0) {
-            throw std::system_error(errno, std::generic_category(), "Cannot read archive media");
-        }
-        if (count == 0) {
-            break;
-        }
-        crypto_hash_sha256_update(&state, buffer.data(), count);
-        total += count;
-    }
-    std::array<unsigned char, crypto_hash_sha256_BYTES> hash{};
-    std::array<char, crypto_hash_sha256_BYTES * 2 + 1> hex{};
-    crypto_hash_sha256_final(&state, hash.data());
-    sodium_bin2hex(hex.data(), hex.size(), hash.data(), hash.size());
-    return {total, hex.data()};
+    return digest_media(file.fd);
 }
 
 Json read_manifest(const fs::path& path)
@@ -148,7 +126,7 @@ Volume::Volume(const fs::path& root, Owner owner)
         next(version_query.get());
         version = sqlite3_column_int(version_query.get(), 0);
     }
-    if (version < 0 || version > 2) {
+    if (version < 0 || version > 3) {
         throw std::runtime_error("Unsupported archive journal version");
     }
     if (version == 0) {
@@ -156,6 +134,9 @@ Volume::Volume(const fs::path& root, Owner owner)
     }
     if (version < 2) {
         db_.exec(sql::upgrade);
+    }
+    if (version < 3) {
+        db_.exec(sql::coverage);
     }
     auto assign = db_.query("INSERT INTO volume_owner VALUES(1,?,?,?,1) ON CONFLICT(singleton) DO UPDATE SET "
                             "generation=generation+1 WHERE site_id=excluded.site_id AND node_id=excluded.node_id "
@@ -317,6 +298,60 @@ void Volume::reconcile()
     }
 }
 
+std::vector<std::pair<std::int64_t, std::int64_t>> Volume::pending_intervals(const std::string& point,
+                                                                             std::int64_t begin, std::int64_t end) const
+{
+    storage::Sqlite journal{root_ / "journal.db", storage::OpenMode::read_only};
+    auto rows = journal.query(R"sql(WITH spans AS (
+            SELECT manifest_json->>'begin_utc_us' AS a,manifest_json->>'end_utc_us' AS b
+            FROM committed_blocks WHERE registered_at_utc_us IS NULL AND catalog_error IS NULL AND unavailable_reason IS NULL
+            AND manifest_json->>'point_id'=? AND a<? AND b>?
+        ), ordered AS (
+            SELECT a,b,max(b) OVER(ORDER BY a,b ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS previous FROM spans
+        ), grouped AS (
+            SELECT a,b,sum(previous IS NULL OR a>previous) OVER(ORDER BY a,b) AS run FROM ordered
+        ) SELECT min(a),max(b) FROM grouped GROUP BY run ORDER BY min(a) LIMIT 1001)sql");
+    bind_text(rows.get(), 1, point);
+    sqlite3_bind_int64(rows.get(), 2, end);
+    sqlite3_bind_int64(rows.get(), 3, begin);
+    std::vector<std::pair<std::int64_t, std::int64_t>> result;
+    while (next(rows.get())) {
+        result.emplace_back(sqlite3_column_int64(rows.get(), 0), sqlite3_column_int64(rows.get(), 1));
+    }
+    return result;
+}
+
+void Volume::report_gap(const Gap& gap)
+{
+    std::scoped_lock guard{mutex_};
+    auto row = db_.query("INSERT INTO pending_gaps(point,binding,begin_us,end_us,reason) VALUES(?,?,?,?,?) ON "
+                         "CONFLICT DO NOTHING");
+    bind_text(row.get(), 1, gap.point);
+    sqlite3_bind_int64(row.get(), 2, gap.binding);
+    sqlite3_bind_int64(row.get(), 3, gap.begin);
+    sqlite3_bind_int64(row.get(), 4, gap.end);
+    bind_text(row.get(), 5, gap.reason);
+    next(row.get());
+}
+std::optional<std::pair<std::int64_t, Gap>> Volume::pending_gap()
+{
+    std::scoped_lock guard{mutex_};
+    auto rows = db_.query("SELECT id,point,binding,begin_us,end_us,reason FROM pending_gaps ORDER BY id LIMIT 1");
+    if (!next(rows.get())) {
+        return {};
+    }
+    auto number = [&](int col) { return sqlite3_column_int64(rows.get(), col); };
+    return std::pair{number(0),
+                     Gap{column(rows.get(), 1), number(2), number(3), number(4), column(rows.get(), 5)}};
+}
+void Volume::acknowledge_gap(std::int64_t id)
+{
+    std::scoped_lock guard{mutex_};
+    auto row = db_.query("DELETE FROM pending_gaps WHERE id=?");
+    sqlite3_bind_int64(row.get(), 1, id);
+    next(row.get());
+}
+
 std::optional<Pending> Volume::pending()
 {
     std::scoped_lock guard{mutex_};
@@ -333,10 +368,10 @@ std::optional<Pending> Volume::pending()
 void Volume::acknowledge(const Pending& item, const std::string& rejection)
 {
     std::scoped_lock guard{mutex_};
-    auto row =
-        db_.query("UPDATE committed_blocks SET registered_at_utc_us=CASE WHEN ?2='' THEN ?3 END,"
-                  "catalog_error=nullif(?2,'') WHERE relative_directory=?1 AND coalesce(unavailable_reason,'')=?4 "
-                  "AND manifest_json=?5");
+    auto row = db_.query(
+        "UPDATE committed_blocks SET registered_at_utc_us=CASE WHEN ?2='' THEN ?3 END,"
+        "catalog_error=nullif(?2,'') WHERE relative_directory=?1 AND coalesce(unavailable_reason,'')=?4 "
+        "AND manifest_json=?5");
     bind_text(row.get(), 1, item.directory);
     bind_text(row.get(), 2, rejection);
     sqlite3_bind_int64(row.get(), 3, now_us());

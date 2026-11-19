@@ -143,6 +143,13 @@ void Writer::finish()
         volume_.publish({origin_, batch.front()->time, end},
                         [&](const fs::path& path) { mux(path, batch, times); });
     } catch (const std::exception& error) {
+        try {
+            volume_.report_gap({origin_.point, origin_.binding,
+                                batch.front()->time.utc().time_since_epoch().count(),
+                                end.time_since_epoch().count(), "storage_failure"});
+        } catch (const std::exception&) {
+            std::fputs("Archive gap journal unavailable\n", stderr);
+        }
         std::fprintf(stderr, "archive storage_failure point=%s begin_us=%lld end_us=%lld: %s\n",
                      origin_.point.c_str(),
                      static_cast<long long>(batch.front()->time.utc().time_since_epoch().count()),

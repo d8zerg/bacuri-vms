@@ -38,8 +38,10 @@ function(archive_sql variable path)
 endfunction()
 archive_sql(archive_initial storage/sqlite/migrations/0001_initial.sql)
 archive_sql(archive_upgrade storage/sqlite/migrations/0002_archive.sql)
+archive_sql(archive_coverage storage/sqlite/migrations/0003_coverage.sql)
 archive_sql(archive_insert storage/postgresql/insert-block.sql)
 archive_sql(archive_read storage/postgresql/read-block-manifest.sql)
+archive_sql(archive_search storage/postgresql/search-archive.sql)
 configure_file(src/archive/sql.hpp.in "${generated_dir}/archive_sql.hpp" @ONLY)
 add_custom_command(
     OUTPUT "${generated_dir}/control.pb.cc" "${generated_dir}/control.pb.h"
@@ -72,9 +74,14 @@ add_executable(bacuri-vms-recorder src/recorder/main.cpp src/recorder/sources.cp
 target_link_libraries(bacuri-vms-recorder PRIVATE bacuri-vms-archive)
 target_link_libraries(bacuri-vms-recorder PRIVATE bacuri-vms-ingest nlohmann_json::nlohmann_json)
 target_link_libraries(bacuri-vms-recorder PRIVATE bacuri-vms-control-support bacuri-vms-rpc SQLite::SQLite3 Boost::headers)
+add_library(bacuri-vms-media-auth STATIC src/media/lease.cpp)
+target_link_libraries(bacuri-vms-media-auth PUBLIC bacuri-vms-control-support bacuri-vms-rpc)
+add_executable(bacuri-vms-media src/media/main.cpp)
+target_link_libraries(bacuri-vms-media PRIVATE bacuri-vms-media-auth bacuri-vms-archive Boost::headers)
 add_executable(bacuri-vms-core src/core/main.cpp src/control/database.cpp src/control/registry.cpp
+    src/control/media_authority.cpp src/control/playback.cpp
     src/control/session.cpp src/control/server.cpp src/control/https.cpp src/control/delivery.cpp src/control/archive_catalog.cpp)
-target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-manifest)
+target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-manifest bacuri-vms-media-auth)
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-control-support bacuri-vms-rpc
     PostgreSQL::PostgreSQL Boost::headers OpenSSL::SSL PkgConfig::GIO nlohmann_json::nlohmann_json)
 target_compile_definitions(bacuri-vms-core PRIVATE BACURI_VMS_VERSION="${PROJECT_VERSION}")

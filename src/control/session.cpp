@@ -98,17 +98,18 @@ Sessions::Sessions(Key key, std::string origin)
 {
 }
 
-Identity Sessions::authenticate(Database& db, const Request& request, bool mutation) const
+Identity Sessions::authenticate(Database& db, const Request& request, bool mutation, bool activity) const
 {
     auto value = cookie(request);
     if (value.empty()) {
         throw Failure{401, "unauthenticated"};
     }
-    const auto rows = db.exec(R"sql(
-        UPDATE browser_sessions SET last_active=now() WHERE token_hash=$1 AND expires_at>now()
-        AND last_active>now()-interval '30 minutes' RETURNING user_id
-    )sql",
-                              {fingerprint(key_, "session", value)});
+    const auto rows = db.exec(
+        activity ? "UPDATE browser_sessions SET last_active=now() WHERE token_hash=$1 AND expires_at>now() "
+                   "AND last_active>now()-interval '30 minutes' RETURNING user_id"
+                 : "SELECT user_id FROM browser_sessions WHERE token_hash=$1 AND expires_at>now() "
+                   "AND last_active>now()-interval '30 minutes'",
+        {fingerprint(key_, "session", value)});
     if (!rows.size()) {
         throw Failure{401, "unauthenticated"};
     }

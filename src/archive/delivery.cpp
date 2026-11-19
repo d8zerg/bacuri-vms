@@ -18,6 +18,24 @@ void deliver_blocks(std::stop_token stop, Volume& volume, const std::string& soc
     while (!stop.stop_requested()) {
         auto delay = 250ms;
         try {
+            if (auto pending = volume.pending_gap()) {
+                const auto& [id, gap] = *pending;
+                grpc::ClientContext context;
+                context.set_deadline(std::chrono::system_clock::now() + 3s);
+                v1::RegisterGapRequest q;
+                q.mutable_point()->set_site_id(volume.owner().site);
+                q.mutable_point()->set_point_id(gap.point);
+                q.set_recording_node_id(volume.owner().node);
+                q.set_binding_revision(gap.binding);
+                q.mutable_interval()->set_begin_us(gap.begin);
+                q.mutable_interval()->set_end_us(gap.end);
+                q.set_reason(gap.reason);
+                v1::RegistrationResult result;
+                if (!catalog->RegisterGap(&context, q, &result).ok()) {
+                    throw std::runtime_error("Gap catalog unavailable");
+                }
+                volume.acknowledge_gap(id);
+            }
             if (auto item = volume.pending()) {
                 grpc::ClientContext context;
                 context.set_deadline(std::chrono::system_clock::now() + 3s);

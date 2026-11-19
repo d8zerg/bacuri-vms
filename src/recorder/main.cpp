@@ -27,13 +27,13 @@ using namespace control;
 using Snapshot = v1::ApplyConfigurationRequest;
 using Decision = v1::ApplyConfigurationResult;
 
-using storage::Sqlite;
 using storage::column;
 using storage::next;
+using storage::Sqlite;
 
 class Recorder final : public v1::RecorderControl::Service
 {
-public:
+  public:
     Recorder()
         : site_{setting("BACURI_SITE_ID")}, node_{setting("BACURI_NODE_ID")},
           networks_{setting("BACURI_CAMERA_NETWORKS")}, key_{load_key(setting("BACURI_KEY_FILE"))},
@@ -54,6 +54,26 @@ public:
                      static_cast<long long>(active_.revision()), active_.cameras_size());
     }
 
+    grpc::Status ListPending(grpc::ServerContext*, const v1::PendingQuery* q,
+                             v1::PendingIntervals* result) override
+    {
+        if (q->point().site_id() != site_ || !canonical_id(q->point().point_id()) ||
+            q->begin_us() >= q->end_us()) {
+            return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid archive selection"};
+        }
+        try {
+            for (const auto& [begin, end] :
+                 volume_.pending_intervals(q->point().point_id(), q->begin_us(), q->end_us())) {
+                auto* row = result->add_intervals();
+                row->set_begin_us(begin);
+                row->set_end_us(end);
+            }
+            return grpc::Status::OK;
+        } catch (const std::exception&) {
+            return {grpc::StatusCode::UNAVAILABLE, "Archive journal unavailable"};
+        }
+    }
+
     grpc::Status ApplyConfiguration(grpc::ServerContext*, const Snapshot* request, Decision* result) override
     {
         std::scoped_lock lock{mutex_};
@@ -70,7 +90,7 @@ public:
         }
     }
 
-private:
+  private:
     std::string context(std::int64_t revision) const
     {
         return site_ + "/" + node_ + "/" + std::to_string(revision);
@@ -81,8 +101,8 @@ private:
         std::set<std::string> devices;
         std::set<std::string> points;
         for (const auto& camera : request.cameras()) {
-            const bool legacy = camera.binding_revision() == 0 && camera.channel_id().empty() &&
-                                camera.main_profile_id().empty();
+            const bool legacy =
+                camera.binding_revision() == 0 && camera.channel_id().empty() && camera.main_profile_id().empty();
             const bool bound = camera.binding_revision() > 0 && canonical_id(camera.channel_id()) &&
                                canonical_id(camera.main_profile_id());
             if ((!legacy && !bound) || !canonical_id(camera.device_id()) || !canonical_id(camera.point_id()) ||
@@ -189,7 +209,8 @@ private:
 int main(int argc, char** argv)
 try {
     if (argc == 2 && std::string_view{argv[1]} == "archive-status") {
-        const auto status = bacuri::vms::archive::archive_status(bacuri::vms::control::setting("BACURI_ARCHIVE_DIR"));
+        const auto status =
+            bacuri::vms::archive::archive_status(bacuri::vms::control::setting("BACURI_ARCHIVE_DIR"));
         std::puts(status.dump().c_str());
         return 0;
     }

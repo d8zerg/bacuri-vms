@@ -86,7 +86,26 @@ void Sources::apply(const v1::ApplyConfigurationRequest& assignment)
         if (streams_.contains(key)) {
             continue;
         }
-        auto report = [key](const StreamStats& stats) {
+        auto report = [this, key, last_source = std::optional<domain::UtcTime>{},
+                       last_loss = std::optional<domain::UtcTime>{}](const StreamStats& stats) mutable {
+            if (key.profile == Profile::main && key.binding > 0) {
+                auto record = [&](const auto& begin, const auto& end, auto& previous, const char* reason) {
+                    if (begin && end && *end > *begin && end != previous) {
+                        try {
+                            volume_.report_gap({key.point, key.binding, begin->time_since_epoch().count(),
+                                                end->time_since_epoch().count(), reason});
+                            previous = end;
+                        } catch (const std::exception&) {
+                            std::fputs("Archive gap journal unavailable\n", stderr);
+                        }
+                    }
+                };
+                record(stats.gap_begin, stats.gap_end, last_source, "source_offline");
+                if (!stats.consumers.empty()) {
+                    const auto& writer = stats.consumers.front();
+                    record(writer.loss_begin, writer.recovered_at, last_loss, "overload");
+                }
+            }
             auto info = metrics(stats);
             info["event"] = "rtsp_ingest";
             info["device"] = key.device;
@@ -95,13 +114,16 @@ void Sources::apply(const v1::ApplyConfigurationRequest& assignment)
             std::fprintf(stderr, "%s\n", info.dump().c_str());
         };
         auto stream = std::make_unique<Stream>(
-            StreamOptions{key.profile, endpoint, [this](const std::string& url) { return networks_.permits(url); },
-                          std::move(report)});
+            StreamOptions{key.profile, endpoint,
+                          [this](const std::string& url) { return networks_.permits(url); }, std::move(report)});
         std::unique_ptr<archive::Writer> writer;
         if (key.profile == Profile::main) {
             if (key.binding > 0) {
-                archive::Origin origin{.point = key.point, .device = key.device, .channel = key.channel,
-                                       .profile = key.main_profile, .binding = key.binding};
+                archive::Origin origin{.point = key.point,
+                                       .device = key.device,
+                                       .channel = key.channel,
+                                       .profile = key.main_profile,
+                                       .binding = key.binding};
                 writer = std::make_unique<archive::Writer>(volume_, std::move(origin), stream->subscribe());
             } else {
                 std::fprintf(stderr, "archive awaiting binding for point %s\n", key.point.c_str());

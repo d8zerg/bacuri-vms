@@ -226,6 +226,7 @@ paths:
       - $ref: '#/components/parameters/Point'
     post:
       operationId: createMediaSession
+      description: Archive selections cover at most one hour. Return complete independently decodable blocks within the half-open interval. A browser session may hold 16 active archive sessions.
       parameters:
         - $ref: '#/components/parameters/Csrf'
         - $ref: '#/components/parameters/IdempotencyKey'

@@ -49,3 +49,30 @@ authorize_delivery:
       end: '2020-01-01T10:00:30Z'
   response:
     valid_for_ms: 5000
+register_gap:
+  rpc: ArchiveCatalog.RegisterGap
+  request:
+    point: { site_id: *site, point_id: *point }
+    recording_node_id: 70000000-0000-4000-8000-000000000001
+    binding_revision: '1'
+    interval: { begin_us: '10', end_us: '20' }
+    reason: source_offline
+  response: { state: REGISTRATION_STATE_COMMITTED }
+pending_archive:
+  rpc: RecorderControl.ListPending
+  request: { point: { site_id: *site, point_id: *point }, begin_us: '10', end_us: '100' }
+  response: { intervals: [{ begin_us: '20', end_us: '40' }] }
+read_archive_part:
+  rpc: ArchiveDelivery.ReadPart
+  request:
+    scope:
+      media_session_id: 80000000-0000-4000-8000-000000000001
+      browser_session_id: internal-browser
+      point: { site_id: *site, point_id: *point }
+      archive:
+        start: '2020-01-01T10:00:00Z'
+        end: '2020-01-01T10:00:30Z'
+    block_id: 90000000-0000-4000-8000-000000000002
+    sha256: f3ef000000000000000000000000000000000000000000000000000000000001
+    initialization: true
+  response: { total_bytes: '4', data: ZnR5cA== }

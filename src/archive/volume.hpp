@@ -10,6 +10,11 @@ namespace bacuri::vms::archive
 namespace fs = std::filesystem;
 Json archive_status(const fs::path& root);
 enum class CommitStage { media_synced, manifest_synced, directory_synced, renamed, parent_synced, journaled };
+struct Gap {
+    std::string point;
+    std::int64_t binding, begin, end;
+    std::string reason;
+};
 struct Pending {
     std::string directory, manifest, unavailable;
 };
@@ -21,7 +26,16 @@ class Volume
     using Observer = std::function<void(CommitStage)>;
     Volume(const fs::path& root, Owner owner);
     void publish(const Block&, const MediaWriter&, const Observer& observer = {});
+    void report_gap(const Gap&);
+    std::optional<std::pair<std::int64_t, Gap>> pending_gap();
+    void acknowledge_gap(std::int64_t id);
+    const Owner& owner() const
+    {
+        return identity_.owner;
+    }
     std::optional<Pending> pending();
+    std::vector<std::pair<std::int64_t, std::int64_t>> pending_intervals(const std::string& point,
+                                                                         std::int64_t begin, std::int64_t end) const;
     [[nodiscard]] std::int64_t generation() const noexcept
     {
         return identity_.generation;

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Архив видео | Bacuri VMS</title>
+    <link rel="stylesheet" href="/archive/style.css">
+</head>
+<body>
+    <main>
+        <h1>Архив видео</h1>
+        <form id="login" hidden>
+            <label>Имя пользователя <input name="username" autocomplete="username" required></label>
+            <label>Пароль <input type="password" name="password" autocomplete="current-password" required></label>
+            <button>Войти</button>
+        </form>
+        <form id="search" hidden>
+            <label>Площадка <select id="site" required></select></label>
+            <label>Точка наблюдения <select id="point" required></select></label>
+            <label>Начало (UTC) <input name="start" required></label>
+            <label>Конец (UTC) <input name="end" required></label>
+            <button>Найти запись</button>
+        </form>
+        <p role="status" id="status"></p>
+        <video id="video" controls muted playsinline width="640" aria-label="Архивная запись"></video>
+        <form id="seek" hidden>
+            <label>Позиция (UTC) <input name="position" required></label>
+            <button>Перейти</button>
+        </form>
+        <ul id="coverage" aria-label="Интервалы архива"></ul>
+        <button id="more" hidden>Следующая страница</button>
+    </main>
+    <script type="module" src="/archive/app.js"></script>
+</body>
+</html>

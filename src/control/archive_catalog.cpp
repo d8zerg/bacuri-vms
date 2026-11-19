@@ -71,4 +71,27 @@ grpc::Status ArchiveCatalog::RegisterBlock(grpc::ServerContext*, const v1::Regis
         return {grpc::StatusCode::UNAVAILABLE, "Archive catalog unavailable"};
     }
 }
+grpc::Status ArchiveCatalog::RegisterGap(grpc::ServerContext*, const v1::RegisterGapRequest* q,
+                                         v1::RegistrationResult* result)
+{
+    if (q->point().site_id() != owner_.site || q->recording_node_id() != owner_.node) {
+        return {grpc::StatusCode::PERMISSION_DENIED, "Different archive assignment"};
+    }
+    if (!canonical_id(q->point().point_id()) || q->binding_revision() < 1 ||
+        q->interval().begin_us() >= q->interval().end_us() ||
+        (q->reason() != "source_offline" && q->reason() != "overload" && q->reason() != "storage_failure")) {
+        return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid gap"};
+    }
+    try {
+        Database db;
+        auto rows = db.exec(
+            "INSERT INTO bacuri_archive.gaps VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING 1",
+            {owner_.site, q->point().point_id(), std::to_string(q->binding_revision()),
+             std::to_string(q->interval().begin_us()), std::to_string(q->interval().end_us()), q->reason()});
+        result->set_state(rows.size() ? v1::REGISTRATION_STATE_COMMITTED : v1::REGISTRATION_STATE_REPLAYED);
+        return grpc::Status::OK;
+    } catch (const std::exception&) {
+        return {grpc::StatusCode::UNAVAILABLE, "Gap catalog unavailable"};
+    }
+}
 } // namespace bacuri::vms::control

@@ -71,6 +71,35 @@ INSTANTIATE_TEST_SUITE_P(DurableBoundaries, PublicationDeathTest,
                                          CommitStage::directory_synced, CommitStage::renamed,
                                          CommitStage::parent_synced, CommitStage::journaled));
 
+TEST(ArchiveVolume, PreservesConfirmedGapsAndReportsOnlyPendingPointCoverage)
+{
+    TempVolume fixture;
+    auto block = example();
+    Gap gap{block.origin.point, 1, 10, 50, "source_offline"};
+    {
+        Volume writer{fixture.root, fixture.owner};
+        writer.report_gap(gap);
+        writer.report_gap(gap);
+        writer.publish(block, write_sample);
+    }
+    Volume restored{fixture.root, fixture.owner};
+    auto pending = restored.pending_gap();
+    if (!pending) {
+        FAIL() << "Missing durable gap";
+    }
+    EXPECT_EQ(pending->second.point, gap.point);
+    restored.acknowledge_gap(pending->first);
+    EXPECT_FALSE(restored.pending_gap());
+    EXPECT_TRUE(restored.pending_intervals(uuid(), 1, 10000).empty());
+    ASSERT_EQ(restored.pending_intervals(block.origin.point, 1, 10000).size(), 1u);
+    auto item = restored.pending();
+    if (!item) {
+        FAIL() << "Missing pending block";
+    }
+    restored.acknowledge(*item);
+    EXPECT_TRUE(restored.pending_intervals(block.origin.point, 1, 10000).empty());
+}
+
 TEST(ArchiveVolume, RejectsSecondWriterAndDifferentAssignment)
 {
     TempVolume fixture;
@@ -85,9 +114,10 @@ TEST(ArchiveVolume, FailedPublicationPreservesPreviousBlockAndResumes)
     TempVolume fixture;
     Volume volume{fixture.root, fixture.owner};
     volume.publish(example(), write_sample);
-    EXPECT_THROW(volume.publish(example(),
-                                [](const fs::path&) { throw std::system_error(ENOSPC, std::generic_category()); }),
-                 std::system_error);
+    EXPECT_THROW(
+        volume.publish(example(),
+                       [](const fs::path&) { throw std::system_error(ENOSPC, std::generic_category()); }),
+        std::system_error);
     EXPECT_THROW(volume.publish(example(), [](const fs::path& path) { std::ofstream{path} << "incomplete MP4"; }),
                  std::invalid_argument);
     auto previous = volume.pending();
