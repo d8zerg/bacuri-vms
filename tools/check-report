@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+mkdir -p build/reports
+report_dir=$(mktemp -d build/reports/check-XXXXXXXX)
+printf 'Check report: %s\n' "$report_dir"
+
+{
+    printf 'Revision: %s\n' "$(git rev-parse --verify HEAD 2>/dev/null || printf 'unavailable')"
+    printf 'Platform: %s\n' "$(uname -sm)"
+    printf 'Task: %s\n' "$(task --version)"
+    printf 'Docker Engine: %s\n' "$(docker version --format '{{.Server.Version}}')"
+    printf 'Docker Compose: %s\n' "$(docker compose version --short)"
+} > "$report_dir/environment.txt" 2>&1
+
+result=0
+task check 2>&1 | tee "$report_dir/check.log" || result=$?
+printf '%s\n' "$result" > "$report_dir/exit-code.txt"
+exit "$result"

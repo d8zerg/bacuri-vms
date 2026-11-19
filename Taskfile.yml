@@ -23,7 +23,9 @@ tasks:
     deps:
       - task: build
         vars: {PRESET: '{{.PRESET}}'}
-    cmd: '{{.DEV_RUN}} ctest --preset {{.PRESET | shellQuote}}'
+    cmd: >-
+      {{if eq .PRESET "clang-tsan"}}{{.COMPOSE_RUN}} -T tsan{{else}}{{.DEV_RUN}}{{end}}
+      ctest --preset {{.PRESET | shellQuote}}
 
   lint:
     desc: Run clang-tidy on the C++ sources
@@ -38,11 +40,15 @@ tasks:
   check:
     desc: Run the compiler and sanitizer matrix, static analysis, and stand checks
     cmds:
-      - for: [gcc-debug, clang-debug, clang-asan-ubsan]
+      - for: [gcc-debug, clang-debug, clang-asan-ubsan, clang-tsan]
         task: test
         vars: {PRESET: '{{.ITEM}}'}
       - task: lint
       - task: stand:check
+
+  check:report:
+    desc: Run all checks and save the environment, log, and exit code
+    cmd: bash tools/check-report
 
   stand:up:
     desc: Start PostgreSQL and the RTSP test camera and wait for health checks
@@ -64,6 +70,11 @@ tasks:
     desc: Check PostgreSQL, decode both RTSP streams, and verify test mounts
     deps: [dev:image, stand:up]
     cmd: '{{.DEV_RUN}} sh tests/check-stand.sh'
+
+  stand:check-storage:
+    desc: Verify persistence and the storage fault limit in a temporary Compose project
+    deps: [dev:image]
+    cmd: sh tools/check-storage
 
   prototype:up:
     desc: Start the local browser prototype

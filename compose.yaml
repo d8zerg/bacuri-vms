@@ -29,6 +29,7 @@ services:
 
   dev:
     profiles: ["tools"]
+    image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}
     build:
       context: .
       target: dev
@@ -43,6 +44,19 @@ services:
       PGUSER: bacuri
       PGPASSWORD: bacuri-stand
     command: ["bash"]
+
+  tsan:
+    profiles: ["tools"]
+    image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}
+    pull_policy: never
+    network_mode: none
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=tests/seccomp/tsan.json
+    volumes:
+      - ./build/clang-tsan:/workspace/build/clang-tsan
+      - ./CMakePresets.json:/workspace/CMakePresets.json:ro
 
 volumes:
   postgres-data:

@@ -1,0 +1,65 @@
+#!/bin/sh
+set -eu
+
+cd "$(dirname "$0")/.."
+BACURI_DEV_IMAGE=$(docker compose config --images dev)
+export BACURI_DEV_IMAGE
+project_token=$(mktemp -d)
+project_name="bacuri-vms-storage-$(basename "$project_token" | tr '[:upper:].' '[:lower:]-')"
+rmdir "$project_token"
+
+compose() {
+    docker compose --file compose.yaml --project-name "$project_name" "$@"
+}
+
+cleanup() {
+    result=$?
+    trap - EXIT
+    compose down --volumes || {
+        if [ "$result" -eq 0 ]; then
+            result=1
+        fi
+    }
+    exit "$result"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+start_database() {
+    compose up --wait --wait-timeout 60 postgres
+}
+
+run_dev() {
+    compose run --rm --no-deps --pull never -T --user "$(id -u):$(id -g)" dev sh -se
+}
+
+start_database
+run_dev <<'SH'
+psql -v ON_ERROR_STOP=1 -c 'CREATE TABLE stand_storage_check (marker text NOT NULL);'
+psql -v ON_ERROR_STOP=1 -c "INSERT INTO stand_storage_check VALUES ('bacuri-storage');"
+
+printf '%s\n' 'bacuri-storage' > /var/lib/bacuri-vms/archive/stand-storage-check
+
+fault_dir=/var/lib/bacuri-vms/fault-test
+fault_log=/tmp/stand-storage-write.log
+test "$(stat -f -c %T "$fault_dir")" = tmpfs
+if LC_ALL=C dd if=/dev/zero of="$fault_dir/fill" bs=1M count=65 2>"$fault_log"; then
+    printf '%s\n' 'The fault volume accepted more than 64 MiB' >&2
+    exit 1
+fi
+if ! grep -Fq 'No space left on device' "$fault_log" || [ "$(stat -c %s "$fault_dir/fill")" -ne 67108864 ]; then
+    cat "$fault_log" >&2
+    exit 1
+fi
+printf '%s\n' 'The fault volume stopped writes at 64 MiB'
+SH
+
+compose down
+start_database
+run_dev <<'SH'
+test "$(psql -v ON_ERROR_STOP=1 -Atc 'SELECT marker FROM stand_storage_check')" = bacuri-storage
+test "$(cat /var/lib/bacuri-vms/archive/stand-storage-check)" = bacuri-storage
+test ! -e /var/lib/bacuri-vms/fault-test/fill
+printf '%s\n' 'The database and archive survived Compose restart and the temporary volume was reset'
+SH

@@ -1,5 +1,12 @@
 FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS dev
-RUN apt-get update && apt-get install -y --no-install-recommends \
+ARG DEBIAN_SNAPSHOT=20261119T030000Z
+RUN sed -i \
+        -e "s|http://deb.debian.org/debian-security$|http://snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT}/|" \
+        -e "s|http://deb.debian.org/debian$|http://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}/|" \
+        -e '/^Signed-By:/a Check-Valid-Until: no' \
+        /etc/apt/sources.list.d/debian.sources \
+    && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::Languages=none update \
+    && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
         clang-19 \
         clang-tidy-19 \
         cmake \
