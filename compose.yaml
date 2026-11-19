@@ -96,6 +96,8 @@ services:
       - core-identity:/identity/core
       - recorder-identity:/identity/recorder
       - recorder-data:/recorder-data
+      - archive-data:/archive
+      - catalog-ipc:/catalog-ipc
       - control-ipc:/ipc
 
   core:
@@ -112,6 +114,7 @@ services:
       BACURI_NODE_ID: &node ${BACURI_NODE_ID:-70000000-0000-4000-8000-000000000001}
       BACURI_CAMERA_NETWORKS: &networks ${BACURI_CAMERA_NETWORKS:-172.16.0.0/12,192.168.0.0/16,10.0.0.0/8}
       BACURI_SOCKET: /ipc/recorder.sock
+      BACURI_CATALOG_SOCKET: /catalog-ipc/catalog.sock
       BACURI_ORIGIN: https://localhost:${BACURI_HTTPS_PORT:-8443}
       BACURI_PORT: "8443"
       BACURI_LISTEN: 0.0.0.0
@@ -123,6 +126,7 @@ services:
       - ./storage/postgresql/migrations:/workspace/storage/postgresql/migrations:ro
       - core-identity:/identity:ro
       - control-ipc:/ipc:ro
+      - catalog-ipc:/catalog-ipc
     ports:
       - "127.0.0.1:${BACURI_HTTPS_PORT:-8443}:8443"
     command: ["/opt/bacuri/bacuri-vms-core", "serve"]
@@ -144,9 +148,13 @@ services:
       BACURI_SOCKET: /ipc/recorder.sock
       BACURI_KEY_FILE: /identity/configuration.key
       BACURI_RECORDER_DB: /recorder-data/configuration.db
+      BACURI_CATALOG_SOCKET: /catalog-ipc/catalog.sock
+      BACURI_ARCHIVE_DIR: /archive/recorder
     volumes:
       - ./build/gcc-debug:/opt/bacuri:ro
       - recorder-identity:/identity:ro
+      - archive-data:/archive
+      - catalog-ipc:/catalog-ipc:ro
       - recorder-data:/recorder-data
       - control-ipc:/ipc
     command: ["/opt/bacuri/bacuri-vms-recorder"]
@@ -163,3 +171,4 @@ volumes:
   recorder-identity:
   recorder-data:
   control-ipc:
+  catalog-ipc:

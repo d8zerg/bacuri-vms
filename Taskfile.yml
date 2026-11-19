@@ -57,6 +57,9 @@ tasks:
       - for: [gcc-debug, clang-asan-ubsan]
         task: ingest:check
         vars: {PRESET: '{{.ITEM}}'}
+      - for: [gcc-debug, clang-asan-ubsan]
+        task: archive:check
+        vars: {PRESET: '{{.ITEM}}'}
 
   check:report:
     desc: Run all checks and save the environment, log, and exit code
@@ -154,6 +157,18 @@ tasks:
       - task: build
         vars: {PRESET: '{{.PRESET}}'}
     cmd: '{{.DEV_RUN}} sh tests/check-control.sh {{.PRESET | shellQuote}}'
+
+  archive:status:
+    desc: Show local archive commits, catalog backlog and verification failures
+    cmd: docker compose exec -T recorder /opt/bacuri/bacuri-vms-recorder archive-status
+
+  archive:check:
+    desc: Exercise fMP4 recording, crash recovery and catalog catch-up in an isolated database
+    deps:
+      - stand:up
+      - task: build
+        vars: {PRESET: '{{.PRESET}}'}
+    cmd: '{{.DEV_RUN}} sh tests/check-control.sh {{.PRESET | shellQuote}} archive'
 
   api:check:
     desc: Validate OpenAPI, Protobuf and WebSocket schemas and examples

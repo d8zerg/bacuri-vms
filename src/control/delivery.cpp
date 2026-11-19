@@ -45,8 +45,13 @@ v1::ApplyConfigurationRequest prepare(Database& db, const Key& key, const Assign
     snapshot.set_recording_node_id(node);
     snapshot.set_revision(std::stoll(generation));
     auto rows = db.exec(R"sql(
-        SELECT device_id,point_id,body->>'main_url',body->>'secondary_url',secret_revision,sealed_credentials
-        FROM camera_state JOIN camera_registry USING(site_id,device_id,point_id) WHERE site_id=$1 ORDER BY device_id
+        SELECT s.device_id,s.point_id,s.body->>'main_url',s.body->>'secondary_url',r.secret_revision,r.sealed_credentials,
+               b.channel_id,p.profile_id,b.binding_revision
+        FROM camera_state s JOIN camera_registry r USING(site_id,device_id,point_id)
+        JOIN LATERAL (SELECT channel_id,binding_revision FROM point_bindings
+                      WHERE site_id=s.site_id AND point_id=s.point_id ORDER BY binding_revision DESC LIMIT 1) b ON true
+        JOIN stream_profiles p ON p.site_id=s.site_id AND p.channel_id=b.channel_id AND p.stream_role='main'
+        WHERE s.site_id=$1 ORDER BY s.device_id
     )sql",
                         {site});
     for (int i = 0; i < rows.size(); ++i) {
@@ -55,6 +60,9 @@ v1::ApplyConfigurationRequest prepare(Database& db, const Key& key, const Assign
         camera->set_point_id(rows.get(i, 1));
         camera->set_main_url(rows.get(i, 2));
         camera->set_secondary_url(rows.get(i, 3));
+        camera->set_channel_id(rows.get(i, 6));
+        camera->set_main_profile_id(rows.get(i, 7));
+        camera->set_binding_revision(std::stoll(rows.get(i, 8)));
         const auto secret_revision = rows.get(i, 4);
         if (!secret_revision.empty()) {
             const auto secret = nlohmann::json::parse(

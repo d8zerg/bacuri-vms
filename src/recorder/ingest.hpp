@@ -37,6 +37,7 @@ struct Frame {
     std::optional<std::uint64_t> ntp_ns;
     std::optional<std::uint64_t> pts_ns;
     bool keyframe;
+    std::optional<std::uint64_t> duration_ns{};
 };
 
 using FramePtr = std::shared_ptr<const Frame>;

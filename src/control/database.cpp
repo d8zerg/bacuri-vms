@@ -56,10 +56,10 @@ void migrate()
     if (db.exec("SELECT to_regclass('bacuri_inventory.schema_migrations') IS NOT NULL").get(0) == "t") {
         version = std::stoi(db.exec("SELECT max(version) FROM schema_migrations").get(0));
     }
-    if (version > 2) {
+    if (version > 3) {
         throw std::runtime_error("Unsupported database schema");
     }
-    constexpr std::array migrations{"0001_initial.sql", "0002_control.sql"};
+    constexpr std::array migrations{"0001_initial.sql", "0002_control.sql", "0003_archive.sql"};
     for (const auto name : std::span{migrations}.subspan(version)) {
         std::ifstream file(std::filesystem::path{"storage/postgresql/migrations"} / name);
         if (!file) {

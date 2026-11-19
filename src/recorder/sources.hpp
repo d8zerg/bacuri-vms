@@ -1,6 +1,7 @@
 #pragma once
 
 #include "control/support.hpp"
+#include "archive/writer.hpp"
 #include "control.pb.h"
 #include "recorder/ingest.hpp"
 
@@ -12,7 +13,7 @@ namespace bacuri::vms::ingest
 class Sources
 {
   public:
-    explicit Sources(const control::CameraNetworks& networks) : networks_{networks} {}
+    Sources(const control::CameraNetworks& networks, archive::Volume& volume) : networks_{networks}, volume_{volume} {}
     ~Sources();
     void apply(const v1::ApplyConfigurationRequest& assignment);
 
@@ -21,14 +22,18 @@ class Sources
         std::string device;
         std::string point;
         Profile profile;
+        std::string channel, main_profile;
+        std::int64_t binding;
         auto operator<=>(const Key&) const = default;
     };
     struct Entry {
         Endpoint endpoint;
+        std::unique_ptr<archive::Writer> writer;
         std::unique_ptr<Stream> stream;
     };
 
     const control::CameraNetworks& networks_;
+    archive::Volume& volume_;
     std::map<Key, Entry> streams_;
 };
 

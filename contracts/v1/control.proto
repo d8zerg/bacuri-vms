@@ -46,6 +46,9 @@ message CameraConfiguration {
   string main_url = 3;
   string secondary_url = 4;
   CameraCredentials credentials = 5;
+  string channel_id = 6;
+  string main_profile_id = 7;
+  int64 binding_revision = 8;
 }
 
 message CameraCredentials {
@@ -77,6 +80,16 @@ enum ApplyFailure {
 message RegisterBlockRequest {
   // UTF-8 JSON block manifest. Its version and content define the block identity.
   bytes manifest_json = 1;
+  // An existing immutable manifest may be marked missing/corrupt after volume reconciliation.
+  BlockAvailability availability = 2;
+  // Generation of the volume owner that verified availability. Zero uses the block generation.
+  int64 verification_generation = 3;
+}
+
+enum BlockAvailability {
+  BLOCK_AVAILABILITY_VERIFIED = 0;
+  BLOCK_AVAILABILITY_MISSING = 1;
+  BLOCK_AVAILABILITY_CORRUPT = 2;
 }
 
 message SubmitObservationRequest {

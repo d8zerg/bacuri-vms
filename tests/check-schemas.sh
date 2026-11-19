@@ -34,4 +34,15 @@ sqlite3 -batch -bail "$sqlite_file" < tests/schema/sqlite.sql
 test "$(sqlite3 -batch -bail "$sqlite_file" 'PRAGMA user_version;')" = 1
 test "$(sqlite3 -batch -bail "$sqlite_file" 'PRAGMA journal_mode;')" = wal
 test "$(sqlite3 -batch -bail "$sqlite_file" 'SELECT registered_at_utc_us FROM committed_blocks;')" = 1155
-printf '%s\n' 'PostgreSQL and SQLite initial schemas passed'
+sqlite3 -batch -bail "$sqlite_file" < storage/sqlite/migrations/0002_archive.sql
+test "$(sqlite3 "$sqlite_file" 'PRAGMA user_version')" = 2
+test "$(sqlite3 "$sqlite_file" 'SELECT registered_at_utc_us FROM committed_blocks WHERE unavailable_reason IS NULL')" = 1155
+psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0002_control.sql
+psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" <<'SQL'
+INSERT INTO bacuri_inventory.sites VALUES ('10000000-0000-4000-8000-000000000001','Existing site','UTC');
+INSERT INTO bacuri_inventory.recorder_delivery(site_id,desired_revision,decided_revision)
+VALUES ('10000000-0000-4000-8000-000000000001',4,4);
+SQL
+psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0003_archive.sql
+test "$(psql -XAtq --dbname "$database" -c 'SELECT desired_revision-decided_revision FROM bacuri_inventory.recorder_delivery')" = 1
+printf '%s\n' 'PostgreSQL and SQLite schemas and archive upgrades passed'

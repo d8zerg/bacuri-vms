@@ -72,7 +72,8 @@ void Sources::apply(const v1::ApplyConfigurationRequest& assignment)
     std::map<Key, Endpoint> desired;
     for (const auto& camera : assignment.cameras()) {
         for (const auto profile : {Profile::main, Profile::secondary}) {
-            desired.emplace(Key{camera.device_id(), camera.point_id(), profile},
+            desired.emplace(Key{camera.device_id(), camera.point_id(), profile, camera.channel_id(),
+                                camera.main_profile_id(), camera.binding_revision()},
                             Endpoint{profile == Profile::main ? camera.main_url() : camera.secondary_url(),
                                      camera.credentials().username(), camera.credentials().password()});
         }
@@ -96,7 +97,17 @@ void Sources::apply(const v1::ApplyConfigurationRequest& assignment)
         auto stream = std::make_unique<Stream>(
             StreamOptions{key.profile, endpoint, [this](const std::string& url) { return networks_.permits(url); },
                           std::move(report)});
-        streams_.emplace(key, Entry{endpoint, std::move(stream)});
+        std::unique_ptr<archive::Writer> writer;
+        if (key.profile == Profile::main) {
+            if (key.binding > 0) {
+                archive::Origin origin{.point = key.point, .device = key.device, .channel = key.channel,
+                                       .profile = key.main_profile, .binding = key.binding};
+                writer = std::make_unique<archive::Writer>(volume_, std::move(origin), stream->subscribe());
+            } else {
+                std::fprintf(stderr, "archive awaiting binding for point %s\n", key.point.c_str());
+            }
+        }
+        streams_.emplace(key, Entry{endpoint, std::move(writer), std::move(stream)});
     }
 }
 

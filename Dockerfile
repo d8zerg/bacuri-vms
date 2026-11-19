@@ -54,6 +54,7 @@ WORKDIR /workspace
 FROM dev AS rtsp-camera
 COPY CMakeLists.txt ./
 COPY src ./src
+COPY storage ./storage
 COPY contracts/v1/control.proto ./contracts/v1/
 COPY tests/fixtures ./tests/fixtures
 RUN cmake -S . -B /tmp/fixture-build -G Ninja \

@@ -1,5 +1,6 @@
 #include "control/api.hpp"
 #include "control/delivery.hpp"
+#include "control/archive_catalog.hpp"
 
 #include <charconv>
 #include <thread>
@@ -97,6 +98,7 @@ void serve()
         }
     }
     setting("BACURI_SOCKET");
+    ArchiveCatalog catalog{{setting("BACURI_SITE_ID"), setting("BACURI_NODE_ID")}};
     const Sessions sessions{key, origin};
     const CameraRegistry registry{sessions, key, CameraNetworks{setting("BACURI_CAMERA_NETWORKS")}};
     std::jthread worker{[&key](std::stop_token stop) { deliver(stop, key); }};

@@ -1,6 +1,8 @@
 #include "control/support.hpp"
 #include "control.grpc.pb.h"
 #include "recorder/sources.hpp"
+#include "archive/delivery.hpp"
+#include "storage/sqlite.hpp"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
@@ -25,63 +27,9 @@ using namespace control;
 using Snapshot = v1::ApplyConfigurationRequest;
 using Decision = v1::ApplyConfigurationResult;
 
-class Journal
-{
-public:
-    explicit Journal(const std::string& path)
-    {
-        sqlite3* handle{};
-        const auto opened = sqlite3_open(path.c_str(), &handle);
-        db_.reset(handle);
-        if (opened != SQLITE_OK) {
-            throw std::runtime_error("Cannot open recorder configuration");
-        }
-        exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;"
-             "CREATE TABLE IF NOT EXISTS decisions(revision INTEGER PRIMARY KEY,digest TEXT NOT NULL,"
-             "state INTEGER NOT NULL,failure INTEGER NOT NULL,applied INTEGER NOT NULL,sealed TEXT)");
-    }
-
-    void exec(const char* sql)
-    {
-        if (sqlite3_exec(db_.get(), sql, nullptr, nullptr, nullptr) != SQLITE_OK) {
-            throw std::runtime_error("Recorder configuration transaction failed");
-        }
-    }
-
-    using Statement = std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)>;
-    Statement query(const char* sql)
-    {
-        sqlite3_stmt* stmt{};
-        if (sqlite3_prepare_v2(db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
-            throw std::runtime_error("Invalid recorder query");
-        }
-        return {stmt, sqlite3_finalize};
-    }
-
-private:
-    std::unique_ptr<sqlite3, decltype(&sqlite3_close)> db_{nullptr, sqlite3_close};
-};
-
-bool next(sqlite3_stmt* stmt)
-{
-    const auto status = sqlite3_step(stmt);
-    if (status == SQLITE_ROW) {
-        return true;
-    }
-    if (status == SQLITE_DONE) {
-        return false;
-    }
-    throw std::runtime_error("Recorder journal unavailable");
-}
-
-std::string column(sqlite3_stmt* stmt, int index)
-{
-    auto* data = sqlite3_column_text(stmt, index);
-    if (!data) {
-        throw std::runtime_error("Missing recorder value");
-    }
-    return reinterpret_cast<const char*>(data);
-}
+using storage::Sqlite;
+using storage::column;
+using storage::next;
 
 class Recorder final : public v1::RecorderControl::Service
 {
@@ -91,6 +39,8 @@ public:
           networks_{setting("BACURI_CAMERA_NETWORKS")}, key_{load_key(setting("BACURI_KEY_FILE"))},
           journal_{setting("BACURI_RECORDER_DB")}
     {
+        journal_.exec("CREATE TABLE IF NOT EXISTS decisions(revision INTEGER PRIMARY KEY,digest TEXT NOT NULL,"
+                      "state INTEGER NOT NULL,failure INTEGER NOT NULL,applied INTEGER NOT NULL,sealed TEXT)");
         auto row = journal_.query("SELECT revision,sealed FROM decisions WHERE sealed IS NOT NULL");
         if (next(row.get())) {
             auto rev = sqlite3_column_int64(row.get(), 0);
@@ -131,7 +81,11 @@ private:
         std::set<std::string> devices;
         std::set<std::string> points;
         for (const auto& camera : request.cameras()) {
-            if (!canonical_id(camera.device_id()) || !canonical_id(camera.point_id()) ||
+            const bool legacy = camera.binding_revision() == 0 && camera.channel_id().empty() &&
+                                camera.main_profile_id().empty();
+            const bool bound = camera.binding_revision() > 0 && canonical_id(camera.channel_id()) &&
+                               canonical_id(camera.main_profile_id());
+            if ((!legacy && !bound) || !canonical_id(camera.device_id()) || !canonical_id(camera.point_id()) ||
                 !devices.insert(camera.device_id()).second || !points.insert(camera.point_id()).second ||
                 !networks_.permits(camera.main_url()) || !networks_.permits(camera.secondary_url())) {
                 return false;
@@ -220,16 +174,28 @@ private:
     std::string node_;
     CameraNetworks networks_;
     Key key_;
-    Journal journal_;
+    Sqlite journal_;
     Snapshot active_;
     std::mutex mutex_;
-    ingest::Sources sources_{networks_};
+    archive::Volume volume_{setting("BACURI_ARCHIVE_DIR"), {site_, node_}};
+    std::jthread registration_{[this, socket = setting("BACURI_CATALOG_SOCKET")](std::stop_token stop) {
+        archive::deliver_blocks(stop, volume_, socket);
+    }};
+    ingest::Sources sources_{networks_, volume_};
 };
 } // namespace
 } // namespace bacuri::vms
 
-int main()
+int main(int argc, char** argv)
 try {
+    if (argc == 2 && std::string_view{argv[1]} == "archive-status") {
+        const auto status = bacuri::vms::archive::archive_status(bacuri::vms::control::setting("BACURI_ARCHIVE_DIR"));
+        std::puts(status.dump().c_str());
+        return 0;
+    }
+    if (argc != 1) {
+        throw std::invalid_argument("Usage: bacuri-vms-recorder [archive-status]");
+    }
     if (sodium_init() < 0) {
         return 1;
     }
