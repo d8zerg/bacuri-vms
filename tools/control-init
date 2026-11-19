@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+umask 077
+install -d -o 11001 -g 11010 -m 0700 /identity/core
+install -d -o 11002 -g 11010 -m 0700 /identity/recorder /recorder-data
+install -d -o 11002 -g 11010 -m 2750 /ipc
+for dir in core recorder; do
+    key=/identity/$dir/configuration.key
+    if [ ! -e "$key" ]; then
+        openssl rand -hex 32 > "$key.new"
+        mv "$key.new" "$key"
+    fi
+done
+if [ ! -e /identity/core/tls.key ]; then
+    openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out /identity/core/tls.key.new
+    mv /identity/core/tls.key.new /identity/core/tls.key
+fi
+if [ ! -e /identity/core/tls.crt ]; then
+    openssl req -new -x509 -days 365 -key /identity/core/tls.key -out /identity/core/tls.crt.new \
+        -subj /CN=localhost -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1'
+    mv /identity/core/tls.crt.new /identity/core/tls.crt
+fi
+chown 11001:11010 /identity/core/configuration.key /identity/core/tls.key /identity/core/tls.crt
+chown 11002:11010 /identity/recorder/configuration.key

@@ -8,3 +8,6 @@
 !tools/api-client/
 !tools/api-client/package.json
 !tools/api-client/package-lock.json
+!contracts/
+!contracts/v1/
+!contracts/v1/control.proto

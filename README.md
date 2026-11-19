@@ -16,6 +16,8 @@ task check
 | `task build PRESET=clang-debug` | Собрать с указанным пресетом CMake |
 | `task test` | Собрать и запустить CTest. Поддерживает `PRESET` |
 | `task lint` | Запустить clang-tidy |
+| `task control:up` | Запустить HTTPS-сервер и процесс записи, применить миграции PostgreSQL |
+| `task control:check` | Проверить вход, реестр, применение и восстановление конфигурации в изолированной базе |
 | `task api:check` | Проверить схемы и примеры REST, gRPC и WebSocket |
 | `task api:types` | Сгенерировать и проверить типы TypeScript в `build/contracts/api.d.ts` |
 | `task check:report` | Выполнить `task check` и сохранить сведения об окружении, журнал и код завершения в `build/reports/check-*/` |
@@ -39,6 +41,14 @@ task check
 - [Доменная модель и границы хранения PoC](docs/poc-domain-model.md)
 - [Контракты API, сеансы и доступ](docs/poc-api-contracts.md)
 - [Журнал изменений](CHANGELOG.md)
+
+## Сервер управления
+
+`task control:up` запускает API на `https://localhost:8443/api/v1`. Порт задаётся через `BACURI_HTTPS_PORT`, разрешённые сети камер - через список CIDR в `BACURI_CAMERA_NETWORKS`. HTTPS использует Boost.Asio, Boost.Beast и OpenSSL. Синтетическая камера доступна серверу по адресам `rtsp://rtsp-camera:8554/main` и `rtsp://rtsp-camera:8554/sub`.
+
+При первом запуске стенд создаёт локальный сертификат и отдельные ключи шифрования ядра и узла записи. Публичный сертификат можно получить командой `docker compose exec -T core cat /identity/tls.crt` и использовать для проверки TLS. Том каждого ключа требуется сохранять вместе с соответствующей базой. Процессы работают под разными UID и передают снимки конфигурации через gRPC по Unix-сокету. Узел восстанавливает последнюю применённую версию из зашифрованного снимка в SQLite.
+
+Для создания учётной записи используйте `task control:create-user USERNAME=admin ROLE=administrator`, передав пароль одной строкой через stdin. Для оператора укажите `ROLE=operator` и выдайте доступ к зарегистрированной точке командой `task control:grant-point USERNAME=operator POINT=<UUID>`. Для входа браузер отправляет JSON в `POST /api/v1/session` с текущим HTTPS Origin. Запись конфигурации использует сессионную cookie и CSRF-токен. [Контракты и модель доступа](docs/poc-api-contracts.md)
 
 ## Прототип интерфейса
 

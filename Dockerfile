@@ -19,9 +19,18 @@ RUN sed -i \
         fonts-dejavu-core \
         libclang-rt-19-dev \
         libgmock-dev \
+        libboost1.83-dev \
+        libgrpc++-dev \
+        libpq-dev \
+        libsodium-dev \
+        libssl-dev \
+        libsqlite3-dev \
+        nlohmann-json3-dev \
+        protobuf-compiler-grpc \
         libgstrtspserver-1.0-dev \
         libprotobuf-dev \
         ninja-build \
+        openssl \
         pkg-config \
         postgresql-client-17 \
         protobuf-compiler \
@@ -45,6 +54,7 @@ WORKDIR /workspace
 FROM dev AS rtsp-camera
 COPY CMakeLists.txt ./
 COPY src ./src
+COPY contracts/v1/control.proto ./contracts/v1/
 COPY tests/fixtures ./tests/fixtures
 RUN cmake -S . -B /tmp/fixture-build -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \

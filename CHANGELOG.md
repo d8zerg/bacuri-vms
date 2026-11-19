@@ -18,6 +18,9 @@
 - Контракты REST/OpenAPI, gRPC и WebSocket, модель доступа и сроки выдачи медиасеансов PoC.
 - Проверка контрактов и примеров через `task api:check`. Генерация и проверка типов TypeScript через `task api:types`.
 
+- HTTPS-сервер управления на Boost.Asio и Boost.Beast, локальные сессии, реестр камер с аудитом и разграничением доступа.
+- Передача конфигурации по gRPC и восстановление зашифрованного снимка в процессе записи. Задачи `task control:up` и `task control:check`.
+
 ### Changed
 
 - Правила `.gitignore` учитывают артефакты CMake, Ninja и CTest и локальные настройки Docker Compose.

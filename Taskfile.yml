@@ -15,7 +15,7 @@ tasks:
     deps: [dev:image]
     cmd: >-
       {{.DEV_RUN}} sh -ec
-      'cmake --preset "$1" && cmake --build --preset "$1"'
+      'cmake --preset "$1" && cmake --build --parallel 2 --preset "$1"'
       sh {{.PRESET | shellQuote}}
 
   test:
@@ -34,10 +34,11 @@ tasks:
         vars: {PRESET: clang-debug}
     cmd: >-
       {{.DEV_RUN}} run-clang-tidy-19 -p build/clang-debug
-      -clang-tidy-binary=/usr/bin/clang-tidy-19 -quiet
+      -clang-tidy-binary=/usr/bin/clang-tidy-19 -quiet -j 2
       -clang-apply-replacements-binary=/usr/bin/clang-apply-replacements-19
       -header-filter='^/workspace/src/'
       -checks='-*,clang-analyzer-*,bugprone-*' -warnings-as-errors='*'
+      '^/workspace/(src|tests)/'
 
   check:
     desc: Run the compiler and sanitizer matrix, static analysis, contract and stand checks
@@ -50,6 +51,9 @@ tasks:
       - task: api:types
       - task: stand:check
       - task: schema:check
+      - for: [gcc-debug, clang-asan-ubsan]
+        task: control:check
+        vars: {PRESET: '{{.ITEM}}'}
 
   check:report:
     desc: Run all checks and save the environment, log, and exit code
@@ -86,6 +90,36 @@ tasks:
     desc: Validate the manifest and apply both initial schemas to temporary databases
     deps: [dev:image, stand:up]
     cmd: '{{.DEV_RUN}} sh tests/check-schemas.sh'
+
+  control:up:
+    desc: Start the local HTTPS control service and recorder configuration service
+    deps:
+      - task: build
+        vars: {PRESET: gcc-debug}
+    cmds:
+      - docker compose up --wait postgres
+      - docker compose run --rm --no-deps control-init
+      - docker compose run --rm --no-deps core /opt/bacuri/bacuri-vms-core migrate
+      - docker compose up --wait core recorder
+
+  control:create-user:
+    desc: Create a local account with a password read from stdin
+    requires: {vars: [USERNAME, ROLE]}
+    cmd: docker compose exec -T core /opt/bacuri/bacuri-vms-core create-user {{.USERNAME | shellQuote}} {{.ROLE | shellQuote}}
+
+  control:grant-point:
+    desc: Grant an operator access to one observation point
+    requires: {vars: [USERNAME, POINT]}
+    cmd: docker compose exec -T core /opt/bacuri/bacuri-vms-core grant-point {{.USERNAME | shellQuote}} {{.POINT | shellQuote}}
+
+  control:check:
+    desc: Exercise HTTPS, PostgreSQL and recorder recovery with an isolated database
+    deps:
+      - dev:image
+      - stand:up
+      - task: build
+        vars: {PRESET: '{{.PRESET}}'}
+    cmd: '{{.DEV_RUN}} sh tests/check-control.sh {{.PRESET | shellQuote}}'
 
   api:check:
     desc: Validate OpenAPI, Protobuf and WebSocket schemas and examples

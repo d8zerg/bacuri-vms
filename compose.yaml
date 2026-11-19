@@ -67,6 +67,81 @@ services:
     volumes:
       - .:/workspace
 
+  control-init:
+    profiles: ["control"]
+    image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}
+    pull_policy: never
+    network_mode: none
+    command: ["sh", "/init"]
+    volumes:
+      - ./tools/control-init:/init:ro
+      - core-identity:/identity/core
+      - recorder-identity:/identity/recorder
+      - recorder-data:/recorder-data
+      - control-ipc:/ipc
+
+  core:
+    profiles: ["control"]
+    image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}
+    pull_policy: never
+    user: "11001:11010"
+    environment:
+      PGHOST: postgres
+      PGDATABASE: bacuri_vms
+      PGUSER: bacuri
+      PGPASSWORD: bacuri-stand
+      BACURI_SITE_ID: &site ${BACURI_SITE_ID:-10000000-0000-4000-8000-000000000001}
+      BACURI_NODE_ID: &node ${BACURI_NODE_ID:-70000000-0000-4000-8000-000000000001}
+      BACURI_CAMERA_NETWORKS: &networks ${BACURI_CAMERA_NETWORKS:-172.16.0.0/12,192.168.0.0/16,10.0.0.0/8}
+      BACURI_SOCKET: /ipc/recorder.sock
+      BACURI_ORIGIN: https://localhost:${BACURI_HTTPS_PORT:-8443}
+      BACURI_PORT: "8443"
+      BACURI_LISTEN: 0.0.0.0
+      BACURI_TLS_CERT: /identity/tls.crt
+      BACURI_TLS_KEY: /identity/tls.key
+      BACURI_KEY_FILE: /identity/configuration.key
+    volumes:
+      - ./build/gcc-debug:/opt/bacuri:ro
+      - ./storage/postgresql/migrations:/workspace/storage/postgresql/migrations:ro
+      - core-identity:/identity:ro
+      - control-ipc:/ipc:ro
+    ports:
+      - "127.0.0.1:${BACURI_HTTPS_PORT:-8443}:8443"
+    command: ["/opt/bacuri/bacuri-vms-core", "serve"]
+    healthcheck:
+      test: ["CMD-SHELL", "openssl s_client -connect localhost:8443 -verify_return_error -CAfile /identity/tls.crt </dev/null >/dev/null 2>&1"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  recorder:
+    profiles: ["control"]
+    image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}
+    pull_policy: never
+    user: "11002:11010"
+    environment:
+      BACURI_SITE_ID: *site
+      BACURI_NODE_ID: *node
+      BACURI_CAMERA_NETWORKS: *networks
+      BACURI_SOCKET: /ipc/recorder.sock
+      BACURI_KEY_FILE: /identity/configuration.key
+      BACURI_RECORDER_DB: /recorder-data/configuration.db
+    volumes:
+      - ./build/gcc-debug:/opt/bacuri:ro
+      - recorder-identity:/identity:ro
+      - recorder-data:/recorder-data
+      - control-ipc:/ipc
+    command: ["/opt/bacuri/bacuri-vms-recorder"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -S /ipc/recorder.sock"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
 volumes:
   postgres-data:
   archive-data:
+  core-identity:
+  recorder-identity:
+  recorder-data:
+  control-ipc:
