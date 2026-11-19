@@ -1,0 +1,67 @@
+#include "recorder/ingest.hpp"
+
+#include <algorithm>
+
+namespace bacuri::vms::ingest
+{
+
+void FrameQueue::push(const FramePtr& frame)
+{
+    std::scoped_lock lock{mutex_};
+    if (frames_.size() == capacity_.frames || frame->h264.size() > capacity_.bytes - stats_.bytes) {
+        if (!stats_.loss_begin || stats_.recovered_at) {
+            stats_.loss_begin = profile_ == Profile::secondary && !frames_.empty()
+                                    ? frames_.front()->time.received_at()
+                                    : frame->time.received_at();
+        }
+        stats_.recovered_at.reset();
+        need_keyframe_ = true;
+        if (profile_ == Profile::main) {
+            ++stats_.dropped;
+            return;
+        }
+        stats_.dropped += frames_.size();
+        frames_.clear();
+        stats_.bytes = 0;
+    }
+    if ((need_keyframe_ && !frame->keyframe) || frame->h264.size() > capacity_.bytes) {
+        ++stats_.dropped;
+        return;
+    }
+    if (need_keyframe_ && stats_.loss_begin && !stats_.recovered_at) {
+        stats_.recovered_at = frame->time.received_at();
+    }
+    need_keyframe_ = false;
+    frames_.push_back(frame);
+    stats_.bytes += frame->h264.size();
+    stats_.peak_bytes = std::max(stats_.peak_bytes, stats_.bytes);
+    stats_.peak_depth = std::max(stats_.peak_depth, frames_.size());
+}
+
+void FrameQueue::interrupt()
+{
+    std::scoped_lock lock{mutex_};
+    need_keyframe_ = true;
+}
+
+FramePtr FrameQueue::try_pop()
+{
+    std::scoped_lock lock{mutex_};
+    if (frames_.empty()) {
+        return {};
+    }
+    auto frame = std::move(frames_.front());
+    frames_.pop_front();
+    stats_.bytes -= frame->h264.size();
+    return frame;
+}
+
+QueueStats FrameQueue::stats() const
+{
+    std::scoped_lock lock{mutex_};
+    auto copy = stats_;
+    copy.depth = frames_.size();
+    return copy;
+}
+
+} // namespace bacuri::vms::ingest

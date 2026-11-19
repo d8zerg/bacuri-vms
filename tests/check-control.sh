@@ -15,7 +15,10 @@ trap 'exit 143' TERM
 export PGDATABASE="$database"
 export BACURI_SITE_ID=10000000-0000-4000-8000-000000000001
 export BACURI_NODE_ID=70000000-0000-4000-8000-000000000001
-export BACURI_CAMERA_NETWORKS=10.0.0.0/8,192.168.0.0/16
+fixture_ip=$(getent ahostsv4 rtsp-camera | awk 'NR == 1 { print $1 }')
+test -n "$fixture_ip"
+export BACURI_TEST_CAMERA_NETWORK="$fixture_ip/32"
+export BACURI_CAMERA_NETWORKS="$BACURI_TEST_CAMERA_NETWORK,192.168.0.0/16"
 export BACURI_TLS_CERT="$test_dir/server.crt" BACURI_TLS_KEY="$test_dir/server.key"
 export BACURI_KEY_FILE="$test_dir/core.key" BACURI_SOCKET="$test_dir/recorder.sock"
 export BACURI_RECORDER_DB="$test_dir/recorder.db"

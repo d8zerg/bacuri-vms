@@ -93,7 +93,8 @@ def main():
     assert query("SELECT name FROM bacuri_inventory.sites") == "Existing site"
     core = subprocess.Popen([CORE, "serve"])
     recorder = None
-    recorder_env = dict(os.environ, BACURI_KEY_FILE=str(ROOT / "recorder.key"), BACURI_CAMERA_NETWORKS="10.0.0.0/8")
+    recorder_env = dict(os.environ, BACURI_KEY_FILE=str(ROOT / "recorder.key"),
+                        BACURI_CAMERA_NETWORKS=os.environ["BACURI_TEST_CAMERA_NETWORK"])
     cameras = f"sites/{SITE}/cameras"
     points = f"sites/{SITE}/points"
     try:
@@ -103,7 +104,7 @@ def main():
         admin = login("admin")
         viewer = login("viewer")
         assert http("GET", "session", headers=viewer)[2]["site_roles"][0]["role"] == "operator"
-        config = {"name": "Gate", "main_url": "rtsp://10.0.0.10/main", "secondary_url": "rtsp://10.0.0.10/sub",
+        config = {"name": "Gate", "main_url": "rtsp://rtsp-camera:8554/main", "secondary_url": "rtsp://rtsp-camera:8554/sub",
                   "credentials": {"username": "camera", "password": secrets.token_hex(16)}}
         key = str(uuid.uuid4())
         write = {**admin, "Idempotency-Key": key}
@@ -155,7 +156,16 @@ def main():
         core = None
         with (ROOT / "restart.log").open("w") as log:
             recorder = subprocess.Popen([RECORDER], env=recorder_env, stderr=log)
-        wait_for(lambda: "Recorder active revision 1, cameras 1" in (ROOT / "restart.log").read_text(), "offline restore")
+        def restored_profiles():
+            lines = (ROOT / "restart.log").read_text().splitlines()
+            samples = [json.loads(line) for line in lines if line.startswith("{") and line.endswith("}")]
+            return {entry["profile"] for entry in samples
+                    if entry.get("state") == "receiving" and entry.get("device") == first["id"]}
+
+        wait_for(lambda: restored_profiles() == {"main", "secondary"}, "both RTSP profiles without the core")
+        log = (ROOT / "restart.log").read_text()
+        assert "Recorder active revision 1, cameras 1" in log
+        assert config["credentials"]["password"] not in log
         core = subprocess.Popen([CORE, "serve"])
         wait_for(lambda: http("GET", "session", headers=admin)[0] == 200, "persisted browser session")
         response = http("PUT", path, {**retained, "credentials": None}, {**admin, "If-Match": tag})

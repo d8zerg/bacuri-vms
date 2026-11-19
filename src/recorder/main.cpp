@@ -1,5 +1,6 @@
 #include "control/support.hpp"
 #include "control.grpc.pb.h"
+#include "recorder/sources.hpp"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
@@ -98,6 +99,7 @@ public:
                 throw std::runtime_error("Invalid persisted recorder assignment");
             }
         }
+        sources_.apply(active_);
         std::fprintf(stderr, "Recorder active revision %lld, cameras %d\n",
                      static_cast<long long>(active_.revision()), active_.cameras_size());
     }
@@ -153,6 +155,9 @@ private:
             if (result.state() == v1::APPLY_STATE_REJECTED) {
                 result.set_failure(static_cast<v1::ApplyFailure>(sqlite3_column_int(prior.get(), 2)));
             }
+            if (result.state() == v1::APPLY_STATE_APPLIED && request.revision() == active_.revision()) {
+                sources_.apply(active_);
+            }
             const auto applied = sqlite3_column_int64(prior.get(), 3);
             if (applied > 0) {
                 result.set_applied_revision(applied);
@@ -206,6 +211,7 @@ private:
         }
         if (accepted) {
             active_.Swap(&replacement);
+            sources_.apply(active_);
         }
         return grpc::Status::OK;
     }
@@ -217,6 +223,7 @@ private:
     Journal journal_;
     Snapshot active_;
     std::mutex mutex_;
+    ingest::Sources sources_{networks_};
 };
 } // namespace
 } // namespace bacuri::vms

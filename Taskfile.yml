@@ -54,6 +54,9 @@ tasks:
       - for: [gcc-debug, clang-asan-ubsan]
         task: control:check
         vars: {PRESET: '{{.ITEM}}'}
+      - for: [gcc-debug, clang-asan-ubsan]
+        task: ingest:check
+        vars: {PRESET: '{{.ITEM}}'}
 
   check:report:
     desc: Run all checks and save the environment, log, and exit code
@@ -63,6 +66,37 @@ tasks:
     desc: Start PostgreSQL and the RTSP test camera and wait for health checks
     run: once
     cmd: docker compose up --build --wait --wait-timeout 60 postgres rtsp-camera
+
+  webcam:up:
+    desc: Stream the Linux V4L2 webcam over RTSP on localhost
+    preconditions:
+      - sh: 'test -c "${BACURI_WEBCAM_DEVICE:-/dev/video0}"'
+        msg: Set BACURI_WEBCAM_DEVICE to a V4L2 video capture device
+    cmd: >-
+      BACURI_VIDEO_GID="$(stat -Lc %g "${BACURI_WEBCAM_DEVICE:-/dev/video0}")"
+      docker compose up --build --wait --wait-timeout 45 webcam
+
+  webcam:check:
+    desc: Check both webcam profiles, a stalled preview and RTSP reconnection
+    deps:
+      - webcam:up
+      - task: build
+        vars: {PRESET: '{{.PRESET}}'}
+    cmds:
+      - '{{.DEV_RUN}} sh tests/ingest/decode.sh webcam'
+      - '{{.DEV_RUN}} python3 tests/ingest/relay.py build/{{.PRESET | shellQuote}}/bacuri-vms-rtsp-test webcam'
+
+  ingest:check:
+    desc: Check the recorder media adapter against the synthetic RTSP camera
+    deps:
+      - stand:up
+      - task: build
+        vars: {PRESET: '{{.PRESET}}'}
+    cmd: '{{.DEV_RUN}} python3 tests/ingest/relay.py build/{{.PRESET | shellQuote}}/bacuri-vms-rtsp-test rtsp-camera'
+
+  webcam:down:
+    desc: Stop webcam capture and release the V4L2 device
+    cmd: docker compose stop webcam
 
   stand:down:
     desc: Stop the Compose stand and keep persistent volumes

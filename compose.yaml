@@ -27,6 +27,24 @@ services:
       timeout: 3s
       retries: 15
 
+  webcam:
+    profiles: ["webcam"]
+    build:
+      context: .
+      target: rtsp-camera
+    devices:
+      - "${BACURI_WEBCAM_DEVICE:-/dev/video0}:/dev/video0:rw"
+    group_add:
+      - "${BACURI_VIDEO_GID:-44}"
+    ports:
+      - "127.0.0.1:${BACURI_WEBCAM_PORT:-8555}:8554"
+    command: ["bacuri-vms-test-rtsp-camera", "--webcam"]
+    healthcheck:
+      test: ["CMD", "bash", "-ec", ": </dev/tcp/127.0.0.1/8554"]
+      interval: 2s
+      timeout: 3s
+      retries: 8
+
   dev:
     profiles: ["tools"]
     image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}
