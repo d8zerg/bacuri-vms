@@ -8,12 +8,24 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(BACURI_VMS_BUILD_RTSP_FIXTURE "Build the test RTSP camera" OFF)
 include(CTest)
 
+add_library(bacuri-vms-domain STATIC
+    src/domain/resources.cpp
+    src/domain/time.cpp
+)
+target_include_directories(bacuri-vms-domain PUBLIC src)
+target_compile_options(bacuri-vms-domain PRIVATE -Wall -Wextra -Wpedantic)
+
 add_executable(bacuri-vms-core src/core/main.cpp)
+target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-domain)
 target_compile_definitions(bacuri-vms-core PRIVATE BACURI_VMS_VERSION="${PROJECT_VERSION}")
 target_compile_options(bacuri-vms-core PRIVATE -Wall -Wextra -Wpedantic)
 
 if(BUILD_TESTING)
     add_test(NAME core-version COMMAND bacuri-vms-core --version)
+    add_executable(bacuri-vms-domain-test tests/domain/model.cpp)
+    target_link_libraries(bacuri-vms-domain-test PRIVATE bacuri-vms-domain)
+    target_compile_options(bacuri-vms-domain-test PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME domain-model COMMAND bacuri-vms-domain-test)
 endif()
 
 if(BACURI_VMS_BUILD_RTSP_FIXTURE)

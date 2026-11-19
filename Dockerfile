@@ -22,6 +22,8 @@ RUN sed -i \
         ninja-build \
         pkg-config \
         postgresql-client-17 \
+        python3-jsonschema \
+        sqlite3 \
     && rm -rf /var/lib/apt/lists/* \
     && install -d -m 1777 /var/lib/bacuri-vms/archive
 ENV XDG_CACHE_HOME=/tmp/bacuri-vms-cache

@@ -33,9 +33,11 @@ tasks:
       - task: build
         vars: {PRESET: clang-debug}
     cmd: >-
-      {{.DEV_RUN}} clang-tidy-19 -p build/clang-debug
+      {{.DEV_RUN}} run-clang-tidy-19 -p build/clang-debug
+      -clang-tidy-binary=/usr/bin/clang-tidy-19 -quiet
+      -clang-apply-replacements-binary=/usr/bin/clang-apply-replacements-19
+      -header-filter='^/workspace/src/'
       -checks='-*,clang-analyzer-*,bugprone-*' -warnings-as-errors='*'
-      src/core/main.cpp tests/fixtures/rtsp_camera.cpp
 
   check:
     desc: Run the compiler and sanitizer matrix, static analysis, and stand checks
@@ -45,6 +47,7 @@ tasks:
         vars: {PRESET: '{{.ITEM}}'}
       - task: lint
       - task: stand:check
+      - task: schema:check
 
   check:report:
     desc: Run all checks and save the environment, log, and exit code
@@ -52,6 +55,7 @@ tasks:
 
   stand:up:
     desc: Start PostgreSQL and the RTSP test camera and wait for health checks
+    run: once
     cmd: docker compose up --build --wait --wait-timeout 60 postgres rtsp-camera
 
   stand:down:
@@ -75,6 +79,11 @@ tasks:
     desc: Verify persistence and the storage fault limit in a temporary Compose project
     deps: [dev:image]
     cmd: sh tools/check-storage
+
+  schema:check:
+    desc: Validate the manifest and apply both initial schemas to temporary databases
+    deps: [dev:image, stand:up]
+    cmd: '{{.DEV_RUN}} sh tests/check-schemas.sh'
 
   prototype:up:
     desc: Start the local browser prototype

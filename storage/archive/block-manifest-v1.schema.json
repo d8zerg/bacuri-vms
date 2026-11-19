@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bacuri.vms:archive:block-manifest:1",
+  "title": "Bacuri VMS archive block manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifest_version", "site_id", "block_id", "recording_epoch_id", "owner_generation",
+    "recording_node_id", "point_id", "binding_revision", "device_id", "channel_id", "profile_id",
+    "begin_utc_us", "end_utc_us", "time", "media"
+  ],
+  "properties": {
+    "manifest_version": { "const": 1 },
+    "site_id": { "$ref": "#/$defs/id" },
+    "block_id": { "$ref": "#/$defs/id" },
+    "recording_epoch_id": { "$ref": "#/$defs/id" },
+    "owner_generation": { "$ref": "#/$defs/positive_i64" },
+    "recording_node_id": { "$ref": "#/$defs/id" },
+    "point_id": { "$ref": "#/$defs/id" },
+    "binding_revision": { "$ref": "#/$defs/positive_i64" },
+    "device_id": { "$ref": "#/$defs/id" },
+    "channel_id": { "$ref": "#/$defs/id" },
+    "profile_id": { "$ref": "#/$defs/id" },
+    "begin_utc_us": { "$ref": "#/$defs/i64" },
+    "end_utc_us": { "$ref": "#/$defs/i64" },
+    "time": { "$ref": "#/$defs/time" },
+    "media": { "$ref": "#/$defs/media" }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "i64": {
+      "type": "integer",
+      "minimum": -9223372036854775808,
+      "maximum": 9223372036854775807
+    },
+    "positive_i64": {
+      "$ref": "#/$defs/i64",
+      "minimum": 1
+    },
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basis", "received_at_utc_us", "source_time_us", "clock_epoch_id", "uncertainty_us"],
+      "properties": {
+        "basis": { "enum": ["source_clock", "reception"] },
+        "received_at_utc_us": { "$ref": "#/$defs/i64" },
+        "source_time_us": {
+          "anyOf": [{ "$ref": "#/$defs/i64" }, { "type": "null" }]
+        },
+        "clock_epoch_id": {
+          "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+        },
+        "uncertainty_us": {
+          "anyOf": [{ "$ref": "#/$defs/i64", "minimum": 0 }, { "type": "null" }]
+        }
+      },
+      "if": { "properties": { "basis": { "const": "source_clock" } } },
+      "then": {
+        "properties": {
+          "source_time_us": { "type": "integer" },
+          "clock_epoch_id": { "type": "string" },
+          "uncertainty_us": { "type": "integer" }
+        }
+      },
+      "else": {
+        "properties": {
+          "clock_epoch_id": { "type": "null" },
+          "uncertainty_us": { "type": "null" }
+        }
+      }
+    },
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "size_bytes", "sha256", "tracks"],
+      "properties": {
+        "file": { "const": "media.mp4" },
+        "size_bytes": { "$ref": "#/$defs/positive_i64" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "tracks": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/track" }
+        }
+      }
+    },
+    "track": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "codec", "time_scale"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "kind": { "enum": ["video", "audio"] },
+        "codec": { "type": "string", "minLength": 1 },
+        "time_scale": { "type": "integer", "minimum": 1, "maximum": 2147483647 }
+      }
+    }
+  }
+}

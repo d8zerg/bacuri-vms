@@ -20,6 +20,7 @@ task check
 | `task stand:up` | Запустить PostgreSQL и тестовую камеру |
 | `task stand:check` | Проверить PostgreSQL, RTSP-потоки и тома |
 | `task stand:check-storage` | Проверить сохранность PostgreSQL и архива после перезапуска и лимит тестового тома в отдельном временном проекте Compose |
+| `task schema:check` | Проверить манифест и начальные миграции PostgreSQL и SQLite на временных базах |
 | `task stand:status` | Показать состояние контейнеров |
 | `task stand:logs` | Показать последние журналы PostgreSQL и камеры |
 | `task stand:down` | Остановить стенд с сохранением постоянных томов |
@@ -33,6 +34,7 @@ task check
 
 - [План разработки PoC](docs/devplan-poc.md)
 - [Паспорт стенда и условия испытаний](docs/poc-test-profile.md)
+- [Доменная модель и границы хранения PoC](docs/poc-domain-model.md)
 - [Журнал изменений](CHANGELOG.md)
 
 ## Прототип интерфейса

@@ -1,0 +1,30 @@
+{
+  "manifest_version": 1,
+  "site_id": "10000000-0000-4000-8000-000000000001",
+  "block_id": "60000000-0000-4000-8000-000000000001",
+  "recording_epoch_id": "70000000-0000-4000-8000-000000000001",
+  "owner_generation": 1,
+  "recording_node_id": "a0000000-0000-4000-8000-000000000001",
+  "point_id": "20000000-0000-4000-8000-000000000001",
+  "binding_revision": 1,
+  "device_id": "40000000-0000-4000-8000-000000000001",
+  "channel_id": "30000000-0000-4000-8000-000000000001",
+  "profile_id": "b0000000-0000-4000-8000-000000000001",
+  "begin_utc_us": 1018,
+  "end_utc_us": 1118,
+  "time": {
+    "basis": "source_clock",
+    "received_at_utc_us": 1021,
+    "source_time_us": 118,
+    "clock_epoch_id": "50000000-0000-4000-8000-000000000001",
+    "uncertainty_us": 8
+  },
+  "media": {
+    "file": "media.mp4",
+    "size_bytes": 4096,
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "tracks": [
+      { "id": 1, "kind": "video", "codec": "h264", "time_scale": 90000 }
+    ]
+  }
+}
