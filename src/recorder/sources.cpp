@@ -60,6 +60,16 @@ Json metrics(const StreamStats& stats)
 }
 } // namespace
 
+std::shared_ptr<FrameQueue> Sources::preview(const std::string& point)
+{
+    for (auto& [key, entry] : streams_) {
+        if (key.profile == Profile::secondary && key.point == point) {
+            return entry.stream->subscribe();
+        }
+    }
+    return {};
+}
+
 Sources::~Sources()
 {
     for (auto& [key, entry] : streams_) {

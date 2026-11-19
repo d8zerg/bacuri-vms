@@ -36,6 +36,7 @@ void FrameQueue::push(const FramePtr& frame)
     stats_.bytes += frame->h264.size();
     stats_.peak_bytes = std::max(stats_.peak_bytes, stats_.bytes);
     stats_.peak_depth = std::max(stats_.peak_depth, frames_.size());
+    ready_.notify_one();
 }
 
 void FrameQueue::interrupt()
@@ -47,6 +48,18 @@ void FrameQueue::interrupt()
 FramePtr FrameQueue::try_pop()
 {
     std::scoped_lock lock{mutex_};
+    return pop_locked();
+}
+
+FramePtr FrameQueue::wait_pop(std::chrono::steady_clock::time_point deadline)
+{
+    std::unique_lock lock{mutex_};
+    ready_.wait_until(lock, deadline, [this] { return !frames_.empty(); });
+    return pop_locked();
+}
+
+FramePtr FrameQueue::pop_locked()
+{
     if (frames_.empty()) {
         return {};
     }

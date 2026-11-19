@@ -15,6 +15,7 @@ class Lease
     explicit Lease(v1::AuthorizeDeliveryRequest scope);
     // Every write must finish by this deadline, including writes blocked on backpressure.
     Clock::time_point deadline();
+    void close_live() noexcept;
 
   private:
     v1::AuthorizeDeliveryRequest scope_;

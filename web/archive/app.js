@@ -1,10 +1,7 @@
-import { ArchivePlayer, request } from "./player.js";
-const byId = (id) => document.getElementById(id);
-const status = (text) => {
-    byId("status").textContent = text;
-};
-let csrf, player, session, cursor, selection, path, searchPath;
-let working = false;
+import { ArchivePlayer } from "./player.js";
+import { byId, status, csrf, action, json, post, request, initialize } from "/session.js";
+
+let player, session, cursor, selection, path, searchPath;
 const reasons = {
     source_offline: "Нет связи с камерой",
     overload: "Перегрузка",
@@ -15,50 +12,7 @@ const reasons = {
     corrupt: "Запись повреждена",
     outside_retention: "Истёк срок хранения",
 };
-function action(fn) {
-    return async (event) => {
-        event?.preventDefault();
-        if (working) return;
-        working = true;
-        document.querySelector("main").setAttribute("aria-busy", "true");
-        try {
-            await fn();
-        } catch (error) {
-            status(error.message);
-        } finally {
-            working = false;
-            document.querySelector("main").removeAttribute("aria-busy");
-        }
-    };
-}
-const json = async (url, options) => (await request(url, options)).json();
-function post(body, extra = {}) {
-    return {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf || "", ...extra },
-        body: JSON.stringify(body),
-    };
-}
-async function points() {
-    const data = await json("/sites/" + byId("site").value + "/points");
-    byId("point").replaceChildren(...data.map((p) => new Option(p.name, p.id)));
-}
-async function signedIn(identity) {
-    csrf = identity.csrf_token;
-    byId("login").hidden = true;
-    byId("search").hidden = false;
-    byId("site").replaceChildren(...identity.site_roles.map((s) => new Option(s.site_id, s.site_id)));
-    if (identity.site_roles.length) await points();
-    const end = Date.now();
-    byId("search").elements.start.value = new Date(end - 60000).toISOString();
-    byId("search").elements.end.value = new Date(end).toISOString();
-    status("");
-}
-byId("login").onsubmit = action(async () => {
-    await signedIn(await json("/session", post(Object.fromEntries(new FormData(byId("login"))))));
-    byId("login").reset();
-});
-byId("site").onchange = action(points);
+
 async function play(position) {
     if (session && Date.parse(session.expires_at) <= Date.now()) {
         player?.stop();
@@ -120,9 +74,8 @@ byId("search").onsubmit = action(async () => {
 });
 byId("seek").onsubmit = action(() => play(byId("seek").elements.position.value));
 byId("more").onclick = action(page);
-try {
-    await signedIn(await json("/session"));
-} catch (error) {
-    if (error.message === "unauthenticated") byId("login").hidden = false;
-    else status(error.message);
-}
+
+const end = Date.now();
+byId("search").elements.start.value = new Date(end - 60000).toISOString();
+byId("search").elements.end.value = new Date(end).toISOString();
+await initialize();

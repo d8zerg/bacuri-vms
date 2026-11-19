@@ -2,6 +2,7 @@
 
 #include "domain/time.hpp"
 
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -66,12 +67,15 @@ class FrameQueue
     void push(const FramePtr& frame);
     void interrupt();
     [[nodiscard]] FramePtr try_pop();
+    [[nodiscard]] FramePtr wait_pop(std::chrono::steady_clock::time_point deadline);
     [[nodiscard]] QueueStats stats() const;
 
   private:
+    FramePtr pop_locked();
     const Profile profile_;
     const Limits capacity_;
     mutable std::mutex mutex_;
+    std::condition_variable ready_;
     std::deque<FramePtr> frames_;
     QueueStats stats_;
     bool need_keyframe_{true};

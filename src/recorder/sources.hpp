@@ -13,9 +13,13 @@ namespace bacuri::vms::ingest
 class Sources
 {
   public:
-    Sources(const control::CameraNetworks& networks, archive::Volume& volume) : networks_{networks}, volume_{volume} {}
+    Sources(const control::CameraNetworks& networks, archive::Volume& volume)
+        : networks_{networks}, volume_{volume}
+    {
+    }
     ~Sources();
     void apply(const v1::ApplyConfigurationRequest& assignment);
+    std::shared_ptr<FrameQueue> preview(const std::string& point);
 
   private:
     struct Key {

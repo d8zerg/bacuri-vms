@@ -11,12 +11,14 @@
 #include <sqlite3.h>
 #include <sys/stat.h>
 
+#include <algorithm>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
 #include <memory>
 #include <mutex>
 #include <set>
+#include <semaphore>
 #include <stdexcept>
 
 namespace bacuri::vms
@@ -52,6 +54,12 @@ class Recorder final : public v1::RecorderControl::Service
         sources_.apply(active_);
         std::fprintf(stderr, "Recorder active revision %lld, cameras %d\n",
                      static_cast<long long>(active_.revision()), active_.cameras_size());
+    }
+
+    std::shared_ptr<ingest::FrameQueue> preview(const v1::PointKey& point)
+    {
+        std::scoped_lock lock{mutex_};
+        return point.site_id() == site_ ? sources_.preview(point.point_id()) : nullptr;
     }
 
     grpc::Status ListPending(grpc::ServerContext*, const v1::PendingQuery* q,
@@ -203,6 +211,50 @@ class Recorder final : public v1::RecorderControl::Service
     }};
     ingest::Sources sources_{networks_, volume_};
 };
+
+class PreviewSource final : public v1::PreviewSource::Service
+{
+  public:
+    explicit PreviewSource(Recorder& recorder) : recorder_{recorder} {}
+    grpc::Status Subscribe(grpc::ServerContext* context, const v1::PointKey* point,
+                           grpc::ServerWriter<v1::PreviewFrame>* stream) override
+    {
+        using namespace std::chrono_literals;
+        if (!slots_.try_acquire()) {
+            return {grpc::StatusCode::RESOURCE_EXHAUSTED, "Preview capacity reached"};
+        }
+        struct Slot {
+            std::counting_semaphore<16>& slots;
+            ~Slot()
+            {
+                slots.release();
+            }
+        } slot{slots_};
+        auto queue = recorder_.preview(*point);
+        if (!queue) {
+            return {grpc::StatusCode::NOT_FOUND, "Preview unavailable"};
+        }
+        auto last = std::chrono::steady_clock::now();
+        while (!context->IsCancelled()) {
+            if (auto frame = queue->wait_pop(std::min(last + 5s, std::chrono::steady_clock::now() + 100ms))) {
+                v1::PreviewFrame packet;
+                packet.set_access_unit(frame->h264.data(), frame->h264.size());
+                packet.set_keyframe(frame->keyframe);
+                if (!stream->Write(packet)) {
+                    break;
+                }
+                last = std::chrono::steady_clock::now();
+            } else if (std::chrono::steady_clock::now() >= last + 5s) {
+                return {grpc::StatusCode::UNAVAILABLE, "Preview interrupted"};
+            }
+        }
+        return grpc::Status::OK;
+    }
+
+  private:
+    Recorder& recorder_;
+    std::counting_semaphore<16> slots_{16};
+};
 } // namespace
 } // namespace bacuri::vms
 
@@ -232,9 +284,20 @@ try {
     if (!server) {
         throw std::runtime_error("Cannot start recorder socket");
     }
-    shutdown.async_wait([&server](const boost::system::error_code& error, int) {
+    bacuri::vms::PreviewSource preview{recorder};
+    grpc::ServerBuilder preview_builder;
+    const auto preview_path = bacuri::vms::control::setting("BACURI_PREVIEW_SOCKET");
+    preview_builder.AddListeningPort("unix:" + preview_path, grpc::experimental::LocalServerCredentials(UDS));
+    preview_builder.RegisterService(&preview);
+    auto preview_server = preview_builder.BuildAndStart();
+    if (!preview_server || chmod(preview_path.c_str(), 0660) != 0) {
+        throw std::runtime_error("Cannot open preview socket");
+    }
+    shutdown.async_wait([&](const boost::system::error_code& error, int) {
         if (!error) {
-            server->Shutdown(std::chrono::system_clock::now() + std::chrono::seconds{2});
+            auto deadline = std::chrono::system_clock::now() + std::chrono::seconds{2};
+            preview_server->Shutdown(deadline);
+            server->Shutdown(deadline);
         }
     });
     lifecycle.run();

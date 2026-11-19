@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package bacuri.vms.v1;
 
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 service RecorderControl {
@@ -10,6 +11,23 @@ service RecorderControl {
   rpc ApplyConfiguration(ApplyConfigurationRequest) returns (ApplyConfigurationResult);
   rpc ListPending(PendingQuery) returns (PendingIntervals);
 }
+
+// Dedicated recorder socket, accessible to the delivery process.
+service PreviewSource {
+  rpc Subscribe(PointKey) returns (stream PreviewFrame);
+}
+message PreviewFrame {
+  bytes access_unit = 1; // Annex B, one access unit, up to 1 MiB.
+  bool keyframe = 2;
+}
+service LiveDelivery {
+  rpc Negotiate(LiveOffer) returns (LiveAnswer);
+}
+message LiveOffer {
+  AuthorizeDeliveryRequest scope = 1;
+  string sdp = 2;
+}
+message LiveAnswer { string sdp = 1; }
 
 service ArchiveDelivery {
   // One verified initialization or media segment, in bounded chunks.
@@ -45,6 +63,8 @@ service MediaAuthorization {
   // UNAUTHENTICATED, PERMISSION_DENIED, NOT_FOUND and FAILED_PRECONDITION deny access.
   // UNAVAILABLE or DEADLINE_EXCEEDED never grants or renews a lease.
   rpc AuthorizeDelivery(AuthorizeDeliveryRequest) returns (DeliveryLease);
+  // Idempotently release the negotiated live session when its transport ends.
+  rpc CloseLive(AuthorizeDeliveryRequest) returns (google.protobuf.Empty);
 }
 
 message PendingQuery {

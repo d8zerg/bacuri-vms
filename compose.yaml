@@ -70,7 +70,9 @@ services:
 
   playback-firefox:
     profiles: ["playback-test"]
-    image: selenium/standalone-firefox:4.35.0@sha256:fef003c62e6e172dd5075aad709f3372c585c1d8ae9c7d3c41c7ef489790ec38
+    build:
+      context: tests/live
+      dockerfile: Firefox.Dockerfile
     shm_size: 1gb
 
   tsan:
@@ -104,6 +106,7 @@ services:
     volumes:
       - ./tools/control-init:/init:ro
       - core-identity:/identity/core
+      - preview-ipc:/preview-ipc
       - recorder-identity:/identity/recorder
       - recorder-data:/recorder-data
       - archive-data:/archive
@@ -139,7 +142,7 @@ services:
       - ./build/gcc-debug:/opt/bacuri:ro
       - ./storage/postgresql/migrations:/workspace/storage/postgresql/migrations:ro
       - core-identity:/identity:ro
-      - ./web/archive:/workspace/web/archive:ro
+      - ./web:/workspace/web:ro
       - media-auth:/auth-ipc
       - media-ipc:/media-ipc:ro
       - control-ipc:/ipc:ro
@@ -158,14 +161,16 @@ services:
     image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}
     pull_policy: never
     user: "11003:11010"
-    network_mode: none
+    networks: [live-media]
     environment:
       BACURI_ARCHIVE_DIR: /archive/recorder
+      BACURI_PREVIEW_SOCKET: /preview-ipc/preview.sock
       BACURI_AUTH_SOCKET: /auth-ipc/auth.sock
       BACURI_MEDIA_SOCKET: /media-ipc/media.sock
     volumes:
       - ./build/gcc-debug:/opt/bacuri:ro
       - archive-data:/archive:ro
+      - preview-ipc:/preview-ipc:ro
       - media-auth:/auth-ipc:ro
       - media-ipc:/media-ipc
     command: ["/opt/bacuri/bacuri-vms-media"]
@@ -187,11 +192,13 @@ services:
       BACURI_SOCKET: /ipc/recorder.sock
       BACURI_KEY_FILE: /identity/configuration.key
       BACURI_RECORDER_DB: /recorder-data/configuration.db
+      BACURI_PREVIEW_SOCKET: /preview-ipc/preview.sock
       BACURI_CATALOG_SOCKET: /catalog-ipc/catalog.sock
       BACURI_ARCHIVE_DIR: /archive/recorder
     volumes:
       - ./build/gcc-debug:/opt/bacuri:ro
       - recorder-identity:/identity:ro
+      - preview-ipc:/preview-ipc
       - archive-data:/archive
       - catalog-ipc:/catalog-ipc:ro
       - recorder-data:/recorder-data
@@ -213,3 +220,9 @@ volumes:
   catalog-ipc:
   media-auth:
   media-ipc:
+  preview-ipc:
+
+networks:
+  live-media:
+    driver: bridge
+    internal: true

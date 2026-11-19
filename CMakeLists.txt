@@ -76,7 +76,10 @@ target_link_libraries(bacuri-vms-recorder PRIVATE bacuri-vms-ingest nlohmann_jso
 target_link_libraries(bacuri-vms-recorder PRIVATE bacuri-vms-control-support bacuri-vms-rpc SQLite::SQLite3 Boost::headers)
 add_library(bacuri-vms-media-auth STATIC src/media/lease.cpp)
 target_link_libraries(bacuri-vms-media-auth PUBLIC bacuri-vms-control-support bacuri-vms-rpc)
-add_executable(bacuri-vms-media src/media/main.cpp)
+pkg_check_modules(WEBRTC REQUIRED IMPORTED_TARGET gstreamer-webrtc-1.0>=1.24 gstreamer-sdp-1.0)
+add_executable(bacuri-vms-media src/media/main.cpp src/media/live.cpp src/media/webrtc.cpp)
+target_compile_definitions(bacuri-vms-media PRIVATE GST_USE_UNSTABLE_API)
+target_link_libraries(bacuri-vms-media PRIVATE PkgConfig::WEBRTC PkgConfig::GST)
 target_link_libraries(bacuri-vms-media PRIVATE bacuri-vms-media-auth bacuri-vms-archive Boost::headers)
 add_executable(bacuri-vms-core src/core/main.cpp src/control/database.cpp src/control/registry.cpp
     src/control/media_authority.cpp src/control/playback.cpp

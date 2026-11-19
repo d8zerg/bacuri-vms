@@ -116,10 +116,19 @@ constexpr auto expires_sql = "YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"";
 Json create(Database& db, const Key& key, const PointAccess& access, const Request& req)
 {
     auto body = object_body(req, {"mode", "interval"});
-    if (string_field(body, "mode", 16) != "archive" || !body.contains("interval")) {
+    const auto mode = string_field(body, "mode", 16);
+    std::optional<Window> range;
+    if (mode == "archive" && body.contains("interval")) {
+        range = window(body.at("interval"));
+    } else if (mode != "live" || body.size() != 1) {
         throw Failure{400, "invalid_request"};
     }
-    auto range = window(body.at("interval"));
+    const auto begin = range ? std::to_string(range->start) : std::string{};
+    const auto end = range ? std::to_string(range->end) : std::string{};
+    Json selection{{"mode", mode}};
+    if (range) {
+        selection["interval"] = range->json();
+    }
     const std::string request_key{req["Idempotency-Key"]};
     if (req.count("Idempotency-Key") != 1 || !canonical_id(request_key)) {
         throw Failure{400, "invalid_request"};
@@ -134,12 +143,11 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     auto result = [&](std::string id, std::string expires) {
         return Json{{"id", std::move(id)},
                     {"point_id", access.point},
-                    {"selection", {{"mode", "archive"}, {"interval", range.json()}}},
+                    {"selection", selection},
                     {"expires_at", std::move(expires)}};
     };
     if (previous.size()) {
-        if (previous.get(0, 4) == "t" || std::stoll(previous.get(0, 1)) != range.start ||
-            std::stoll(previous.get(0, 2)) != range.end) {
+        if (previous.get(0, 4) == "t" || previous.get(0, 1) != begin || previous.get(0, 2) != end) {
             throw Failure{409, "idempotency_conflict"};
         }
         return result(previous.get(0), previous.get(0, 3));
@@ -151,19 +159,22 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     }
     auto session = db.exec(
         "INSERT INTO media_sessions(browser,site_id,point_id,begin_us,end_us,request_key,expires_at) "
-        "SELECT token_hash,$2,$3,$4,$5,$6,least(now()+interval '5 minutes',expires_at,last_active+interval '30 "
+        "SELECT token_hash,$2,$3,nullif($4,'')::bigint,nullif($5,'')::bigint,$6,least(now()+interval '5 "
+        "minutes',expires_at,last_active+interval '30 "
         "minutes') "
         "FROM browser_sessions WHERE token_hash=$1 RETURNING id,to_char(expires_at AT TIME ZONE 'UTC',$7)",
-        {access.browser, access.site, access.point, std::to_string(range.start), std::to_string(range.end),
-         request_key, expires_sql});
-    auto parts = db.exec(
-        "INSERT INTO playback_parts(session_id,site_id,block_id,recording_epoch_id,owner_generation) "
-        "SELECT $1,site_id,block_id,recording_epoch_id,owner_generation FROM bacuri_archive.blocks WHERE "
-        "site_id=$2 AND point_id=$3 "
-        "AND begin_utc_us>=$4 AND end_utc_us<=$5 AND unavailable_reason IS NULL RETURNING media_id",
-        {session.get(0), access.site, access.point, std::to_string(range.start), std::to_string(range.end)});
+        {access.browser, access.site, access.point, begin, end, request_key, expires_sql});
+    if (!range) {
+        return result(session.get(0), session.get(0, 1));
+    }
+    auto parts =
+        db.exec("INSERT INTO playback_parts(session_id,site_id,block_id,recording_epoch_id,owner_generation) "
+                "SELECT $1,site_id,block_id,recording_epoch_id,owner_generation FROM bacuri_archive.blocks WHERE "
+                "site_id=$2 AND point_id=$3 "
+                "AND begin_utc_us>=$4 AND end_utc_us<=$5 AND unavailable_reason IS NULL RETURNING media_id",
+                {session.get(0), access.site, access.point, begin, end});
     if (!parts.size()) {
-        const auto page = search(db, key, access, range.json());
+        const auto page = search(db, key, access, range->json());
         const auto& items = page.at("items");
         if (std::ranges::any_of(items,
                                 [](const Json& entry) { return entry.at("state") == "pending_catalog"; })) {
@@ -220,15 +231,19 @@ class RemotePart final : public MediaBody
     v1::PartChunk chunk_;
 };
 
-v1::AuthorizeDeliveryRequest scope(const Rows& session, Window interval)
+v1::AuthorizeDeliveryRequest scope(const Rows& session, std::optional<Window> interval = {})
 {
     v1::AuthorizeDeliveryRequest q;
     q.set_media_session_id(session.get(0, 5));
     q.set_browser_session_id(session.get(0, 6));
     q.mutable_point()->set_site_id(session.get(0));
     q.mutable_point()->set_point_id(session.get(0, 1));
-    *q.mutable_archive()->mutable_start() = ProtoTime::MicrosecondsToTimestamp(interval.start);
-    *q.mutable_archive()->mutable_end() = ProtoTime::MicrosecondsToTimestamp(interval.end);
+    if (interval) {
+        *q.mutable_archive()->mutable_start() = ProtoTime::MicrosecondsToTimestamp(interval->start);
+        *q.mutable_archive()->mutable_end() = ProtoTime::MicrosecondsToTimestamp(interval->end);
+    } else {
+        q.mutable_live();
+    }
     return q;
 }
 } // namespace
@@ -257,9 +272,10 @@ void Playback::point(const Request& req, Response& res, const std::string& site,
 void Playback::session(const Request& req, Response& res, const std::string& id, std::string_view operation) const
 {
     const bool closing = operation.empty();
-    allow(req, res, {closing ? http::verb::delete_ : http::verb::get});
+    const bool offer = operation == "offer";
+    allow(req, res, {closing ? http::verb::delete_ : offer ? http::verb::post : http::verb::get});
     Database db;
-    auto who = sessions_.authenticate(db, req, closing, closing);
+    auto who = sessions_.authenticate(db, req, closing || offer, closing || offer);
     auto browser = fingerprint(key_, "session", who.cookie);
     if (closing) {
         db.exec("UPDATE media_sessions SET closed=true WHERE id=$1 AND browser=$2", {id, browser});
@@ -276,8 +292,51 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
     if (session.get(0, 4) == "t") {
         throw Failure{410, "media_session_closed"};
     }
+    const bool live = session.get(0, 2).empty();
+    if (live != offer) {
+        throw Failure{404, "not_found"};
+    }
+    if (offer) {
+        if (req[http::field::content_type] != "application/sdp" || req.body().empty() ||
+            req.body().size() > 65536 || req.body().contains('\0')) {
+            throw Failure{400, "invalid_request"};
+        }
+        if (db.exec("SELECT live_negotiated FROM media_sessions WHERE id=$1", {id}).get(0) == "t") {
+            throw Failure{409, "idempotency_conflict"};
+        }
+        auto stub = v1::LiveDelivery::NewStub(media::local_channel("BACURI_MEDIA_SOCKET"));
+        grpc::ClientContext rpc;
+        rpc.set_deadline(std::chrono::system_clock::now() + 6s);
+        v1::LiveOffer input;
+        *input.mutable_scope() = scope(session);
+        input.set_sdp(req.body());
+        v1::LiveAnswer answer;
+        auto status = stub->Negotiate(&rpc, input, &answer);
+        switch (status.error_code()) {
+        case grpc::StatusCode::OK:
+            break;
+        case grpc::StatusCode::INVALID_ARGUMENT:
+            throw Failure{400, "invalid_request"};
+        case grpc::StatusCode::RESOURCE_EXHAUSTED:
+            throw Failure{429, "rate_limited"};
+        case grpc::StatusCode::ALREADY_EXISTS:
+            throw Failure{409, "idempotency_conflict"};
+        default:
+            throw Failure{503, "media_unavailable"};
+        }
+        if (!db.exec("UPDATE media_sessions SET live_negotiated=true WHERE id=$1 AND NOT live_negotiated AND NOT "
+                     "closed AND expires_at>clock_timestamp() RETURNING id",
+                     {id})
+                 .size()) {
+            throw Failure{410, "media_session_closed"};
+        }
+        res.result(http::status::ok);
+        res.set(http::field::content_type, "application/sdp");
+        res.body() = std::move(*answer.mutable_sdp());
+        return;
+    }
     if (operation == "manifest") {
-        media::Lease lease{scope(session, {std::stoll(session.get(0, 2)), std::stoll(session.get(0, 3))})};
+        media::Lease lease{scope(session, Window{std::stoll(session.get(0, 2)), std::stoll(session.get(0, 3))})};
         auto rows = db.exec(
             "SELECT init_id,media_id,begin_utc_us,end_utc_us FROM playback_parts JOIN bacuri_archive.blocks "
             "USING(site_id,block_id,recording_epoch_id,owner_generation) WHERE session_id=$1 AND "
@@ -306,7 +365,7 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
         throw Failure{404, "not_found"};
     }
     v1::ReadPartRequest q;
-    *q.mutable_scope() = scope(session, {std::stoll(part.get(0, 3)), std::stoll(part.get(0, 4))});
+    *q.mutable_scope() = scope(session, Window{std::stoll(part.get(0, 3)), std::stoll(part.get(0, 4))});
     q.set_block_id(part.get(0));
     q.set_sha256(part.get(0, 1));
     q.set_initialization(part.get(0, 2) == "t");

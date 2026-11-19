@@ -5,8 +5,6 @@ from datetime import datetime, timedelta, timezone
 from http.client import HTTPSConnection
 from pathlib import Path
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
-from urllib.error import HTTPError
 import hashlib
 import json
 import os
@@ -20,6 +18,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "control"))
 import registry as control
+from browser import browser_session
 
 BASE = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(minutes=10)
 ORIGIN_US = int(BASE.timestamp()) * 1_000_000
@@ -112,59 +111,13 @@ def fixture(camera, offset, width, colors, padding=0):
 
 
 def webdriver(browser, credential, selections):
-    root = f"http://playback-{browser}:4444"
-
-    def call(method, path, body=None):
-        data = json.dumps(body).encode() if body is not None else None
-        try:
-            with urlopen(
-                Request(
-                    root + path, data=data, headers={"Content-Type": "application/json"}, method=method
-                ),
-                timeout=55,
-            ) as res:
-                return json.load(res)["value"]
-        except HTTPError as error:
-            raise AssertionError(error.read().decode()) from error
-
-    control.wait_for(lambda: call("GET", "/status")["ready"], browser)
-    result = call(
-        "POST",
-        "/session",
-        {"capabilities": {"alwaysMatch": {"browserName": browser, "acceptInsecureCerts": True}}},
-    )
-    path = "/session/" + result["sessionId"]
-    try:
-        call("POST", path + "/timeouts", {"script": 50000})
-        call("POST", path + "/url", {"url": control.ORIGIN + "/archive/"})
-        name, value = credential["Cookie"].split("=", 1)
-        call(
-            "POST",
-            path + "/cookie",
-            {
-                "cookie": {
-                    "name": name,
-                    "value": value,
-                    "path": "/",
-                    "secure": True,
-                    "httpOnly": True,
-                    "sameSite": "Strict",
-                }
-            },
-        )
-        call("POST", path + "/refresh", {})
+    with browser_session(browser, credential, "/archive/") as (call, version):
         for selection in selections:
-            metrics = call(
-                "POST",
-                path + "/execute/async",
-                {"script": Path("tests/archive/browser.js").read_text(), "args": [selection]},
-            )
-            assert "error" not in metrics, (browser, metrics)
-            print(
-                browser, result["capabilities"]["browserVersion"], json.dumps(metrics["value"]), flush=True
-            )
-    finally:
-        call("DELETE", path)
+            metrics = call("POST","/execute/async",{
+                "script":Path("tests/archive/browser.js").read_text(),"args":[selection]})
+            assert "error" not in metrics, (browser,metrics)
+            print(browser,version,json.dumps(metrics["value"]),flush=True)
+
 
 
 def binary(path, headers):

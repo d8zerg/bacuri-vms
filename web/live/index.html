@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Прямой эфир | Bacuri VMS</title>
+    <link rel="stylesheet" href="/archive/style.css">
+</head>
+<body>
+    <main>
+        <nav><a href="/archive/">Архив видео</a></nav>
+        <h1>Прямой эфир</h1>
+        <form id="login" hidden>
+            <label>Имя пользователя <input name="username" autocomplete="username" required></label>
+            <label>Пароль <input type="password" name="password" autocomplete="current-password" required></label>
+            <button>Войти</button>
+        </form>
+        <form id="search" hidden>
+            <label>Площадка <select id="site" required></select></label>
+            <label>Точка наблюдения <select id="point" required></select></label>
+            <button>Смотреть</button>
+            <button type="button" id="stop" disabled>Остановить</button>
+        </form>
+        <p role="status" id="status"></p>
+        <video id="video" autoplay muted playsinline controls aria-label="Прямой эфир"></video>
+    </main>
+    <script type="module" src="/live/live.js"></script>
+</body>
+</html>

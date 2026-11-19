@@ -226,7 +226,7 @@ paths:
       - $ref: '#/components/parameters/Point'
     post:
       operationId: createMediaSession
-      description: Archive selections cover at most one hour. Return complete independently decodable blocks within the half-open interval. A browser session may hold 16 active archive sessions.
+      description: Archive selections cover at most one hour. Return complete independently decodable blocks within the half-open interval. A browser session may hold 16 active media sessions across both modes.
       parameters:
         - $ref: '#/components/parameters/Csrf'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -292,7 +292,13 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The live session already has a peer connection.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
         '410': { $ref: '#/components/responses/MediaSessionClosed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/Unavailable' }
   /media-sessions/{mediaSessionId}/manifest:
     parameters:

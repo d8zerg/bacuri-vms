@@ -73,7 +73,7 @@ net::awaitable<void> exchange(TlsStream& stream, net::thread_pool& workers, cons
     for (unsigned sequence = 1; sequence <= max_requests_per_connection; ++sequence) {
         http::request_parser<http::string_body> parser;
         parser.header_limit(8192);
-        parser.body_limit(32768);
+        parser.body_limit(65536);
         transport.expires_after(io_timeout);
         auto [error, header_size] =
             co_await http::async_read_header(stream, buffer, parser, net::as_tuple(net::use_awaitable));
@@ -81,6 +81,13 @@ net::awaitable<void> exchange(TlsStream& stream, net::thread_pool& workers, cons
             break;
         }
 
+        const auto target = std::string_view{parser.get().target()};
+        if (!error && !(target.starts_with("/api/v1/media-sessions/") && target.ends_with("/offer"))) {
+            parser.body_limit(32768);
+            if (parser.content_length().value_or(0) > 32768) {
+                error = http::error::body_limit;
+            }
+        }
         Response response;
         auto expectation = parser.get()[http::field::expect];
         if (!error && !expectation.empty() && !beast::iequals(expectation, "100-continue")) {

@@ -1,6 +1,8 @@
 #include "archive/mp4.hpp"
 #include "control/support.hpp"
 #include "media/lease.hpp"
+#include "media/live.hpp"
+#include <gst/gst.h>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
 #include <fcntl.h>
@@ -39,7 +41,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
     grpc::Status ReadPart(grpc::ServerContext* context, const v1::ReadPartRequest* request,
                           grpc::ServerWriter<v1::PartChunk>* stream) override
     {
-        if (!control::canonical_id(request->block_id())) {
+        if (!request->scope().has_archive() || !control::canonical_id(request->block_id())) {
             return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid block identity"};
         }
         try {
@@ -114,10 +116,13 @@ try {
     using namespace bacuri::vms;
     umask(0007);
     media::Delivery delivery;
+    gst_init(nullptr, nullptr);
+    media::LiveDelivery live;
     const auto path = control::setting("BACURI_MEDIA_SOCKET");
     grpc::ServerBuilder builder;
     builder.AddListeningPort("unix:" + path, grpc::experimental::LocalServerCredentials(UDS));
     builder.RegisterService(&delivery);
+    builder.RegisterService(&live);
     auto server = builder.BuildAndStart();
     if (!server || chmod(path.c_str(), 0660)) {
         throw std::runtime_error("Cannot open archive delivery socket");

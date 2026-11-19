@@ -40,6 +40,17 @@ TEST(FrameQueue, SlowPreviewDiscardsBufferedGopAndWaitsForKeyframe)
     EXPECT_EQ(queue.stats().recovered_at, UtcTime{10us});
 }
 
+TEST(FrameQueue, PreviewWaitReturnsAcceptedFrameOrTimesOut)
+{
+    FrameQueue queue{Profile::secondary};
+    const auto deadline = std::chrono::steady_clock::now() + 2s;
+    auto waiting = std::async(std::launch::async, [&] { return queue.wait_pop(deadline); });
+    const auto keyframe = frame(1, true);
+    queue.push(keyframe);
+    EXPECT_EQ(waiting.get(), keyframe);
+    EXPECT_FALSE(queue.wait_pop(std::chrono::steady_clock::now() + 1ms));
+}
+
 TEST(FrameQueue, OversizeKeyframeDoesNotExceedByteBudget)
 {
     FrameQueue queue{Profile::main};

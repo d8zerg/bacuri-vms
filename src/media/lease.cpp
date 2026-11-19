@@ -1,6 +1,7 @@
 #include "media/lease.hpp"
 #include "control/support.hpp"
 #include <algorithm>
+#include <cstdio>
 
 namespace bacuri::vms::media
 {
@@ -19,7 +20,12 @@ Clock::time_point Lease::deadline()
     const auto start = Clock::now();
     if (start >= check_ || start >= expires_) {
         grpc::ClientContext context;
-        context.set_deadline(std::chrono::system_clock::now() + 1s);
+        if (expires_ != Clock::time_point{} && start >= expires_) {
+            throw std::runtime_error("Media authorization expired");
+        }
+        const auto timeout = expires_ == Clock::time_point{} ? Clock::duration{1s}
+                                                             : std::min(Clock::duration{1s}, expires_ - start);
+        context.set_deadline(std::chrono::system_clock::now() + timeout);
         v1::DeliveryLease lease;
         const auto status = authority_->AuthorizeDelivery(&context, scope_, &lease);
         if (status.ok()) {
@@ -33,8 +39,21 @@ Clock::time_point Lease::deadline()
     // Renew before the hard two-second check boundary so a healthy slow write can finish.
     const auto deadline = std::min(check_ + 1s, expires_);
     if (Clock::now() >= deadline) {
-        throw std::runtime_error("Archive delivery authorization expired");
+        throw std::runtime_error("Media authorization expired");
     }
     return deadline;
+}
+void Lease::close_live() noexcept
+{
+    try {
+        grpc::ClientContext context;
+        context.set_deadline(std::chrono::system_clock::now() + 1s);
+        google::protobuf::Empty closed;
+        if (!authority_->CloseLive(&context, scope_, &closed).ok()) {
+            std::fputs("Live session close deferred to expiry\n", stderr);
+        }
+    } catch (const std::exception&) {
+        std::fputs("Cannot issue live session close RPC\n", stderr);
+    }
 }
 } // namespace bacuri::vms::media

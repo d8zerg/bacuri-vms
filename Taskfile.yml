@@ -65,6 +65,10 @@ tasks:
         task: playback:check
         vars: {PRESET: '{{.ITEM}}'}
 
+      - for: [gcc-debug, clang-asan-ubsan]
+        task: live:check
+        vars: {PRESET: '{{.ITEM}}'}
+
   check:report:
     desc: Run all checks and save the environment, log, and exit code
     cmd: bash tools/check-report
@@ -133,7 +137,7 @@ tasks:
     cmd: '{{.DEV_RUN}} sh tests/check-schemas.sh'
 
   control:up:
-    desc: Start the local HTTPS control, recorder and archive delivery services
+    desc: Start the local HTTPS control, recorder and media delivery services
     deps:
       - task: build
         vars: {PRESET: gcc-debug}
@@ -184,6 +188,23 @@ tasks:
       - docker compose up -d --wait playback-chrome playback-firefox
       - defer: docker compose stop playback-chrome playback-firefox
       - '{{.DEV_RUN}} sh tests/check-control.sh {{.PRESET | shellQuote}} playback'
+
+  live:check:
+    desc: Verify WebRTC preview, authorization and independent recording in Chrome and Firefox
+    vars:
+      CAMERA: '{{.CAMERA | default "rtsp-camera"}}'
+    requires:
+      vars:
+        - name: CAMERA
+          enum: [rtsp-camera, webcam]
+    deps:
+      - stand:up
+      - task: build
+        vars: {PRESET: '{{.PRESET}}'}
+    cmds:
+      - docker compose up -d --wait playback-chrome playback-firefox
+      - defer: docker compose stop playback-chrome playback-firefox
+      - '{{.DEV_RUN}} env BACURI_TEST_CAMERA_HOST={{.CAMERA | shellQuote}} sh tests/check-control.sh {{.PRESET | shellQuote}} live'
 
   api:check:
     desc: Validate OpenAPI, Protobuf and WebSocket schemas and examples

@@ -34,10 +34,10 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     std::string_view path{req.target().data(), req.target().size()};
     path = path.substr(0, path.find('?'));
     if (path == "/archive/" || path == "/archive/player.js" || path == "/archive/app.js" ||
-        path == "/archive/style.css") {
+        path == "/archive/style.css" || path == "/live/" || path == "/live/live.js" || path == "/session.js") {
         allow(req, res, {http::verb::get});
-        const bool html = path == "/archive/";
-        std::ifstream file{html ? "web/archive/index.html" : "web" + std::string{path}};
+        const bool html = path.ends_with('/');
+        std::ifstream file{"web" + std::string{path} + (html ? "index.html" : "")};
         if (!file) {
             throw Failure{503, "dependency_unavailable"};
         }
@@ -104,6 +104,9 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
 
 void problem(Response& res, const Failure& error, const char* id)
 {
+    if (error.status == 429 && !res.count(http::field::retry_after)) {
+        res.set(http::field::retry_after, "1");
+    }
     Json body{{"status", error.status},
               {"code", error.code},
               {"title", error.code},

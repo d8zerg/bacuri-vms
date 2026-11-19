@@ -41,6 +41,10 @@ RUN sed -i \
         sqlite3 \
     && rm -rf /var/lib/apt/lists/* \
     && install -d -m 1777 /var/lib/bacuri-vms/archive
+RUN apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::Languages=none update \
+    && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
+        gstreamer1.0-nice libgstreamer-plugins-bad1.0-dev \
+    && rm -rf /var/lib/apt/lists/*
 ENV XDG_CACHE_HOME=/tmp/bacuri-vms-cache
 WORKDIR /workspace
 

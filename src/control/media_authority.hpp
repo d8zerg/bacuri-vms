@@ -9,6 +9,8 @@ class MediaAuthority final : public v1::MediaAuthorization::Service
   public:
     MediaAuthority();
     ~MediaAuthority() override;
+    grpc::Status CloseLive(grpc::ServerContext*, const v1::AuthorizeDeliveryRequest*,
+                           google::protobuf::Empty*) override;
     grpc::Status AuthorizeDelivery(grpc::ServerContext*, const v1::AuthorizeDeliveryRequest*,
                                    v1::DeliveryLease*) override;
 

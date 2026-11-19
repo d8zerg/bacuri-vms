@@ -1,13 +1,5 @@
 // Each published block starts at a random access point with its own decode clock.
-const api = "/api/v1";
-export async function request(path, options = {}) {
-    const response = await fetch(api + path, { cache: "no-store", ...options });
-    if (!response.ok) {
-        const problem = await response.json();
-        throw new Error(problem.code || String(response.status));
-    }
-    return response;
-}
+import { request } from "/session.js";
 
 // Preserve the fractional milliseconds carried by the archive index.
 export function seconds(utc) {

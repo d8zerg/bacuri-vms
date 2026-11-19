@@ -68,7 +68,8 @@ std::string relay(unsigned port)
 {
     return "( udpsrc address=127.0.0.1 port=" + std::to_string(port) +
            " caps=\"application/x-rtp,media=video,encoding-name=H264,clock-rate=90000,payload=96\" "
-           "! rtph264depay ! h264parse ! rtph264pay name=pay0 pt=96 config-interval=-1 )";
+           "! rtpjitterbuffer mode=none latency=60 ! rtph264depay ! h264parse "
+           "! rtph264pay name=pay0 pt=96 config-interval=-1 )";
 }
 
 struct CaptureState {
