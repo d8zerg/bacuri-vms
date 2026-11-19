@@ -1,0 +1,77 @@
+version: '3'
+
+vars:
+  PRESET: gcc-debug
+  COMPOSE_RUN: 'docker compose run --rm --no-deps --user "$(id -u):$(id -g)"'
+  DEV_RUN: '{{.COMPOSE_RUN}} -T dev'
+
+tasks:
+  default:
+    cmd: task --list
+
+  build:
+    desc: Build the C++ targets in Docker using the selected CMake preset
+    run: when_changed
+    deps: [dev:image]
+    cmd: >-
+      {{.DEV_RUN}} sh -ec
+      'cmake --preset "$1" && cmake --build --preset "$1"'
+      sh {{.PRESET | shellQuote}}
+
+  test:
+    desc: Build and run CTest using the selected CMake preset
+    deps:
+      - task: build
+        vars: {PRESET: '{{.PRESET}}'}
+    cmd: '{{.DEV_RUN}} ctest --preset {{.PRESET | shellQuote}}'
+
+  lint:
+    desc: Run clang-tidy on the C++ sources
+    deps:
+      - task: build
+        vars: {PRESET: clang-debug}
+    cmd: >-
+      {{.DEV_RUN}} clang-tidy-19 -p build/clang-debug
+      -checks='-*,clang-analyzer-*,bugprone-*' -warnings-as-errors='*'
+      src/core/main.cpp tests/fixtures/rtsp_camera.cpp
+
+  check:
+    desc: Run the compiler and sanitizer matrix, static analysis, and stand checks
+    cmds:
+      - for: [gcc-debug, clang-debug, clang-asan-ubsan]
+        task: test
+        vars: {PRESET: '{{.ITEM}}'}
+      - task: lint
+      - task: stand:check
+
+  stand:up:
+    desc: Start PostgreSQL and the RTSP test camera and wait for health checks
+    cmd: docker compose up --build --wait --wait-timeout 60 postgres rtsp-camera
+
+  stand:down:
+    desc: Stop the Compose stand and keep persistent volumes
+    cmd: docker compose down
+
+  stand:status:
+    desc: Show the status of the Compose stand
+    cmd: docker compose ps
+
+  stand:logs:
+    desc: Show recent PostgreSQL and RTSP test camera logs
+    cmd: docker compose logs --tail 100 postgres rtsp-camera
+
+  stand:check:
+    desc: Check PostgreSQL, decode both RTSP streams, and verify test mounts
+    deps: [dev:image, stand:up]
+    cmd: '{{.DEV_RUN}} sh tests/check-stand.sh'
+
+  shell:
+    desc: Open a shell in the Docker development container
+    interactive: true
+    deps: [dev:image]
+    cmd: '{{.COMPOSE_RUN}} dev bash'
+
+  dev:image:
+    internal: true
+    run: once
+    cmd: docker compose build dev

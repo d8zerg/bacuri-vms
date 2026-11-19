@@ -1,0 +1,37 @@
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS dev
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        clang-19 \
+        clang-tidy-19 \
+        cmake \
+        g++-14 \
+        gstreamer1.0-libav \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-ugly \
+        gstreamer1.0-tools \
+        gstreamer1.0-x \
+        fonts-dejavu-core \
+        libclang-rt-19-dev \
+        libgstrtspserver-1.0-dev \
+        ninja-build \
+        pkg-config \
+        postgresql-client-17 \
+    && rm -rf /var/lib/apt/lists/* \
+    && install -d -m 1777 /var/lib/bacuri-vms/archive
+ENV XDG_CACHE_HOME=/tmp/bacuri-vms-cache
+WORKDIR /workspace
+
+FROM dev AS rtsp-camera
+COPY CMakeLists.txt ./
+COPY src ./src
+COPY tests/fixtures ./tests/fixtures
+RUN cmake -S . -B /tmp/fixture-build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_CXX_COMPILER=g++-14 \
+        -DBUILD_TESTING=OFF \
+        -DBACURI_VMS_BUILD_RTSP_FIXTURE=ON \
+    && cmake --build /tmp/fixture-build --target bacuri-vms-test-rtsp-camera \
+    && install /tmp/fixture-build/tests/fixtures/bacuri-vms-test-rtsp-camera /usr/local/bin/ \
+    && rm -rf /tmp/fixture-build
+USER 65534:65534
+EXPOSE 8554/tcp
+CMD ["bacuri-vms-test-rtsp-camera"]

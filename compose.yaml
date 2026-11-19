@@ -1,0 +1,49 @@
+name: bacuri-vms
+
+services:
+  postgres:
+    image: postgres:17.11-trixie@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
+    environment:
+      POSTGRES_DB: bacuri_vms
+      POSTGRES_USER: bacuri
+      POSTGRES_PASSWORD: bacuri-stand
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "bacuri", "-d", "bacuri_vms"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  rtsp-camera:
+    build:
+      context: .
+      target: rtsp-camera
+    ports:
+      - "127.0.0.1:${BACURI_RTSP_PORT:-8554}:8554"
+    healthcheck:
+      test: ["CMD", "bash", "-ec", ": </dev/tcp/127.0.0.1/8554"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  dev:
+    profiles: ["tools"]
+    build:
+      context: .
+      target: dev
+    volumes:
+      - .:/workspace
+      - archive-data:/var/lib/bacuri-vms/archive
+    tmpfs:
+      - /var/lib/bacuri-vms/fault-test:size=64m,mode=1777
+    environment:
+      PGHOST: postgres
+      PGDATABASE: bacuri_vms
+      PGUSER: bacuri
+      PGPASSWORD: bacuri-stand
+    command: ["bash"]
+
+volumes:
+  postgres-data:
+  archive-data:
