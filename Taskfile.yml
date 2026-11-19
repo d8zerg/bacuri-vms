@@ -40,12 +40,14 @@ tasks:
       -checks='-*,clang-analyzer-*,bugprone-*' -warnings-as-errors='*'
 
   check:
-    desc: Run the compiler and sanitizer matrix, static analysis, and stand checks
+    desc: Run the compiler and sanitizer matrix, static analysis, contract and stand checks
     cmds:
       - for: [gcc-debug, clang-debug, clang-asan-ubsan, clang-tsan]
         task: test
         vars: {PRESET: '{{.ITEM}}'}
       - task: lint
+      - task: api:check
+      - task: api:types
       - task: stand:check
       - task: schema:check
 
@@ -84,6 +86,21 @@ tasks:
     desc: Validate the manifest and apply both initial schemas to temporary databases
     deps: [dev:image, stand:up]
     cmd: '{{.DEV_RUN}} sh tests/check-schemas.sh'
+
+  api:check:
+    desc: Validate OpenAPI, Protobuf and WebSocket schemas and examples
+    deps: [dev:image]
+    cmd: '{{.DEV_RUN}} sh tests/check-contracts.sh'
+
+  api:types:
+    desc: Generate and type-check TypeScript definitions from OpenAPI
+    cmds:
+      - docker compose build api-types
+      - >-
+        {{.COMPOSE_RUN}} -T api-types sh -ec
+        'mkdir -p build/contracts &&
+        openapi-typescript contracts/v1/openapi.yaml --output build/contracts/api.d.ts &&
+        tsc --noEmit --strict build/contracts/api.d.ts'
 
   prototype:up:
     desc: Start the local browser prototype

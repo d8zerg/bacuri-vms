@@ -12,18 +12,12 @@ std::expected<UtcInterval, TimeError> UtcInterval::make(UtcTime begin, UtcTime e
     return UtcInterval{begin, end};
 }
 
-ProjectedTime estimate_from_reception(UtcTime received_at, std::optional<SourceTime> source) noexcept
+ProjectedTime ProjectedTime::from_reception(UtcTime received_at, std::optional<SourceTime> source) noexcept
 {
-    return {
-        .utc = received_at,
-        .received_at = received_at,
-        .source = source,
-        .clock_epoch = std::nullopt,
-        .uncertainty = std::nullopt,
-    };
+    return ProjectedTime{received_at, source, std::nullopt};
 }
 
-std::expected<ProjectedTime, TimeError> project_from_source(
+std::expected<ProjectedTime, TimeError> ProjectedTime::from_source(
     const ClockAnchor& anchor, SourceTime source, UtcTime received_at
 ) noexcept
 {
@@ -47,13 +41,11 @@ std::expected<ProjectedTime, TimeError> project_from_source(
         return std::unexpected{TimeError::arithmetic_overflow};
     }
 
-    return ProjectedTime{
+    return ProjectedTime{received_at, source, SourceProjection{
         .utc = UtcTime{Microseconds{utc_anchor + offset}},
-        .received_at = received_at,
-        .source = source,
-        .clock_epoch = anchor.epoch,
+        .epoch = anchor.epoch,
         .uncertainty = anchor.uncertainty,
-    };
+    }};
 }
 
 }  // namespace bacuri::vms::domain

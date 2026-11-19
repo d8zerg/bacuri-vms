@@ -1,0 +1,31 @@
+subscribe:
+  direction: client
+  message:
+    type: subscribe
+    after: snapshot_cursor
+upsert:
+  direction: server
+  message:
+    type: upsert
+    cursor: next_cursor
+    alert:
+      id: 90000000-0000-4000-8000-000000000003
+      point_id: 20000000-0000-4000-8000-000000000001
+      observed_at: '2020-01-01T10:00:45Z'
+      time_basis: source_clock
+      uncertainty_us: '8000'
+      type: motion
+      archive_interval:
+        start: '2020-01-01T10:00:30Z'
+        end: '2020-01-01T10:01:00Z'
+remove:
+  direction: server
+  message:
+    type: remove
+    cursor: following_cursor
+    alert_id: 90000000-0000-4000-8000-000000000002
+expired_cursor:
+  direction: server
+  message:
+    type: resync_required
+    reason: cursor_expired

@@ -1,0 +1,162 @@
+register_camera:
+  operation: registerCamera
+  request:
+    name: Loading bay
+    main_url: rtsp://camera.invalid/main
+    secondary_url: rtsp://camera.invalid/sub
+  status: 201
+  response: &camera
+    id: 40000000-0000-4000-8000-000000000001
+    point_id: &point 20000000-0000-4000-8000-000000000001
+    name: Loading bay
+    main_url: rtsp://camera.invalid/main
+    secondary_url: rtsp://camera.invalid/sub
+    has_credentials: false
+    desired_revision: '2'
+    applied_revision: '1'
+    state: applying
+update_camera_conflict:
+  operation: updateCamera
+  request:
+    name: Loading bay
+    main_url: rtsp://camera.invalid/main
+    secondary_url: rtsp://camera.invalid/sub
+    credentials: null
+  status: 412
+  response:
+    type: https://bacuri.invalid/problems/revision-conflict
+    title: Camera revision changed
+    status: 412
+    code: revision_conflict
+    request_id: &request 90000000-0000-4000-8000-000000000001
+    current: *camera
+operator_cannot_write_configuration:
+  operation: registerCamera
+  status: 403
+  response:
+    type: https://bacuri.invalid/problems/forbidden
+    title: Operation forbidden
+    status: 403
+    code: forbidden
+    request_id: *request
+point_status:
+  operation: listPoints
+  status: 200
+  response:
+    - id: *point
+      name: Loading bay
+      connection: online
+      recording: delayed
+      last_recorded_at: '2020-01-01T10:00:30Z'
+archive_timeline:
+  operation: searchArchive
+  status: 200
+  response:
+    items:
+      - state: recorded
+        time_basis: source_clock
+        uncertainty_us: '8000'
+        interval:
+          start: '2020-01-01T09:58:00Z'
+          end: '2020-01-01T09:59:00Z'
+      - state: gap
+        reason: source_offline
+        interval:
+          start: '2020-01-01T09:59:00Z'
+          end: '2020-01-01T10:00:00Z'
+      - state: recorded
+        time_basis: reception
+        interval: &selection
+          start: '2020-01-01T10:00:00Z'
+          end: '2020-01-01T10:00:30Z'
+      - state: pending_catalog
+        interval:
+          start: '2020-01-01T10:00:30Z'
+          end: '2020-01-01T10:01:00Z'
+      - state: unavailable
+        reason: unknown_coverage
+        interval:
+          start: '2020-01-01T10:01:00Z'
+          end: '2020-01-01T10:02:00Z'
+archive_outside_scope:
+  operation: searchArchive
+  status: 404
+  response:
+    type: https://bacuri.invalid/problems/not-found
+    title: Resource not found
+    status: 404
+    code: not_found
+    request_id: *request
+archive_authorization_unavailable:
+  operation: searchArchive
+  status: 503
+  response: &authorization_unavailable
+    type: https://bacuri.invalid/problems/authorization-unavailable
+    title: Authorization unavailable
+    status: 503
+    code: authorization_unavailable
+    request_id: *request
+open_archive_session:
+  operation: createMediaSession
+  request: &archive_request
+    mode: archive
+    interval: *selection
+  status: 201
+  response:
+    id: 80000000-0000-4000-8000-000000000001
+    point_id: *point
+    selection: *archive_request
+    expires_at: '2020-01-01T10:07:00Z'
+open_live_session:
+  operation: createMediaSession
+  request: { mode: live }
+  status: 201
+  response:
+    id: 80000000-0000-4000-8000-000000000002
+    point_id: *point
+    selection: { mode: live }
+    expires_at: '2020-01-01T10:07:00Z'
+media_authorization_unavailable:
+  operation: createMediaSession
+  request: { mode: live }
+  status: 503
+  response: *authorization_unavailable
+playback_manifest:
+  operation: getPlaybackManifest
+  status: 200
+  response:
+    mime_type: 'video/mp4; codecs="avc1.64001f"'
+    parts:
+      - init_id: 60000000-0000-4000-8000-000000000001
+        media_id: 60000000-0000-4000-8000-000000000002
+        interval: *selection
+media_revoked:
+  operation: readPlaybackPart
+  status: 410
+  response:
+    type: https://bacuri.invalid/problems/media-session-closed
+    title: Media session closed
+    status: 410
+    code: media_session_closed
+    request_id: *request
+media_outside_scope:
+  operation: readPlaybackPart
+  status: 404
+  response:
+    type: https://bacuri.invalid/problems/not-found
+    title: Resource not found
+    status: 404
+    code: not_found
+    request_id: *request
+alert_snapshot:
+  operation: getAlertSnapshot
+  status: 200
+  response:
+    items:
+      - id: 90000000-0000-4000-8000-000000000002
+        point_id: *point
+        observed_at: '2020-01-01T10:00:15Z'
+        time_basis: reception
+        type: motion
+        archive_interval: *selection
+    cursor: snapshot_cursor

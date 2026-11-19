@@ -54,25 +54,49 @@ enum class TimeBasis {
     reception,
 };
 
-struct ProjectedTime {
-    UtcTime utc;
-    UtcTime received_at;
-    std::optional<SourceTime> source;
-    std::optional<ClockEpochId> clock_epoch;
-    std::optional<Microseconds> uncertainty;
+class ProjectedTime {
+public:
+    [[nodiscard]] static ProjectedTime from_reception(
+        UtcTime received_at, std::optional<SourceTime> source = std::nullopt
+    ) noexcept;
+
+    [[nodiscard]] static std::expected<ProjectedTime, TimeError> from_source(
+        const ClockAnchor& anchor, SourceTime source, UtcTime received_at
+    ) noexcept;
+
+    [[nodiscard]] UtcTime utc() const noexcept { return projection_ ? projection_->utc : received_at_; }
+    [[nodiscard]] UtcTime received_at() const noexcept { return received_at_; }
+    [[nodiscard]] std::optional<SourceTime> source() const noexcept { return source_; }
+
+    [[nodiscard]] std::optional<ClockEpochId> clock_epoch() const noexcept
+    {
+        return projection_ ? std::optional{projection_->epoch} : std::nullopt;
+    }
+
+    [[nodiscard]] std::optional<Microseconds> uncertainty() const noexcept
+    {
+        return projection_ ? std::optional{projection_->uncertainty} : std::nullopt;
+    }
 
     [[nodiscard]] TimeBasis basis() const noexcept
     {
-        return clock_epoch.has_value() ? TimeBasis::source_clock : TimeBasis::reception;
+        return projection_ ? TimeBasis::source_clock : TimeBasis::reception;
     }
+
+private:
+    struct SourceProjection {
+        UtcTime utc;
+        ClockEpochId epoch;
+        Microseconds uncertainty;
+    };
+
+    ProjectedTime(UtcTime received_at, std::optional<SourceTime> source,
+        std::optional<SourceProjection> projection) noexcept
+        : received_at_{received_at}, source_{source}, projection_{projection} {}
+
+    UtcTime received_at_;
+    std::optional<SourceTime> source_;
+    std::optional<SourceProjection> projection_;
 };
-
-[[nodiscard]] ProjectedTime estimate_from_reception(
-    UtcTime received_at, std::optional<SourceTime> source = std::nullopt
-) noexcept;
-
-[[nodiscard]] std::expected<ProjectedTime, TimeError> project_from_source(
-    const ClockAnchor& anchor, SourceTime source, UtcTime received_at
-) noexcept;
 
 }  // namespace bacuri::vms::domain

@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package bacuri.vms.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service RecorderControl {
+  // Persist the accepted configuration before returning APPLIED.
+  // A replay of the same site, node and revision returns the recorded decision.
+  rpc ApplyConfiguration(ApplyConfigurationRequest) returns (ApplyConfigurationResult);
+}
+
+service ArchiveCatalog {
+  // Acknowledge only after the catalog transaction commits.
+  rpc RegisterBlock(RegisterBlockRequest) returns (RegistrationResult);
+}
+
+service ObservationIngest {
+  // Derive the allowed site and source from the caller identity.
+  // Acknowledge only after the durable observation transaction commits.
+  rpc SubmitObservation(SubmitObservationRequest) returns (RegistrationResult);
+}
+
+service MediaAuthorization {
+  // Check the current rights of the owning browser session and the entire selection.
+  // UNAUTHENTICATED, PERMISSION_DENIED, NOT_FOUND and FAILED_PRECONDITION deny access.
+  // UNAVAILABLE or DEADLINE_EXCEEDED never grants or renews a lease.
+  rpc AuthorizeDelivery(AuthorizeDeliveryRequest) returns (DeliveryLease);
+}
+
+message PointKey {
+  string site_id = 1;
+  string point_id = 2;
+}
+
+message ApplyConfigurationRequest {
+  string site_id = 1;
+  string recording_node_id = 2;
+  int64 revision = 3;
+  repeated CameraConfiguration cameras = 4;
+}
+
+message CameraConfiguration {
+  string device_id = 1;
+  string point_id = 2;
+  string main_url = 3;
+  string secondary_url = 4;
+  CameraCredentials credentials = 5;
+}
+
+message CameraCredentials {
+  string username = 1;
+  string password = 2;
+}
+
+message ApplyConfigurationResult {
+  int64 requested_revision = 1;
+  optional int64 applied_revision = 2;
+  ApplyState state = 3;
+  optional ApplyFailure failure = 4;
+}
+
+enum ApplyState {
+  APPLY_STATE_UNSPECIFIED = 0;
+  APPLY_STATE_APPLIED = 1;
+  APPLY_STATE_REJECTED = 2;
+}
+
+enum ApplyFailure {
+  APPLY_FAILURE_UNSPECIFIED = 0;
+  APPLY_FAILURE_STALE_REVISION = 1;
+  APPLY_FAILURE_INVALID_CONFIGURATION = 2;
+  APPLY_FAILURE_INCOMPATIBLE_PROFILES = 3;
+  APPLY_FAILURE_SOURCE_UNREACHABLE = 4;
+}
+
+message RegisterBlockRequest {
+  // UTF-8 JSON block manifest. Its version and content define the block identity.
+  bytes manifest_json = 1;
+}
+
+message SubmitObservationRequest {
+  string site_id = 1;
+  string source_id = 2;
+  string observation_id = 3;
+  string type = 4;
+  int32 schema_version = 5;
+  optional sint64 source_time_us = 6;
+  BindingReference binding = 7;
+  // UTF-8 JSON object for the declared observation type and version.
+  bytes attributes_json = 8;
+}
+
+message BindingReference {
+  string point_id = 1;
+  int64 revision = 2;
+}
+
+message RegistrationResult {
+  RegistrationState state = 1;
+}
+
+enum RegistrationState {
+  REGISTRATION_STATE_UNSPECIFIED = 0;
+  REGISTRATION_STATE_COMMITTED = 1;
+  REGISTRATION_STATE_REPLAYED = 2;
+}
+
+message AuthorizeDeliveryRequest {
+  string media_session_id = 1;
+  // Internal identity asserted by the authenticated HTTPS entry point.
+  string browser_session_id = 2;
+  PointKey point = 3;
+  oneof selection {
+    LiveSelection live = 4;
+    UtcInterval archive = 5;
+  }
+}
+
+message LiveSelection {}
+
+message UtcInterval {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+}
+
+message DeliveryLease {
+  // Positive and at most 5000. Count down from the caller's monotonic RPC start.
+  // Bound it by the remaining browser and media session lifetimes.
+  uint32 valid_for_ms = 1;
+}

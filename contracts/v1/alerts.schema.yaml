@@ -1,0 +1,42 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://bacuri.invalid/contracts/v1/alerts.schema.yaml
+title: Bacuri VMS alert feed
+description: >
+  WSS /api/v1/sites/{siteId}/alerts/stream with subprotocol bacuri.vms.alerts.v1.
+  The browser sends Subscribe first. The server replies with ordered ServerMessage frames.
+anyOf:
+  - $ref: '#/$defs/Subscribe'
+  - $ref: '#/$defs/ServerMessage'
+$defs:
+  Subscribe:
+    type: object
+    additionalProperties: false
+    required: [type, after]
+    properties:
+      type: { const: subscribe }
+      after: { $ref: 'openapi.yaml#/components/schemas/Cursor' }
+  ServerMessage:
+    oneOf:
+      - $ref: '#/$defs/Upsert'
+      - $ref: '#/$defs/Remove'
+      - $ref: '#/$defs/ResyncRequired'
+  Upsert:
+    type: object
+    required: [type, cursor, alert]
+    properties:
+      type: { const: upsert }
+      cursor: { $ref: 'openapi.yaml#/components/schemas/Cursor' }
+      alert: { $ref: 'openapi.yaml#/components/schemas/Alert' }
+  Remove:
+    type: object
+    required: [type, cursor, alert_id]
+    properties:
+      type: { const: remove }
+      cursor: { $ref: 'openapi.yaml#/components/schemas/Cursor' }
+      alert_id: { $ref: 'openapi.yaml#/components/schemas/Id' }
+  ResyncRequired:
+    type: object
+    required: [type, reason]
+    properties:
+      type: { const: resync_required }
+      reason: { enum: [cursor_expired, cursor_invalid, scope_changed, client_lag] }

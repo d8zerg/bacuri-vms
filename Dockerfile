@@ -18,15 +18,28 @@ RUN sed -i \
         gstreamer1.0-x \
         fonts-dejavu-core \
         libclang-rt-19-dev \
+        libgmock-dev \
         libgstrtspserver-1.0-dev \
+        libprotobuf-dev \
         ninja-build \
         pkg-config \
         postgresql-client-17 \
+        protobuf-compiler \
         python3-jsonschema \
+        python3-openapi-spec-validator \
+        python3-protobuf \
+        python3-yaml \
         sqlite3 \
     && rm -rf /var/lib/apt/lists/* \
     && install -d -m 1777 /var/lib/bacuri-vms/archive
 ENV XDG_CACHE_HOME=/tmp/bacuri-vms-cache
+WORKDIR /workspace
+
+FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS api-types
+WORKDIR /opt/bacuri-api-tools
+COPY tools/api-client/package.json tools/api-client/package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
+ENV PATH=/opt/bacuri-api-tools/node_modules/.bin:$PATH
 WORKDIR /workspace
 
 FROM dev AS rtsp-camera

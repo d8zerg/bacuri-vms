@@ -8,7 +8,7 @@
 task check
 ```
 
-Команда проверяет сборки GCC и Clang, выполняет стартовый CTest с ASan/UBSan и TSan и запускает статический анализ. Затем она запускает Compose-стенд, запрашивает PostgreSQL и декодирует оба RTSP-потока. CMake и Ninja работают внутри контейнера разработки. Результаты сборки сохраняются в `build/`. Базовые образы закреплены по digest, пакеты сборки берутся из фиксированного снимка Debian. [Архив Debian Snapshot](https://snapshot.debian.org/)
+Команда проверяет сборки GCC и Clang, выполняет CTest с ASan/UBSan и TSan, запускает статический анализ и проверяет контракты и типы TypeScript. Затем она запускает Compose-стенд, применяет схемы хранилищ на временных базах и декодирует оба RTSP-потока. CMake и Ninja работают внутри контейнера разработки. Результаты сборки сохраняются в `build/`. Базовые образы закреплены по digest, пакеты сборки берутся из фиксированного снимка Debian. [Архив Debian Snapshot](https://snapshot.debian.org/)
 
 | Команда | Действие |
 | --- | --- |
@@ -16,6 +16,8 @@ task check
 | `task build PRESET=clang-debug` | Собрать с указанным пресетом CMake |
 | `task test` | Собрать и запустить CTest. Поддерживает `PRESET` |
 | `task lint` | Запустить clang-tidy |
+| `task api:check` | Проверить схемы и примеры REST, gRPC и WebSocket |
+| `task api:types` | Сгенерировать и проверить типы TypeScript в `build/contracts/api.d.ts` |
 | `task check:report` | Выполнить `task check` и сохранить сведения об окружении, журнал и код завершения в `build/reports/check-*/` |
 | `task stand:up` | Запустить PostgreSQL и тестовую камеру |
 | `task stand:check` | Проверить PostgreSQL, RTSP-потоки и тома |
@@ -35,6 +37,7 @@ task check
 - [План разработки PoC](docs/devplan-poc.md)
 - [Паспорт стенда и условия испытаний](docs/poc-test-profile.md)
 - [Доменная модель и границы хранения PoC](docs/poc-domain-model.md)
+- [Контракты API, сеансы и доступ](docs/poc-api-contracts.md)
 - [Журнал изменений](CHANGELOG.md)
 
 ## Прототип интерфейса

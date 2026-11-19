@@ -1,0 +1,48 @@
+apply_configuration:
+  rpc: RecorderControl.ApplyConfiguration
+  request:
+    site_id: &site 10000000-0000-4000-8000-000000000001
+    recording_node_id: 70000000-0000-4000-8000-000000000002
+    revision: '2'
+    cameras:
+      - device_id: 40000000-0000-4000-8000-000000000001
+        point_id: &point 20000000-0000-4000-8000-000000000001
+        main_url: rtsp://camera.invalid/main
+        secondary_url: rtsp://camera.invalid/sub
+  response:
+    requested_revision: '2'
+    applied_revision: '2'
+    state: APPLY_STATE_APPLIED
+register_block:
+  rpc: ArchiveCatalog.RegisterBlock
+  request:
+    manifest_json: { base64_file: tests/schema/block-manifest-v1.json }
+  response:
+    state: REGISTRATION_STATE_REPLAYED
+submit_observation:
+  rpc: ObservationIngest.SubmitObservation
+  request:
+    site_id: *site
+    source_id: 80000000-0000-4000-8000-000000000001
+    observation_id: 90000000-0000-4000-8000-000000000002
+    type: motion
+    schema_version: 1
+    binding:
+      point_id: *point
+      revision: '1'
+    attributes_json: e30=
+  response:
+    state: REGISTRATION_STATE_COMMITTED
+authorize_delivery:
+  rpc: MediaAuthorization.AuthorizeDelivery
+  request:
+    media_session_id: 80000000-0000-4000-8000-000000000001
+    browser_session_id: 90000000-0000-4000-8000-000000000004
+    point:
+      site_id: *site
+      point_id: *point
+    archive:
+      start: '2020-01-01T10:00:00Z'
+      end: '2020-01-01T10:00:30Z'
+  response:
+    valid_for_ms: 5000

@@ -58,6 +58,15 @@ services:
       - ./build/clang-tsan:/workspace/build/clang-tsan
       - ./CMakePresets.json:/workspace/CMakePresets.json:ro
 
+  api-types:
+    profiles: ["tools"]
+    build:
+      context: .
+      target: api-types
+    network_mode: none
+    volumes:
+      - .:/workspace
+
 volumes:
   postgres-data:
   archive-data:

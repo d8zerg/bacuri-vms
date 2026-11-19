@@ -4,3 +4,7 @@
 !src/**
 !tests/
 !tests/**
+!tools/
+!tools/api-client/
+!tools/api-client/package.json
+!tools/api-client/package-lock.json

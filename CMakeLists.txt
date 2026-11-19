@@ -9,6 +9,7 @@ option(BACURI_VMS_BUILD_RTSP_FIXTURE "Build the test RTSP camera" OFF)
 include(CTest)
 
 add_library(bacuri-vms-domain STATIC
+    src/domain/archive.cpp
     src/domain/resources.cpp
     src/domain/time.cpp
 )
@@ -21,11 +22,13 @@ target_compile_definitions(bacuri-vms-core PRIVATE BACURI_VMS_VERSION="${PROJECT
 target_compile_options(bacuri-vms-core PRIVATE -Wall -Wextra -Wpedantic)
 
 if(BUILD_TESTING)
+    find_package(GTest CONFIG REQUIRED)
+    include(GoogleTest)
     add_test(NAME core-version COMMAND bacuri-vms-core --version)
     add_executable(bacuri-vms-domain-test tests/domain/model.cpp)
-    target_link_libraries(bacuri-vms-domain-test PRIVATE bacuri-vms-domain)
+    target_link_libraries(bacuri-vms-domain-test PRIVATE bacuri-vms-domain GTest::gmock_main)
     target_compile_options(bacuri-vms-domain-test PRIVATE -Wall -Wextra -Wpedantic)
-    add_test(NAME domain-model COMMAND bacuri-vms-domain-test)
+    gtest_discover_tests(bacuri-vms-domain-test DISCOVERY_MODE PRE_TEST)
 endif()
 
 if(BACURI_VMS_BUILD_RTSP_FIXTURE)

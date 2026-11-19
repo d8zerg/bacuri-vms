@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstdint>
+#include <expected>
 #include <string>
 #include <variant>
 #include <vector>
@@ -19,11 +20,30 @@ struct BlockKey {
     [[nodiscard]] friend constexpr bool operator==(const BlockKey&, const BlockKey&) noexcept = default;
 };
 
-struct RecordedInterval {
-    BlockKey block;
-    BindingKey binding;
-    UtcInterval interval;
-    ProjectedTime first_frame;
+enum class RecordingError {
+    different_site,
+    first_frame_not_at_begin,
+};
+
+class RecordedInterval {
+public:
+    [[nodiscard]] static std::expected<RecordedInterval, RecordingError> make(
+        BlockKey block, BindingKey binding, UtcInterval interval, ProjectedTime first_frame
+    ) noexcept;
+
+    [[nodiscard]] const BlockKey& block() const noexcept { return block_; }
+    [[nodiscard]] const BindingKey& binding() const noexcept { return binding_; }
+    [[nodiscard]] const UtcInterval& interval() const noexcept { return interval_; }
+    [[nodiscard]] const ProjectedTime& first_frame() const noexcept { return first_frame_; }
+
+private:
+    RecordedInterval(BlockKey block, BindingKey binding, UtcInterval interval, ProjectedTime first_frame) noexcept
+        : block_{block}, binding_{binding}, interval_{interval}, first_frame_{first_frame} {}
+
+    BlockKey block_;
+    BindingKey binding_;
+    UtcInterval interval_;
+    ProjectedTime first_frame_;
 };
 
 enum class GapReason {
