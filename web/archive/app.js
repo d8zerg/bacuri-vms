@@ -1,5 +1,5 @@
 import { ArchivePlayer } from "./player.js";
-import { byId, status, csrf, action, json, post, request, initialize } from "/session.js";
+import { byId, status, csrf, action, json, post, request, initialize, points } from "/session.js";
 
 let player, session, cursor, selection, path, searchPath;
 const reasons = {
@@ -13,7 +13,7 @@ const reasons = {
     outside_retention: "Истёк срок хранения",
 };
 
-async function play(position) {
+async function play(position, autoplay = true) {
     if (session && Date.parse(session.expires_at) <= Date.now()) {
         player?.stop();
         player = session = null;
@@ -31,8 +31,8 @@ async function play(position) {
     }
     byId("seek").elements.position.value = position;
     if (await player.seek(position)) {
-        await byId("video").play();
-        status("Воспроизведение");
+        if (autoplay) await byId("video").play();
+        status(autoplay ? "Воспроизведение" : "Кадр тревоги");
     }
 }
 async function page() {
@@ -78,4 +78,29 @@ byId("more").onclick = action(page);
 const end = Date.now();
 byId("search").elements.start.value = new Date(end - 60000).toISOString();
 byId("search").elements.end.value = new Date(end).toISOString();
-await initialize();
+const origin = new URLSearchParams(location.search);
+async function openAlert() {
+    if (!origin.has("alert") || origin.get("site") !== byId("site").value) return;
+    const link = await json("/sites/" + byId("site").value + "/alerts/" + encodeURIComponent(origin.get("alert")) + "/archive");
+    byId("point").value = link.point_id;
+    byId("search").elements.start.value = link.archive_interval.start;
+    byId("search").elements.end.value = link.archive_interval.end;
+    byId("retry-alert").hidden = link.state === "ready";
+    if (link.state !== "ready") {
+        status(link.state === "uncertain_time" ? "Нельзя точно сопоставить время тревоги с записью" : reasons[link.reason || link.state]);
+        return;
+    }
+    path = "/sites/" + byId("site").value + "/points/" + link.point_id;
+    searchPath = path + "/archive";
+    selection = link.interval;
+    byId("search").elements.start.value = selection.start;
+    byId("search").elements.end.value = selection.end;
+    await page();
+    await play(link.position, false);
+}
+byId("retry-alert").onclick = action(openAlert);
+await initialize(async () => {
+    await points();
+    byId("retry-alert").hidden = true;
+    await openAlert();
+}, origin.get("site"));

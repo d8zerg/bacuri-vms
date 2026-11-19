@@ -71,6 +71,7 @@ message PendingQuery {
   PointKey point = 1;
   int64 begin_us = 2;
   int64 end_us = 3;
+  optional int64 binding_revision = 4;
 }
 message Coverage { int64 begin_us = 1; int64 end_us = 2; }
 message RegisterGapRequest {
@@ -153,6 +154,9 @@ message SubmitObservationRequest {
   BindingReference binding = 7;
   // UTF-8 JSON object for the declared observation type and version.
   bytes attributes_json = 8;
+  // Present only when source_time_us is synchronized to UTC in this epoch.
+  message ClockReference { string epoch_id = 1; uint64 uncertainty_us = 2; }
+  ClockReference clock = 9;
 }
 
 message BindingReference {

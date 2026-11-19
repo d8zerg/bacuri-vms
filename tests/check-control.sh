@@ -2,6 +2,7 @@
 set -eu
 umask 077
 export BACURI_TEST_BIN="build/${1:-gcc-debug}"
+export BACURI_OBSERVATION_SOURCE=80000000-0000-4000-8000-000000000001
 test_dir=$(mktemp -d)
 database=bacuri_control_$(basename "$test_dir" | tr -cd '[:alnum:]')
 cleanup() {
@@ -22,7 +23,7 @@ export BACURI_TEST_CAMERA_NETWORK="$fixture_ip/32"
 export BACURI_CAMERA_NETWORKS="$BACURI_TEST_CAMERA_NETWORK,192.168.0.0/16"
 export BACURI_TLS_CERT="$test_dir/server.crt" BACURI_TLS_KEY="$test_dir/server.key"
 export BACURI_KEY_FILE="$test_dir/core.key" BACURI_SOCKET="$test_dir/recorder.sock"
-export BACURI_RECORDER_DB="$test_dir/recorder.db"
+export BACURI_RECORDER_DB="$test_dir/recorder.db" BACURI_OBSERVATION_SOCKET="$test_dir/events.sock"
 export BACURI_CATALOG_SOCKET="$test_dir/catalog.sock" BACURI_ARCHIVE_DIR="$test_dir/archive"
 export BACURI_AUTH_SOCKET="$test_dir/auth.sock" BACURI_MEDIA_SOCKET="$test_dir/media.sock"
 export BACURI_PREVIEW_SOCKET="$test_dir/preview.sock"
@@ -39,9 +40,11 @@ psql -Xq -v ON_ERROR_STOP=1 -c "INSERT INTO bacuri_inventory.sites VALUES ('$BAC
 case "${2:-control}" in
     control) python3 tests/control/registry.py "$test_dir" ;;
     archive) PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/recording.py "$test_dir" ;;
-    playback|live)
+    playback|live|alerts)
         export BACURI_LISTEN=0.0.0.0 BACURI_ORIGIN="https://$(hostname -i | awk '{print $1}'):8443"
-        if [ "$2" = live ]; then
+        if [ "$2" = alerts ]; then
+            PYTHONDONTWRITEBYTECODE=1 python3 tests/alerts/feed.py "$test_dir"
+        elif [ "$2" = live ]; then
             PYTHONDONTWRITEBYTECODE=1 python3 tests/live/streaming.py "$test_dir"
         else
             PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/playback.py "$test_dir"

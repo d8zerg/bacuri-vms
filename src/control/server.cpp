@@ -1,4 +1,7 @@
 #include "control/api.hpp"
+#include "control/alerts.hpp"
+#include "control/observations.hpp"
+#include <boost/beast/websocket/rfc6455.hpp>
 #include "control/delivery.hpp"
 #include "control/archive_catalog.hpp"
 #include "control/media_authority.hpp"
@@ -29,12 +32,13 @@ void allow(const Request& req, Response& res, std::initializer_list<http::verb> 
 namespace
 {
 void route(const Request& req, Response& res, const std::string& peer, const Sessions& sessions,
-           const CameraRegistry& registry, const Playback& playback)
+           const CameraRegistry& registry, const Playback& playback, const Key& key, const std::string& origin)
 {
     std::string_view path{req.target().data(), req.target().size()};
     path = path.substr(0, path.find('?'));
-    if (path == "/archive/" || path == "/archive/player.js" || path == "/archive/app.js" ||
-        path == "/archive/style.css" || path == "/live/" || path == "/live/live.js" || path == "/session.js") {
+    if (path == "/alerts/" || path == "/alerts/app.js" || path == "/archive/" || path == "/archive/player.js" ||
+        path == "/archive/app.js" || path == "/archive/style.css" || path == "/live/" ||
+        path == "/live/live.js" || path == "/session.js") {
         allow(req, res, {http::verb::get});
         const bool html = path.ends_with('/');
         std::ifstream file{"web" + std::string{path} + (html ? "index.html" : "")};
@@ -74,6 +78,31 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     }
     const std::string site{path.substr(0, separator)};
     path.remove_prefix(separator + 1);
+    if (path == "alerts" || path == "alerts/stream") {
+        allow(req, res, {http::verb::get});
+        auto feed = std::make_shared<AlertFeed>(sessions, key, req, site);
+        if (path == "alerts") {
+            return respond(res, feed->snapshot());
+        }
+        if (req.count(http::field::origin) != 1 || req[http::field::origin] != origin) {
+            throw Failure{403, "forbidden"};
+        }
+        if (!boost::beast::websocket::is_upgrade(req) || req.count(http::field::sec_websocket_protocol) != 1 ||
+            req[http::field::sec_websocket_protocol] != alert_protocol || !req.body().empty()) {
+            throw Failure{400, "invalid_request"};
+        }
+        feed->authorize();
+        res.alerts = std::move(feed);
+        return;
+    }
+    if (path.size() == 51 && path.starts_with("alerts/") && path.ends_with("/archive")) {
+        path.remove_prefix(7);
+        path.remove_suffix(8);
+        if (!canonical_id(path)) {
+            throw Failure{404, "not_found"};
+        }
+        return playback.alert_archive(req, res, site, std::string{path});
+    }
     if (path.starts_with("points/")) {
         path.remove_prefix(7);
         const auto slash = path.find('/');
@@ -144,6 +173,7 @@ void serve()
     setting("BACURI_SOCKET");
     ArchiveCatalog catalog{{setting("BACURI_SITE_ID"), setting("BACURI_NODE_ID")}};
     MediaAuthority authority;
+    Observations observations;
     const Sessions sessions{key, origin};
     const Playback playback{sessions, key};
     const CameraRegistry registry{sessions, key, CameraNetworks{setting("BACURI_CAMERA_NETWORKS")}};
@@ -158,7 +188,7 @@ void serve()
             if (req.version() == 11 && (req.count(http::field::host) != 1 || req[http::field::host].empty())) {
                 throw Failure{400, "invalid_request"};
             }
-            route(req, res, peer, sessions, registry, playback);
+            route(req, res, peer, sessions, registry, playback, key, origin);
         } catch (const Failure& failure) {
             problem(res, failure, id.get());
         } catch (const std::exception&) {

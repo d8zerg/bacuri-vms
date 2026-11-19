@@ -14,6 +14,11 @@ struct Window {
                 {"end", ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(end))}};
     }
 };
+inline constexpr std::int64_t alert_context_us = 15'000'000;
+inline Window alert_window(std::int64_t time)
+{
+    return {time - alert_context_us, time + alert_context_us};
+}
 inline std::int64_t utc_us(const Timestamp& t)
 {
     if (t.seconds() < ProtoTime::kTimestampMinSeconds || t.seconds() > ProtoTime::kTimestampMaxSeconds ||

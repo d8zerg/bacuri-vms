@@ -105,6 +105,7 @@ services:
     command: ["sh", "/init"]
     volumes:
       - ./tools/control-init:/init:ro
+      - observation-ipc:/observation-ipc
       - core-identity:/identity/core
       - preview-ipc:/preview-ipc
       - recorder-identity:/identity/recorder
@@ -129,6 +130,8 @@ services:
       BACURI_NODE_ID: &node ${BACURI_NODE_ID:-70000000-0000-4000-8000-000000000001}
       BACURI_CAMERA_NETWORKS: &networks ${BACURI_CAMERA_NETWORKS:-172.16.0.0/12,192.168.0.0/16,10.0.0.0/8}
       BACURI_SOCKET: /ipc/recorder.sock
+      BACURI_OBSERVATION_SOURCE: &observation_source ${BACURI_OBSERVATION_SOURCE:-80000000-0000-4000-8000-000000000001}
+      BACURI_OBSERVATION_SOCKET: /observation-ipc/events.sock
       BACURI_CATALOG_SOCKET: /catalog-ipc/catalog.sock
       BACURI_AUTH_SOCKET: /auth-ipc/auth.sock
       BACURI_MEDIA_SOCKET: /media-ipc/media.sock
@@ -143,6 +146,7 @@ services:
       - ./storage/postgresql/migrations:/workspace/storage/postgresql/migrations:ro
       - core-identity:/identity:ro
       - ./web:/workspace/web:ro
+      - observation-ipc:/observation-ipc
       - media-auth:/auth-ipc
       - media-ipc:/media-ipc:ro
       - control-ipc:/ipc:ro
@@ -155,6 +159,21 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
+
+  observation-source:
+    profiles: ["tools"]
+    image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}
+    pull_policy: never
+    network_mode: none
+    user: "11004:11010"
+    environment:
+      BACURI_SITE_ID: *site
+      BACURI_OBSERVATION_SOURCE: *observation_source
+      BACURI_OBSERVATION_SOCKET: /observation-ipc/events.sock
+    volumes:
+      - ./build/gcc-debug:/opt/bacuri:ro
+      - observation-ipc:/observation-ipc:ro
+    command: ["/opt/bacuri/bacuri-vms-observation-source"]
 
   media:
     profiles: ["control"]
@@ -219,6 +238,7 @@ volumes:
   control-ipc:
   catalog-ipc:
   media-auth:
+  observation-ipc:
   media-ipc:
   preview-ipc:
 

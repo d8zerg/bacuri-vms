@@ -2,7 +2,7 @@ WITH catalog AS NOT MATERIALIZED (
     SELECT begin_utc_us AS a, end_utc_us AS b, interval_kind AS state, time_basis, uncertainty_us, gap_reason,
            int8range(begin_utc_us, end_utc_us, '[)') AS coverage
     FROM bacuri_archive.timeline_intervals
-    WHERE site_id = $1 AND point_id = $2
+    WHERE site_id = $1 AND point_id = $2 AND ($6 = '' OR binding_revision = nullif($6, '')::bigint)
 ), pending AS MATERIALIZED (
     SELECT a, b FROM jsonb_to_recordset($5::jsonb) AS p(a bigint, b bigint)
     WHERE a < $4 AND b > $3

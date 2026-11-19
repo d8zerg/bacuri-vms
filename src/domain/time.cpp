@@ -12,6 +12,15 @@ std::expected<UtcInterval, TimeError> UtcInterval::make(UtcTime begin, UtcTime e
     return UtcInterval{begin, end};
 }
 
+bool UtcInterval::contains(UtcTime time, Microseconds uncertainty) const noexcept
+{
+    if (uncertainty < Microseconds::zero() || time < UtcTime::min() + uncertainty ||
+        time > UtcTime::max() - uncertainty) {
+        return false;
+    }
+    return contains(time - uncertainty) && contains(time + uncertainty);
+}
+
 ProjectedTime ProjectedTime::from_reception(UtcTime received_at, std::optional<SourceTime> source) noexcept
 {
     return ProjectedTime{received_at, source, std::nullopt};

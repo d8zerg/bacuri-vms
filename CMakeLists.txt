@@ -81,7 +81,10 @@ add_executable(bacuri-vms-media src/media/main.cpp src/media/live.cpp src/media/
 target_compile_definitions(bacuri-vms-media PRIVATE GST_USE_UNSTABLE_API)
 target_link_libraries(bacuri-vms-media PRIVATE PkgConfig::WEBRTC PkgConfig::GST)
 target_link_libraries(bacuri-vms-media PRIVATE bacuri-vms-media-auth bacuri-vms-archive Boost::headers)
+add_executable(bacuri-vms-observation-source src/control/observation_source.cpp)
+target_link_libraries(bacuri-vms-observation-source PRIVATE bacuri-vms-rpc bacuri-vms-control-support)
 add_executable(bacuri-vms-core src/core/main.cpp src/control/database.cpp src/control/registry.cpp
+    src/control/observations.cpp src/control/alerts.cpp src/control/alert_socket.cpp
     src/control/media_authority.cpp src/control/playback.cpp
     src/control/session.cpp src/control/server.cpp src/control/https.cpp src/control/delivery.cpp src/control/archive_catalog.cpp)
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-manifest bacuri-vms-media-auth)

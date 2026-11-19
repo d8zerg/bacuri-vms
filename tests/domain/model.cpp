@@ -94,6 +94,18 @@ TEST(ConfigurationProgress, DistinguishesDesiredAndAppliedRevisions)
     EXPECT_TRUE((ConfigurationProgress{.desired_revision = 2, .applied_revision = 2}.converged()));
 }
 
+TEST(UtcInterval, ContainsTheEntireClockUncertaintyAtBothBounds)
+{
+    const auto interval = UtcInterval::make(UtcTime{100us}, UtcTime{200us}).value();
+    EXPECT_TRUE(interval.contains(UtcTime{105us}, 5us));
+    EXPECT_FALSE(interval.contains(UtcTime{104us}, 5us));
+    EXPECT_TRUE(interval.contains(UtcTime{194us}, 5us));
+    EXPECT_FALSE(interval.contains(UtcTime{195us}, 5us));
+    EXPECT_FALSE(interval.contains(UtcTime{150us}, -1us));
+    EXPECT_FALSE(interval.contains(UtcTime::max(), 1us));
+    EXPECT_FALSE(interval.contains(UtcTime::min(), 1us));
+}
+
 TEST(UtcInterval, IncludesOnlyItsStartBoundary)
 {
     const auto interval = UtcInterval::make(UtcTime{1'018us}, UtcTime{1'118us});

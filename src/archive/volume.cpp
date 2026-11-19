@@ -299,13 +299,15 @@ void Volume::reconcile()
 }
 
 std::vector<std::pair<std::int64_t, std::int64_t>> Volume::pending_intervals(const std::string& point,
-                                                                             std::int64_t begin, std::int64_t end) const
+                                                                             std::int64_t begin, std::int64_t end,
+                                                                             std::optional<std::int64_t> binding) const
 {
     storage::Sqlite journal{root_ / "journal.db", storage::OpenMode::read_only};
     auto rows = journal.query(R"sql(WITH spans AS (
             SELECT manifest_json->>'begin_utc_us' AS a,manifest_json->>'end_utc_us' AS b
             FROM committed_blocks WHERE registered_at_utc_us IS NULL AND catalog_error IS NULL AND unavailable_reason IS NULL
             AND manifest_json->>'point_id'=? AND a<? AND b>?
+            AND (?4 IS NULL OR manifest_json->>'binding_revision'=?4)
         ), ordered AS (
             SELECT a,b,max(b) OVER(ORDER BY a,b ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS previous FROM spans
         ), grouped AS (
@@ -314,6 +316,9 @@ std::vector<std::pair<std::int64_t, std::int64_t>> Volume::pending_intervals(con
     bind_text(rows.get(), 1, point);
     sqlite3_bind_int64(rows.get(), 2, end);
     sqlite3_bind_int64(rows.get(), 3, begin);
+    if (binding) {
+        sqlite3_bind_int64(rows.get(), 4, *binding);
+    }
     std::vector<std::pair<std::int64_t, std::int64_t>> result;
     while (next(rows.get())) {
         result.emplace_back(sqlite3_column_int64(rows.get(), 0), sqlite3_column_int64(rows.get(), 1));

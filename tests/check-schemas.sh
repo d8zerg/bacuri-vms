@@ -49,4 +49,5 @@ psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migration
 test "$(psql -XAtq --dbname "$database" -c 'SELECT desired_revision-decided_revision FROM bacuri_inventory.recorder_delivery')" = 1
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0004_playback.sql
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0005_live.sql
+psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0006_alerts.sql
 printf '%s\n' 'PostgreSQL and SQLite schemas and archive upgrades passed'

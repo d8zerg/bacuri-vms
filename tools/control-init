@@ -5,7 +5,7 @@ install -d -o 11001 -g 11010 -m 0700 /identity/core
 install -d -o 11002 -g 11010 -m 0700 /identity/recorder /recorder-data
 install -d -o 11002 -g 11010 -m 2750 /ipc
 install -d -o 11001 -g 11010 -m 2750 /catalog-ipc
-install -d -o 11001 -g 11010 -m 2750 /auth-ipc
+install -d -o 11001 -g 11010 -m 2750 /auth-ipc /observation-ipc
 install -d -o 11003 -g 11010 -m 2750 /media-ipc
 install -d -o 11002 -g 11010 -m 2750 /preview-ipc
 install -d -o 11002 -g 11010 -m 0750 /archive/recorder /archive/recorder/blocks

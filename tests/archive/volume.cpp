@@ -92,6 +92,8 @@ TEST(ArchiveVolume, PreservesConfirmedGapsAndReportsOnlyPendingPointCoverage)
     EXPECT_FALSE(restored.pending_gap());
     EXPECT_TRUE(restored.pending_intervals(uuid(), 1, 10000).empty());
     ASSERT_EQ(restored.pending_intervals(block.origin.point, 1, 10000).size(), 1u);
+    EXPECT_EQ(restored.pending_intervals(block.origin.point, 1, 10000, block.origin.binding).size(), 1u);
+    EXPECT_TRUE(restored.pending_intervals(block.origin.point, 1, 10000, block.origin.binding + 1).empty());
     auto item = restored.pending();
     if (!item) {
         FAIL() << "Missing pending block";

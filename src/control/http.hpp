@@ -21,7 +21,9 @@ class MediaBody
     virtual ~MediaBody() = default;
     virtual MediaChunk next() = 0;
 };
+class AlertFeed;
 struct Response : http::response<http::string_body> {
+    std::shared_ptr<AlertFeed> alerts;
     std::shared_ptr<MediaBody> media;
     std::uint64_t media_size{};
 };

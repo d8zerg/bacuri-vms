@@ -30,6 +30,8 @@ submit_observation:
     observation_id: 90000000-0000-4000-8000-000000000002
     type: motion
     schema_version: 1
+    source_time_us: '1500000000000640'
+    clock: { epoch_id: 50000000-0000-4000-8000-000000000001, uncertainty_us: '80' }
     binding:
       point_id: *point
       revision: '1'

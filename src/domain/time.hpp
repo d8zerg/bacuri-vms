@@ -30,6 +30,8 @@ public:
     [[nodiscard]] constexpr UtcTime begin() const noexcept { return begin_; }
     [[nodiscard]] constexpr UtcTime end() const noexcept { return end_; }
 
+    [[nodiscard]] bool contains(UtcTime time, Microseconds uncertainty) const noexcept;
+
     [[nodiscard]] constexpr bool contains(UtcTime time) const noexcept
     {
         return begin_ <= time && time < end_;

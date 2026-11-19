@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Тревоги | Bacuri VMS</title>
+    <link rel="stylesheet" href="/archive/style.css">
+</head>
+<body>
+    <main>
+        <nav><a href="/live/">Прямой эфир</a> · <a href="/archive/">Архив видео</a></nav>
+        <h1>Тревоги</h1>
+        <form id="login" hidden>
+            <label>Имя пользователя <input name="username" autocomplete="username" required></label>
+            <label>Пароль <input type="password" name="password" autocomplete="current-password" required></label>
+            <button>Войти</button>
+        </form>
+        <form id="search" hidden>
+            <label>Площадка <select id="site" required></select></label>
+        </form>
+        <p role="status" id="status"></p>
+        <ul id="alerts" aria-label="Последние тревоги"></ul>
+    </main>
+    <script type="module" src="/alerts/app.js"></script>
+</body>
+</html>

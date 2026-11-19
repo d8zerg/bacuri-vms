@@ -1,4 +1,4 @@
-nav a { color: #b5e9db; }
+nav a, #alerts a { color: #b5e9db; }
 * {
     box-sizing: border-box;
 }

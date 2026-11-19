@@ -1,4 +1,4 @@
-#include "control/http.hpp"
+#include "control/alert_socket.hpp"
 
 #include <boost/asio/as_tuple.hpp>
 #include <boost/asio/awaitable.hpp>
@@ -22,7 +22,7 @@ namespace net = boost::asio;
 namespace beast = boost::beast;
 namespace ssl = net::ssl;
 using tcp = net::ip::tcp;
-using TlsStream = ssl::stream<beast::tcp_stream>;
+
 using namespace std::chrono_literals;
 
 constexpr auto io_timeout = 5s;
@@ -63,8 +63,10 @@ net::awaitable<void> send_media(TlsStream& stream, net::thread_pool& workers, Re
     }
 }
 
-net::awaitable<void> exchange(TlsStream& stream, net::thread_pool& workers, const HttpHandler& handler)
+net::awaitable<void> exchange(std::shared_ptr<TlsStream> connection, net::thread_pool& workers,
+                              const HttpHandler& handler)
 {
+    auto& stream = *connection;
     auto& transport = beast::get_lowest_layer(stream);
     const auto peer = transport.socket().remote_endpoint().address().to_string();
     transport.expires_after(io_timeout);
@@ -114,6 +116,10 @@ net::awaitable<void> exchange(TlsStream& stream, net::thread_pool& workers, cons
                 const auto request = parser.release();
                 // Blocking database, DNS and password operations use the bounded application pool.
                 response = co_await net::co_spawn(workers, process(handler, request, peer), net::use_awaitable);
+                if (response.alerts) {
+                    co_await stream_alerts(connection, workers, request, std::move(response.alerts));
+                    co_return;
+                }
                 response.version(request.version());
                 response.keep_alive(request.keep_alive() && sequence < max_requests_per_connection);
                 if (response.media) {
@@ -154,7 +160,7 @@ net::awaitable<void> accept_connections(tcp::acceptor& listener, ssl::context& t
         }
         auto stream = std::make_shared<TlsStream>(std::move(socket), tls);
         active.insert(stream);
-        net::co_spawn(listener.get_executor(), exchange(*stream, workers, handler),
+        net::co_spawn(listener.get_executor(), exchange(stream, workers, handler),
                       [&active, stream](std::exception_ptr) { active.erase(stream); });
     }
 }

@@ -355,6 +355,25 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/Unavailable' }
 
+  /sites/{siteId}/alerts/{alertId}/archive:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+      - in: path
+        name: alertId
+        required: true
+        schema: { $ref: '#/components/schemas/Id' }
+    get:
+      operationId: resolveAlertArchive
+      responses:
+        '200':
+          description: Current archive coverage for the observed binding and time uncertainty.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertArchive' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
 components:
   securitySchemes:
     browserSession:
@@ -657,6 +676,29 @@ components:
             type: { type: string, minLength: 1, maxLength: 128 }
             archive_interval: { $ref: '#/components/schemas/UtcInterval' }
         - $ref: '#/components/schemas/TimeQuality'
+    AlertArchive:
+      type: object
+      required: [point_id, state, archive_interval]
+      properties:
+        point_id: { $ref: '#/components/schemas/Id' }
+        archive_interval: { $ref: '#/components/schemas/UtcInterval' }
+        state: { enum: [ready, pending_catalog, uncertain_time, gap, unavailable] }
+      oneOf:
+        - required: [interval, position]
+          properties:
+            state: { const: ready }
+            interval: { $ref: '#/components/schemas/UtcInterval' }
+            position: { $ref: '#/components/schemas/UtcTime' }
+        - properties:
+            state: { enum: [pending_catalog, uncertain_time] }
+        - required: [reason]
+          properties:
+            state: { const: gap }
+            reason: { enum: [source_offline, storage_failure, overload] }
+        - required: [reason]
+          properties:
+            state: { const: unavailable }
+            reason: { enum: [unknown_coverage, media_offline, corrupt, outside_retention] }
     AlertSnapshot:
       type: object
       required: [items, cursor]

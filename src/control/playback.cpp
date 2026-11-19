@@ -1,5 +1,6 @@
 #include "control/playback.hpp"
 #include "control/playback_time.hpp"
+#include "domain/time.hpp"
 #include "archive_sql.hpp"
 #include "media/lease.hpp"
 
@@ -43,7 +44,8 @@ struct PointAccess {
     std::string site, point, browser, role;
 };
 
-Json search(Database& db, const Key& key, const PointAccess& access, Json params)
+Json search(Database& db, const Key& key, const PointAccess& access, Json params,
+            std::optional<std::int64_t> binding = {})
 {
     const auto cursor = params.value("cursor", std::string{});
     const bool continued = params.erase("cursor") != 0;
@@ -74,6 +76,9 @@ Json search(Database& db, const Key& key, const PointAccess& access, Json params
     q.mutable_point()->set_point_id(access.point);
     q.set_begin_us(position);
     q.set_end_us(bounds.end);
+    if (binding) {
+        q.set_binding_revision(*binding);
+    }
     v1::PendingIntervals pending;
     Json local = Json::array();
     auto horizon = bounds.end;
@@ -86,8 +91,9 @@ Json search(Database& db, const Key& key, const PointAccess& access, Json params
             local.push_back({{"a", interval.begin_us()}, {"b", interval.end_us()}});
         }
     }
-    auto rows = db.exec(archive::sql::search, {access.site, access.point, std::to_string(position),
-                                               std::to_string(horizon), local.dump()});
+    auto rows = db.exec(archive::sql::search,
+                        {access.site, access.point, std::to_string(position), std::to_string(horizon),
+                         local.dump(), binding ? std::to_string(*binding) : ""});
     auto items = Json::array();
     for (int i = 0; i < std::min(1000, rows.size()); ++i) {
         Window span{std::stoll(rows.get(i)), std::stoll(rows.get(i, 1))};
@@ -374,5 +380,61 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
     res.set(http::field::content_type, "video/mp4");
     res.media_size = body->size;
     res.media = std::move(body);
+}
+void Playback::alert_archive(const Request& req, Response& res, const std::string& site,
+                             const std::string& id) const
+{
+    allow(req, res, {http::verb::get});
+    Database db;
+    db.exec("BEGIN");
+    auto who = sessions_.authenticate(db, req, false);
+    auto rows =
+        db.exec("SELECT d.point_id,d.binding_revision,d.observed_at_utc_us,d.time_basis,d.uncertainty_us,v.role "
+                "FROM bacuri_events.alert_details d JOIN visible_points v USING(site_id,point_id) "
+                "WHERE d.site_id=$1 AND d.alert_id=$2 AND v.user_id=$3",
+                {site, id, who.user});
+    if (!rows.size()) {
+        throw Failure{404, "not_found"};
+    }
+    const auto point = rows.get(0);
+    const auto time = std::stoll(rows.get(0, 2));
+    Json link{{"point_id", point}, {"state", "uncertain_time"}, {"archive_interval", alert_window(time).json()}};
+    if (rows.get(0, 3) == "source_clock" && std::stoll(rows.get(0, 4)) <= alert_context_us) {
+        const auto uncertainty = std::stoll(rows.get(0, 4));
+        Window instant{time - uncertainty, time + uncertainty + 1};
+        auto blocks = db.exec(
+            "SELECT begin_utc_us,end_utc_us,binding_revision,time_basis,uncertainty_us,unavailable_reason FROM "
+            "bacuri_archive.blocks "
+            "WHERE site_id=$1 AND point_id=$2 AND int8range(begin_utc_us,end_utc_us,'[)') && "
+            "int8range($3,$4,'[)') LIMIT 2",
+            {site, point, std::to_string(instant.start), std::to_string(instant.end)});
+        if (blocks.size() == 1 && blocks.get(0, 2) == rows.get(0, 1) && blocks.get(0, 3) == "source_clock" &&
+            blocks.get(0, 5).empty()) {
+            Window block{std::stoll(blocks.get(0)), std::stoll(blocks.get(0, 1))};
+            auto error = std::stoll(blocks.get(0, 4));
+            using domain::Microseconds;
+            using domain::UtcTime;
+            auto interval =
+                domain::UtcInterval::make(UtcTime{Microseconds{block.start}}, UtcTime{Microseconds{block.end}});
+            if (interval && error <= Microseconds::max().count() - uncertainty &&
+                interval->contains(UtcTime{Microseconds{time}}, Microseconds{uncertainty + error})) {
+                link["state"] = "ready";
+                link["interval"] = block.json();
+                link["position"] = ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(time));
+            }
+        } else if (!blocks.size() || (blocks.size() == 1 && !blocks.get(0, 5).empty())) {
+            auto page = search(db, key_, {site, point, fingerprint(key_, "session", who.cookie), rows.get(0, 5)},
+                               instant.json(), std::stoll(rows.get(0, 1)));
+            const auto& items = page.at("items");
+            if (items.size() == 1 && items[0].at("state") != "recorded") {
+                link["state"] = items[0].at("state");
+                if (items[0].contains("reason")) {
+                    link["reason"] = items[0].at("reason");
+                }
+            }
+        }
+    }
+    db.exec("COMMIT");
+    respond(res, link);
 }
 } // namespace bacuri::vms::control

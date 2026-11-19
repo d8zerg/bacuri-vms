@@ -41,22 +41,27 @@ async function points() {
     const data = await json("/sites/" + byId("site").value + "/points");
     byId("point").replaceChildren(...data.map((p) => new Option(p.name, p.id)));
 }
+let siteChanged = points;
+let initialSite;
 async function signedIn(identity) {
     csrf = identity.csrf_token;
     byId("login").hidden = true;
     byId("search").hidden = false;
     byId("site").replaceChildren(...identity.site_roles.map((s) => new Option(s.site_id, s.site_id)));
-    if (identity.site_roles.length) await points();
-
+    if (initialSite && identity.site_roles.some((role) => role.site_id === initialSite))
+        byId("site").value = initialSite;
     status("");
+    if (identity.site_roles.length) await siteChanged();
 }
 byId("login").onsubmit = action(async () => {
     await signedIn(await json("/session", post(Object.fromEntries(new FormData(byId("login"))))));
     byId("login").reset();
 });
-byId("site").onchange = action(points);
-
-export async function initialize() {
+export { points };
+export async function initialize(onSite = points, preferredSite) {
+    siteChanged = onSite;
+    initialSite = preferredSite;
+    byId("site").onchange = action(onSite);
     try {
         await signedIn(await json("/session"));
     } catch (error) {
