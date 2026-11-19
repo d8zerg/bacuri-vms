@@ -65,6 +65,14 @@ tasks:
     deps: [dev:image, stand:up]
     cmd: '{{.DEV_RUN}} sh tests/check-stand.sh'
 
+  prototype:up:
+    desc: Start the local browser prototype
+    cmd: docker compose -f prototype/compose.yaml up --wait --wait-timeout 25
+
+  prototype:down:
+    desc: Stop the local browser prototype
+    cmd: docker compose -f prototype/compose.yaml down
+
   shell:
     desc: Open a shell in the Docker development container
     interactive: true

@@ -1,0 +1,14 @@
+name: bacuri-vms-prototype
+
+services:
+  prototype:
+    image: nginxinc/nginx-unprivileged:1.31-alpine@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e
+    ports:
+      - "127.0.0.1:${BACURI_PROTOTYPE_PORT:-8088}:8080"
+    volumes:
+      - ./dist:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
