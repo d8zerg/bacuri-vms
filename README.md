@@ -1,2 +1,3 @@
-# bacuri-platform
+# bacuri.vms
+
 Bacuri VMS Platform
