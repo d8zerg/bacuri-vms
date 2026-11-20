@@ -141,4 +141,8 @@ BEGIN
 END;
 $test$;
 
+\if :{?persist_fixture}
+COMMIT;
+\else
 ROLLBACK;
+\endif

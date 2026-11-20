@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+
+name=$1
+base=$2
+shift 2
+cd "/src/$name"
+epoch=$(dpkg-parsechangelog -STimestamp)
+export SOURCE_DATE_EPOCH=$epoch DEB_BUILD_OPTIONS="nocheck nodoc parallel=2" DEB_BUILD_PROFILES="nocheck nodoc"
+for patch in "$@"; do
+    input="/patches/$patch"
+    if [ "$patch" = CVE-2026-102560.patch ]; then
+        # Only the library fix applies to the stable branch. Upstream tests target a newer test suite.
+        awk '/^diff --git / { keep = ($3 == "a/libsoup/websocket/soup-websocket-extension-deflate.c") } keep' "$input" > /tmp/deflate.patch
+        test -s /tmp/deflate.patch
+        input=/tmp/deflate.patch
+    fi
+    patch -p1 --fuzz=0 --batch --forward < "$input"
+    patch -p1 --fuzz=0 --batch --reverse --dry-run < "$input"
+done
+version="$base+bacuri1"
+test "$(dpkg-parsechangelog -SVersion)" = "$base"
+{
+    printf '%s (%s) trixie; urgency=high\n\n' "$name" "$version"
+    printf '  * Apply verified upstream security fixes to the Debian source.\n\n'
+    printf ' -- Bacuri VMS <packages@localhost>  %s\n\n' "$(date -Ru -d "@$epoch")"
+    cat debian/changelog
+} > debian/changelog.new
+mv debian/changelog.new debian/changelog
+dpkg-buildpackage -b -uc -us -j2

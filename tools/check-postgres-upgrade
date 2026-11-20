@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""Qualify the minor upgrade using an isolated physical copy and a restored full backup."""
+
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import uuid
+
+
+OLD_IMAGE = "postgres:17.11-trixie@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f"
+BASE = "/var/lib/postgresql/data"
+ARCHIVE = """SELECT block_id,recording_epoch_id,owner_generation
+             FROM bacuri_archive.blocks WHERE int8range(begin_utc_us,end_utc_us,'[)') @> 1050::bigint
+             ORDER BY block_id,recording_epoch_id,owner_generation"""
+ALERTS = """SELECT a.site_id,a.position,a.alert_id,a.observation_id,a.observed_at_utc_us
+            FROM bacuri_events.alert_outbox o JOIN bacuri_events.alert_details a USING(site_id,position)
+            ORDER BY a.site_id,a.position"""
+
+
+def main():
+    report = Path(subprocess.check_output(["sh", "tools/quality-report-dir", "postgres-upgrade"], text=True).strip())
+    image = subprocess.check_output(["docker", "compose", "config", "--images", "postgres"], text=True).strip()
+    if subprocess.run(["docker", "image", "inspect", OLD_IMAGE], stdout=subprocess.DEVNULL,
+                      stderr=subprocess.DEVNULL).returncode:
+        subprocess.run(["docker", "pull", OLD_IMAGE], check=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        override = Path(tmp) / "postgres.yaml"
+        override.write_text("services:\n  postgres:\n    environment:\n      PGDATA: ${BACURI_UPGRADE_DATA}\n")
+        command = ["docker", "compose", "-p", "bacuri-pg-upgrade-" + uuid.uuid4().hex,
+                   "-f", "compose.yaml", "-f", str(override)]
+        env = dict(os.environ, BACURI_POSTGRES_IMAGE=OLD_IMAGE, BACURI_UPGRADE_DATA=BASE + "/original")
+
+        def compose(*args, stdin=None, capture=False):
+            return subprocess.run([*command, *args], input=stdin, env=env, text=True,
+                                  stdout=subprocess.PIPE if capture else None, check=True).stdout
+
+        def server(*args, stdin=None):
+            return compose("exec", "-T", "-u", "postgres", "postgres", *args, stdin=stdin, capture=True).strip()
+
+        def sql(query, *args):
+            return server("psql", "-XAtq", "-v", "ON_ERROR_STOP=1", "-U", "bacuri", "-d", "bacuri_vms",
+                          *args, stdin=query)
+
+        def rows():
+            return {"archive": sql(ARCHIVE).splitlines(), "alert_outbox": sql(ALERTS).splitlines()}
+
+        def start():
+            compose("up", "--no-build", "--pull", "never", "--wait", "postgres")
+            return sql("SHOW server_version_num")
+
+        def backup(destination):
+            server("pg_basebackup", "-U", "bacuri", "-D", BASE + destination, "-c", "fast", "-X", "stream")
+            server("pg_verifybackup", BASE + destination)
+
+        try:
+            old_version = start()
+            if old_version != "170011":
+                raise ValueError("Unexpected original PostgreSQL version: " + old_version)
+            migrations = sorted(Path("storage/postgresql/migrations").glob("*.sql"))
+            sql(migrations[0].read_text())
+            sql(Path("tests/schema/postgresql.sql").read_text(), "-v", "persist_fixture=1",
+                "-v", "manifest_fixture=" + Path("tests/schema/block-manifest-v1.json").read_text(),
+                "-v", "insert_block_sql=" + Path("storage/postgresql/insert-block.sql").read_text(),
+                "-v", "read_block_sql=" + Path("storage/postgresql/read-block-manifest.sql").read_text())
+            for migration in migrations[1:]:
+                sql(migration.read_text())
+            sql("""WITH pending AS (
+                   INSERT INTO bacuri_events.alerts(site_id,position,source_id,observation_id,point_id)
+                   SELECT site_id,1,source_id,observation_id,point_id FROM bacuri_events.observations
+                   RETURNING site_id,position)
+                   INSERT INTO bacuri_events.alert_outbox SELECT * FROM pending""")
+            expected = rows()
+            if len(expected["archive"]) != 3 or len(expected["alert_outbox"]) != 1:
+                raise ValueError("Missing archive or alert fixture")
+            backup("/copy")
+            compose("stop", "postgres")
+            env.update(BACURI_POSTGRES_IMAGE=image, BACURI_UPGRADE_DATA=BASE + "/copy")
+            new_version = start()
+            if new_version != "170012":
+                raise ValueError("Unexpected upgraded PostgreSQL version: " + new_version)
+            indexes = sql("""SELECT indexdef FROM pg_indexes WHERE schemaname IN
+                             ('bacuri_inventory','bacuri_archive','bacuri_events') ORDER BY indexdef""").splitlines()
+            if not indexes:
+                raise ValueError("No product indexes found")
+            for namespace in ("bacuri_inventory", "bacuri_archive", "bacuri_events"):
+                sql("REINDEX SCHEMA " + namespace)
+            server("pg_amcheck", "--install-missing", "-U", "bacuri", "bacuri_vms")
+            if rows() != expected:
+                raise ValueError("Archive search or pending alert changed across upgrade")
+            backup("/full")
+            compose("stop", "postgres")
+            env["BACURI_UPGRADE_DATA"] = BASE + "/full"
+            if start() != new_version or rows() != expected:
+                raise ValueError("Restored full backup does not reproduce archive and alert data")
+            image_id = subprocess.check_output(["docker", "image", "inspect", "--format", "{{.Id}}", image], text=True).strip()
+            (report / "result.json").write_text(json.dumps({"source_image": OLD_IMAGE, "image_id": image_id,
+                "old_version": old_version, "new_version": new_version, "reindexed": indexes,
+                "pg_amcheck": "passed", "full_backup_verified_and_restored": True, **expected}, indent=2) + "\n")
+            print(f"PostgreSQL upgrade and full restore verified: {report}", flush=True)
+        finally:
+            compose("down", "--volumes", "--remove-orphans")
+
+
+if __name__ == "__main__":
+    main()

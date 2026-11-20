@@ -46,6 +46,7 @@ build.ninja
 *.app
 
 # Logs, editor backups and caches
+__pycache__/
 *.tmp
 *.log
 *.bak

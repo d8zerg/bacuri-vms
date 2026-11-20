@@ -1,0 +1,28 @@
+#!/bin/sh
+set -eu
+# The upstream Debian development package includes OpenCV. Only WebRTC headers and linker metadata are needed here.
+mkdir -p /tmp/webrtc-sdk
+cd /tmp/webrtc-sdk
+version=$(dpkg-query -W -f='${Version}' libgstreamer-plugins-bad1.0-0)
+arch=$(dpkg --print-architecture)
+apt-get download "libgstreamer-plugins-bad1.0-dev=$version"
+dpkg-deb -x ./*.deb upstream
+multiarch=$(basename "$(dirname "$(find upstream/usr/lib -name libgstwebrtc-1.0.so -print -quit)")")
+dir="usr/lib/$multiarch"
+mkdir -p "sdk/$dir/pkgconfig" sdk/usr/include/gstreamer-1.0/gst sdk/DEBIAN sdk/usr/share/doc/bacuri-gstreamer-webrtc-dev
+cp -a upstream/usr/include/gstreamer-1.0/gst/webrtc sdk/usr/include/gstreamer-1.0/gst/
+cp -a "upstream/$dir/libgstwebrtc-1.0.so" "sdk/$dir/"
+cp "upstream/$dir/pkgconfig/gstreamer-webrtc-1.0.pc" "sdk/$dir/pkgconfig/"
+cp -L upstream/usr/share/doc/libgstreamer-plugins-bad1.0-dev/copyright sdk/usr/share/doc/bacuri-gstreamer-webrtc-dev/
+cat > sdk/DEBIAN/control <<EOF
+Package: bacuri-gstreamer-webrtc-dev
+Version: $version+bacuri1
+Architecture: $arch
+Maintainer: Bacuri VMS <packages@localhost>
+Depends: libgstreamer-plugins-bad1.0-0 (= $version), libgstreamer-plugins-base1.0-dev
+Description: Debian GStreamer WebRTC headers and linker metadata for Bacuri
+EOF
+dpkg-deb --build --root-owner-group sdk sdk.deb
+dpkg -i sdk.deb
+cd /
+rm -r /tmp/webrtc-sdk

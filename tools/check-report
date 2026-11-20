@@ -3,7 +3,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 mkdir -p build/reports
-report_dir=$(mktemp -d build/reports/check-XXXXXXXX)
+report_dir=${1:-$(mktemp -d build/reports/check-XXXXXXXX)}
+mkdir -p "$report_dir"
 printf 'Check report: %s\n' "$report_dir"
 
 {
@@ -17,8 +18,13 @@ printf 'Check report: %s\n' "$report_dir"
 
 result=0
 export BACURI_CHECK_REPORT="$PWD/$report_dir"
-task check 2>&1 | tee "$report_dir/check.log" || result=$?
-if [ "$result" -eq 0 ]; then
+for gate in check:core deps:check; do
+    code=0
+    task "$gate" 2>&1 | tee -a "$report_dir/check.log" || code=$?
+    printf '%s\n' "$code" > "$report_dir/${gate/:/-}.exit-code"
+    if [ "$code" -ne 0 ]; then result=$code; fi
+done
+if [ -x build/gcc-release/bacuri-vms-core ]; then
     docker image inspect --format 'Builder image: {{.Id}}' "$(docker compose config --images builder)" \
         >> "$report_dir/environment.txt" 2>&1 || result=$?
     docker compose run --rm --no-deps -T quality sh -ec '

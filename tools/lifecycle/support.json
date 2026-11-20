@@ -1,0 +1,2696 @@
+{
+  "envsubst": {
+    "revision": "1539a48af4ac5eb4ddf185550c90e2cf72f1ffcdd5e506bd6e359467dfdfe472",
+    "sha256": "9b58315537739af5b318389ff4ec0a6a87f2b3f3542af61722d46f7faf161f7c",
+    "source": "https://api.github.com/repos/ndviet/envsubst/releases/tags/v1.5.6",
+    "version": "1.5.6"
+  },
+  "observed": "2026-11-20",
+  "packages": {
+    "conan:boost@1.83.0": {
+      "channel": "https://github.com/boostorg/boost/security",
+      "revision": "a0747d89bf0fdb48bb069f49f792727c6dd3bdd56685c651df5118908d9739db",
+      "source": "https://api.github.com/repos/boostorg/boost/git/ref/tags/boost-1.83.0"
+    },
+    "conan:gtest@1.16.0": {
+      "channel": "https://github.com/google/googletest/security",
+      "revision": "e0ec176c800a0f515ebc379b36afc5e390d5f2233f250e4f03059a273764cabe",
+      "source": "https://api.github.com/repos/google/googletest/git/ref/tags/v1.16.0"
+    },
+    "conan:nlohmann_json@3.11.3": {
+      "channel": "https://github.com/nlohmann/json/security",
+      "revision": "e50a4ef2421198e337526ed645d2f1543462a1971567ea36491241f1a2b75f6d",
+      "source": "https://api.github.com/repos/nlohmann/json/git/ref/tags/v3.11.3"
+    },
+    "npm:@adobe/css-tools@4.5.0": {
+      "channel": "https://github.com/adobe/css-tools/issues",
+      "deprecated": null,
+      "revision": "149bbff1683b8f2bce56886c708b429706f90c0f2ba6aed463cde0b1b5038ac0",
+      "source": "https://registry.npmjs.org/%40adobe%2Fcss-tools/4.5.0"
+    },
+    "npm:@babel/code-frame@7.29.7": {
+      "channel": "https://github.com/babel/babel/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aopen",
+      "deprecated": null,
+      "revision": "cae82927060854d7f83c7214325582ce47c665c3ad97010246c3983443f74a77",
+      "source": "https://registry.npmjs.org/%40babel%2Fcode-frame/7.29.7"
+    },
+    "npm:@babel/compat-data@7.29.7": {
+      "channel": "https://github.com/babel/babel.git",
+      "deprecated": null,
+      "revision": "5688bdabf4f4f35fdae3f2b324daa374c11135cdbe7342481d95bbc4f50842ec",
+      "source": "https://registry.npmjs.org/%40babel%2Fcompat-data/7.29.7"
+    },
+    "npm:@babel/core@7.29.13": {
+      "channel": "https://github.com/babel/babel/issues?utf8=%E2%9C%93&q=is%3Aissue+label%3A%22pkg%3A%20core%22+is%3Aopen",
+      "deprecated": null,
+      "revision": "9799f2215e1e5a12268ffec5d6c87626cca68bbc9c48cc878016f47d59db0c6c",
+      "source": "https://registry.npmjs.org/%40babel%2Fcore/7.29.13"
+    },
+    "npm:@babel/generator@7.29.14": {
+      "channel": "https://github.com/babel/babel/issues?utf8=%E2%9C%93&q=is%3Aissue+label%3A%22pkg%3A%20generator%22+is%3Aopen",
+      "deprecated": null,
+      "revision": "c541491d1f3b15418dad7c772b66ae3b42600887f4c4cc1811f35113292d0540",
+      "source": "https://registry.npmjs.org/%40babel%2Fgenerator/7.29.14"
+    },
+    "npm:@babel/helper-compilation-targets@7.29.13": {
+      "channel": "https://github.com/babel/babel.git",
+      "deprecated": null,
+      "revision": "aeb733ece452a4a91dc6a6b2f0d81ad3f1fc1cf84ab50cc8ad4e6514e6f11284",
+      "source": "https://registry.npmjs.org/%40babel%2Fhelper-compilation-targets/7.29.13"
+    },
+    "npm:@babel/helper-globals@7.29.7": {
+      "channel": "https://github.com/babel/babel.git",
+      "deprecated": null,
+      "revision": "07d939e8ce186a0e5a600b960fa2ea1b6324688d41e43a12624158cd64eda93f",
+      "source": "https://registry.npmjs.org/%40babel%2Fhelper-globals/7.29.7"
+    },
+    "npm:@babel/helper-module-imports@7.29.7": {
+      "channel": "https://github.com/babel/babel.git",
+      "deprecated": null,
+      "revision": "763869f5115eb67e0b962cd195d625eb823f66b1b0044562ea8ed51910837fcc",
+      "source": "https://registry.npmjs.org/%40babel%2Fhelper-module-imports/7.29.7"
+    },
+    "npm:@babel/helper-module-transforms@7.29.14": {
+      "channel": "https://github.com/babel/babel.git",
+      "deprecated": null,
+      "revision": "5f4dca89729f788d8f37c7b3d884cae239ce3b3a7ac13431e020797bc1e8d041",
+      "source": "https://registry.npmjs.org/%40babel%2Fhelper-module-transforms/7.29.14"
+    },
+    "npm:@babel/helper-string-parser@7.29.14": {
+      "channel": "https://github.com/babel/babel.git",
+      "deprecated": null,
+      "revision": "9744461fae463707950d364360e6b9f48ca826e7773c3cb26645c2d3d0ad8a58",
+      "source": "https://registry.npmjs.org/%40babel%2Fhelper-string-parser/7.29.14"
+    },
+    "npm:@babel/helper-validator-identifier@7.29.7": {
+      "channel": "https://github.com/babel/babel.git",
+      "deprecated": null,
+      "revision": "e390f0755333334df3a145aed8ad04cfaae39778206fb2dc82f9bef8e9d21002",
+      "source": "https://registry.npmjs.org/%40babel%2Fhelper-validator-identifier/7.29.7"
+    },
+    "npm:@babel/helper-validator-option@7.29.7": {
+      "channel": "https://github.com/babel/babel.git",
+      "deprecated": null,
+      "revision": "d8c400e871758a5b1250bb52dd8c8a929591b6c830952db54f8730185f1fd194",
+      "source": "https://registry.npmjs.org/%40babel%2Fhelper-validator-option/7.29.7"
+    },
+    "npm:@babel/helpers@7.29.14": {
+      "channel": "https://github.com/babel/babel.git",
+      "deprecated": null,
+      "revision": "b70bb713defa17dd1d75ec6033bb73b23aae729617dbe8d084e61c8b50367702",
+      "source": "https://registry.npmjs.org/%40babel%2Fhelpers/7.29.14"
+    },
+    "npm:@babel/parser@7.29.14": {
+      "channel": "https://github.com/babel/babel/issues?utf8=%E2%9C%93&q=is%3Aissue+label%3A%22pkg%3A+parser+%28babylon%29%22+is%3Aopen",
+      "deprecated": null,
+      "revision": "dcf25e21835d6b25b993f9de505bc88f5c0ba825a1ba3b9ab89e8fd292e91d3f",
+      "source": "https://registry.npmjs.org/%40babel%2Fparser/7.29.14"
+    },
+    "npm:@babel/runtime@7.29.14": {
+      "channel": "https://github.com/babel/babel.git",
+      "deprecated": null,
+      "revision": "f4833c7738b45e601144ebfa1edbb4d63ac79b0191a01b089a9fe0a58328830d",
+      "source": "https://registry.npmjs.org/%40babel%2Fruntime/7.29.14"
+    },
+    "npm:@babel/template@7.29.7": {
+      "channel": "https://github.com/babel/babel/issues?utf8=%E2%9C%93&q=is%3Aissue+label%3A%22pkg%3A%20template%22+is%3Aopen",
+      "deprecated": null,
+      "revision": "793ee3804e15e7cc646e6f60684af1b86dbad5741274a0479bba6ab177f149f8",
+      "source": "https://registry.npmjs.org/%40babel%2Ftemplate/7.29.7"
+    },
+    "npm:@babel/traverse@7.29.14": {
+      "channel": "https://github.com/babel/babel/issues?utf8=%E2%9C%93&q=is%3Aissue+label%3A%22pkg%3A%20traverse%22+is%3Aopen",
+      "deprecated": null,
+      "revision": "d89b1a7c6aa26c79649c318fb44e5b4d580a6a019c9143f5fcbe7e85136c692a",
+      "source": "https://registry.npmjs.org/%40babel%2Ftraverse/7.29.14"
+    },
+    "npm:@babel/types@7.29.14": {
+      "channel": "https://github.com/babel/babel/issues?utf8=%E2%9C%93&q=is%3Aissue+label%3A%22pkg%3A%20types%22+is%3Aopen",
+      "deprecated": null,
+      "revision": "17ac49e90711f6e6bf632df8dba0c3f8066a17dfae914bad795332549ba8e44b",
+      "source": "https://registry.npmjs.org/%40babel%2Ftypes/7.29.14"
+    },
+    "npm:@bcoe/v8-coverage@1.0.2": {
+      "channel": "https://github.com/bcoe/v8-coverage/issues",
+      "deprecated": null,
+      "revision": "a689e00615f7ade93dcd334d72840a4d772fda5d6b6f7dd90591bde675b84040",
+      "source": "https://registry.npmjs.org/%40bcoe%2Fv8-coverage/1.0.2"
+    },
+    "npm:@cacheable/memory@2.2.0": {
+      "channel": "git+https://github.com/jaredwray/cacheable.git",
+      "deprecated": null,
+      "revision": "77c492e8a6e157d0c98e83f2e3327f23f6921cb6d47cc2e48bb8729affaf3cd7",
+      "source": "https://registry.npmjs.org/%40cacheable%2Fmemory/2.2.0"
+    },
+    "npm:@cacheable/utils@2.5.0": {
+      "channel": "git+https://github.com/jaredwray/cacheable.git",
+      "deprecated": null,
+      "revision": "8fb36122165c1740499e333a3fdb5c38b120d2d291f88bb89a4002077123b060",
+      "source": "https://registry.npmjs.org/%40cacheable%2Futils/2.5.0"
+    },
+    "npm:@emnapi/core@1.11.0": {
+      "channel": "https://github.com/toyobayashi/emnapi/issues",
+      "deprecated": null,
+      "revision": "392999eb73cdc53902024d2cb33abde6f6e0ab50ce961538290bb4b0ce379a08",
+      "source": "https://registry.npmjs.org/%40emnapi%2Fcore/1.11.0"
+    },
+    "npm:@emnapi/core@1.9.2": {
+      "channel": "https://github.com/toyobayashi/emnapi/issues",
+      "deprecated": null,
+      "revision": "dcc5442517f273b07d416872c66915b04bb52c68f6283a21774a6652d99b8eca",
+      "source": "https://registry.npmjs.org/%40emnapi%2Fcore/1.9.2"
+    },
+    "npm:@emnapi/core@2.0.0-beta.2": {
+      "channel": "https://github.com/toyobayashi/emnapi/issues",
+      "deprecated": null,
+      "revision": "096269c4c4d898fddde11aa93c6d3993273de27742d24d2ec3b1ad23ba4174f6",
+      "source": "https://registry.npmjs.org/%40emnapi%2Fcore/2.0.0-beta.2"
+    },
+    "npm:@emnapi/runtime@1.11.0": {
+      "channel": "https://github.com/toyobayashi/emnapi/issues",
+      "deprecated": null,
+      "revision": "5cb2a7a37bc59943cc92d23f4832f97ea7a755cf451e99379f8e2a860c8ea230",
+      "source": "https://registry.npmjs.org/%40emnapi%2Fruntime/1.11.0"
+    },
+    "npm:@emnapi/runtime@1.9.2": {
+      "channel": "https://github.com/toyobayashi/emnapi/issues",
+      "deprecated": null,
+      "revision": "581979ad258091ea7cbfe39c1f57ec51caca28ed7ea873ecc12cf995efa07c59",
+      "source": "https://registry.npmjs.org/%40emnapi%2Fruntime/1.9.2"
+    },
+    "npm:@emnapi/runtime@2.0.0-beta.2": {
+      "channel": "https://github.com/toyobayashi/emnapi/issues",
+      "deprecated": null,
+      "revision": "0d2e7c695151fdb0334ffd59ecc835c7f47283821c6979f94ec2e35ec7bfa10a",
+      "source": "https://registry.npmjs.org/%40emnapi%2Fruntime/2.0.0-beta.2"
+    },
+    "npm:@emnapi/wasi-threads@1.2.1": {
+      "channel": "https://github.com/toyobayashi/emnapi/issues",
+      "deprecated": null,
+      "revision": "00f8750542aac8643801f11ca0b6fdf5eba8906fe94003ce9e9c4dadc79acfdc",
+      "source": "https://registry.npmjs.org/%40emnapi%2Fwasi-threads/1.2.1"
+    },
+    "npm:@emnapi/wasi-threads@1.2.2": {
+      "channel": "https://github.com/toyobayashi/emnapi/issues",
+      "deprecated": null,
+      "revision": "f3f7df544295f817866ac713a4bf3af9311872f41b8e31c256cc7706b403869a",
+      "source": "https://registry.npmjs.org/%40emnapi%2Fwasi-threads/1.2.2"
+    },
+    "npm:@emnapi/wasi-threads@2.2.0": {
+      "channel": "https://github.com/toyobayashi/emnapi/issues",
+      "deprecated": null,
+      "revision": "6fa484d1739ecce66feb9e2834a407b95f7ff1f561d960b82bcac29b78ef5dad",
+      "source": "https://registry.npmjs.org/%40emnapi%2Fwasi-threads/2.2.0"
+    },
+    "npm:@esbuild/aix-ppc64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "fc514a714b59da6599bb4d8b4a903eb89639d58403ef53929f9b5e93c9a86cbc",
+      "source": "https://registry.npmjs.org/%40esbuild%2Faix-ppc64/0.28.2"
+    },
+    "npm:@esbuild/android-arm64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "ff8e3c615116532238e72ca61cfa7342546531d4b9cbab278a2875994e840093",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fandroid-arm64/0.28.2"
+    },
+    "npm:@esbuild/android-arm@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "1ea0fdfeebe4700b1e875ba569df984a424c0a9264fdf86d8dd86b69fa6e7059",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fandroid-arm/0.28.2"
+    },
+    "npm:@esbuild/android-x64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "5996def04ce9f7fba8da118f8bfabb718b41b0bd463b4805ca28fcd188806344",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fandroid-x64/0.28.2"
+    },
+    "npm:@esbuild/darwin-arm64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "71ef3c7d38a4eac3247e08b72b6a1801745139043f20c1c3d3f58c031bfa6495",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fdarwin-arm64/0.28.2"
+    },
+    "npm:@esbuild/darwin-x64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "f85c515e48608b52a51a4409387250b146efe3cc1e07555bcac95b5276dcf17f",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fdarwin-x64/0.28.2"
+    },
+    "npm:@esbuild/freebsd-arm64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "0fc4c73a51ffadbd1c3626e845b53936a2dfd3ac3c95c509647e8f95befabc7c",
+      "source": "https://registry.npmjs.org/%40esbuild%2Ffreebsd-arm64/0.28.2"
+    },
+    "npm:@esbuild/freebsd-x64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "d13f2aa0358d4aea22582d9f27825864f834295db18bbc1090e8f1b808322af9",
+      "source": "https://registry.npmjs.org/%40esbuild%2Ffreebsd-x64/0.28.2"
+    },
+    "npm:@esbuild/linux-arm64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "0db5155f2b74a473e1b909a1034d7cf0c23feb2bfd7cc1e53502976dd02f094a",
+      "source": "https://registry.npmjs.org/%40esbuild%2Flinux-arm64/0.28.2"
+    },
+    "npm:@esbuild/linux-arm@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "8c261e89fd798cd79a52d0f5e3035837b9123dc4afde322ebc3fff82b9b9eb77",
+      "source": "https://registry.npmjs.org/%40esbuild%2Flinux-arm/0.28.2"
+    },
+    "npm:@esbuild/linux-ia32@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "ceadbac95d9ba0f9011cee2aa842095509060c89d1b0cb6482c10631cfa29910",
+      "source": "https://registry.npmjs.org/%40esbuild%2Flinux-ia32/0.28.2"
+    },
+    "npm:@esbuild/linux-loong64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "4b3392a92413f8b25517d1956ea9e93a7f14c3ee020547f2746206f734359f04",
+      "source": "https://registry.npmjs.org/%40esbuild%2Flinux-loong64/0.28.2"
+    },
+    "npm:@esbuild/linux-mips64el@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "31556d1b10a407d3ebeb2de0bdeb756bbbbe82be17ceba849d527f0c865c69b9",
+      "source": "https://registry.npmjs.org/%40esbuild%2Flinux-mips64el/0.28.2"
+    },
+    "npm:@esbuild/linux-ppc64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "646c72fa8c471f87d94e0d754f6e99dd51b3eed4928f080239499ae30ea3e1ee",
+      "source": "https://registry.npmjs.org/%40esbuild%2Flinux-ppc64/0.28.2"
+    },
+    "npm:@esbuild/linux-riscv64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "b27c623875b2d042f5eaab458635a27ff5141c3cc909e1f81e4b70284cf1859e",
+      "source": "https://registry.npmjs.org/%40esbuild%2Flinux-riscv64/0.28.2"
+    },
+    "npm:@esbuild/linux-s390x@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "6ac0bf3d1c9eb0940e4ae96a1ceecd103fb16736831df74f2ac22facb4bef1e3",
+      "source": "https://registry.npmjs.org/%40esbuild%2Flinux-s390x/0.28.2"
+    },
+    "npm:@esbuild/linux-x64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "b6b0f9925ee7be3147e3dba80c26248c2af19ad11c796bd262497af43e99c679",
+      "source": "https://registry.npmjs.org/%40esbuild%2Flinux-x64/0.28.2"
+    },
+    "npm:@esbuild/netbsd-arm64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "de02f1d0ed3d1229276a6f371efd518133af35c61e53eba10602b8b26713ef78",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fnetbsd-arm64/0.28.2"
+    },
+    "npm:@esbuild/netbsd-x64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "513023bfee9f8d804e8cb29a47e40286c98639eaa3a86788eb1c86ce4638b7d2",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fnetbsd-x64/0.28.2"
+    },
+    "npm:@esbuild/openbsd-arm64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "e3903d9dd12ca087506d7d0f34f9ea451c5ec82aa30ea88bbdd285b67262bffd",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fopenbsd-arm64/0.28.2"
+    },
+    "npm:@esbuild/openbsd-x64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "82c91974062b19ccb381536ca385fa7206d544d628378e86847c24f4fa5324ac",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fopenbsd-x64/0.28.2"
+    },
+    "npm:@esbuild/openharmony-arm64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "80f0791e3f09d694568a197a54721d4fbf69b558d7010b0da0472786335ed380",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fopenharmony-arm64/0.28.2"
+    },
+    "npm:@esbuild/sunos-x64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "69e5a22ce9906029b63e285a6b6e10e6bd219cdf483a353371f3834820f6d253",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fsunos-x64/0.28.2"
+    },
+    "npm:@esbuild/win32-arm64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "fa7236ec2336265c8ccc05a3301d78ecb0f083e83e04f4766821033eafe5301d",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fwin32-arm64/0.28.2"
+    },
+    "npm:@esbuild/win32-ia32@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "1f8131344a17f4a92ba1fd2edaacb5e13f065aa7e00ede3314907caa154f1c7f",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fwin32-ia32/0.28.2"
+    },
+    "npm:@esbuild/win32-x64@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "2989be0abdb22dfcf143fbb5cd6355c90fb502d7bd5c97e4e95d5da44baa98e8",
+      "source": "https://registry.npmjs.org/%40esbuild%2Fwin32-x64/0.28.2"
+    },
+    "npm:@eslint-community/eslint-utils@4.10.1": {
+      "channel": "https://github.com/eslint-community/eslint-utils/issues",
+      "deprecated": null,
+      "revision": "7ea326d8feb1817339d64a7c31b579ab3dd2fa4b53b6adad1e31a01c79d15060",
+      "source": "https://registry.npmjs.org/%40eslint-community%2Feslint-utils/4.10.1"
+    },
+    "npm:@eslint-community/regexpp@4.12.3": {
+      "channel": "https://github.com/eslint-community/regexpp/issues",
+      "deprecated": null,
+      "revision": "ee2a93cabb99522c5abacc1eddd1b99ebe3a13382cd94225615195025e13839f",
+      "source": "https://registry.npmjs.org/%40eslint-community%2Fregexpp/4.12.3"
+    },
+    "npm:@eslint/config-array@0.23.6": {
+      "channel": "https://github.com/eslint/rewrite/issues",
+      "deprecated": null,
+      "revision": "07a07d5e0f58b2c0dafe9b26f52e8e3af43b46ba9e6a4bcca67b1d39ba124c3f",
+      "source": "https://registry.npmjs.org/%40eslint%2Fconfig-array/0.23.6"
+    },
+    "npm:@eslint/config-helpers@0.7.0": {
+      "channel": "https://github.com/eslint/rewrite/issues",
+      "deprecated": null,
+      "revision": "73f5d18a6d71ff9a64dce0a216c6252ad9bca6dd3a2c45ef72fea5321e5a29c6",
+      "source": "https://registry.npmjs.org/%40eslint%2Fconfig-helpers/0.7.0"
+    },
+    "npm:@eslint/core@1.2.1": {
+      "channel": "https://github.com/eslint/rewrite/issues",
+      "deprecated": null,
+      "revision": "4bb69dad0db5772dc974c6f9251ef5e4241d941b355188f8623fe8954ddb85d9",
+      "source": "https://registry.npmjs.org/%40eslint%2Fcore/1.2.1"
+    },
+    "npm:@eslint/object-schema@3.0.5": {
+      "channel": "https://github.com/eslint/rewrite/issues",
+      "deprecated": null,
+      "revision": "1dba0d51d8b6d7202a7bd1f62adac6ff7f78e83fb8e47bdf635d39374e7353f0",
+      "source": "https://registry.npmjs.org/%40eslint%2Fobject-schema/3.0.5"
+    },
+    "npm:@eslint/plugin-kit@0.7.3": {
+      "channel": "https://github.com/eslint/rewrite/issues",
+      "deprecated": null,
+      "revision": "45c1d90eab254bdb33a559c91770ed9783b3057af34291c616c4106dc6bf29e4",
+      "source": "https://registry.npmjs.org/%40eslint%2Fplugin-kit/0.7.3"
+    },
+    "npm:@humanfs/core@0.19.2": {
+      "channel": "https://github.com/humanwhocodes/humanfs/issues",
+      "deprecated": null,
+      "revision": "2643ef703a82ffb89ed4fbc7143ccdb5e811e520cf69dcd1334e3e175124f52e",
+      "source": "https://registry.npmjs.org/%40humanfs%2Fcore/0.19.2"
+    },
+    "npm:@humanfs/node@0.16.8": {
+      "channel": "https://github.com/humanwhocodes/humanfs/issues",
+      "deprecated": null,
+      "revision": "fa348142f2adbfc9267fadedd20521bcbdf59d8dbb7b7115d60561728dc46a28",
+      "source": "https://registry.npmjs.org/%40humanfs%2Fnode/0.16.8"
+    },
+    "npm:@humanfs/types@0.15.0": {
+      "channel": "https://github.com/humanwhocodes/humanfs/issues",
+      "deprecated": null,
+      "revision": "debc8d4e7eb6bf6c1e25264f6cca07bccab958e3b8a16d9e79e1554dfa927917",
+      "source": "https://registry.npmjs.org/%40humanfs%2Ftypes/0.15.0"
+    },
+    "npm:@humanwhocodes/module-importer@1.0.1": {
+      "channel": "https://github.com/humanwhocodes/module-importer/issues",
+      "deprecated": null,
+      "revision": "e5dbf28deaa0124a426f5ee09a2ae7b16f91df27246ba3dfd74c54e0a0d618ae",
+      "source": "https://registry.npmjs.org/%40humanwhocodes%2Fmodule-importer/1.0.1"
+    },
+    "npm:@humanwhocodes/retry@0.4.3": {
+      "channel": "https://github.com/humanwhocodes/retry/issues",
+      "deprecated": null,
+      "revision": "8d11e01dbfa28dda44095bca9abecfd1c170bb196468c344607fdf0989ce8f4a",
+      "source": "https://registry.npmjs.org/%40humanwhocodes%2Fretry/0.4.3"
+    },
+    "npm:@isaacs/nonrecursive-glob-match@1.1.0": {
+      "channel": "https://www.npmjs.com/~isaacs",
+      "deprecated": null,
+      "revision": "0ef0f0449d7d1cc22d51d324c973fa18a3d117745111e96c4ccce8d2992c7bd7",
+      "source": "https://registry.npmjs.org/%40isaacs%2Fnonrecursive-glob-match/1.1.0"
+    },
+    "npm:@istanbuljs/schema@0.1.6": {
+      "channel": "https://github.com/istanbuljs/schema/issues",
+      "deprecated": null,
+      "revision": "8c1f8737366ba774513f08c7ff75ae6c1e2d90791f87a3b2ecf8a7ba07ff37aa",
+      "source": "https://registry.npmjs.org/%40istanbuljs%2Fschema/0.1.6"
+    },
+    "npm:@joshwooding/vite-plugin-react-docgen-typescript@0.7.0": {
+      "channel": "https://github.com/joshwooding/vite-plugin-react-docgen-typescript/issues",
+      "deprecated": null,
+      "revision": "9fe1c881e77299f7ae05668267edcb0b47e2dd2a4d7769c217d391ab3f7840b8",
+      "source": "https://registry.npmjs.org/%40joshwooding%2Fvite-plugin-react-docgen-typescript/0.7.0"
+    },
+    "npm:@jridgewell/gen-mapping@0.3.13": {
+      "channel": "https://github.com/jridgewell/sourcemaps/issues",
+      "deprecated": null,
+      "revision": "8d6579337ef8a2b88374cd0c4f59c7108f59c3a092d001a9a01b6ea953f33711",
+      "source": "https://registry.npmjs.org/%40jridgewell%2Fgen-mapping/0.3.13"
+    },
+    "npm:@jridgewell/remapping@2.3.5": {
+      "channel": "https://github.com/jridgewell/sourcemaps/issues",
+      "deprecated": null,
+      "revision": "51e582cec6f9fc2cf5d89e1091d9833d8a0f8aaeca9b42c87e75515bacdfee6d",
+      "source": "https://registry.npmjs.org/%40jridgewell%2Fremapping/2.3.5"
+    },
+    "npm:@jridgewell/resolve-uri@3.1.3": {
+      "channel": "https://github.com/jridgewell/resolve-uri/issues",
+      "deprecated": null,
+      "revision": "ce80aa7c4678c825d4fa276e8eeb6970b8902df166f23a3603e75359cd74602b",
+      "source": "https://registry.npmjs.org/%40jridgewell%2Fresolve-uri/3.1.3"
+    },
+    "npm:@jridgewell/sourcemap-codec@1.6.0": {
+      "channel": "https://github.com/jridgewell/sourcemaps/issues",
+      "deprecated": null,
+      "revision": "c64e07350f24b5dcbce77e6538e8369e7694f15033719d186bb4d951180a2f95",
+      "source": "https://registry.npmjs.org/%40jridgewell%2Fsourcemap-codec/1.6.0"
+    },
+    "npm:@jridgewell/trace-mapping@0.3.31": {
+      "channel": "https://github.com/jridgewell/sourcemaps/issues",
+      "deprecated": null,
+      "revision": "0a92d9d204cf3f795c26cda50ad692e6cc537beb508989209d58996fbfd3d358",
+      "source": "https://registry.npmjs.org/%40jridgewell%2Ftrace-mapping/0.3.31"
+    },
+    "npm:@keyv/bigmap@1.3.1": {
+      "channel": "https://github.com/jaredwray/keyv/issues",
+      "deprecated": null,
+      "revision": "5b6cca235adf190cdb98b25fb17bb3121c5d457c73ace08d3888e2ee85b478f7",
+      "source": "https://registry.npmjs.org/%40keyv%2Fbigmap/1.3.1"
+    },
+    "npm:@keyv/serialize@1.1.1": {
+      "channel": "https://github.com/jaredwray/keyv/issues",
+      "deprecated": null,
+      "revision": "3e4694f3aef353f7dbbd7cde9000d85a908d155f00670d236c593d7982dc6c3e",
+      "source": "https://registry.npmjs.org/%40keyv%2Fserialize/1.1.1"
+    },
+    "npm:@napi-rs/wasm-runtime@1.2.6": {
+      "channel": "https://github.com/napi-rs/napi-rs/issues",
+      "deprecated": null,
+      "revision": "6aedaaad43769670f884e3502e2c19d18d95454412274b89c1cd341c3b81d191",
+      "source": "https://registry.npmjs.org/%40napi-rs%2Fwasm-runtime/1.2.6"
+    },
+    "npm:@napi-rs/wasm-runtime@1.2.7": {
+      "channel": "https://github.com/napi-rs/napi-rs/issues",
+      "deprecated": null,
+      "revision": "377a016f18b535fa70b94fb5b1f85e518a045d59107796a1f56bda63710f0f39",
+      "source": "https://registry.npmjs.org/%40napi-rs%2Fwasm-runtime/1.2.7"
+    },
+    "npm:@oxc-parser/binding-android-arm-eabi@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "0e94757200cb12a54c0a6f2994ad5db47252780056c7ff10d2fbb71ef1f747bd",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-android-arm-eabi/0.127.0"
+    },
+    "npm:@oxc-parser/binding-android-arm64@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "91291f41b7fe6c96647560a0088c37091d9bc9e8279676adcdf885966683faaf",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-android-arm64/0.127.0"
+    },
+    "npm:@oxc-parser/binding-darwin-arm64@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "37cc7c9ced7adc4f3c00972038d745a9be35b26717fb88e06604f51cd30323a2",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-darwin-arm64/0.127.0"
+    },
+    "npm:@oxc-parser/binding-darwin-x64@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "6fd6e38961db1165ed85d17623f8c8c3a18da03887c478da408e6c7a4cd83b5e",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-darwin-x64/0.127.0"
+    },
+    "npm:@oxc-parser/binding-freebsd-x64@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "ee3fd4ab3cfc18770219802111297e46fa60879f3a3eaa26ca60355fa56e9adc",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-freebsd-x64/0.127.0"
+    },
+    "npm:@oxc-parser/binding-linux-arm-gnueabihf@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "58265ea048587af22588f691020b9d3de77738cb4d611ace8751dfc642643ee7",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-linux-arm-gnueabihf/0.127.0"
+    },
+    "npm:@oxc-parser/binding-linux-arm-musleabihf@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "0888f82b6b3ed7bcf05a3ea3d9780bf41fc5e03870e4c69a861846471b454cc8",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-linux-arm-musleabihf/0.127.0"
+    },
+    "npm:@oxc-parser/binding-linux-arm64-gnu@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "bc154172ea8ba1446130180a5db30e48e181cc139f3813c7865f103fcb7ccf65",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-linux-arm64-gnu/0.127.0"
+    },
+    "npm:@oxc-parser/binding-linux-arm64-musl@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "1fbdce61ed77e6157d0ba5ec0d6f9f9a2f449294fc40f58e31dc69d671595b87",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-linux-arm64-musl/0.127.0"
+    },
+    "npm:@oxc-parser/binding-linux-ppc64-gnu@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "975b68826938d2d9bf8e34060664449c233557f806651f50f8ecbb3713b196a6",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-linux-ppc64-gnu/0.127.0"
+    },
+    "npm:@oxc-parser/binding-linux-riscv64-gnu@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "fd171f79d2bc0638399b223b6a24182ef95968131edcea46dba0421037ecf861",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-linux-riscv64-gnu/0.127.0"
+    },
+    "npm:@oxc-parser/binding-linux-riscv64-musl@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "dfc79838a60175165adc2ba738710f7ef9d8d18754230fe2cf95b6268d640b5d",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-linux-riscv64-musl/0.127.0"
+    },
+    "npm:@oxc-parser/binding-linux-s390x-gnu@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "560d3954216c4184a98457c01de8cbeec8aed26843f9390a5567520587b36676",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-linux-s390x-gnu/0.127.0"
+    },
+    "npm:@oxc-parser/binding-linux-x64-gnu@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "cb7f46554b38568eef6424a816027c5921461ad96eacb2545f4fb313dc477edf",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-linux-x64-gnu/0.127.0"
+    },
+    "npm:@oxc-parser/binding-linux-x64-musl@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "d5e81eaab87a6116786322b4974717e3cb47f7e2fedde9a54544b8a6b5ddcd28",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-linux-x64-musl/0.127.0"
+    },
+    "npm:@oxc-parser/binding-openharmony-arm64@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "552d36bd37dc1963cd0f09292583bae8fbb94a3d9c6d76fab0ccf95ee9c44b3b",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-openharmony-arm64/0.127.0"
+    },
+    "npm:@oxc-parser/binding-wasm32-wasi@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "ce51071a78ae86925d8fafa2271dcdef17556e3793de26a9dbfae9ab8ef7fb28",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-wasm32-wasi/0.127.0"
+    },
+    "npm:@oxc-parser/binding-win32-arm64-msvc@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "1ff0982926296123fc0fb59b2e5137f6b9dfc7fde10069be8e5990047fe19f6a",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-win32-arm64-msvc/0.127.0"
+    },
+    "npm:@oxc-parser/binding-win32-ia32-msvc@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "04cadefec17113ea82ff5f0b2fb914b026d449052b9f0ef705e07dbec8a9995d",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-win32-ia32-msvc/0.127.0"
+    },
+    "npm:@oxc-parser/binding-win32-x64-msvc@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "6f415da0cbd0396ba4a184c0caa94b233f4bc35080bd91f9de9aadbc83dc1659",
+      "source": "https://registry.npmjs.org/%40oxc-parser%2Fbinding-win32-x64-msvc/0.127.0"
+    },
+    "npm:@oxc-project/types@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "1f055da6ae6c3ffb195df145f24b362c7d94faa8cfdcf8f6d21372b0d454f433",
+      "source": "https://registry.npmjs.org/%40oxc-project%2Ftypes/0.127.0"
+    },
+    "npm:@oxc-project/types@0.156.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "8728aaa27311d76eaec05fcadae24fa47d82fde4c9fea50d0548901fa30a806b",
+      "source": "https://registry.npmjs.org/%40oxc-project%2Ftypes/0.156.0"
+    },
+    "npm:@oxc-resolver/binding-android-arm-eabi@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "8d403d354f175afe0c86e0fc6721675a6b894d1f73e6a675cdc1ab1f6cebb9cd",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-android-arm-eabi/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-android-arm64@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "e78139b6f82821fe71b2936648a0e1aa35f6e447ae497a8245e06faaa7986871",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-android-arm64/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-darwin-arm64@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "f9e72732c677db1faf62f4892f9ce3b2bfb77920ab9a6af738b859c7c932e091",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-darwin-arm64/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-darwin-x64@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "22fa53c14f800fe7fceb541d7694ac53814b8b96356bd8999570779af6c4d465",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-darwin-x64/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-freebsd-x64@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "f133e204a06f3ebc5123665f10a0c9b6bf2e18e5bc7179fb7a0d795f03948c99",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-freebsd-x64/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-linux-arm-gnueabihf@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "e630ab987324540e9661d26fb1698d08f5ada2ae69eb3ec9e16e40e34510e882",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-linux-arm-gnueabihf/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-linux-arm-musleabihf@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "d6aefe0ab6ad806878b0b00783705d9fc54276b3187e6b2117b2c59c3ab9b7fe",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-linux-arm-musleabihf/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-linux-arm64-gnu@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "b3fc0637600cb8eaa72406a4d99b9a806ed24f1504c8a3a8cae497cf949a34bc",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-linux-arm64-gnu/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-linux-arm64-musl@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "26b404fda4117e947e1e04fa6fe368758d99303d507144ccd1f589fd01144e6f",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-linux-arm64-musl/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-linux-ppc64-gnu@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "1ba15615ecc5287d4680413d6710406092f0b10bea1398799c16183b8d1683e5",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-linux-ppc64-gnu/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-linux-riscv64-gnu@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "7dad360b1d62c03b757aa47e81453474a123268065b2ac77f5b809f490ea7183",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-linux-riscv64-gnu/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-linux-riscv64-musl@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "1f92199dc0163e5f6eb130b583c90227363692c31bd1b0622ee0f4b0aeec6224",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-linux-riscv64-musl/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-linux-s390x-gnu@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "1c25b102f2f0cdbbe34e6919b6f44b6b03251b5c2a7b968dc8073840fe9d13b3",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-linux-s390x-gnu/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-linux-x64-gnu@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "7914ed7fbe81649af0bff41ff650d10ae9167d20854391124ddd56c6498f037c",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-linux-x64-gnu/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-linux-x64-musl@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "f41572e54a877a32f91da1c9f5a27392978e75c8b036756af521a08ff1d7816c",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-linux-x64-musl/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-openharmony-arm64@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "14c76e2cc9d9ffe6da85eeffb96db54798810c5430d87f13d440f660ebf71943",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-openharmony-arm64/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-wasm32-wasi@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "d8d73801a6c358fadde9fd9d4e118b92bc44ff3bb8fad635622b5262b6ac9e26",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-wasm32-wasi/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-win32-arm64-msvc@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "62c40dda89e20a9037808007e5565d3241290fe1c479f87103be487924d838cf",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-win32-arm64-msvc/11.21.2"
+    },
+    "npm:@oxc-resolver/binding-win32-x64-msvc@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "d4fa8e7a3764623f5e93fe8ff545fa39abf90ce8744fe6d6eeca833a827f25dc",
+      "source": "https://registry.npmjs.org/%40oxc-resolver%2Fbinding-win32-x64-msvc/11.21.2"
+    },
+    "npm:@redocly/ajv@8.11.2": {
+      "channel": "https://github.com/ajv-validator/ajv/issues",
+      "deprecated": null,
+      "revision": "b2e0af05d36f18ba010f168a0873e892d03801e723fe18eb710980c4f79b47c4",
+      "source": "https://registry.npmjs.org/%40redocly%2Fajv/8.11.2"
+    },
+    "npm:@redocly/config@0.22.0": {
+      "channel": "https://www.npmjs.com/~oleksandr.saveliev",
+      "deprecated": null,
+      "revision": "8fbc0386aaf6a52044c7713be4e6d5c23343d97dfd351b93369f9716d9c4ee11",
+      "source": "https://registry.npmjs.org/%40redocly%2Fconfig/0.22.0"
+    },
+    "npm:@redocly/openapi-core@1.34.24": {
+      "channel": "https://github.com/Redocly/redocly-cli/issues",
+      "deprecated": null,
+      "revision": "c295bb0a7af18f1e8c3b1d14154ad2ee33e90a981d58f1b66c999007eaf6beff",
+      "source": "https://registry.npmjs.org/%40redocly%2Fopenapi-core/1.34.24"
+    },
+    "npm:@rolldown/binding-android-arm-eabi@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "1379df13c972f23c2a046db566d5dc48eb89b35569162269a3ec41eedd10bf3c",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-android-arm-eabi/1.2.19"
+    },
+    "npm:@rolldown/binding-android-arm64@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "cb0876aaa9e97a53e5d0460680536ee195fd3765bd3ea37a7471a61eea7b67cd",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-android-arm64/1.2.19"
+    },
+    "npm:@rolldown/binding-darwin-arm64@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "f7b775cdfd078bff939df18520058df5cf4033e7a893dacb2d957e69cd8ee23f",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-darwin-arm64/1.2.19"
+    },
+    "npm:@rolldown/binding-darwin-x64@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "39736a39dbe40f1d40e6c46c579b1ee7309f133126e24839bfddffc2ff15e7d2",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-darwin-x64/1.2.19"
+    },
+    "npm:@rolldown/binding-freebsd-x64@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "9cfa8806a17f8cd8124ace9c462e3a4a3eb8f23054b4ed61ba22ed9af70acb8e",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-freebsd-x64/1.2.19"
+    },
+    "npm:@rolldown/binding-linux-arm-gnueabihf@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "f4275031920d218a8211d9b1ad4960d39eaed8e82f26af0653fd2bb6ea10a12a",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-linux-arm-gnueabihf/1.2.19"
+    },
+    "npm:@rolldown/binding-linux-arm64-gnu@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "18ea64ff977eb32070f27c2e119f5158a19de3e8d7315bef5b96dad0675e8da4",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-linux-arm64-gnu/1.2.19"
+    },
+    "npm:@rolldown/binding-linux-arm64-musl@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "72f8c7ee40401e8eda9128abb1226fdff34e3b33941755e5b71b4114ad26bb5a",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-linux-arm64-musl/1.2.19"
+    },
+    "npm:@rolldown/binding-linux-ppc64-gnu@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "fb0339d28d77966e5cf97912a1851a3c5cfe0ae6422d61b5dddcd6d332367b34",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-linux-ppc64-gnu/1.2.19"
+    },
+    "npm:@rolldown/binding-linux-s390x-gnu@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "51771d992b55687d75459a3926fb86bade3b7c6b09fff9ad3864792d4a75c917",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-linux-s390x-gnu/1.2.19"
+    },
+    "npm:@rolldown/binding-linux-x64-gnu@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "3899041fd9025ba9838859a2231c9814d0b7b654224011615262aeeb0fa2493f",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-linux-x64-gnu/1.2.19"
+    },
+    "npm:@rolldown/binding-linux-x64-musl@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "85d26fd646ad1b9bdaa1a91d3e196b2e2935921d3aec6b036f77473e000a8bf6",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-linux-x64-musl/1.2.19"
+    },
+    "npm:@rolldown/binding-openharmony-arm64@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "acaa4514340f2442a2e944d6132f4a9a1b3a9c01eb595f772d3fe2b6e0d6ed98",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-openharmony-arm64/1.2.19"
+    },
+    "npm:@rolldown/binding-wasm32-wasi@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "20f80495892eb53bac12720898d9dad67a6715a3a5fd94f47e7c9666a5a391f8",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-wasm32-wasi/1.2.19"
+    },
+    "npm:@rolldown/binding-win32-arm64-msvc@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "1e7230866f83dd9a1cc7de1b96422ad4ae6ae150fb83b1fb930f7af7775117a6",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-win32-arm64-msvc/1.2.19"
+    },
+    "npm:@rolldown/binding-win32-x64-msvc@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "97ccf06bc5e7f1b372aaf41473a302958dab839fa2c4020237fba181293eb6ec",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fbinding-win32-x64-msvc/1.2.19"
+    },
+    "npm:@rolldown/pluginutils@1.1.1": {
+      "channel": "https://github.com/rolldown/plugins/issues",
+      "deprecated": null,
+      "revision": "94774bf880cae4eaf0eea68fe2506caacb56501cd60bb3c083e7f1d4af72b438",
+      "source": "https://registry.npmjs.org/%40rolldown%2Fpluginutils/1.1.1"
+    },
+    "npm:@rollup/pluginutils@5.5.1": {
+      "channel": "https://github.com/rollup/plugins/issues",
+      "deprecated": null,
+      "revision": "832c45f4f2bbc56414de2944a8667fc931a47a9950bfa571ccbb7b110ef530c9",
+      "source": "https://registry.npmjs.org/%40rollup%2Fpluginutils/5.5.1"
+    },
+    "npm:@storybook/builder-vite@10.6.8": {
+      "channel": "https://github.com/storybookjs/storybook/issues",
+      "deprecated": null,
+      "revision": "3f7a4fe37f606deaa010df3862fecee872947033dbe48ec87ca1a0ddea163279",
+      "source": "https://registry.npmjs.org/%40storybook%2Fbuilder-vite/10.6.8"
+    },
+    "npm:@storybook/global@5.0.0": {
+      "channel": "https://github.com/storybookjs/global/issues",
+      "deprecated": null,
+      "revision": "d1bfcd91e4563a11fb8b9acff79b61a5b6c927626ec86d003a98e0e1a2b8aa1d",
+      "source": "https://registry.npmjs.org/%40storybook%2Fglobal/5.0.0"
+    },
+    "npm:@storybook/icons@2.2.0": {
+      "channel": "https://github.com/storybookjs/icons/issues",
+      "deprecated": null,
+      "revision": "8ee409581da48261e8b9fa5f4c627ee8ec667d2ef28443a3e9bf60ffa1b796be",
+      "source": "https://registry.npmjs.org/%40storybook%2Ficons/2.2.0"
+    },
+    "npm:@storybook/react-dom-shim@10.6.8": {
+      "channel": "https://github.com/storybookjs/storybook/issues",
+      "deprecated": null,
+      "revision": "d86301b30e0f9fefeecd355282bf7042653aa4a06daac6d0b4ab128f9b0a7eea",
+      "source": "https://registry.npmjs.org/%40storybook%2Freact-dom-shim/10.6.8"
+    },
+    "npm:@storybook/react-vite@10.6.8": {
+      "channel": "https://github.com/storybookjs/storybook/issues",
+      "deprecated": null,
+      "revision": "f040b84a393cad0484ae679bb5a4168beb17e397ca69cc2c9267f0aa973c77d0",
+      "source": "https://registry.npmjs.org/%40storybook%2Freact-vite/10.6.8"
+    },
+    "npm:@storybook/react@10.6.8": {
+      "channel": "https://github.com/storybookjs/storybook/issues",
+      "deprecated": null,
+      "revision": "55e9bbd401be60076c747f7c8c903f30fb096cb0f1ddd750dee0cf4e5ecbf046",
+      "source": "https://registry.npmjs.org/%40storybook%2Freact/10.6.8"
+    },
+    "npm:@testing-library/dom@10.4.2": {
+      "channel": "https://github.com/testing-library/dom-testing-library/issues",
+      "deprecated": null,
+      "revision": "83df87f9366a26e48e482706bde84c3c37f9ed22278547d080866e1e8918feeb",
+      "source": "https://registry.npmjs.org/%40testing-library%2Fdom/10.4.2"
+    },
+    "npm:@testing-library/jest-dom@6.9.1": {
+      "channel": "https://github.com/testing-library/jest-dom/issues",
+      "deprecated": null,
+      "revision": "31406765938f40340801de7331a4ff5097bf1b76cc90fdf4fc9f2eead064023c",
+      "source": "https://registry.npmjs.org/%40testing-library%2Fjest-dom/6.9.1"
+    },
+    "npm:@testing-library/user-event@14.6.13": {
+      "channel": "https://github.com/testing-library/user-event/issues",
+      "deprecated": null,
+      "revision": "bdcdcd34b6e59a9399b02e77868b007d18ccf18224bde81c872e6f4a72e136f6",
+      "source": "https://registry.npmjs.org/%40testing-library%2Fuser-event/14.6.13"
+    },
+    "npm:@tybys/wasm-util@0.10.5": {
+      "channel": "https://github.com/toyobayashi/wasm-util/issues",
+      "deprecated": null,
+      "revision": "550fc65086c94c9d2ad43f87285711d7c15f8c88d31e8af489932d1bff65cb39",
+      "source": "https://registry.npmjs.org/%40tybys%2Fwasm-util/0.10.5"
+    },
+    "npm:@types/aria-query@5.0.4": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "57a04c5014d310cbc5aa79ec4f51920664b2d81fc0e9a3b45b3d436da5ff9732",
+      "source": "https://registry.npmjs.org/%40types%2Faria-query/5.0.4"
+    },
+    "npm:@types/babel__core@7.20.5": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "7526a16d72983566d87df3206ef4bfb1bf6adac538297cfc722d06b9cc2e1180",
+      "source": "https://registry.npmjs.org/%40types%2Fbabel__core/7.20.5"
+    },
+    "npm:@types/babel__generator@7.27.0": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "bfd37ed4ba07d952e7f186cac41677186ae20e23af54cf2ab86d0be9ae118704",
+      "source": "https://registry.npmjs.org/%40types%2Fbabel__generator/7.27.0"
+    },
+    "npm:@types/babel__template@7.4.4": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "f5844250df60d49ef044df204663952d9760d7d7197050dc89dfa96f2cdf1dfd",
+      "source": "https://registry.npmjs.org/%40types%2Fbabel__template/7.4.4"
+    },
+    "npm:@types/babel__traverse@7.28.0": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "04856bc1312edc27227b9abfe8171bc76d1cb7340e307865f8c5dc54208f21d2",
+      "source": "https://registry.npmjs.org/%40types%2Fbabel__traverse/7.28.0"
+    },
+    "npm:@types/chai@5.2.3": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "5a7a98f346850e6cfb45b05baab2d16fb49d0017829c1fae7495fa2c592116a5",
+      "source": "https://registry.npmjs.org/%40types%2Fchai/5.2.3"
+    },
+    "npm:@types/deep-eql@4.0.2": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "b868272ad41c1eedf4bcfc375332ca8810b6bd9cb5712d44b5ed7bc7833e9e47",
+      "source": "https://registry.npmjs.org/%40types%2Fdeep-eql/4.0.2"
+    },
+    "npm:@types/doctrine@0.0.9": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "3011d20149d6b05a97805122fabeef625e23f9ab44435246d3a5904f073e64fc",
+      "source": "https://registry.npmjs.org/%40types%2Fdoctrine/0.0.9"
+    },
+    "npm:@types/esrecurse@4.3.1": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "8a69a9311992bae2f34d43c9f4d0fb5e5f5f3b8614486dbb3f1a2544713ea378",
+      "source": "https://registry.npmjs.org/%40types%2Fesrecurse/4.3.1"
+    },
+    "npm:@types/estree@1.0.10": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "061147b6534121677dc34b685ce4cb1d31cbe6a840e70ae68b269625fd11ea2f",
+      "source": "https://registry.npmjs.org/%40types%2Festree/1.0.10"
+    },
+    "npm:@types/istanbul-lib-coverage@2.0.6": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "f4b36717539e78f5a616b74d7420c8c84f71e98cb946287b5bd7861bcbd26473",
+      "source": "https://registry.npmjs.org/%40types%2Fistanbul-lib-coverage/2.0.6"
+    },
+    "npm:@types/json-schema@7.0.15": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "67e7677c89bad74942fa45eca35d04287f8c6415a764071bced4921d70229114",
+      "source": "https://registry.npmjs.org/%40types%2Fjson-schema/7.0.15"
+    },
+    "npm:@types/react-dom@19.3.0": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "4d8ed45d8ca1673b9e27017726cc0f97f65a177cb1499efd9d09f484d4e81f5c",
+      "source": "https://registry.npmjs.org/%40types%2Freact-dom/19.3.0"
+    },
+    "npm:@types/react@19.3.0": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "eec8e8dd1f72955d2fa12e256cd5ab96d476342594cd2034398679a76cfdcac8",
+      "source": "https://registry.npmjs.org/%40types%2Freact/19.3.0"
+    },
+    "npm:@types/resolve@1.20.6": {
+      "channel": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "deprecated": null,
+      "revision": "6460b4a206696d9ab885a4782b25949691c8c71fd32252e6ace4171cc36cc850",
+      "source": "https://registry.npmjs.org/%40types%2Fresolve/1.20.6"
+    },
+    "npm:@typescript-eslint/eslint-plugin@8.73.0": {
+      "channel": "https://github.com/typescript-eslint/typescript-eslint/issues",
+      "deprecated": null,
+      "revision": "8a23f110d8ae78fef029e438f824d3d9d61d3116d09b1a4dd4baf5c3e5c6fcbd",
+      "source": "https://registry.npmjs.org/%40typescript-eslint%2Feslint-plugin/8.73.0"
+    },
+    "npm:@typescript-eslint/parser@8.73.0": {
+      "channel": "https://github.com/typescript-eslint/typescript-eslint/issues",
+      "deprecated": null,
+      "revision": "0cc9a1c122e9702ed91c54159b35791892764da01febba572b171db6abac26d9",
+      "source": "https://registry.npmjs.org/%40typescript-eslint%2Fparser/8.73.0"
+    },
+    "npm:@typescript-eslint/project-service@8.73.0": {
+      "channel": "https://github.com/typescript-eslint/typescript-eslint/issues",
+      "deprecated": null,
+      "revision": "d85f1c8b42238754b9d96c03bb61f528c8951d927203ae29ced6d138da741995",
+      "source": "https://registry.npmjs.org/%40typescript-eslint%2Fproject-service/8.73.0"
+    },
+    "npm:@typescript-eslint/scope-manager@8.73.0": {
+      "channel": "https://github.com/typescript-eslint/typescript-eslint/issues",
+      "deprecated": null,
+      "revision": "897e963875ff4304482adddcc038d367923696c0fc8fdd95d1d962925b05e0e1",
+      "source": "https://registry.npmjs.org/%40typescript-eslint%2Fscope-manager/8.73.0"
+    },
+    "npm:@typescript-eslint/tsconfig-utils@8.73.0": {
+      "channel": "https://github.com/typescript-eslint/typescript-eslint/issues",
+      "deprecated": null,
+      "revision": "e1cbbbfac882aae709c309a579b4ff88a4bb1e1559fb126f3788ac8532ac6e5d",
+      "source": "https://registry.npmjs.org/%40typescript-eslint%2Ftsconfig-utils/8.73.0"
+    },
+    "npm:@typescript-eslint/type-utils@8.73.0": {
+      "channel": "https://github.com/typescript-eslint/typescript-eslint/issues",
+      "deprecated": null,
+      "revision": "b64b402305c2dad1cd0368f1f94b35f8e8a35ba5dcebcd7bf793391364f10c98",
+      "source": "https://registry.npmjs.org/%40typescript-eslint%2Ftype-utils/8.73.0"
+    },
+    "npm:@typescript-eslint/types@8.73.0": {
+      "channel": "https://github.com/typescript-eslint/typescript-eslint/issues",
+      "deprecated": null,
+      "revision": "e9c27e69b00f95483630c72fef83b90640828b597f3532f0a83955da81f41b2a",
+      "source": "https://registry.npmjs.org/%40typescript-eslint%2Ftypes/8.73.0"
+    },
+    "npm:@typescript-eslint/typescript-estree@8.73.0": {
+      "channel": "https://github.com/typescript-eslint/typescript-eslint/issues",
+      "deprecated": null,
+      "revision": "002dd92febe005a5ae08ab742c17dc6e4f7cfad1ec9a60c0316d162c6c839418",
+      "source": "https://registry.npmjs.org/%40typescript-eslint%2Ftypescript-estree/8.73.0"
+    },
+    "npm:@typescript-eslint/utils@8.73.0": {
+      "channel": "https://github.com/typescript-eslint/typescript-eslint/issues",
+      "deprecated": null,
+      "revision": "bf498e45845350710453a611d940f503113dbd74dabe9195d01699307ba7681d",
+      "source": "https://registry.npmjs.org/%40typescript-eslint%2Futils/8.73.0"
+    },
+    "npm:@typescript-eslint/visitor-keys@8.73.0": {
+      "channel": "https://github.com/typescript-eslint/typescript-eslint/issues",
+      "deprecated": null,
+      "revision": "316f1aaca56c8a9346c0da6edef6495356c2b792c731754e973bd2c02d5563d5",
+      "source": "https://registry.npmjs.org/%40typescript-eslint%2Fvisitor-keys/8.73.0"
+    },
+    "npm:@vitest/expect@3.2.4": {
+      "channel": "https://github.com/vitest-dev/vitest/issues",
+      "deprecated": null,
+      "revision": "776f27805ff8119625fa51613e4de44113fd80cda56d1c6ddc7f411f0bd2dcb3",
+      "source": "https://registry.npmjs.org/%40vitest%2Fexpect/3.2.4"
+    },
+    "npm:@vitest/pretty-format@3.2.4": {
+      "channel": "https://github.com/vitest-dev/vitest/issues",
+      "deprecated": null,
+      "revision": "95516b3abe64d3f3f60bf99ce798716f207e86d87adb638b2892d336eab71149",
+      "source": "https://registry.npmjs.org/%40vitest%2Fpretty-format/3.2.4"
+    },
+    "npm:@vitest/spy@3.2.4": {
+      "channel": "https://github.com/vitest-dev/vitest/issues",
+      "deprecated": null,
+      "revision": "2f4c96c56b8071fea7ab17fcae6df1db2b5d5753d0741b2c14628ba755b6831a",
+      "source": "https://registry.npmjs.org/%40vitest%2Fspy/3.2.4"
+    },
+    "npm:@vitest/utils@3.2.4": {
+      "channel": "https://github.com/vitest-dev/vitest/issues",
+      "deprecated": null,
+      "revision": "54fd7676c7c9305124824b2ca219275ba2dc4e3ff6815db6e551605b99bbcd84",
+      "source": "https://registry.npmjs.org/%40vitest%2Futils/3.2.4"
+    },
+    "npm:@webcontainer/env@1.1.1": {
+      "channel": "https://github.com/stackblitz/webcontainer-core/issues",
+      "deprecated": null,
+      "revision": "80e7f41867d7a0d54606d9e39244fe0b54c6046cae0cf95b9e5b8649d7d36950",
+      "source": "https://registry.npmjs.org/%40webcontainer%2Fenv/1.1.1"
+    },
+    "npm:acorn-jsx@5.3.2": {
+      "channel": "https://github.com/acornjs/acorn-jsx/issues",
+      "deprecated": null,
+      "revision": "9789429c337be7ac6e0b776bd5911cf42f670dcf2bead1005079cdcf9f6cc474",
+      "source": "https://registry.npmjs.org/acorn-jsx/5.3.2"
+    },
+    "npm:acorn-loose@8.5.2": {
+      "channel": "https://github.com/acornjs/acorn/issues",
+      "deprecated": null,
+      "revision": "0022d37fe1d233f399eea1265a9048627120f151d01aaf234c76e1163852875a",
+      "source": "https://registry.npmjs.org/acorn-loose/8.5.2"
+    },
+    "npm:acorn-walk@8.3.5": {
+      "channel": "https://github.com/acornjs/acorn/issues",
+      "deprecated": null,
+      "revision": "a5883276056f5c6636bc6a1e7afdeedfdbe34738ada05242f7226e9381b978cd",
+      "source": "https://registry.npmjs.org/acorn-walk/8.3.5"
+    },
+    "npm:acorn@8.19.0": {
+      "channel": "https://github.com/acornjs/acorn/issues",
+      "deprecated": null,
+      "revision": "458e6883dec9155aba1fbbe3c7d9da2cf83b9ce0cc1e5342c880d19b0e81215e",
+      "source": "https://registry.npmjs.org/acorn/8.19.0"
+    },
+    "npm:agent-base@7.1.4": {
+      "channel": "https://github.com/TooTallNate/proxy-agents/issues",
+      "deprecated": null,
+      "revision": "0f5c590d9a021214a205cee70275f3a3f88d3481f962f253d7ac68fc3c5a9275",
+      "source": "https://registry.npmjs.org/agent-base/7.1.4"
+    },
+    "npm:ajv@6.15.0": {
+      "channel": "https://github.com/ajv-validator/ajv/issues",
+      "deprecated": null,
+      "revision": "f3e6f062fee2dfcd836fbf37075275c9d80107a8620216b53c5c3429b7ae2cbc",
+      "source": "https://registry.npmjs.org/ajv/6.15.0"
+    },
+    "npm:ansi-colors@4.1.3": {
+      "channel": "https://github.com/doowb/ansi-colors/issues",
+      "deprecated": null,
+      "revision": "7735d0387f069a6a32f0c31a54c63ab72e31577eb3067efb64c32d1c505f8dbe",
+      "source": "https://registry.npmjs.org/ansi-colors/4.1.3"
+    },
+    "npm:ansi-regex@5.0.1": {
+      "channel": "https://github.com/chalk/ansi-regex/issues",
+      "deprecated": null,
+      "revision": "7ac87dc6db126ec494a03a7badcb86883022abfec4a34e9bac4d65a7b1f65a60",
+      "source": "https://registry.npmjs.org/ansi-regex/5.0.1"
+    },
+    "npm:ansi-regex@6.6.0": {
+      "channel": "https://github.com/chalk/ansi-regex/issues",
+      "deprecated": null,
+      "revision": "0b492e02821c8df0c68144cd6df43048ed5b7494f48b42861d6867f2f4ee4f4e",
+      "source": "https://registry.npmjs.org/ansi-regex/6.6.0"
+    },
+    "npm:ansi-styles@5.2.0": {
+      "channel": "https://github.com/chalk/ansi-styles/issues",
+      "deprecated": null,
+      "revision": "ea92c39fa8dedee0ac6364d64537ea4992b7cf5b82194dc1a338a12530cb7cdb",
+      "source": "https://registry.npmjs.org/ansi-styles/5.2.0"
+    },
+    "npm:ansi-styles@6.2.3": {
+      "channel": "https://github.com/chalk/ansi-styles/issues",
+      "deprecated": null,
+      "revision": "5826e7d593b6c8480fefb0a2aeca50aebd4ed0b3db0d1862f9a902a994973f99",
+      "source": "https://registry.npmjs.org/ansi-styles/6.2.3"
+    },
+    "npm:argparse@2.0.1": {
+      "channel": "https://github.com/nodeca/argparse/issues",
+      "deprecated": null,
+      "revision": "e3da8bcaa628e257bac982670c57088d054beb6dedbabf00612ea8c20f8a6a7b",
+      "source": "https://registry.npmjs.org/argparse/2.0.1"
+    },
+    "npm:aria-query@5.3.0": {
+      "channel": "https://github.com/A11yance/aria-query/issues",
+      "deprecated": null,
+      "revision": "1ac647c09bd8609aac11bd1ee387679638e9135c5e49b1291ed5db36955f7c79",
+      "source": "https://registry.npmjs.org/aria-query/5.3.0"
+    },
+    "npm:assertion-error@2.0.1": {
+      "channel": "https://github.com/chaijs/assertion-error/issues",
+      "deprecated": null,
+      "revision": "af5fa69e7e792f59b4e445d67256f68a61385c3e6982de478d9c7652a329ab2f",
+      "source": "https://registry.npmjs.org/assertion-error/2.0.1"
+    },
+    "npm:ast-types@0.16.3": {
+      "channel": "https://github.com/benjamn/ast-types/issues",
+      "deprecated": null,
+      "revision": "eb66a14ebdc0c2eba8e9e24e3dc73eeb7db58f68339409439cce7cb49df8d7b8",
+      "source": "https://registry.npmjs.org/ast-types/0.16.3"
+    },
+    "npm:axe-core@4.11.1": {
+      "channel": "https://github.com/dequelabs/axe-core/issues",
+      "deprecated": null,
+      "revision": "7396b7f98f1cb9576facb5eaab18c5f3994375855904535ac737a347d9004469",
+      "source": "https://registry.npmjs.org/axe-core/4.11.1"
+    },
+    "npm:balanced-match@1.0.2": {
+      "channel": "https://github.com/juliangruber/balanced-match/issues",
+      "deprecated": null,
+      "revision": "f1cce933aa08c7082a756c05277da9f11842a80b5c1dee4d977387def7dcf2d4",
+      "source": "https://registry.npmjs.org/balanced-match/1.0.2"
+    },
+    "npm:balanced-match@4.0.4": {
+      "channel": "https://github.com/juliangruber/balanced-match/issues",
+      "deprecated": null,
+      "revision": "1088a8c15776ff2c39df62fee9e044a559225ec5e933ec4f0e2e4e63aae4f7e4",
+      "source": "https://registry.npmjs.org/balanced-match/4.0.4"
+    },
+    "npm:baseline-browser-mapping@2.11.39": {
+      "channel": "https://github.com/web-platform-dx/baseline-browser-mapping/issues",
+      "deprecated": null,
+      "revision": "280f0040c21ff08100c4d9cbbc11194c8c3a880e381904c179bbe9c243c75ec7",
+      "source": "https://registry.npmjs.org/baseline-browser-mapping/2.11.39"
+    },
+    "npm:brace-expansion@2.1.8": {
+      "channel": "https://github.com/juliangruber/brace-expansion/issues",
+      "deprecated": null,
+      "revision": "91c14a507ddf5d42617aa627e02f49085f8ce80a6c643bca08608cd0629af939",
+      "source": "https://registry.npmjs.org/brace-expansion/2.1.8"
+    },
+    "npm:brace-expansion@5.0.13": {
+      "channel": "https://github.com/juliangruber/brace-expansion/issues",
+      "deprecated": null,
+      "revision": "64919924c80e3ea7d67180f0dbf6af574226da5a0b9249f32527ac42e91720d0",
+      "source": "https://registry.npmjs.org/brace-expansion/5.0.13"
+    },
+    "npm:browserslist@4.29.6": {
+      "channel": "https://github.com/browserslist/browserslist/issues",
+      "deprecated": null,
+      "revision": "5fcf3ec6b339de836042015217dc2dd1d10f4948f828d2f33d37b6b46a28cfea",
+      "source": "https://registry.npmjs.org/browserslist/4.29.6"
+    },
+    "npm:bundle-name@4.1.1": {
+      "channel": "https://github.com/sindresorhus/bundle-name/issues",
+      "deprecated": null,
+      "revision": "6849f5627ac92d5e9371ef0d7c37047ea45cb4f6a47ea450b07d222bdbc23764",
+      "source": "https://registry.npmjs.org/bundle-name/4.1.1"
+    },
+    "npm:c8@12.0.0": {
+      "channel": "https://github.com/bcoe/c8/issues",
+      "deprecated": null,
+      "revision": "a623e5467c7966a929401af16d51e09ac96fa1620e82be7703c6f4257d8183c7",
+      "source": "https://registry.npmjs.org/c8/12.0.0"
+    },
+    "npm:cacheable@2.5.0": {
+      "channel": "git+https://github.com/jaredwray/cacheable.git",
+      "deprecated": null,
+      "revision": "499294ea5eba1da57b17d819170163c6a844b9efbfc484be887855178e6cab84",
+      "source": "https://registry.npmjs.org/cacheable/2.5.0"
+    },
+    "npm:caniuse-lite@1.0.30001826": {
+      "channel": "https://github.com/browserslist/caniuse-lite/issues",
+      "deprecated": null,
+      "revision": "ade6935493807b560e4a17ce2959aa7208b41b92f808bb53968c4f37dfb419e0",
+      "source": "https://registry.npmjs.org/caniuse-lite/1.0.30001826"
+    },
+    "npm:chai@5.3.3": {
+      "channel": "https://github.com/chaijs/chai/issues",
+      "deprecated": null,
+      "revision": "4e05434a48cd05c01d3a6a612411c521f8f8da42b3207ae5fe11e2895f3b8dd0",
+      "source": "https://registry.npmjs.org/chai/5.3.3"
+    },
+    "npm:change-case@5.4.4": {
+      "channel": "https://github.com/blakeembrey/change-case/issues",
+      "deprecated": null,
+      "revision": "33bb1c8db303cdf1496b3ca3033455d85ae66ce35425c1c4ac56bfc863d7f50f",
+      "source": "https://registry.npmjs.org/change-case/5.4.4"
+    },
+    "npm:check-error@2.1.3": {
+      "channel": "https://github.com/chaijs/check-error/issues",
+      "deprecated": null,
+      "revision": "64223ba14699ed4cb256468b6d6924cc572a9921afd5a14434b3061978fd7d99",
+      "source": "https://registry.npmjs.org/check-error/2.1.3"
+    },
+    "npm:cliui@9.0.1": {
+      "channel": "https://github.com/yargs/cliui/issues",
+      "deprecated": null,
+      "revision": "f2e5cde07fe4e931d3581751c24a4104eba1c4a98f798b3cff0659a78741996f",
+      "source": "https://registry.npmjs.org/cliui/9.0.1"
+    },
+    "npm:colorette@1.4.0": {
+      "channel": "https://github.com/jorgebucaran/colorette/issues",
+      "deprecated": null,
+      "revision": "8bfef3291eef60ef92ff478009d6d9ada7c1a35b786c65e11c3c1a9f330e5205",
+      "source": "https://registry.npmjs.org/colorette/1.4.0"
+    },
+    "npm:commander@15.1.0": {
+      "channel": "https://github.com/tj/commander.js/issues",
+      "deprecated": null,
+      "revision": "d811da330747cdca173579358b518b62a71ce169c38c88d331a0cc733395060c",
+      "source": "https://registry.npmjs.org/commander/15.1.0"
+    },
+    "npm:console-grid@2.2.4": {
+      "channel": "https://github.com/cenfun/console-grid/issues",
+      "deprecated": null,
+      "revision": "425d9b1bb8f1cf7cae8c554019641b5d48cfa7c57f668ca82a885640309a2782",
+      "source": "https://registry.npmjs.org/console-grid/2.2.4"
+    },
+    "npm:convert-source-map@2.0.0": {
+      "channel": "https://github.com/thlorenz/convert-source-map/issues",
+      "deprecated": null,
+      "revision": "3e67194b0b4da3828b676eab0fd6355751fc29429337394f2056e7422f6ae87a",
+      "source": "https://registry.npmjs.org/convert-source-map/2.0.0"
+    },
+    "npm:cookie@1.1.1": {
+      "channel": "https://github.com/jshttp/cookie/issues",
+      "deprecated": null,
+      "revision": "8380401007e1478749d700253ea91d88b1474b2a732d33660973228e7cca59ec",
+      "source": "https://registry.npmjs.org/cookie/1.1.1"
+    },
+    "npm:cross-spawn@7.0.6": {
+      "channel": "https://github.com/moxystudio/node-cross-spawn/issues",
+      "deprecated": null,
+      "revision": "410b2fff1a9a836d1e1e1c1c4bf2505a389e765400a46d2f13509595fafce78b",
+      "source": "https://registry.npmjs.org/cross-spawn/7.0.6"
+    },
+    "npm:css.escape@1.5.1": {
+      "channel": "https://github.com/mathiasbynens/CSS.escape/issues",
+      "deprecated": null,
+      "revision": "1f364136d19707d98df4728c92db44e1b23222aac2a6a669532704fe0fd26ab2",
+      "source": "https://registry.npmjs.org/css.escape/1.5.1"
+    },
+    "npm:csstype@3.2.4": {
+      "channel": "https://github.com/frenic/csstype/issues",
+      "deprecated": null,
+      "revision": "1332b280b51c21463a0b2c04dfa661ac0b79ded1e18396a5070653dbded3723f",
+      "source": "https://registry.npmjs.org/csstype/3.2.4"
+    },
+    "npm:debug@4.4.3": {
+      "channel": "https://github.com/debug-js/debug/issues",
+      "deprecated": null,
+      "revision": "9dcaa69f6946d12b9f94ad83766fd31029986c18ca9753a15ebdc49031d16dc4",
+      "source": "https://registry.npmjs.org/debug/4.4.3"
+    },
+    "npm:deep-eql@5.0.2": {
+      "channel": "https://github.com/chaijs/deep-eql/issues",
+      "deprecated": null,
+      "revision": "df49bb96c8f425b4c5f6c17aa88b290f56de730e6d1c76ea3a8290e9b72caf53",
+      "source": "https://registry.npmjs.org/deep-eql/5.0.2"
+    },
+    "npm:deep-is@0.1.4": {
+      "channel": "https://github.com/thlorenz/deep-is/issues",
+      "deprecated": null,
+      "revision": "c95a45023adb6e27e44137d7080021b903e7d3f0f339ecce4b832a8c3ee7ca25",
+      "source": "https://registry.npmjs.org/deep-is/0.1.4"
+    },
+    "npm:default-browser-id@5.0.1": {
+      "channel": "https://github.com/sindresorhus/default-browser-id/issues",
+      "deprecated": null,
+      "revision": "70e1506052e821d803b738a73ed0238c409503ec05aaca2fa167d79e539a4b37",
+      "source": "https://registry.npmjs.org/default-browser-id/5.0.1"
+    },
+    "npm:default-browser@5.5.1": {
+      "channel": "https://github.com/sindresorhus/default-browser/issues",
+      "deprecated": null,
+      "revision": "0da27665c97300c941e4e70ee1404c9b66704e37cb0934941940b164c6eb9bd4",
+      "source": "https://registry.npmjs.org/default-browser/5.5.1"
+    },
+    "npm:define-lazy-prop@3.0.0": {
+      "channel": "https://github.com/sindresorhus/define-lazy-prop/issues",
+      "deprecated": null,
+      "revision": "5665c7c6ce35ab5c84668e38d4138c0dd62166e8d62b3ff6aa6e98d8a740a675",
+      "source": "https://registry.npmjs.org/define-lazy-prop/3.0.0"
+    },
+    "npm:dequal@2.0.3": {
+      "channel": "https://github.com/lukeed/dequal/issues",
+      "deprecated": null,
+      "revision": "168498dec44427d64a11f507ad0566157ac8ba4ffd3eeee76f3716306c8b9125",
+      "source": "https://registry.npmjs.org/dequal/2.0.3"
+    },
+    "npm:detect-libc@2.1.2": {
+      "channel": "https://github.com/lovell/detect-libc/issues",
+      "deprecated": null,
+      "revision": "7dd1df313a536173262819967c939cb15ea920a6dd9b1b6f124063f3d74ba463",
+      "source": "https://registry.npmjs.org/detect-libc/2.1.2"
+    },
+    "npm:doctrine@3.0.0": {
+      "channel": "https://github.com/eslint/doctrine/issues",
+      "deprecated": null,
+      "revision": "0d041fcb25a0752831a35509cb1279130092b25242a01df8bf29f2541637736b",
+      "source": "https://registry.npmjs.org/doctrine/3.0.0"
+    },
+    "npm:dom-accessibility-api@0.5.16": {
+      "channel": "https://github.com/eps1lon/dom-accessibility-api/issues",
+      "deprecated": null,
+      "revision": "3dc5ea07358ef4d3b91898fff38c09e13bce6d3f41cbc59375105bd0efd83387",
+      "source": "https://registry.npmjs.org/dom-accessibility-api/0.5.16"
+    },
+    "npm:dom-accessibility-api@0.6.3": {
+      "channel": "https://github.com/eps1lon/dom-accessibility-api/issues",
+      "deprecated": null,
+      "revision": "00c38371aec6b1d8133f39324283c2bd30d773743bb7b82c607cf8bb5907bf18",
+      "source": "https://registry.npmjs.org/dom-accessibility-api/0.6.3"
+    },
+    "npm:eight-colors@1.3.3": {
+      "channel": "https://github.com/cenfun/eight-colors/issues",
+      "deprecated": null,
+      "revision": "dc6958e349ee362dcd5c033e286713bc5b7398a8623a557dc42c4f8757b09bfd",
+      "source": "https://registry.npmjs.org/eight-colors/1.3.3"
+    },
+    "npm:electron-to-chromium@1.5.492": {
+      "channel": "https://github.com/Kilian/electron-to-chromium/issues",
+      "deprecated": null,
+      "revision": "0e69fa18c70e076fa37337397c80949b1f9eaf9733e631e6145e605b8cf4c248",
+      "source": "https://registry.npmjs.org/electron-to-chromium/1.5.492"
+    },
+    "npm:emoji-regex@10.6.0": {
+      "channel": "https://github.com/mathiasbynens/emoji-regex/issues",
+      "deprecated": null,
+      "revision": "1c7f61af0149f58550c034ad6a52ae94175b07c7b4f8c53c68ae3278b6760986",
+      "source": "https://registry.npmjs.org/emoji-regex/10.6.0"
+    },
+    "npm:empathic@2.1.0": {
+      "channel": "https://github.com/lukeed/empathic/issues",
+      "deprecated": null,
+      "revision": "185c183a5b9ae162c96e6264c4741949fb415190f77006d9528a107824888c70",
+      "source": "https://registry.npmjs.org/empathic/2.1.0"
+    },
+    "npm:es-errors@1.3.0": {
+      "channel": "https://github.com/ljharb/es-errors/issues",
+      "deprecated": null,
+      "revision": "87d4380e4d9fe3de8da8fd8134c4e738e68266b6d37bf787432e234c8c721b59",
+      "source": "https://registry.npmjs.org/es-errors/1.3.0"
+    },
+    "npm:esbuild@0.28.2": {
+      "channel": "https://github.com/evanw/esbuild/issues",
+      "deprecated": null,
+      "revision": "7a6838097b106ef5d8877fd543a1e25c46e5eb1730945fb7e57bc467c12c7c8c",
+      "source": "https://registry.npmjs.org/esbuild/0.28.2"
+    },
+    "npm:escalade@3.2.0": {
+      "channel": "https://github.com/lukeed/escalade/issues",
+      "deprecated": null,
+      "revision": "957d664a767c837a52291d1687cffb3e024b2f9ea08a4f0ece6c6517ff012269",
+      "source": "https://registry.npmjs.org/escalade/3.2.0"
+    },
+    "npm:escape-string-regexp@4.0.0": {
+      "channel": "https://github.com/sindresorhus/escape-string-regexp/issues",
+      "deprecated": null,
+      "revision": "cfbd7efcc741f2d13af53ded700fff0d8d5dac45c7e436258972d4b86427bb10",
+      "source": "https://registry.npmjs.org/escape-string-regexp/4.0.0"
+    },
+    "npm:eslint-plugin-react-hooks@7.1.1": {
+      "channel": "https://github.com/facebook/react/issues",
+      "deprecated": null,
+      "revision": "7ccb572d85841dc9e54fdd98886f5a7c4235392ef4fd1743542ce3aede252bda",
+      "source": "https://registry.npmjs.org/eslint-plugin-react-hooks/7.1.1"
+    },
+    "npm:eslint-scope@9.1.2": {
+      "channel": "https://github.com/eslint/js/issues",
+      "deprecated": null,
+      "revision": "59df96874dcb1b43df470c0a58a2890ead2948f74bc054e7b23e64e6461c1b24",
+      "source": "https://registry.npmjs.org/eslint-scope/9.1.2"
+    },
+    "npm:eslint-visitor-keys@3.4.3": {
+      "channel": "https://github.com/eslint/eslint-visitor-keys/issues",
+      "deprecated": null,
+      "revision": "702e946399ad1649a7d7c49dfb3b8d6fd3edc69a880d358bdb94b54c475428ea",
+      "source": "https://registry.npmjs.org/eslint-visitor-keys/3.4.3"
+    },
+    "npm:eslint-visitor-keys@5.0.1": {
+      "channel": "https://github.com/eslint/js/issues",
+      "deprecated": null,
+      "revision": "fcbefc4452884aac24c0a27ea87382890eee928be1d2bac2a9a6afdb98d00b8d",
+      "source": "https://registry.npmjs.org/eslint-visitor-keys/5.0.1"
+    },
+    "npm:eslint@10.15.0": {
+      "channel": "https://github.com/eslint/eslint/issues/",
+      "deprecated": null,
+      "revision": "dfe0357ea6b1ef60cee4494ba3f3610484d6b40bf2d5e669e01f4594bd71d348",
+      "source": "https://registry.npmjs.org/eslint/10.15.0"
+    },
+    "npm:espree@11.2.0": {
+      "channel": "https://github.com/eslint/js/issues",
+      "deprecated": null,
+      "revision": "7f00deb0251b68fbcc970d7324758411b24383634efc94f0e530d86d4933be56",
+      "source": "https://registry.npmjs.org/espree/11.2.0"
+    },
+    "npm:esprima@4.0.1": {
+      "channel": "https://github.com/jquery/esprima/issues",
+      "deprecated": null,
+      "revision": "e346565c264d45168226f2a752269ce79762b44bf5903047355266d909a8ae7f",
+      "source": "https://registry.npmjs.org/esprima/4.0.1"
+    },
+    "npm:esquery@1.7.0": {
+      "channel": "https://github.com/estools/esquery/issues",
+      "deprecated": null,
+      "revision": "6c107f0e602fa5e643e44ecadb8e058f105ace007b841d42ab6a0e12275cac7a",
+      "source": "https://registry.npmjs.org/esquery/1.7.0"
+    },
+    "npm:esrecurse@4.3.0": {
+      "channel": "https://github.com/estools/esrecurse/issues",
+      "deprecated": null,
+      "revision": "ac2df97d55c40cfcdb00de7101bbbc2ef0e308d011c7aec1caac1f6ed342b821",
+      "source": "https://registry.npmjs.org/esrecurse/4.3.0"
+    },
+    "npm:estraverse@5.3.0": {
+      "channel": "https://github.com/estools/estraverse/issues",
+      "deprecated": null,
+      "revision": "9bad9ba7e99266ea74d8fa2068b7f3d342e0a94a1bd8375af40460910ac25342",
+      "source": "https://registry.npmjs.org/estraverse/5.3.0"
+    },
+    "npm:estree-walker@2.0.2": {
+      "channel": "https://github.com/Rich-Harris/estree-walker/issues",
+      "deprecated": null,
+      "revision": "0c8cc5c06eb8caba09d3129895d0d65aa4a3a8660973c76fca881d6ba842788f",
+      "source": "https://registry.npmjs.org/estree-walker/2.0.2"
+    },
+    "npm:esutils@2.0.3": {
+      "channel": "https://github.com/estools/esutils/issues",
+      "deprecated": null,
+      "revision": "240496007a9953d42044bf8b07d503857f9dcb47e870fa0db5a67b4772570a7c",
+      "source": "https://registry.npmjs.org/esutils/2.0.3"
+    },
+    "npm:fast-deep-equal@3.1.3": {
+      "channel": "https://github.com/epoberezkin/fast-deep-equal/issues",
+      "deprecated": null,
+      "revision": "8f54f986d646ded6b0b47752afa4cb0a4ddeaeb91a4d556d97d1c268bfa4a7fc",
+      "source": "https://registry.npmjs.org/fast-deep-equal/3.1.3"
+    },
+    "npm:fast-json-stable-stringify@2.1.0": {
+      "channel": "https://github.com/epoberezkin/fast-json-stable-stringify/issues",
+      "deprecated": null,
+      "revision": "787b4a3f766e8cfa6ae748511b19e07e39857c4347236b795c1e41125055fe0b",
+      "source": "https://registry.npmjs.org/fast-json-stable-stringify/2.1.0"
+    },
+    "npm:fast-levenshtein@2.0.6": {
+      "channel": "https://github.com/hiddentao/fast-levenshtein/issues",
+      "deprecated": null,
+      "revision": "38e14a690e908bebee70f714e78d95ecdc43a639bfd7e3c121848bce9d4559c8",
+      "source": "https://registry.npmjs.org/fast-levenshtein/2.0.6"
+    },
+    "npm:fdir@6.5.0": {
+      "channel": "https://github.com/thecodrr/fdir/issues",
+      "deprecated": null,
+      "revision": "1b30d7d350499f021d56e9f6653e723c746d253d482bffa4c7fc6a2a578b0a44",
+      "source": "https://registry.npmjs.org/fdir/6.5.0"
+    },
+    "npm:file-entry-cache@11.1.5": {
+      "channel": "git+https://github.com/jaredwray/cacheable.git",
+      "deprecated": null,
+      "revision": "1e55bc6af283c58452a02bc80a7b61c1fdd29d01a238b15e6d28ea6eece52261",
+      "source": "https://registry.npmjs.org/file-entry-cache/11.1.5"
+    },
+    "npm:find-up@5.0.0": {
+      "channel": "https://github.com/sindresorhus/find-up/issues",
+      "deprecated": null,
+      "revision": "564f0a8433ae2bdce4baf91317876886f644d0c166f2673ba56320819d98922f",
+      "source": "https://registry.npmjs.org/find-up/5.0.0"
+    },
+    "npm:flat-cache@6.1.23": {
+      "channel": "git+https://github.com/jaredwray/cacheable.git",
+      "deprecated": null,
+      "revision": "20e3d7af8833d0cf2e09636900426eb7d632354560adb18914087209b73b3d39",
+      "source": "https://registry.npmjs.org/flat-cache/6.1.23"
+    },
+    "npm:flatted@3.4.4": {
+      "channel": "https://github.com/WebReflection/flatted/issues",
+      "deprecated": null,
+      "revision": "53593fc96d655685eb0342e660608a04b49ee9945f97ce27dc49a23874e4f6d4",
+      "source": "https://registry.npmjs.org/flatted/3.4.4"
+    },
+    "npm:foreground-child@3.3.1": {
+      "channel": "https://github.com/tapjs/foreground-child/issues",
+      "deprecated": null,
+      "revision": "2c45bea1082f8e69d0c16c7a8846c56a1d6daf0eef5291ef8a22f32db7fbce3d",
+      "source": "https://registry.npmjs.org/foreground-child/3.3.1"
+    },
+    "npm:foreground-child@4.0.3": {
+      "channel": "https://github.com/tapjs/foreground-child/issues",
+      "deprecated": null,
+      "revision": "3a09a4282c49a2ff7f4997e7e935247c63cfedcefd9d61e2f3ce7e053dcbeb1d",
+      "source": "https://registry.npmjs.org/foreground-child/4.0.3"
+    },
+    "npm:fsevents@2.3.3": {
+      "channel": "https://github.com/fsevents/fsevents/issues",
+      "deprecated": null,
+      "revision": "b9f892b7d399e73de65849e3647094e648ff91c0a03e4460ac0fdcd335df2704",
+      "source": "https://registry.npmjs.org/fsevents/2.3.3"
+    },
+    "npm:function-bind@1.1.2": {
+      "channel": "https://github.com/Raynos/function-bind/issues",
+      "deprecated": null,
+      "revision": "4b88e60f517cc77407919fbf88e29d872c5d704be9d18adae0f42521ab4cea8d",
+      "source": "https://registry.npmjs.org/function-bind/1.1.2"
+    },
+    "npm:gensync@1.0.0-beta.2": {
+      "channel": "https://github.com/loganfsmyth/gensync/issues",
+      "deprecated": null,
+      "revision": "ce284b3efff3d6781088332d64ddd79d98a3f079689d278d85d87f2efbb24823",
+      "source": "https://registry.npmjs.org/gensync/1.0.0-beta.2"
+    },
+    "npm:get-caller-file@2.0.5": {
+      "channel": "https://github.com/stefanpenner/get-caller-file/issues",
+      "deprecated": null,
+      "revision": "b04852f4b61fc2719e0b346b7f0dcdb309e47fff32d025093de12a294e8a9dc2",
+      "source": "https://registry.npmjs.org/get-caller-file/2.0.5"
+    },
+    "npm:get-east-asian-width@1.7.0": {
+      "channel": "https://github.com/sindresorhus/get-east-asian-width/issues",
+      "deprecated": null,
+      "revision": "ebc878cb026498e354716080cd22e3e924f97a21ef3d6f97c526a315a2ff1a07",
+      "source": "https://registry.npmjs.org/get-east-asian-width/1.7.0"
+    },
+    "npm:glob-parent@6.0.2": {
+      "channel": "https://github.com/gulpjs/glob-parent/issues",
+      "deprecated": null,
+      "revision": "7cfe05e5905594e835fc7c5450eaca5f3f794b528ddc28e94558484831d26ea7",
+      "source": "https://registry.npmjs.org/glob-parent/6.0.2"
+    },
+    "npm:glob@13.0.7": {
+      "channel": "https://github.com/isaacs/node-glob/issues",
+      "deprecated": null,
+      "revision": "e1e7a2016df42e1f7d0ce2753571ddfd321b8d8ebe8d3d1b31edd7c9d83ae0fc",
+      "source": "https://registry.npmjs.org/glob/13.0.7"
+    },
+    "npm:has-flag@4.0.0": {
+      "channel": "https://github.com/sindresorhus/has-flag/issues",
+      "deprecated": null,
+      "revision": "0a45ddada39d4474160dbf7234843ef3d76afa404b9287dab32d92be0d734345",
+      "source": "https://registry.npmjs.org/has-flag/4.0.0"
+    },
+    "npm:hashery@1.5.1": {
+      "channel": "https://github.com/jaredwray/hashery/issues",
+      "deprecated": null,
+      "revision": "a3fad7bcb186f8f1ed405dfe478657bd0d017244f83b7594014f2b2217f28482",
+      "source": "https://registry.npmjs.org/hashery/1.5.1"
+    },
+    "npm:hasown@2.0.4": {
+      "channel": "https://github.com/inspect-js/hasOwn/issues",
+      "deprecated": null,
+      "revision": "dc00ea9560288aa32633618c71bce761d53a2cf1df5cca23b32a8e11fd26d341",
+      "source": "https://registry.npmjs.org/hasown/2.0.4"
+    },
+    "npm:hermes-estree@0.25.1": {
+      "channel": "git@github.com:facebook/hermes.git",
+      "deprecated": null,
+      "revision": "d17ad84074b48eb29b52c41f67b243440e0a24249db4d60213bfb03d3eaf6c90",
+      "source": "https://registry.npmjs.org/hermes-estree/0.25.1"
+    },
+    "npm:hermes-parser@0.25.1": {
+      "channel": "git@github.com:facebook/hermes.git",
+      "deprecated": null,
+      "revision": "763cd96dd282dc9daf424568c933d4503d719b18b9cd1065529438910cc724c6",
+      "source": "https://registry.npmjs.org/hermes-parser/0.25.1"
+    },
+    "npm:hookified@1.15.1": {
+      "channel": "https://github.com/jaredwray/hookified/issues",
+      "deprecated": null,
+      "revision": "cdbdd559f75d026a40964b9845cf7d6da47e4d5c39ac6bda3d84620243e84efc",
+      "source": "https://registry.npmjs.org/hookified/1.15.1"
+    },
+    "npm:hookified@2.2.0": {
+      "channel": "https://github.com/jaredwray/hookified/issues",
+      "deprecated": null,
+      "revision": "7a46b2d27e3f7a2eb3c8fe5cf4f23aa34b18688eabf93be77afe5a1a3e07c191",
+      "source": "https://registry.npmjs.org/hookified/2.2.0"
+    },
+    "npm:html-escaper@2.0.2": {
+      "channel": "https://github.com/WebReflection/html-escaper/issues",
+      "deprecated": null,
+      "revision": "0e101a9ff5a56c8d1b933c57b50442284db08e5b16cdf0a64dfb10ddc698acd1",
+      "source": "https://registry.npmjs.org/html-escaper/2.0.2"
+    },
+    "npm:https-proxy-agent@7.0.6": {
+      "channel": "https://github.com/TooTallNate/proxy-agents/issues",
+      "deprecated": null,
+      "revision": "d013e752e8d8837b1b643c29771f1593b7a3332a2b633411a76459398c5c42d7",
+      "source": "https://registry.npmjs.org/https-proxy-agent/7.0.6"
+    },
+    "npm:ignore@5.3.2": {
+      "channel": "https://github.com/kaelzhang/node-ignore/issues",
+      "deprecated": null,
+      "revision": "f8fa374d841a7e895d7a430a8025d66c38653c912f697ab5cbf6575f46ba1613",
+      "source": "https://registry.npmjs.org/ignore/5.3.2"
+    },
+    "npm:ignore@7.0.16": {
+      "channel": "https://github.com/kaelzhang/node-ignore/issues",
+      "deprecated": null,
+      "revision": "9a496df15a75814f7c31afefbd425c0ae713b583ac16b10c149b6a6c039d85e2",
+      "source": "https://registry.npmjs.org/ignore/7.0.16"
+    },
+    "npm:imurmurhash@0.1.4": {
+      "channel": "https://github.com/jensyt/imurmurhash-js/issues",
+      "deprecated": null,
+      "revision": "607afc2d3b38969d94532f32df526cb44a2f1715eb726a9963bfeb7334488297",
+      "source": "https://registry.npmjs.org/imurmurhash/0.1.4"
+    },
+    "npm:indent-string@4.0.0": {
+      "channel": "https://github.com/sindresorhus/indent-string/issues",
+      "deprecated": null,
+      "revision": "e2d36eb5bd9da28b778c7a978b0e333c3fe110dd84b177b2302eb9b4972c148d",
+      "source": "https://registry.npmjs.org/indent-string/4.0.0"
+    },
+    "npm:index-to-position@1.2.0": {
+      "channel": "https://github.com/sindresorhus/index-to-position/issues",
+      "deprecated": null,
+      "revision": "ae959884892676e637a7e554fa75fd74fe1b44d40717d669189db2e848e81e34",
+      "source": "https://registry.npmjs.org/index-to-position/1.2.0"
+    },
+    "npm:is-core-module@2.18.0": {
+      "channel": "https://github.com/inspect-js/is-core-module/issues",
+      "deprecated": null,
+      "revision": "f10cd0f7549b0d8a825652629ab9b1ea0cdc33b8b8d242e2437dd45ddf09ba50",
+      "source": "https://registry.npmjs.org/is-core-module/2.18.0"
+    },
+    "npm:is-docker@3.0.0": {
+      "channel": "https://github.com/sindresorhus/is-docker/issues",
+      "deprecated": null,
+      "revision": "228954c2f7790a6a1dff8d3cd24b90b0a92eb9b6a874839b14cc03c358386061",
+      "source": "https://registry.npmjs.org/is-docker/3.0.0"
+    },
+    "npm:is-extglob@2.1.1": {
+      "channel": "https://github.com/jonschlinkert/is-extglob/issues",
+      "deprecated": null,
+      "revision": "e4a6757172482d848cbf34b749f0e67b17f2557f46b7a7888a042a0357b52b53",
+      "source": "https://registry.npmjs.org/is-extglob/2.1.1"
+    },
+    "npm:is-glob@4.0.3": {
+      "channel": "https://github.com/micromatch/is-glob/issues",
+      "deprecated": null,
+      "revision": "90e413844b91ffd2f08636f4fdfb18aa412bed6ca453d0e35bbd4d64ea2c36eb",
+      "source": "https://registry.npmjs.org/is-glob/4.0.3"
+    },
+    "npm:is-inside-container@1.0.0": {
+      "channel": "https://github.com/sindresorhus/is-inside-container/issues",
+      "deprecated": null,
+      "revision": "8ae6d15449140e81e6bdf6dd6dcf321399f5dc66b10adf597cd529547b615518",
+      "source": "https://registry.npmjs.org/is-inside-container/1.0.0"
+    },
+    "npm:is-wsl@3.1.1": {
+      "channel": "https://github.com/sindresorhus/is-wsl/issues",
+      "deprecated": null,
+      "revision": "5bf82c2d963c0128723e90880cffe04eb1857407473f920e42f2a0d5cd02d288",
+      "source": "https://registry.npmjs.org/is-wsl/3.1.1"
+    },
+    "npm:isexe@2.0.0": {
+      "channel": "https://github.com/isaacs/isexe/issues",
+      "deprecated": null,
+      "revision": "60b2eb066e1d7ab2e046396015057b67d5f47e2555d54445cc4153dc29fd0e22",
+      "source": "https://registry.npmjs.org/isexe/2.0.0"
+    },
+    "npm:istanbul-lib-coverage@3.2.2": {
+      "channel": "https://github.com/istanbuljs/istanbuljs/issues",
+      "deprecated": null,
+      "revision": "6fa8d50ef35715b0ec31c37947d61fd27a007c797c6f44390687cb7121366e26",
+      "source": "https://registry.npmjs.org/istanbul-lib-coverage/3.2.2"
+    },
+    "npm:istanbul-lib-report@3.0.1": {
+      "channel": "https://github.com/istanbuljs/istanbuljs/issues",
+      "deprecated": null,
+      "revision": "9666d6b7bed63ccd388163f05aaa5b42f4313707c12956a671db3f024a6ed0e5",
+      "source": "https://registry.npmjs.org/istanbul-lib-report/3.0.1"
+    },
+    "npm:istanbul-reports@3.2.0": {
+      "channel": "https://github.com/istanbuljs/istanbuljs/issues",
+      "deprecated": null,
+      "revision": "91ae572cadba4536fce4ff0ff2f1c2103917ca41ac8066b3026206e0f1626873",
+      "source": "https://registry.npmjs.org/istanbul-reports/3.2.0"
+    },
+    "npm:js-levenshtein@1.1.6": {
+      "channel": "https://github.com/gustf/js-levenshtein/issues",
+      "deprecated": null,
+      "revision": "37ece4522494ae2b5e337289ec40b2ac9a442e4d2875bf99ce1bad354d269560",
+      "source": "https://registry.npmjs.org/js-levenshtein/1.1.6"
+    },
+    "npm:js-tokens@4.0.0": {
+      "channel": "https://github.com/lydell/js-tokens/issues",
+      "deprecated": null,
+      "revision": "1ac8c68600567100b906c7239a43054d215a4ff536e2f0691a38231e19196015",
+      "source": "https://registry.npmjs.org/js-tokens/4.0.0"
+    },
+    "npm:js-yaml@4.3.2": {
+      "channel": "https://github.com/nodeca/js-yaml/issues",
+      "deprecated": null,
+      "revision": "970a78cb315f1ce5f66885117f37a28e90e43ad7150fe172e826e87a11aca06e",
+      "source": "https://registry.npmjs.org/js-yaml/4.3.2"
+    },
+    "npm:jsesc@3.1.0": {
+      "channel": "https://github.com/mathiasbynens/jsesc/issues",
+      "deprecated": null,
+      "revision": "e6d533b45e4f1d6fc1ef9975c6ca356f9629a4ddbcc6e5b8a8f23c882fb8e399",
+      "source": "https://registry.npmjs.org/jsesc/3.1.0"
+    },
+    "npm:json-schema-traverse@0.4.1": {
+      "channel": "https://github.com/epoberezkin/json-schema-traverse/issues",
+      "deprecated": null,
+      "revision": "8dda5bb140c51aea5739864291c1324b2cc6d22e4b924da72db511eea4220ed4",
+      "source": "https://registry.npmjs.org/json-schema-traverse/0.4.1"
+    },
+    "npm:json-schema-traverse@1.0.0": {
+      "channel": "https://github.com/epoberezkin/json-schema-traverse/issues",
+      "deprecated": null,
+      "revision": "65238e563132d4ad32747c221c3ea002be080feb748978e334ea088db794d4bc",
+      "source": "https://registry.npmjs.org/json-schema-traverse/1.0.0"
+    },
+    "npm:json-stable-stringify-without-jsonify@1.0.1": {
+      "channel": "https://github.com/samn/json-stable-stringify/issues",
+      "deprecated": null,
+      "revision": "78a9cf0099aff45d42913d80462fc6e4b324a56f8cea5f36539a9326216cbc39",
+      "source": "https://registry.npmjs.org/json-stable-stringify-without-jsonify/1.0.1"
+    },
+    "npm:json5@2.2.3": {
+      "channel": "https://github.com/json5/json5/issues",
+      "deprecated": null,
+      "revision": "775402cf4d2ca885a5b12b103924f27f0d567cbf9ef33f528b5ee208629af866",
+      "source": "https://registry.npmjs.org/json5/2.2.3"
+    },
+    "npm:jsonc-parser@3.3.1": {
+      "channel": "https://github.com/microsoft/node-jsonc-parser/issues",
+      "deprecated": null,
+      "revision": "b73b02ce15124e51def30735854a0507761de822f238e1bb14af4bbbcd70aaaa",
+      "source": "https://registry.npmjs.org/jsonc-parser/3.3.1"
+    },
+    "npm:keyv@5.6.0": {
+      "channel": "https://github.com/jaredwray/keyv/issues",
+      "deprecated": null,
+      "revision": "8aebcc4858d34b83ac7044a3c2b1f0f23b7540b667b784deca594773b02fab25",
+      "source": "https://registry.npmjs.org/keyv/5.6.0"
+    },
+    "npm:levn@0.4.1": {
+      "channel": "https://github.com/gkz/levn/issues",
+      "deprecated": null,
+      "revision": "be7294203e7afd33edbb4b97511ec01a6ad93c0f7bcd78016106f6cfc9574ccc",
+      "source": "https://registry.npmjs.org/levn/0.4.1"
+    },
+    "npm:lightningcss-android-arm64@1.33.0": {
+      "channel": "https://github.com/parcel-bundler/lightningcss/issues",
+      "deprecated": null,
+      "revision": "31209b68d852b26a2838d6c4ca89b098080ea846163de8bee905dd89534f594a",
+      "source": "https://registry.npmjs.org/lightningcss-android-arm64/1.33.0"
+    },
+    "npm:lightningcss-darwin-arm64@1.33.0": {
+      "channel": "https://github.com/parcel-bundler/lightningcss/issues",
+      "deprecated": null,
+      "revision": "62bf949225e02670001fe74556d0ae34ab9017cfd46899353f0e75cf50d94406",
+      "source": "https://registry.npmjs.org/lightningcss-darwin-arm64/1.33.0"
+    },
+    "npm:lightningcss-darwin-x64@1.33.0": {
+      "channel": "https://github.com/parcel-bundler/lightningcss/issues",
+      "deprecated": null,
+      "revision": "6cf2078a08e590ebf4f89c0c69e76fbd6fe97092fe690fe63df121a135dfb0e3",
+      "source": "https://registry.npmjs.org/lightningcss-darwin-x64/1.33.0"
+    },
+    "npm:lightningcss-freebsd-x64@1.33.0": {
+      "channel": "https://github.com/parcel-bundler/lightningcss/issues",
+      "deprecated": null,
+      "revision": "18307beb5b803fa96b6a8deef06ec03e9cf457f3f36f38bf0c7dadf37263a0fa",
+      "source": "https://registry.npmjs.org/lightningcss-freebsd-x64/1.33.0"
+    },
+    "npm:lightningcss-linux-arm-gnueabihf@1.33.0": {
+      "channel": "https://github.com/parcel-bundler/lightningcss/issues",
+      "deprecated": null,
+      "revision": "d7ed80c0c551c60f45b5690ab82450030a88169621e0896ee1bec8bf98fd86e4",
+      "source": "https://registry.npmjs.org/lightningcss-linux-arm-gnueabihf/1.33.0"
+    },
+    "npm:lightningcss-linux-arm64-gnu@1.33.0": {
+      "channel": "https://github.com/parcel-bundler/lightningcss/issues",
+      "deprecated": null,
+      "revision": "f3fd14f4a9e8f41c632aa2b4a5ae2cf408cdda0cf9c8172884005c9c2b2e31ca",
+      "source": "https://registry.npmjs.org/lightningcss-linux-arm64-gnu/1.33.0"
+    },
+    "npm:lightningcss-linux-arm64-musl@1.33.0": {
+      "channel": "https://github.com/parcel-bundler/lightningcss/issues",
+      "deprecated": null,
+      "revision": "a808ed304bc4f3fdc75688195acbd0122bfcf04d0ca511e565501050a38df72e",
+      "source": "https://registry.npmjs.org/lightningcss-linux-arm64-musl/1.33.0"
+    },
+    "npm:lightningcss-linux-x64-gnu@1.33.0": {
+      "channel": "https://github.com/parcel-bundler/lightningcss/issues",
+      "deprecated": null,
+      "revision": "9778561c17f398493ba26bc9600b9ab46fba051779eb468045e42cdad52da20f",
+      "source": "https://registry.npmjs.org/lightningcss-linux-x64-gnu/1.33.0"
+    },
+    "npm:lightningcss-linux-x64-musl@1.33.0": {
+      "channel": "https://github.com/parcel-bundler/lightningcss/issues",
+      "deprecated": null,
+      "revision": "8180ca59e377854f135b68469a25055fb9d875bf99b155ddaa1cc28efa29a7c0",
+      "source": "https://registry.npmjs.org/lightningcss-linux-x64-musl/1.33.0"
+    },
+    "npm:lightningcss-win32-arm64-msvc@1.33.0": {
+      "channel": "https://github.com/parcel-bundler/lightningcss/issues",
+      "deprecated": null,
+      "revision": "6e57aa3e476d4fb7031b0ead212f4315485bd8d8cb69f3daa1c5313fbde0bb14",
+      "source": "https://registry.npmjs.org/lightningcss-win32-arm64-msvc/1.33.0"
+    },
+    "npm:lightningcss-win32-x64-msvc@1.33.0": {
+      "channel": "https://github.com/parcel-bundler/lightningcss/issues",
+      "deprecated": null,
+      "revision": "951f0087de5fafeecb794b3abbf521f3e3125345ab094a71307c05ec155282ae",
+      "source": "https://registry.npmjs.org/lightningcss-win32-x64-msvc/1.33.0"
+    },
+    "npm:lightningcss@1.33.0": {
+      "channel": "https://github.com/parcel-bundler/lightningcss/issues",
+      "deprecated": null,
+      "revision": "fded3512a5f9e80975826cb23a5101e55d6b6368f995adf974c8d7e192730476",
+      "source": "https://registry.npmjs.org/lightningcss/1.33.0"
+    },
+    "npm:locate-path@6.0.0": {
+      "channel": "https://github.com/sindresorhus/locate-path/issues",
+      "deprecated": null,
+      "revision": "5e96a03d94f527e1c514150cc105babbc990c4fec9b84e526bfc6fd82122cd22",
+      "source": "https://registry.npmjs.org/locate-path/6.0.0"
+    },
+    "npm:loupe@3.2.1": {
+      "channel": "https://github.com/chaijs/loupe/issues",
+      "deprecated": null,
+      "revision": "b6b45091135da3d8e872504540b104396a7e502f7f118f5c789d39b10a7085f3",
+      "source": "https://registry.npmjs.org/loupe/3.2.1"
+    },
+    "npm:lru-cache@11.5.3": {
+      "channel": "https://github.com/isaacs/node-lru-cache/issues",
+      "deprecated": null,
+      "revision": "bb5dc2a3778a8f0aa5da88d7bb130ed1a3ceb7f0f7294835705be1e5ab383323",
+      "source": "https://registry.npmjs.org/lru-cache/11.5.3"
+    },
+    "npm:lru-cache@5.1.1": {
+      "channel": "https://github.com/isaacs/node-lru-cache/issues",
+      "deprecated": null,
+      "revision": "e8e483f6965e2fffe12c42709c33d1f0843e2b798f2b2b3e882ae9fc4dc3c78e",
+      "source": "https://registry.npmjs.org/lru-cache/5.1.1"
+    },
+    "npm:lz-string@1.5.0": {
+      "channel": "https://github.com/pieroxy/lz-string/issues",
+      "deprecated": null,
+      "revision": "036f8cf08709c1044c4c892ab1d478385550ca6f91afe054789a1b270ebd1edc",
+      "source": "https://registry.npmjs.org/lz-string/1.5.0"
+    },
+    "npm:lz-utils@2.1.1": {
+      "channel": "https://github.com/cenfun/lz-utils/issues",
+      "deprecated": null,
+      "revision": "1c8c8143a80466f89411493b1fd520fe71d2c861bf18dfd9b6cfc81fada3e73c",
+      "source": "https://registry.npmjs.org/lz-utils/2.1.1"
+    },
+    "npm:magic-string@1.4.5": {
+      "channel": "git+https://github.com/Rich-Harris/magic-string.git",
+      "deprecated": null,
+      "revision": "79844f65f3269790e7c9924f1dd49bfd8896deca78d5748206a46fb5b59d85df",
+      "source": "https://registry.npmjs.org/magic-string/1.4.5"
+    },
+    "npm:make-dir@4.0.0": {
+      "channel": "https://github.com/sindresorhus/make-dir/issues",
+      "deprecated": null,
+      "revision": "e9105701857fa2205f5875aa84c9545f8ad1baa1bb67c1fcb8c4a3d154da893c",
+      "source": "https://registry.npmjs.org/make-dir/4.0.0"
+    },
+    "npm:min-indent@1.0.1": {
+      "channel": "https://github.com/thejameskyle/min-indent/issues",
+      "deprecated": null,
+      "revision": "fa07c337fbeec095abc9bbe10d4c2e160b6a74887d8eb824c1c60dfe58c22033",
+      "source": "https://registry.npmjs.org/min-indent/1.0.1"
+    },
+    "npm:minimatch@10.2.6": {
+      "channel": "https://github.com/isaacs/minimatch/issues",
+      "deprecated": null,
+      "revision": "938adf25bff40260a930f723f448231fc7a03f9e85dd809f2196b50ebd06d88c",
+      "source": "https://registry.npmjs.org/minimatch/10.2.6"
+    },
+    "npm:minimatch@11.0.9": {
+      "channel": "https://github.com/isaacs/minimatch/issues",
+      "deprecated": null,
+      "revision": "c52299c747e033d8bf72e22fadc923f17f29addfb94cc1be3de1a7860a210468",
+      "source": "https://registry.npmjs.org/minimatch/11.0.9"
+    },
+    "npm:minimatch@5.1.9": {
+      "channel": "https://github.com/isaacs/minimatch/issues",
+      "deprecated": null,
+      "revision": "6294b4efe064c5041086e9592d5c7f7793e7678e5ad1c729b106e90cbe958c7f",
+      "source": "https://registry.npmjs.org/minimatch/5.1.9"
+    },
+    "npm:minimist@1.2.8": {
+      "channel": "https://github.com/minimistjs/minimist/issues",
+      "deprecated": null,
+      "revision": "dc08770ea3dc9e8efb9e3592a1c705ee560f0765d0f6887d54499dafb3a08cb1",
+      "source": "https://registry.npmjs.org/minimist/1.2.8"
+    },
+    "npm:minipass@7.1.3": {
+      "channel": "https://github.com/isaacs/minipass/issues",
+      "deprecated": null,
+      "revision": "bf7491b7dc7457525153e9c31eb27e98939785ab6c44297bb99d305f4541aa87",
+      "source": "https://registry.npmjs.org/minipass/7.1.3"
+    },
+    "npm:monocart-coverage-reports@2.13.2": {
+      "channel": "https://github.com/cenfun/monocart-coverage-reports/issues",
+      "deprecated": null,
+      "revision": "7f5ab3ff707af07926b23654d087ce2fbf9c1d8ee181e113fff3cb224035e659",
+      "source": "https://registry.npmjs.org/monocart-coverage-reports/2.13.2"
+    },
+    "npm:monocart-locator@1.0.6": {
+      "channel": "https://github.com/cenfun/monocart-locator/issues",
+      "deprecated": null,
+      "revision": "7fb0ae51358bcea40596df4d45eaffee34b3376211da50aa2ee43a919c819cd4",
+      "source": "https://registry.npmjs.org/monocart-locator/1.0.6"
+    },
+    "npm:ms@2.1.3": {
+      "channel": "https://github.com/vercel/ms/issues",
+      "deprecated": null,
+      "revision": "9f31c78548e84f877cedb1e0f0652419777d0c036fbb72985da187e2a962b45d",
+      "source": "https://registry.npmjs.org/ms/2.1.3"
+    },
+    "npm:nanoid@3.3.20": {
+      "channel": "https://github.com/ai/nanoid/issues",
+      "deprecated": null,
+      "revision": "f21b4d3855702d4b4054748e5e3cc3a2bccdfdd98936946be0110d2198edae96",
+      "source": "https://registry.npmjs.org/nanoid/3.3.20"
+    },
+    "npm:natural-compare@1.4.0": {
+      "channel": "https://github.com/litejs/natural-compare-lite/issues",
+      "deprecated": null,
+      "revision": "8b910f6ec433d27eb98fa7d846e586b7ce571ed92e0da5685d6e77c1689cc9d4",
+      "source": "https://registry.npmjs.org/natural-compare/1.4.0"
+    },
+    "npm:node-releases@2.0.65": {
+      "channel": "https://github.com/chicoxyzzy/node-releases/issues",
+      "deprecated": null,
+      "revision": "153679db93f1c0d92ce30016df4ace4b61596c02639cbd0f39c88bbb61ecdcba",
+      "source": "https://registry.npmjs.org/node-releases/2.0.65"
+    },
+    "npm:open@10.2.0": {
+      "channel": "https://github.com/sindresorhus/open/issues",
+      "deprecated": null,
+      "revision": "bb919c0ea730057ca9d007a19af0acb1e05f72dce3fb046fdab472083a8b83ba",
+      "source": "https://registry.npmjs.org/open/10.2.0"
+    },
+    "npm:openapi-fetch@0.17.0": {
+      "channel": "https://github.com/openapi-ts/openapi-typescript/issues",
+      "deprecated": null,
+      "revision": "aa05dfcf6a6cc225e789029a3cca174ce13cd6b9e074c37b5b84174b2a80ef2d",
+      "source": "https://registry.npmjs.org/openapi-fetch/0.17.0"
+    },
+    "npm:openapi-typescript-helpers@0.1.0": {
+      "channel": "https://github.com/openapi-ts/openapi-typescript/issues",
+      "deprecated": null,
+      "revision": "71270728baf925f5949a351b0edbfe4273eb0a64f1e6a8e588f99240f4b23b5a",
+      "source": "https://registry.npmjs.org/openapi-typescript-helpers/0.1.0"
+    },
+    "npm:openapi-typescript@7.9.1": {
+      "channel": "https://github.com/openapi-ts/openapi-typescript/issues",
+      "deprecated": null,
+      "revision": "91f5bcca3703168aebc79d94eb53fb8fcf1e59ff8633fdee835457fa702bbcbc",
+      "source": "https://registry.npmjs.org/openapi-typescript/7.9.1"
+    },
+    "npm:optionator@0.9.4": {
+      "channel": "https://github.com/gkz/optionator/issues",
+      "deprecated": null,
+      "revision": "30f1f0ee539388a510e67971c600a76e0362dce525457db07292637766a90c8b",
+      "source": "https://registry.npmjs.org/optionator/0.9.4"
+    },
+    "npm:oxc-parser@0.127.0": {
+      "channel": "https://github.com/oxc-project/oxc/issues",
+      "deprecated": null,
+      "revision": "a410c49bd87e4dd9e233b1b04e077f746b9799e8da35e75e699b93ae5f9514c7",
+      "source": "https://registry.npmjs.org/oxc-parser/0.127.0"
+    },
+    "npm:oxc-resolver@11.21.2": {
+      "channel": "https://github.com/oxc-project/oxc-resolver/issues",
+      "deprecated": null,
+      "revision": "13492988f386b3f6d2bf5541df90bb4379e04c02afc376add960d6b1e8651aea",
+      "source": "https://registry.npmjs.org/oxc-resolver/11.21.2"
+    },
+    "npm:p-limit@3.1.0": {
+      "channel": "https://github.com/sindresorhus/p-limit/issues",
+      "deprecated": null,
+      "revision": "2f341b4821ebe54713c0775d3121e4eab2dc96c35a20b64e9df0672d059a7d75",
+      "source": "https://registry.npmjs.org/p-limit/3.1.0"
+    },
+    "npm:p-locate@5.0.0": {
+      "channel": "https://github.com/sindresorhus/p-locate/issues",
+      "deprecated": null,
+      "revision": "415c08d1abee7886b436ebd7921c4dfa186d32b80c88c6e6761831d58beba844",
+      "source": "https://registry.npmjs.org/p-locate/5.0.0"
+    },
+    "npm:parse-json@8.3.0": {
+      "channel": "https://github.com/sindresorhus/parse-json/issues",
+      "deprecated": null,
+      "revision": "ea19f7ac06618c46cf183eebed25313c9ec89b6b455cf33023153429a2d01edc",
+      "source": "https://registry.npmjs.org/parse-json/8.3.0"
+    },
+    "npm:path-exists@4.0.0": {
+      "channel": "https://github.com/sindresorhus/path-exists/issues",
+      "deprecated": null,
+      "revision": "18a73d5900ca5a98475dc3d712f93b0033969b99e7f071f10d949e412935fa5c",
+      "source": "https://registry.npmjs.org/path-exists/4.0.0"
+    },
+    "npm:path-key@3.1.1": {
+      "channel": "https://github.com/sindresorhus/path-key/issues",
+      "deprecated": null,
+      "revision": "50dfac7e1cb79491c33567c4ebac66f2414ef0ec7ea9a8507d9b84df1a25d9b8",
+      "source": "https://registry.npmjs.org/path-key/3.1.1"
+    },
+    "npm:path-parse@1.0.7": {
+      "channel": "https://github.com/jbgutierrez/path-parse/issues",
+      "deprecated": null,
+      "revision": "8c53674512057e96362911a0dfb289e367625fcc2d73d14c010aeb8f03924776",
+      "source": "https://registry.npmjs.org/path-parse/1.0.7"
+    },
+    "npm:path-scurry@2.0.2": {
+      "channel": "https://github.com/isaacs/path-scurry/issues",
+      "deprecated": null,
+      "revision": "507b4c9543bf3c14c1883a6d3bc876e34d4ed4f5880f54d2ca14feb77a2005b6",
+      "source": "https://registry.npmjs.org/path-scurry/2.0.2"
+    },
+    "npm:pathval@2.0.1": {
+      "channel": "https://github.com/chaijs/pathval/issues",
+      "deprecated": null,
+      "revision": "464332565e731c77af6c07f11ae105e339306c8179bb82e0523e91267da604db",
+      "source": "https://registry.npmjs.org/pathval/2.0.1"
+    },
+    "npm:picocolors@1.1.1": {
+      "channel": "https://github.com/alexeyraspopov/picocolors/issues",
+      "deprecated": null,
+      "revision": "469edbe4663b07f19026f60ec43744bad678caa89a6be7bf6c4692e2967ddf9d",
+      "source": "https://registry.npmjs.org/picocolors/1.1.1"
+    },
+    "npm:picomatch@4.0.7": {
+      "channel": "https://github.com/micromatch/picomatch/issues",
+      "deprecated": null,
+      "revision": "f5b19326b62bc9009139f82d9b3400421edf9fc0ade0212d49d1bac349659d77",
+      "source": "https://registry.npmjs.org/picomatch/4.0.7"
+    },
+    "npm:playwright-core@1.64.0": {
+      "channel": "https://github.com/microsoft/playwright/issues",
+      "deprecated": null,
+      "revision": "6f244f0b86b171c2ef877f8e027ba964809d8e5df692664c8736e5d0484f6dc7",
+      "source": "https://registry.npmjs.org/playwright-core/1.64.0"
+    },
+    "npm:playwright@1.64.0": {
+      "channel": "https://github.com/microsoft/playwright/issues",
+      "deprecated": null,
+      "revision": "faac4e18f0a8521c4e35b3bb4dba54e7f6dd1466e659fa483761d4cf43d57223",
+      "source": "https://registry.npmjs.org/playwright/1.64.0"
+    },
+    "npm:pluralize@8.0.0": {
+      "channel": "https://github.com/blakeembrey/pluralize/issues",
+      "deprecated": null,
+      "revision": "acf9fe37ff6839e604aeb345e427d15efe29677d78c3b343c8713588a23d4f6b",
+      "source": "https://registry.npmjs.org/pluralize/8.0.0"
+    },
+    "npm:postcss@8.5.33": {
+      "channel": "https://github.com/postcss/postcss/issues",
+      "deprecated": null,
+      "revision": "46981a06ee8e1073c916b2f4a5e71b5df42abde2180504870337d8cb7ae9a1d1",
+      "source": "https://registry.npmjs.org/postcss/8.5.33"
+    },
+    "npm:prelude-ls@1.2.1": {
+      "channel": "https://github.com/gkz/prelude-ls/issues",
+      "deprecated": null,
+      "revision": "e7e8aa53a2b7db33c2e361a77277ae79da020a2b0539f80efb48f3bf53ac6532",
+      "source": "https://registry.npmjs.org/prelude-ls/1.2.1"
+    },
+    "npm:prettier@3.10.1": {
+      "channel": "https://github.com/prettier/prettier/issues",
+      "deprecated": null,
+      "revision": "710e468523909df74f21a6222a9527c418415135dbc42b3890f05241061153b1",
+      "source": "https://registry.npmjs.org/prettier/3.10.1"
+    },
+    "npm:pretty-format@27.5.1": {
+      "channel": "https://github.com/facebook/jest/issues",
+      "deprecated": null,
+      "revision": "a6d0c233ceb5edf28ef2b356f3bb8d819e2a8b706fbca74cfcdb6cc2709375bd",
+      "source": "https://registry.npmjs.org/pretty-format/27.5.1"
+    },
+    "npm:punycode@2.3.1": {
+      "channel": "https://github.com/mathiasbynens/punycode.js/issues",
+      "deprecated": null,
+      "revision": "95b7a46002e352c2279934fd7f90f99997a32072f8b01bd567881cf61ff793e0",
+      "source": "https://registry.npmjs.org/punycode/2.3.1"
+    },
+    "npm:qified@0.10.1": {
+      "channel": "https://github.com/jaredwray/qified/issues",
+      "deprecated": null,
+      "revision": "7f3c8a81bccfadf58253b9722b8e6ef885fdafa1a1f9d30bc1a4b42927b67514",
+      "source": "https://registry.npmjs.org/qified/0.10.1"
+    },
+    "npm:react-docgen-typescript@2.4.0": {
+      "channel": "https://github.com/styleguidist/react-docgen-typescript/issues",
+      "deprecated": null,
+      "revision": "91d51ae6d32d0ca6bf888c5d8abf99c4203c0368046322cf39392c5f0d928364",
+      "source": "https://registry.npmjs.org/react-docgen-typescript/2.4.0"
+    },
+    "npm:react-docgen@8.0.4": {
+      "channel": "https://github.com/reactjs/react-docgen/issues",
+      "deprecated": null,
+      "revision": "af79e3f28b9dd30cee11f3fde50a56b3105ff642a09d238ffae75a2401f1c0b7",
+      "source": "https://registry.npmjs.org/react-docgen/8.0.4"
+    },
+    "npm:react-dom@19.3.1": {
+      "channel": "https://github.com/react/react/issues",
+      "deprecated": null,
+      "revision": "2d72d7d33a8b0fea5614e1b415d06470877efa8eebbdf638cee04e5b83c2c7a5",
+      "source": "https://registry.npmjs.org/react-dom/19.3.1"
+    },
+    "npm:react-is@17.0.2": {
+      "channel": "https://github.com/facebook/react/issues",
+      "deprecated": null,
+      "revision": "b265f28da6b3ea2f04129f4478bba9dcffcd7a7a87fb2613d2f2bb3647759999",
+      "source": "https://registry.npmjs.org/react-is/17.0.2"
+    },
+    "npm:react-router@7.18.6": {
+      "channel": "https://github.com/remix-run/react-router/issues",
+      "deprecated": null,
+      "revision": "c29a9f2d9eb56de44dc62098c4bc70568b5a7b798c1ec10c721906ca515bef3e",
+      "source": "https://registry.npmjs.org/react-router/7.18.6"
+    },
+    "npm:react@19.3.1": {
+      "channel": "https://github.com/react/react/issues",
+      "deprecated": null,
+      "revision": "ecf8c02b9096a7813842d87fae50a707a8809c5c3d0ec6b359ac51d40188ff6f",
+      "source": "https://registry.npmjs.org/react/19.3.1"
+    },
+    "npm:recast@0.23.21": {
+      "channel": "https://github.com/benjamn/recast/issues",
+      "deprecated": null,
+      "revision": "b5b5621f16df33026d5e5a495cdfe9967f0ef9f4eab4f2f2da1aeb4a6360b7ea",
+      "source": "https://registry.npmjs.org/recast/0.23.21"
+    },
+    "npm:redent@3.0.0": {
+      "channel": "https://github.com/sindresorhus/redent/issues",
+      "deprecated": null,
+      "revision": "5948abeee7e3333f615ce4c6deb8d07130559871c83ee7c847cc716fde875b5b",
+      "source": "https://registry.npmjs.org/redent/3.0.0"
+    },
+    "npm:require-from-string@2.0.2": {
+      "channel": "https://github.com/floatdrop/require-from-string/issues",
+      "deprecated": null,
+      "revision": "f7439114dccc8a1bbac2f787c5edce24f4183858985e2f60984b489c2433a341",
+      "source": "https://registry.npmjs.org/require-from-string/2.0.2"
+    },
+    "npm:resolve@1.22.14": {
+      "channel": "https://github.com/browserify/resolve/issues",
+      "deprecated": null,
+      "revision": "ab292cbd2ac66c84b7ee5e1c7d2b9dbad056ea348088c61da3fb55fe1731efb7",
+      "source": "https://registry.npmjs.org/resolve/1.22.14"
+    },
+    "npm:rolldown@1.2.19": {
+      "channel": "https://github.com/rolldown/rolldown/issues",
+      "deprecated": null,
+      "revision": "b274bd6611c743a960806e2331078352ddde5e5384ff86ca7463e17849526666",
+      "source": "https://registry.npmjs.org/rolldown/1.2.19"
+    },
+    "npm:run-applescript@7.1.0": {
+      "channel": "https://github.com/sindresorhus/run-applescript/issues",
+      "deprecated": null,
+      "revision": "fbd2225943b442267f38203f852e621cb2e0c4202ed3e7ffe5f7523e5cb2a9b5",
+      "source": "https://registry.npmjs.org/run-applescript/7.1.0"
+    },
+    "npm:scheduler@0.28.0": {
+      "channel": "https://github.com/react/react/issues",
+      "deprecated": null,
+      "revision": "64d2492ee21a0de21de22120f932c242b70a0ec8a3bc85a438a9903935a26f00",
+      "source": "https://registry.npmjs.org/scheduler/0.28.0"
+    },
+    "npm:semver@6.3.2": {
+      "channel": "https://github.com/npm/node-semver/issues",
+      "deprecated": null,
+      "revision": "55d907d65fd80935d9470064a47390a2eba0a44d48ed72b567ed92c9686ac39c",
+      "source": "https://registry.npmjs.org/semver/6.3.2"
+    },
+    "npm:semver@7.8.6": {
+      "channel": "https://github.com/npm/node-semver/issues",
+      "deprecated": null,
+      "revision": "9d4be8f7cdf8a69f354d8e8d6583b9e017b230cfb0f3578b08385bc88b8dbf59",
+      "source": "https://registry.npmjs.org/semver/7.8.6"
+    },
+    "npm:set-cookie-parser@2.7.3": {
+      "channel": "https://github.com/nfriedly/set-cookie-parser/issues",
+      "deprecated": null,
+      "revision": "3e2f5973c1e30fc59ab801a388e888602f4dc12c7f9e3922241ac60251b1b54a",
+      "source": "https://registry.npmjs.org/set-cookie-parser/2.7.3"
+    },
+    "npm:shebang-command@2.0.0": {
+      "channel": "https://github.com/kevva/shebang-command/issues",
+      "deprecated": null,
+      "revision": "b0181b869517aead3f1d6537e9f5e862895d56d01244806079f7bceac0ade01b",
+      "source": "https://registry.npmjs.org/shebang-command/2.0.0"
+    },
+    "npm:shebang-regex@3.0.0": {
+      "channel": "https://github.com/sindresorhus/shebang-regex/issues",
+      "deprecated": null,
+      "revision": "cb7e026237b62e925eff3417060824dcce2c2553f30c8d41ba6885c81151f21c",
+      "source": "https://registry.npmjs.org/shebang-regex/3.0.0"
+    },
+    "npm:signal-exit@4.1.0": {
+      "channel": "https://github.com/tapjs/signal-exit/issues",
+      "deprecated": null,
+      "revision": "1b8069549117be9ac5a68ecca3ab87934c283e59157de78eb4ade128423b63b8",
+      "source": "https://registry.npmjs.org/signal-exit/4.1.0"
+    },
+    "npm:source-map-js@1.2.4": {
+      "channel": "https://github.com/7rulnik/source-map-js/issues",
+      "deprecated": null,
+      "revision": "2a156fdf7c29cf9ced9d7d7a57cfed179a627411885a3e158a8734e7c0cbc2c0",
+      "source": "https://registry.npmjs.org/source-map-js/1.2.4"
+    },
+    "npm:source-map@0.6.1": {
+      "channel": "https://github.com/mozilla/source-map/issues",
+      "deprecated": null,
+      "revision": "98fb2205f94dd2568317bf7e680ecfddd679d601fc01c85efa343817ece59274",
+      "source": "https://registry.npmjs.org/source-map/0.6.1"
+    },
+    "npm:storybook@10.6.8": {
+      "channel": "https://github.com/storybookjs/storybook/issues",
+      "deprecated": null,
+      "revision": "11b3959827f77a4e71338fd0e7ec1b3e8b22e284c5648fcd667ab9b9778e37e7",
+      "source": "https://registry.npmjs.org/storybook/10.6.8"
+    },
+    "npm:string-width@7.2.0": {
+      "channel": "https://github.com/sindresorhus/string-width/issues",
+      "deprecated": null,
+      "revision": "cac781b5ef30b52996fa21c3124154002a9b9b35fdb4e4394e5c10df4f8b87e1",
+      "source": "https://registry.npmjs.org/string-width/7.2.0"
+    },
+    "npm:string-width@8.3.0": {
+      "channel": "https://github.com/sindresorhus/string-width/issues",
+      "deprecated": null,
+      "revision": "86f50510d59abb85c0a9d0f3e54f5ccc69eec353b3269c637359f769f5172b2a",
+      "source": "https://registry.npmjs.org/string-width/8.3.0"
+    },
+    "npm:strip-ansi@7.2.0": {
+      "channel": "https://github.com/chalk/strip-ansi/issues",
+      "deprecated": null,
+      "revision": "1f410ffed9adfdda18a1e0ffa7985464e427ee32d47056135eec109ae4c9181d",
+      "source": "https://registry.npmjs.org/strip-ansi/7.2.0"
+    },
+    "npm:strip-bom@3.0.0": {
+      "channel": "https://github.com/sindresorhus/strip-bom/issues",
+      "deprecated": null,
+      "revision": "24f8ac027e9c77e2429ce06daf0a8edb7ca515667f817f9642706dbba4422e0f",
+      "source": "https://registry.npmjs.org/strip-bom/3.0.0"
+    },
+    "npm:strip-indent@3.0.0": {
+      "channel": "https://github.com/sindresorhus/strip-indent/issues",
+      "deprecated": null,
+      "revision": "eaff3a71d3e944d50eab83301df6f2f5e9acf0ee5f127cc26850c9236aebea73",
+      "source": "https://registry.npmjs.org/strip-indent/3.0.0"
+    },
+    "npm:strip-indent@4.1.1": {
+      "channel": "https://github.com/sindresorhus/strip-indent/issues",
+      "deprecated": null,
+      "revision": "72a770625a28ba6defc3bb2f94810f0b3df9a27cb47e38a863fddb43351e57df",
+      "source": "https://registry.npmjs.org/strip-indent/4.1.1"
+    },
+    "npm:supports-color@10.2.2": {
+      "channel": "https://github.com/chalk/supports-color/issues",
+      "deprecated": null,
+      "revision": "82e21dd72ca450dcbddf7855ab15e7f21cf1f56545523b0a41fb89c704b20817",
+      "source": "https://registry.npmjs.org/supports-color/10.2.2"
+    },
+    "npm:supports-color@7.2.0": {
+      "channel": "https://github.com/chalk/supports-color/issues",
+      "deprecated": null,
+      "revision": "5862fbf41f9f44289e93fadc664f673d739c4a7d88918820f58bf8896d442432",
+      "source": "https://registry.npmjs.org/supports-color/7.2.0"
+    },
+    "npm:supports-preserve-symlinks-flag@1.0.0": {
+      "channel": "https://github.com/inspect-js/node-supports-preserve-symlinks-flag/issues",
+      "deprecated": null,
+      "revision": "6f3f51db0d5414a9ddf799e42e499bf80f0c3be4b9e977b1b1c72167dfad91a3",
+      "source": "https://registry.npmjs.org/supports-preserve-symlinks-flag/1.0.0"
+    },
+    "npm:test-exclude@8.0.0": {
+      "channel": "https://github.com/istanbuljs/test-exclude/issues",
+      "deprecated": null,
+      "revision": "3b02690f0e38a11679cf97d40e12f41e78ee724c87c331074b3330d173cf4160",
+      "source": "https://registry.npmjs.org/test-exclude/8.0.0"
+    },
+    "npm:tiny-invariant@1.3.3": {
+      "channel": "https://github.com/alexreardon/tiny-invariant/issues",
+      "deprecated": null,
+      "revision": "e6ed79191fea8dccdf84fd826e745596dac062081d6f66c54e0ababc3ff2b50a",
+      "source": "https://registry.npmjs.org/tiny-invariant/1.3.3"
+    },
+    "npm:tinyglobby@0.2.17": {
+      "channel": "https://github.com/SuperchupuDev/tinyglobby/issues",
+      "deprecated": null,
+      "revision": "418710fc9fbf23a1dd44eb53d2ed9a3048a868e0b409ac78d4a036119ebf773a",
+      "source": "https://registry.npmjs.org/tinyglobby/0.2.17"
+    },
+    "npm:tinyrainbow@2.0.0": {
+      "channel": "https://github.com/tinylibs/tinyrainbow/issues",
+      "deprecated": null,
+      "revision": "e84bfbd7fbf7a3efc99465a38de6149accb8168036aa1419175c3fce64a82caa",
+      "source": "https://registry.npmjs.org/tinyrainbow/2.0.0"
+    },
+    "npm:tinyspy@4.0.6": {
+      "channel": "https://github.com/tinylibs/tinyspy/issues",
+      "deprecated": null,
+      "revision": "122e08e62ac53d0444ee753fd300c1c8f68db2e66f340843c0252ec340e580a6",
+      "source": "https://registry.npmjs.org/tinyspy/4.0.6"
+    },
+    "npm:ts-api-utils@2.5.0": {
+      "channel": "https://github.com/JoshuaKGoldberg/ts-api-utils/issues",
+      "deprecated": null,
+      "revision": "3cb10beab653b1272251f6ad14577e0739635795cac7fa7538953afa6abe3154",
+      "source": "https://registry.npmjs.org/ts-api-utils/2.5.0"
+    },
+    "npm:ts-dedent@2.3.0": {
+      "channel": "https://github.com/tamino-martinius/node-ts-dedent/issues",
+      "deprecated": null,
+      "revision": "e97f48ed031e9804f9b678c4106d114fce752337a11ef78f4f208d5a4d1f3238",
+      "source": "https://registry.npmjs.org/ts-dedent/2.3.0"
+    },
+    "npm:tsconfig-paths@4.2.0": {
+      "channel": "https://github.com/dividab/tsconfig-paths/issues",
+      "deprecated": null,
+      "revision": "9abcd1985e5b2e9225b4681d923ad9150f692b65a4b6bf44e4c4b2d6ff6bb539",
+      "source": "https://registry.npmjs.org/tsconfig-paths/4.2.0"
+    },
+    "npm:tslib@2.9.1": {
+      "channel": "https://github.com/Microsoft/TypeScript/issues",
+      "deprecated": null,
+      "revision": "2c4952edc58f8c1f3d13e2a163a73ca40a08b30bac32161a3e1041d794d9ca1c",
+      "source": "https://registry.npmjs.org/tslib/2.9.1"
+    },
+    "npm:type-check@0.4.0": {
+      "channel": "https://github.com/gkz/type-check/issues",
+      "deprecated": null,
+      "revision": "5676142c4c054a67408c1f9316de96f973003c9e79d51d005d0ca24037785a30",
+      "source": "https://registry.npmjs.org/type-check/0.4.0"
+    },
+    "npm:type-fest@4.41.0": {
+      "channel": "https://github.com/sindresorhus/type-fest/issues",
+      "deprecated": null,
+      "revision": "d3ad419f4030779a5d3e813d7f82a236df11edbfa53755c81f65f2b5f97d348f",
+      "source": "https://registry.npmjs.org/type-fest/4.41.0"
+    },
+    "npm:typescript-eslint@8.73.0": {
+      "channel": "https://github.com/typescript-eslint/typescript-eslint/issues",
+      "deprecated": null,
+      "revision": "8dfe0bd299eb545400023c2350c9bfe83d326e11f8944960e63b0bdfa650a22e",
+      "source": "https://registry.npmjs.org/typescript-eslint/8.73.0"
+    },
+    "npm:typescript@5.9.3": {
+      "channel": "https://github.com/microsoft/TypeScript/issues",
+      "deprecated": null,
+      "revision": "80f0d5d237c08c433b4cee823d75c4f54469beee86cc2fad5e1800f86b6243d8",
+      "source": "https://registry.npmjs.org/typescript/5.9.3"
+    },
+    "npm:update-browserslist-db@1.4.0": {
+      "channel": "https://github.com/browserslist/update-db/issues",
+      "deprecated": null,
+      "revision": "24b9a4ba50db30c9cd9fd6fe42393a2018672c17c0381696f42a9cabcfc15469",
+      "source": "https://registry.npmjs.org/update-browserslist-db/1.4.0"
+    },
+    "npm:uri-js-replace@1.0.3": {
+      "channel": "https://github.com/andreinwald/uri-js-replace/issues",
+      "deprecated": null,
+      "revision": "4d09606cdd884d80693c097a52bacb78fc46803e4b337ea8c23f255f6cad1f15",
+      "source": "https://registry.npmjs.org/uri-js-replace/1.0.3"
+    },
+    "npm:uri-js@4.4.1": {
+      "channel": "https://github.com/garycourt/uri-js/issues",
+      "deprecated": null,
+      "revision": "2bac9c0139c57df23b6a66f57faa975ba57e55812e6b4fad5370d43d34ef7cfd",
+      "source": "https://registry.npmjs.org/uri-js/4.4.1"
+    },
+    "npm:use-sync-external-store@1.7.0": {
+      "channel": "https://github.com/react/react/issues",
+      "deprecated": null,
+      "revision": "35be59925d6115a0a4a0bfd6fea5894d33e9742655a5266e55e6e42fb70b91d0",
+      "source": "https://registry.npmjs.org/use-sync-external-store/1.7.0"
+    },
+    "npm:v8-to-istanbul@9.3.0": {
+      "channel": "https://github.com/istanbuljs/v8-to-istanbul/issues",
+      "deprecated": null,
+      "revision": "6a7abc5a999fc58a5e1a4162d9f08dda50b02ae391eabf65989d8b966e4245aa",
+      "source": "https://registry.npmjs.org/v8-to-istanbul/9.3.0"
+    },
+    "npm:vite@8.3.8": {
+      "channel": "https://github.com/vitejs/vite/issues",
+      "deprecated": null,
+      "revision": "bb08dd028e86d7299ed19aae42b95584dd29f451570943eb91aef623eb0c8084",
+      "source": "https://registry.npmjs.org/vite/8.3.8"
+    },
+    "npm:which@2.0.2": {
+      "channel": "https://github.com/isaacs/node-which/issues",
+      "deprecated": null,
+      "revision": "15f42fe3e95da2b7e6f75f18dc3526ec20df8e77e3d9a063773694f7b5184f54",
+      "source": "https://registry.npmjs.org/which/2.0.2"
+    },
+    "npm:word-wrap@1.2.5": {
+      "channel": "https://github.com/jonschlinkert/word-wrap/issues",
+      "deprecated": null,
+      "revision": "77c9b0d65f6b9ed67c6a7f8ef76989fbd88e636e926d15d622cb2ad4cde82a60",
+      "source": "https://registry.npmjs.org/word-wrap/1.2.5"
+    },
+    "npm:wrap-ansi@9.0.2": {
+      "channel": "https://github.com/chalk/wrap-ansi/issues",
+      "deprecated": null,
+      "revision": "09bd36b3a428d431029e71478c1ee526d34b0c99666b5a49fda6e82b3803774d",
+      "source": "https://registry.npmjs.org/wrap-ansi/9.0.2"
+    },
+    "npm:ws@8.23.0": {
+      "channel": "https://github.com/websockets/ws/issues",
+      "deprecated": null,
+      "revision": "689697b6d96ccc36f6b216542be0130e90b37067dff0b40fdd6e1c7a9549cfce",
+      "source": "https://registry.npmjs.org/ws/8.23.0"
+    },
+    "npm:wsl-utils@0.1.0": {
+      "channel": "https://github.com/sindresorhus/wsl-utils/issues",
+      "deprecated": null,
+      "revision": "fc6e1d82755e441cd5c0f524d345436e7afed79ce8e129252260b774c14423d1",
+      "source": "https://registry.npmjs.org/wsl-utils/0.1.0"
+    },
+    "npm:y18n@5.0.8": {
+      "channel": "https://github.com/yargs/y18n/issues",
+      "deprecated": null,
+      "revision": "8b09e384b92b4507aae14181b2c7c45f9a49aabe1b3717744024d3756e328ffd",
+      "source": "https://registry.npmjs.org/y18n/5.0.8"
+    },
+    "npm:yallist@3.1.1": {
+      "channel": "https://github.com/isaacs/yallist/issues",
+      "deprecated": null,
+      "revision": "08770f6296f9c6dcbfb4e9833720337927dd022688b46a395b03800429cd8c1f",
+      "source": "https://registry.npmjs.org/yallist/3.1.1"
+    },
+    "npm:yaml-ast-parser@0.0.43": {
+      "channel": "https://github.com/mulesoft-labs/yaml-ast-parser/issues",
+      "deprecated": null,
+      "revision": "3d558e036d2155f48036e83695dcf6618da671b183506f409fa04fad07a67c29",
+      "source": "https://registry.npmjs.org/yaml-ast-parser/0.0.43"
+    },
+    "npm:yargs-parser@21.1.1": {
+      "channel": "https://github.com/yargs/yargs-parser/issues",
+      "deprecated": null,
+      "revision": "2eb04977d6fe6524bf4a430d09dfb6fedff4d0713a24df0e196e7b62bfec995e",
+      "source": "https://registry.npmjs.org/yargs-parser/21.1.1"
+    },
+    "npm:yargs-parser@22.0.0": {
+      "channel": "https://github.com/yargs/yargs-parser/issues",
+      "deprecated": null,
+      "revision": "53f6287798f91b291a0be3439fd7183d71a7ede8d9e91a51e3d50e2ed7d7cb33",
+      "source": "https://registry.npmjs.org/yargs-parser/22.0.0"
+    },
+    "npm:yargs@18.2.0": {
+      "channel": "https://github.com/yargs/yargs/issues",
+      "deprecated": null,
+      "revision": "f8b725b139ffca63d0ca702698ce4602ebffc8d1ab82e57eb682fabd862b19c8",
+      "source": "https://registry.npmjs.org/yargs/18.2.0"
+    },
+    "npm:yocto-queue@0.1.0": {
+      "channel": "https://github.com/sindresorhus/yocto-queue/issues",
+      "deprecated": null,
+      "revision": "5f010104cfe7cd956f9bea5ccdbadc2685bc0a521e582acb325d2dd56777e0d5",
+      "source": "https://registry.npmjs.org/yocto-queue/0.1.0"
+    },
+    "npm:zod-validation-error@4.0.2": {
+      "channel": "https://github.com/causaly/zod-validation-error/issues",
+      "deprecated": null,
+      "revision": "768d5e916e8c2b9d86e8eb41e33dc3dade419e3526be3668e9a38778a0560c90",
+      "source": "https://registry.npmjs.org/zod-validation-error/4.0.2"
+    },
+    "npm:zod@4.6.7": {
+      "channel": "https://github.com/colinhacks/zod/issues",
+      "deprecated": null,
+      "revision": "d6eac84f6c13cbef91acd6ee6b4c1ccbaef774a2f5e7147a0166880ca30ccbbb",
+      "source": "https://registry.npmjs.org/zod/4.6.7"
+    }
+  },
+  "runtimes": {
+    "chrome": {
+      "revision": "97f999cdc0b9cd15e04437ad510c267c8a73c9a6ebabd7387f668a939f72f525",
+      "source": "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json",
+      "versions": [
+        "158.0.8127.36"
+      ]
+    },
+    "firefox": {
+      "revision": "ba65fe15047e0af2a314aed06d1e93a8fc311befd3d52dc98a70f27b693353e7",
+      "source": "https://product-details.mozilla.org/1.0/firefox_versions.json",
+      "versions": [
+        "160.0.1",
+        "153.7.0"
+      ]
+    },
+    "go": {
+      "revision": "00c8b9cdf0143ac3cc91c55166d28c6c3c08e70cd114129f76d9aa3a0e076ab9",
+      "source": "https://go.dev/dl/?mode=json",
+      "versions": [
+        "1.27.4",
+        "1.26.11"
+      ]
+    },
+    "node": {
+      "branches": {
+        "10": {
+          "end": "2021-04-30",
+          "start": "2018-10-30"
+        },
+        "12": {
+          "end": "2022-04-30",
+          "start": "2019-10-21"
+        },
+        "14": {
+          "end": "2023-04-30",
+          "start": "2020-10-27"
+        },
+        "16": {
+          "end": "2023-09-11",
+          "start": "2021-10-26"
+        },
+        "18": {
+          "end": "2025-04-30",
+          "start": "2022-10-25"
+        },
+        "20": {
+          "end": "2026-04-30",
+          "start": "2023-10-24"
+        },
+        "22": {
+          "end": "2027-04-30",
+          "start": "2024-10-29"
+        },
+        "24": {
+          "end": "2028-04-30",
+          "start": "2025-10-28"
+        },
+        "26": {
+          "end": "2029-04-30",
+          "start": "2026-10-28"
+        },
+        "27": {
+          "end": "2030-04-30",
+          "start": "2027-10-20"
+        },
+        "4": {
+          "end": "2018-04-30",
+          "start": "2015-10-12"
+        },
+        "6": {
+          "end": "2019-04-30",
+          "start": "2016-10-18"
+        },
+        "8": {
+          "end": "2019-12-31",
+          "start": "2017-10-31"
+        }
+      },
+      "revision": "50fe35a4df02398f741fdffbc666aceca323fcdb7f46d05af93145bf610d0049",
+      "source": "https://raw.githubusercontent.com/nodejs/Release/main/schedule.json"
+    },
+    "postgres": {
+      "revision": "6c3347158e249096c8ce3671b6c5a8ed0893d136f69261e1bb597512dec798c0",
+      "source": "https://www.postgresql.org/support/versioning/",
+      "versions": [
+        "19.0",
+        "18.7",
+        "17.12",
+        "16.16",
+        "15.20"
+      ]
+    }
+  },
+  "tools": {
+    "compose": {
+      "channel": "https://github.com/docker/compose/security",
+      "revision": "a539df74fe3778def499bd94050619178e899c7aa35fe55e0b6238105810445e",
+      "source": "https://api.github.com/repos/docker/compose/git/ref/tags/v5.8.0",
+      "version": "5.8.0"
+    },
+    "docker": {
+      "channel": "https://github.com/moby/moby/security",
+      "revision": "948a5846c8f5ab5485c99ad700b1c7d992dc31a30445c7b916c062b5dd2008b1",
+      "source": "https://docs.docker.com/engine/release-notes/29/",
+      "version": "29.10.0"
+    },
+    "task": {
+      "channel": "https://github.com/go-task/task/security",
+      "revision": "bf5adf45c9808b0da2e6f957b5921276708ed04a3192f678a1c8af6ff0386bd2",
+      "source": "https://api.github.com/repos/go-task/task/git/ref/tags/v3.54.0",
+      "version": "3.54.0"
+    },
+    "trivy": {
+      "channel": "https://github.com/aquasecurity/trivy/security",
+      "revision": "f1c757f8c3254326aa6fc7ea255520967b922ec877c0445a47c0aa9506e1d221",
+      "source": "https://api.github.com/repos/aquasecurity/trivy/git/ref/tags/v0.76.2",
+      "version": "0.76.2"
+    }
+  }
+}

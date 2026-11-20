@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""Run the core qualification from a fresh source snapshot on a disposable Linux stand."""
+
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import signal
+import subprocess
+import sys
+import tarfile
+import tempfile
+import platform
+import uuid
+
+
+def git(*args, cwd=None):
+    return subprocess.check_output(["git", *args], cwd=cwd)
+
+
+def snapshot(source, report):
+    # Mirror reachable history for the secret scan without changing the original refs or index.
+    git("clone", "--quiet", "--mirror", "--no-local", ".", str(source / ".git"))
+    git("config", "core.bare", "false", cwd=source)
+    revision = git("rev-parse", "HEAD", cwd=source).decode().strip()
+    if revision != git("rev-parse", "HEAD").decode().strip():
+        raise RuntimeError("HEAD changed during snapshot")
+    git("read-tree", revision, cwd=source)
+    staged = git("diff", "--cached", "--binary", revision)
+    if staged:
+        subprocess.run(["git", "apply", "--cached", "--binary"], cwd=source, input=staged, check=True)
+    names = git("ls-files", "--cached", "--others", "--exclude-standard", "--deduplicate", "-z")
+    entries = []
+    with tarfile.open(report / "source.tar.gz", "w:gz") as archive:
+        for raw in sorted(set(names.split(b"\0")) - {b""}):
+            path = Path(os.fsdecode(raw))
+            if not path.is_symlink() and not path.exists():
+                continue
+            dest = source / path
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, dest, follow_symlinks=False)
+            if dest.is_symlink():
+                if not dest.resolve().is_relative_to(source):
+                    raise ValueError(f"External source link: {path}")
+                data = os.fsencode(os.readlink(dest))
+            else:
+                data = dest.read_bytes()
+            entries.append([str(path), dest.lstat().st_mode, hashlib.sha256(data).hexdigest()])
+            archive.add(dest, arcname=str(path), recursive=False)
+    manifest = json.dumps(entries, ensure_ascii=False, indent=2).encode()
+    (report / "files.json").write_bytes(manifest)
+    return {"revision": revision, "source_sha256": hashlib.sha256(manifest).hexdigest(),
+            "working_tree_changes": bool(git("status", "--porcelain", cwd=source))}
+
+
+def run_check(command, source, env, log):
+    with subprocess.Popen(command, cwd=source, env=env, stdout=log, stderr=subprocess.STDOUT,
+                          start_new_session=True) as process:
+        try:
+            return process.wait()
+        except BaseException:
+            os.killpg(process.pid, signal.SIGTERM)
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+            raise
+
+
+def main():
+    Path("build/reports").mkdir(parents=True, exist_ok=True)
+    report = Path(tempfile.mkdtemp(prefix="regression-", dir="build/reports")).resolve()
+    print(f"Core regression report: {report}", flush=True)
+    project = "bacuri-regression-" + uuid.uuid4().hex
+    info = json.loads(subprocess.check_output(["docker", "info", "--format", "{{json .}}"]))
+    if platform.system() != "Linux" or info["OSType"] != "linux":
+        raise RuntimeError("The qualification stand requires Linux Docker Engine")
+    state = {"project": project, "checks": {}, "profile": "RTSP/TCP, H.264, synthetic main and secondary",
+             "external_evidence": {"physical_ip_camera": "separate hardware stand"},
+             "host": {"kernel": platform.release(), "arch": info["Architecture"], "cpus": info["NCPU"],
+                      "memory_bytes": info["MemTotal"], "engine": info["ServerVersion"],
+                      "filesystem": subprocess.check_output(["findmnt", "--noheadings", "--output", "FSTYPE", "--target", report], text=True).strip()}}
+    with tempfile.TemporaryDirectory(prefix="regression-source-", dir=Path("build").resolve()) as directory:
+        source = Path(directory)
+        state.update(snapshot(source, report))
+        env = dict(os.environ)
+        for key in list(env):
+            if key.startswith(("BACURI_", "COMPOSE_")):
+                del env[key]
+        env.update(COMPOSE_PROJECT_NAME=project, COMPOSE_FILE="compose.yaml", BACURI_RTSP_PORT="0")
+        evidence = source / "build" / "reports" / "core"
+        evidence.mkdir(parents=True)
+        try:
+            for name, command in (
+                ("quality", ["bash", "tools/check-report", str(evidence.relative_to(source))]),
+                ("storage", ["task", "stand:check-storage"]),
+                ("reproducibility", ["task", "build:repro"]),
+            ):
+                print(f"Running {name}", flush=True)
+                with (report / f"{name}.log").open("w") as log:
+                    state["checks"][name] = run_check(command, source, env, log)
+        finally:
+            try:
+                for gate in ("check-core", "deps-check"):
+                    result = evidence / (gate + ".exit-code")
+                    state["checks"][gate] = int(result.read_text()) if result.is_file() else 1
+                required = [
+                    "release-sha256.txt", "coverage/cpp/summary.json", "coverage/web/coverage-summary.json",
+                    "workspace/performance.json", "workspace/tests.json", "workspace/coverage/coverage-report.json",
+                    *[f"workspace/{browser}-{role}.png" for browser in ("chrome", "firefox")
+                      for role in ("installer", "operator")],
+                    *[f"recovery/{preset}{suffix}" for preset in ("gcc-debug", "clang-asan-ubsan", "gcc-coverage")
+                      for suffix in (".json", ".boundaries.xml")],
+                    "postgres-upgrade/result.json", "dependencies/snapshot/inputs.json", "dependencies/result.json",
+                ]
+                state["missing_evidence"] = [name for name in required if not (evidence / name).is_file()
+                                             or not (evidence / name).stat().st_size]
+                state["checks"]["evidence"] = int(bool(state["missing_evidence"]))
+                # Files written by browsers can belong to a different uid. Copy read-only evidence.
+                shutil.move(evidence, report / "core")
+                shutil.copytree(source / "tests" / "workspace" / "screens", report / "workspace-references")
+                (report / "stand.json").write_text(json.dumps(state, indent=2) + "\n")
+            finally:
+                subprocess.run(["docker", "compose", "--profile", "*", "down", "--volumes", "--remove-orphans", "--rmi", "local"],
+                               cwd=source, env=env, check=True)
+    return int(any(state["checks"].values()))
+
+
+if __name__ == "__main__":
+    def interrupted(signum, _frame):
+        raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGTERM, interrupted)
+    sys.exit(main())

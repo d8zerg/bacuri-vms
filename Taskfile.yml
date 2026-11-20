@@ -43,6 +43,12 @@ tasks:
       '^/workspace/(src|tests)/'
 
   check:
+    desc: Run functional and dependency quality gates
+    cmds:
+      - task: check:core
+      - task: deps:check
+
+  check:core:
     desc: Check secrets, formatting, sanitizer and compiler builds, static analysis, coverage and scenarios
     cmds:
       - task: secrets:check
@@ -57,6 +63,7 @@ tasks:
       - task: api:check
       - task: api:types
       - task: stand:check
+      - task: stand:check-postgres-upgrade
       - task: schema:check
       - for: [gcc-debug, clang-asan-ubsan]
         task: control:check
@@ -83,6 +90,29 @@ tasks:
         task: recovery:check
         vars: {PRESET: '{{.ITEM}}'}
       - task: coverage:check
+
+  packages:build:
+    desc: Export the maintained Debian packages, verified source inputs and Go utilities
+    cmd: |
+      set -eu
+      report=$(sh tools/quality-report-dir packages)
+      echo "Maintained packages: $report"
+      docker build --target maintained-packages --output "type=local,dest=$report" .
+
+  deps:refresh:
+    desc: Refresh pinned vendor advisory databases and maintenance records for review
+    cmd: python3 tools/lifecycle/refresh.py
+
+  deps:check:
+    desc: Check maintenance evidence and vendor advisories for the actual dependency inventory
+    cmds:
+      - docker compose build dev conan quality api-types ui-kit-check ui-kit-catalog prototype-check playback-firefox rtsp-camera postgres
+      - docker compose pull --policy missing playback-chrome
+      - python3 tools/lifecycle/scan.py
+
+  regression:check:
+    desc: Qualify a fresh source snapshot, empty volumes and all core scenarios
+    cmd: python3 tools/check-regression
 
   quality:image:
     internal: true
@@ -186,10 +216,18 @@ tasks:
     deps: [dev:image, stand:up]
     cmd: '{{.DEV_RUN}} sh tests/check-stand.sh'
 
+  stand:check-postgres-upgrade:
+    desc: Verify the PostgreSQL minor upgrade on a physical copy and restore a new full backup
+    cmds:
+      - docker compose build postgres
+      - python3 tools/check-postgres-upgrade
+
   stand:check-storage:
     desc: Verify persistence and the storage fault limit in a temporary Compose project
     deps: [dev:image]
-    cmd: sh tools/check-storage
+    cmds:
+      - docker compose build postgres
+      - sh tools/check-storage
 
   schema:check:
     desc: Validate the manifest and apply both initial schemas to temporary databases
@@ -246,7 +284,7 @@ tasks:
       - task: build
         vars: {PRESET: '{{.PRESET}}'}
     cmds:
-      - docker compose build rtsp-camera
+      - docker compose build postgres rtsp-camera
       - python3 tools/check-recovery {{.PRESET | shellQuote}}
 
   playback:check:
@@ -319,8 +357,8 @@ tasks:
       - docker compose build ui-kit-check
       - mkdir -p build/web-client build/workspace-fixture
       - >-
-        {{.COMPOSE_RUN}} -T -v "$PWD/build/web-client:/results/client" -v "$PWD/build/workspace-fixture:/results/fixture"
-        ui-kit-check sh -ec 'npm run app -- --mode fixture && npm run app'
+        BACURI_UI_RESULTS="$PWD/build" {{.COMPOSE_RUN}} -T ui-kit-check sh -ec
+        'npm run app -- --mode fixture --outDir /results/workspace-fixture && npm run app -- --outDir /results/web-client'
 
   workspace:check:
     desc: Exercise both workspaces on HTTPS with real media, WSS and browser coverage
@@ -351,7 +389,7 @@ tasks:
       - docker compose build ui-kit-check
       - mkdir -p build/ui-kit
       - '{{.COMPOSE_RUN}} -T -v "$PWD/build/ui-kit:/results" ui-kit-check npm run catalog'
-      - docker compose up --force-recreate --wait --wait-timeout 30 ui-kit-catalog
+      - docker compose up --build --force-recreate --wait --wait-timeout 30 ui-kit-catalog
 
   ui-kit:down:
     desc: Stop the local Storybook catalog
@@ -359,7 +397,7 @@ tasks:
 
   prototype:up:
     desc: Start the local browser prototype
-    cmd: docker compose -f prototype/compose.yaml up --wait --wait-timeout 25
+    cmd: docker compose -f prototype/compose.yaml up --build --wait --wait-timeout 25
 
   docs:check:
     desc: Validate local documentation links, scenario coverage and decision references

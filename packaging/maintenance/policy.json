@@ -1,0 +1,30 @@
+{
+  "xml": {
+    "source_package": "libxml2",
+    "upstream_version": "2.12.7+dfsg+really2.9.14-2.1+deb13u3",
+    "version": "2.12.7+dfsg+really2.9.14-2.1+deb13u3+bacuri1",
+    "packages": ["libxml2"],
+    "fixes": {
+      "CVE-2026-6653": {
+        "source": "https://ubuntu.com/security/CVE-2026-6653",
+        "sha256": "6c2b8a7b6fa470efcb1854e5c73bd7e1ae1663d8b111e27ce9232bbc1fe44f54"
+      }
+    }
+  },
+  "soup": {
+    "source_package": "libsoup3",
+    "upstream_version": "3.6.5-3",
+    "version": "3.6.5-3+bacuri1",
+    "packages": ["libsoup-3.0-0", "libsoup-3.0-common"],
+    "fixes": {
+      "CVE-2026-2369": {
+        "source": "https://gitlab.gnome.org/GNOME/libsoup/-/commit/b91bbd7d7888c85b17a8b33173caa806dff51681",
+        "sha256": "6a994eeceff5ecccdf51a5994dd4e1c8acf68643557919233477b1c18bedb87b"
+      },
+      "CVE-2026-102560": {
+        "source": "https://gitlab.gnome.org/GNOME/libsoup/-/commit/dbd0417ea3a569135e9a9344b7812076b7b178f1",
+        "sha256": "c51f023b067bc1e25a06b8b34e138b8791efb1c68f19944914e17d66cf569121"
+      }
+    }
+  }
+}

@@ -2,7 +2,10 @@ name: bacuri-vms
 
 services:
   postgres:
-    image: postgres:17.11-trixie@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
+    image: ${BACURI_POSTGRES_IMAGE:-${COMPOSE_PROJECT_NAME}-postgres}
+    build:
+      context: .
+      target: postgres
     environment:
       POSTGRES_DB: bacuri_vms
       POSTGRES_USER: bacuri
@@ -95,7 +98,7 @@ services:
 
   playback-chrome:
     profiles: ["playback-test"]
-    image: selenium/standalone-chrome:4.35.0@sha256:be55620222a49b5ed58787573c6ae864ed86833668b5a54a792f5419befb1dfd
+    image: selenium/standalone-chrome:4.53.0@sha256:11b1c18434233ea10e065ba2c43f8599373a014f8253e689d1df6cd96f9ea8e5
     shm_size: 1gb
 
   ui-kit-check:
@@ -113,7 +116,9 @@ services:
 
   ui-kit-catalog:
     profiles: ["tools"]
-    image: nginxinc/nginx-unprivileged:1.31-alpine@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e
+    build:
+      context: .
+      target: static-web
     ports:
       - "127.0.0.1:${BACURI_UI_PORT:-6010}:8080"
     volumes:

@@ -1,0 +1,7 @@
+{
+  "scanner": "aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb",
+  "database": "ghcr.io/aquasecurity/trivy-db@sha256:5622a5d226f954dec2919250bc79cd1725e339a1c453587c3a6aa3d6daab4a78",
+  "java_database": "ghcr.io/aquasecurity/trivy-java-db@sha256:160453aa5410e92b289a119625477d2aa5b2ba12545f17526db050c33f966d17",
+  "max_snapshot_age_days": 30,
+  "exceptions": []
+}

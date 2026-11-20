@@ -18,3 +18,7 @@
 !contracts/
 !contracts/v1/
 !contracts/v1/control.proto
+
+!packaging/
+!packaging/maintenance/
+!packaging/maintenance/*

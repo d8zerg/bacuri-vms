@@ -3,7 +3,8 @@ set -eu
 
 cd "$(dirname "$0")/.."
 BACURI_DEV_IMAGE=$(docker compose config --images dev)
-export BACURI_DEV_IMAGE
+BACURI_POSTGRES_IMAGE=$(docker compose config --images postgres)
+export BACURI_DEV_IMAGE BACURI_POSTGRES_IMAGE
 project_token=$(mktemp -d)
 project_name="bacuri-vms-storage-$(basename "$project_token" | tr '[:upper:].' '[:lower:]-')"
 rmdir "$project_token"

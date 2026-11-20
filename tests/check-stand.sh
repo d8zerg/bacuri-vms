@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-psql -v ON_ERROR_STOP=1 -c 'SELECT 1'
+test "$(psql -XAt -v ON_ERROR_STOP=1 -c "SELECT XMLPARSE(DOCUMENT '<archive><block/></archive>') IS DOCUMENT")" = t
 
 sh tests/ingest/decode.sh rtsp-camera
 

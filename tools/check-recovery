@@ -16,7 +16,8 @@ def main():
                "-f", "compose.yaml", "-f", "tests/recovery/compose.yaml"]
     env = dict(os.environ)
     env["BACURI_RECOVERY_PRESET"] = preset
-    for service, key in [("dev", "BACURI_DEV_IMAGE"), ("rtsp-camera", "BACURI_RECOVERY_CAMERA_IMAGE")]:
+    for service, key in [("dev", "BACURI_DEV_IMAGE"), ("postgres", "BACURI_POSTGRES_IMAGE"),
+                         ("rtsp-camera", "BACURI_RECOVERY_CAMERA_IMAGE")]:
         env[key] = subprocess.check_output(["docker", "compose", "config", "--images", service], text=True).strip()
 
     def compose(*args, **kwargs):
