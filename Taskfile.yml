@@ -49,6 +49,7 @@ tasks:
       - task: format:check
       - task: docs:check
       - task: prototype:check
+      - task: ui-kit:check
       - task: release:check
       - for: [gcc-debug, clang-debug, clang-asan-ubsan, clang-tsan]
         task: test
@@ -105,7 +106,7 @@ tasks:
 
   coverage:check:
     desc: Require 75 percent line coverage for both product C++ and browser JavaScript
-    deps: [quality:image, dev:image, stand:up]
+    deps: [quality:image, dev:image, stand:up, ui-kit:check]
     cmds:
       - docker compose build api-types
       - bash tools/check-coverage
@@ -297,6 +298,30 @@ tasks:
         'mkdir -p build/contracts &&
         openapi-typescript contracts/v1/openapi.yaml --output build/contracts/api.d.ts &&
         tsc --noEmit --strict build/contracts/api.d.ts'
+
+  ui-kit:check:
+    desc: Build the React UI Kit and Storybook, check types, keyboard, accessibility and browser coverage
+    run: once
+    cmds:
+      - docker compose build ui-kit-check
+      - |
+        set -eu
+        BACURI_UI_RESULTS="$PWD/$(sh tools/quality-report-dir ui-kit)"
+        export BACURI_UI_RESULTS
+        echo "UI Kit results: $BACURI_UI_RESULTS"
+        {{.COMPOSE_RUN}} -T ui-kit-check
+
+  ui-kit:up:
+    desc: Build and serve the local Storybook catalog
+    cmds:
+      - docker compose build ui-kit-check
+      - mkdir -p build/ui-kit
+      - '{{.COMPOSE_RUN}} -T -v "$PWD/build/ui-kit:/results" ui-kit-check npm run catalog'
+      - docker compose up --wait --wait-timeout 30 ui-kit-catalog
+
+  ui-kit:down:
+    desc: Stop the local Storybook catalog
+    cmd: docker compose stop ui-kit-catalog
 
   prototype:up:
     desc: Start the local browser prototype

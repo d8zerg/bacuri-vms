@@ -158,6 +158,12 @@ test("camera setup, archive states and keyboard navigation", async ({ page }) =>
 
 test("full operator and installer screens", async ({ page }, testInfo) => {
   await page.goto(url);
+  await expect(page.locator("#camera-heading")).toHaveCSS("font-family", /^Inter\b/);
+  const loadedFonts = await page.evaluate(async () => {
+    await document.fonts.ready;
+    return [...document.fonts].filter(face => face.family === "Inter" && face.status === "loaded").length;
+  });
+  assert.equal(loadedFonts, 2, "Both bundled Inter subsets render the camera screen");
   const dark = testInfo.project.use.colorScheme === "dark";
   await expect(page.locator("body")).toHaveCSS("background-color", dark ? "rgb(30, 30, 30)" : "rgb(247, 244, 237)");
   await expect(page.locator(".monitor-panel")).toHaveCSS("background-color", dark ? "rgb(37, 37, 38)" : "rgb(255, 253, 248)");

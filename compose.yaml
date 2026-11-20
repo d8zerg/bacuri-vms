@@ -98,6 +98,29 @@ services:
     image: selenium/standalone-chrome:4.35.0@sha256:be55620222a49b5ed58787573c6ae864ed86833668b5a54a792f5419befb1dfd
     shm_size: 1gb
 
+  ui-kit-check:
+    profiles: ["tools"]
+    build: ./web/client
+    network_mode: none
+    shm_size: 1gb
+    volumes:
+      - ./design/bacuri:/workspace/design/bacuri:ro
+      - ${BACURI_UI_RESULTS:-./build/ui-kit}:/results
+    command: ["sh", "-ec", "npm run check && npm run build && npm run catalog && npm test"]
+
+  ui-kit-catalog:
+    profiles: ["tools"]
+    image: nginxinc/nginx-unprivileged:1.31-alpine@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e
+    ports:
+      - "127.0.0.1:${BACURI_UI_PORT:-6010}:8080"
+    volumes:
+      - ./build/ui-kit/storybook:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/index.json"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
   prototype-check:
     profiles: ["tools"]
     build: ./tests/prototype
