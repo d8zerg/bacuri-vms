@@ -34,9 +34,9 @@ class Volume
         return identity_.owner;
     }
     std::optional<Pending> pending();
-    std::vector<std::pair<std::int64_t, std::int64_t>> pending_intervals(const std::string& point,
-                                                                         std::int64_t begin, std::int64_t end,
-                                                                         std::optional<std::int64_t> binding = {}) const;
+    std::vector<std::pair<std::int64_t, std::int64_t>>
+    pending_intervals(const std::string& point, std::int64_t begin, std::int64_t end,
+                      std::optional<std::int64_t> binding = {}) const;
     [[nodiscard]] std::int64_t generation() const noexcept
     {
         return identity_.generation;

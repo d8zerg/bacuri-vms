@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+report=$(sh tools/quality-report-dir coverage)
+printf 'Coverage report: %s\n' "$report"
+mkdir -p "$report/web" "$report/cpp"
+browser_raw=$(mktemp -d "$report/web-raw-XXXXXXXX")
+run=(docker compose run --rm --no-deps -T --user "$(id -u):$(id -g)")
+# GCC writes counters next to object files. Isolate each measurement from prior runs.
+exec 9>build/.coverage.lock
+flock 9
+docker compose up -d --wait playback-chrome playback-firefox
+trap 'docker compose stop playback-chrome playback-firefox' EXIT
+"${run[@]}" builder sh tools/build-preset gcc-coverage
+"${run[@]}" builder find build/gcc-coverage -name '*.gcda' -delete
+"${run[@]}" builder ctest --preset gcc-coverage
+"${run[@]}" dev python3 tests/ingest/relay.py build/gcc-coverage/bacuri-vms-rtsp-test rtsp-camera
+for scenario in control archive playback live alerts; do
+    "${run[@]}" -e "BACURI_BROWSER_COVERAGE=/workspace/$browser_raw" \
+        dev sh tests/check-control.sh gcc-coverage "$scenario"
+done
+
+"${run[@]}" quality gcovr --gcov-executable gcov-14 --filter 'src/' -j 2 \
+    --txt --json-summary "$report/cpp/summary.json" --html-details "$report/cpp/index.html" \
+    build/gcc-coverage
+"${run[@]}" api-types c8 report --all --src web --include 'web/**/*.js' \
+    --temp-directory "$browser_raw" --reports-dir "$report/web" \
+    --reporter=text --reporter=html --reporter=json-summary
+"${run[@]}" quality python3 tools/check-coverage-summary.py "$report"

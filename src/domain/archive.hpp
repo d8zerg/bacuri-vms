@@ -9,7 +9,8 @@
 #include <variant>
 #include <vector>
 
-namespace bacuri::vms::domain {
+namespace bacuri::vms::domain
+{
 
 struct BlockKey {
     SiteId site;
@@ -25,20 +26,34 @@ enum class RecordingError {
     first_frame_not_at_begin,
 };
 
-class RecordedInterval {
-public:
-    [[nodiscard]] static std::expected<RecordedInterval, RecordingError> make(
-        BlockKey block, BindingKey binding, UtcInterval interval, ProjectedTime first_frame
-    ) noexcept;
+class RecordedInterval
+{
+  public:
+    [[nodiscard]] static std::expected<RecordedInterval, RecordingError>
+    make(BlockKey block, BindingKey binding, UtcInterval interval, ProjectedTime first_frame) noexcept;
 
-    [[nodiscard]] const BlockKey& block() const noexcept { return block_; }
-    [[nodiscard]] const BindingKey& binding() const noexcept { return binding_; }
-    [[nodiscard]] const UtcInterval& interval() const noexcept { return interval_; }
-    [[nodiscard]] const ProjectedTime& first_frame() const noexcept { return first_frame_; }
+    [[nodiscard]] const BlockKey& block() const noexcept
+    {
+        return block_;
+    }
+    [[nodiscard]] const BindingKey& binding() const noexcept
+    {
+        return binding_;
+    }
+    [[nodiscard]] const UtcInterval& interval() const noexcept
+    {
+        return interval_;
+    }
+    [[nodiscard]] const ProjectedTime& first_frame() const noexcept
+    {
+        return first_frame_;
+    }
 
-private:
+  private:
     RecordedInterval(BlockKey block, BindingKey binding, UtcInterval interval, ProjectedTime first_frame) noexcept
-        : block_{block}, binding_{binding}, interval_{interval}, first_frame_{first_frame} {}
+        : block_{block}, binding_{binding}, interval_{interval}, first_frame_{first_frame}
+    {
+    }
 
     BlockKey block_;
     BindingKey binding_;
@@ -85,4 +100,4 @@ struct BlockManifestV1 {
     std::vector<MediaTrack> tracks;
 };
 
-}  // namespace bacuri::vms::domain
+} // namespace bacuri::vms::domain

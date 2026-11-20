@@ -213,10 +213,10 @@ std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const R
         const auto stamp = packets.lookup(pts);
         const auto received = std::chrono::time_point_cast<Microseconds>(std::chrono::system_clock::now());
         const auto pts_ns = GST_CLOCK_TIME_IS_VALID(pts) ? std::optional{pts} : std::nullopt;
-        auto frame = std::make_shared<Frame>(
-            Frame{std::vector<std::byte>(size), clock.project(received, {stamp.ntp, pts_ns}), stamp.rtp, stamp.ntp,
-                  pts_ns, !GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT),
-                  GST_BUFFER_DURATION_IS_VALID(buffer) ? std::optional{GST_BUFFER_DURATION(buffer)} : std::nullopt});
+        auto frame = std::make_shared<Frame>(Frame{
+            std::vector<std::byte>(size), clock.project(received, {stamp.ntp, pts_ns}), stamp.rtp, stamp.ntp,
+            pts_ns, !GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT),
+            GST_BUFFER_DURATION_IS_VALID(buffer) ? std::optional{GST_BUFFER_DURATION(buffer)} : std::nullopt});
         if (gst_buffer_extract(buffer, 0, frame->h264.data(), size) != size) {
             return "invalid_access_unit";
         }

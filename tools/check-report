@@ -16,9 +16,18 @@ printf 'Check report: %s\n' "$report_dir"
 } > "$report_dir/environment.txt" 2>&1
 
 result=0
+export BACURI_CHECK_REPORT="$PWD/$report_dir"
 task check 2>&1 | tee "$report_dir/check.log" || result=$?
 if [ "$result" -eq 0 ]; then
     docker image inspect --format 'Builder image: {{.Id}}' "$(docker compose config --images builder)" \
+        >> "$report_dir/environment.txt" 2>&1 || result=$?
+    docker compose run --rm --no-deps -T quality sh -ec '
+        gitleaks version
+        clang-format-19 --version
+        clang-tidy-19 --version
+        gcovr --version
+    ' >> "$report_dir/environment.txt" 2>&1 || result=$?
+    docker compose run --rm --no-deps -T api-types c8 --version \
         >> "$report_dir/environment.txt" 2>&1 || result=$?
     docker compose run --rm --no-deps -T --user "$(id -u):$(id -g)" builder sh -ec '
         conan --version

@@ -5,9 +5,22 @@ export BACURI_TEST_BIN="build/${1:-gcc-debug}"
 export BACURI_OBSERVATION_SOURCE=80000000-0000-4000-8000-000000000001
 test_dir=$(mktemp -d)
 database=bacuri_control_$(basename "$test_dir" | tr -cd '[:alnum:]')
+if [ "${1:-}" = clang-asan-ubsan ]; then
+    export ASAN_OPTIONS="${ASAN_OPTIONS:+$ASAN_OPTIONS:}log_path=$test_dir/asan"
+    export UBSAN_OPTIONS="${UBSAN_OPTIONS:+$UBSAN_OPTIONS:}log_path=$test_dir/ubsan"
+fi
 cleanup() {
-    dropdb --if-exists -- "$database"
-    rm -r -- "$test_dir"
+    result=$?
+    # A daemon can emit a sanitizer diagnostic during shutdown after the last assertion.
+    for diagnostic in "$test_dir"/asan.* "$test_dir"/ubsan.*; do
+        if [ -s "$diagnostic" ]; then
+            cat "$diagnostic" >&2
+            result=1
+        fi
+    done
+    dropdb --if-exists -- "$database" || result=1
+    rm -r -- "$test_dir" || result=1
+    exit "$result"
 }
 createdb --template=template0 -- "$database"
 trap cleanup EXIT

@@ -124,8 +124,8 @@ void Sources::apply(const v1::ApplyConfigurationRequest& assignment)
             std::fprintf(stderr, "%s\n", info.dump().c_str());
         };
         auto stream = std::make_unique<Stream>(
-            StreamOptions{key.profile, endpoint,
-                          [this](const std::string& url) { return networks_.permits(url); }, std::move(report)});
+            StreamOptions{key.profile, endpoint, [this](const std::string& url) { return networks_.permits(url); },
+                          std::move(report)});
         std::unique_ptr<archive::Writer> writer;
         if (key.profile == Profile::main) {
             if (key.binding > 0) {

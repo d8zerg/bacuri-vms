@@ -1,0 +1,45 @@
+:root {
+  color-scheme: light dark;
+  accent-color: var(--action);
+  --rind: #f2cc61;
+  --seed: #33271d;
+  --video: #12110f;
+  --overlay: #26211d;
+  --on-video: #fff9ec;
+  --canvas: light-dark(#f7f4ed, #1e1e1e);
+  --surface: light-dark(#fffdf8, #252526);
+  --raised: light-dark(#efeadf, #303031);
+  --ink: light-dark(#202020, #d4d4d4);
+  --muted: light-dark(#575757, #a6a6a6);
+  --line: light-dark(#dddad4, #413f3c);
+  --control: light-dark(#827d6f, #8d8776);
+  --action: light-dark(#696046, #b4a989);
+  --action-fill: light-dark(#e1d8bb, #504a37);
+  --on-action: light-dark(#202020, #f0ece6);
+  --action-hover: light-dark(#d7cdaf, #5b5540);
+  --action-pressed: light-dark(#cbbe9b, #645c44);
+  --selected: light-dark(#eee9da, #373428);
+  --recorded: light-dark(#8b8062, #9B8D6F);
+  --focus: light-dark(#6b6044, #bbb08e);
+  --success: light-dark(#56603f, #bfcba4);
+  --success-bg: light-dark(#eff1e6, #2c3023);
+  --warning: light-dark(#94421e, #ffae86);
+  --warning-bg: light-dark(#fbede3, #432b20);
+  --danger: light-dark(#a13239, #ffa3a1);
+  --danger-bg: light-dark(#f9e9e6, #452927);
+  --info: light-dark(#63594f, #cfc2b1);
+  --info-bg: light-dark(#efeae3, #353029);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+::selection {
+  background: var(--action-fill);
+  color: var(--on-action);
+}

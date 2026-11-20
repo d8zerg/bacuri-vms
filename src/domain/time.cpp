@@ -2,7 +2,8 @@
 
 #include <limits>
 
-namespace bacuri::vms::domain {
+namespace bacuri::vms::domain
+{
 
 std::expected<UtcInterval, TimeError> UtcInterval::make(UtcTime begin, UtcTime end) noexcept
 {
@@ -26,9 +27,8 @@ ProjectedTime ProjectedTime::from_reception(UtcTime received_at, std::optional<S
     return ProjectedTime{received_at, source, std::nullopt};
 }
 
-std::expected<ProjectedTime, TimeError> ProjectedTime::from_source(
-    const ClockAnchor& anchor, SourceTime source, UtcTime received_at
-) noexcept
+std::expected<ProjectedTime, TimeError> ProjectedTime::from_source(const ClockAnchor& anchor, SourceTime source,
+                                                                   UtcTime received_at) noexcept
 {
     if (anchor.uncertainty < Microseconds::zero()) {
         return std::unexpected{TimeError::negative_uncertainty};
@@ -39,8 +39,8 @@ std::expected<ProjectedTime, TimeError> ProjectedTime::from_source(
     const auto source_count = source.value.count();
     const auto source_anchor = anchor.source.value.count();
 
-    if ((source_anchor > 0 && source_count < minimum + source_anchor)
-        || (source_anchor < 0 && source_count > maximum + source_anchor)) {
+    if ((source_anchor > 0 && source_count < minimum + source_anchor) ||
+        (source_anchor < 0 && source_count > maximum + source_anchor)) {
         return std::unexpected{TimeError::arithmetic_overflow};
     }
 
@@ -50,11 +50,12 @@ std::expected<ProjectedTime, TimeError> ProjectedTime::from_source(
         return std::unexpected{TimeError::arithmetic_overflow};
     }
 
-    return ProjectedTime{received_at, source, SourceProjection{
-        .utc = UtcTime{Microseconds{utc_anchor + offset}},
-        .epoch = anchor.epoch,
-        .uncertainty = anchor.uncertainty,
-    }};
+    return ProjectedTime{received_at, source,
+                         SourceProjection{
+                             .utc = UtcTime{Microseconds{utc_anchor + offset}},
+                             .epoch = anchor.epoch,
+                             .uncertainty = anchor.uncertainty,
+                         }};
 }
 
-}  // namespace bacuri::vms::domain
+} // namespace bacuri::vms::domain

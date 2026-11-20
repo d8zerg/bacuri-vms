@@ -8,8 +8,10 @@
 #include <string>
 #include <string_view>
 
-namespace bacuri::vms::test {
-namespace {
+namespace bacuri::vms::test
+{
+namespace
+{
 
 struct StreamProfile {
     const char* path;
@@ -23,8 +25,7 @@ constexpr StreamProfile main_stream{
                 "! timeoverlay "
                 "! x264enc bitrate=2000 key-int-max=25 speed-preset=ultrafast tune=zerolatency "
                 "! video/x-h264,profile=baseline "
-                "! rtph264pay name=pay0 pt=96 config-interval=1 )"
-};
+                "! rtph264pay name=pay0 pt=96 config-interval=1 )"};
 
 constexpr StreamProfile sub_stream{
     .path = "/sub",
@@ -33,8 +34,7 @@ constexpr StreamProfile sub_stream{
                 "! timeoverlay "
                 "! x264enc bitrate=500 key-int-max=15 speed-preset=ultrafast tune=zerolatency "
                 "! video/x-h264,profile=baseline "
-                "! rtph264pay name=pay0 pt=96 config-interval=1 )"
-};
+                "! rtph264pay name=pay0 pt=96 config-interval=1 )"};
 
 void mount_stream(GstRTSPMountPoints* mounts, const StreamProfile& profile)
 {
@@ -90,15 +90,11 @@ gboolean capture_message(GstBus*, GstMessage* message, gpointer data)
 
 int run_camera(bool webcam)
 {
-    const std::unique_ptr<GstRTSPServer, decltype(&g_object_unref)> server{
-        gst_rtsp_server_new(), g_object_unref
-    };
+    const std::unique_ptr<GstRTSPServer, decltype(&g_object_unref)> server{gst_rtsp_server_new(), g_object_unref};
     const std::unique_ptr<GstRTSPMountPoints, decltype(&g_object_unref)> mounts{
-        gst_rtsp_server_get_mount_points(server.get()), g_object_unref
-    };
-    const std::unique_ptr<GMainLoop, decltype(&g_main_loop_unref)> loop{
-        g_main_loop_new(nullptr, FALSE), g_main_loop_unref
-    };
+        gst_rtsp_server_get_mount_points(server.get()), g_object_unref};
+    const std::unique_ptr<GMainLoop, decltype(&g_main_loop_unref)> loop{g_main_loop_new(nullptr, FALSE),
+                                                                        g_main_loop_unref};
 
     gst_rtsp_server_set_service(server.get(), "8554");
     std::unique_ptr<GstElement, decltype(&gst_object_unref)> capture{nullptr, gst_object_unref};
@@ -112,7 +108,8 @@ int run_camera(bool webcam)
             std::fputs("Cannot construct the V4L2 capture pipeline\n", stderr);
             return EXIT_FAILURE;
         }
-        std::unique_ptr<GstBus, decltype(&gst_object_unref)> bus{gst_element_get_bus(capture.get()), gst_object_unref};
+        std::unique_ptr<GstBus, decltype(&gst_object_unref)> bus{gst_element_get_bus(capture.get()),
+                                                                 gst_object_unref};
         bus_watch = gst_bus_add_watch(bus.get(), capture_message, &state);
         if (gst_element_set_state(capture.get(), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
             std::fputs("Cannot open V4L2 capture device\n", stderr);
@@ -127,8 +124,9 @@ int run_camera(bool webcam)
     } else {
         mount_stream(mounts.get(), main_stream);
         mount_stream(mounts.get(), sub_stream);
-        mount_stream(mounts.get(), {"/jpeg", "( videotestsrc is-live=true ! video/x-raw,format=I420,width=320,height=240 "
-                                               "! jpegenc ! rtpjpegpay name=pay0 pt=26 )"});
+        mount_stream(mounts.get(),
+                     {"/jpeg", "( videotestsrc is-live=true ! video/x-raw,format=I420,width=320,height=240 "
+                               "! jpegenc ! rtpjpegpay name=pay0 pt=26 )"});
     }
 
     const auto server_source = gst_rtsp_server_attach(server.get(), nullptr);
@@ -150,8 +148,8 @@ int run_camera(bool webcam)
     return state.failed ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
-}  // namespace
-}  // namespace bacuri::vms::test
+} // namespace
+} // namespace bacuri::vms::test
 
 int main(int argc, char** argv)
 {

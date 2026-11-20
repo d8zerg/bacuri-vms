@@ -93,9 +93,14 @@ const [selection, done] = arguments;
     );
     const errorMs = Math.round(Math.abs(positioned.ordinal / 25 - 0.64) * 1000);
     if (errorMs > 100) throw new Error("Seek error " + errorMs + " ms");
+    // Submit both selections in one turn while the first seek is still in flight.
+    seek.elements.position.value = selection.target;
+    seek.requestSubmit();
     seek.elements.position.value = selection.gap;
     seek.requestSubmit();
     await wait(() => document.querySelector("#status").textContent.includes("недоступна"));
+    if (!video.paused || seek.elements.position.value !== selection.gap)
+        throw new Error("The player did not stop at the last requested position");
     return {
         firstFrameMs: first.elapsedMs,
         seekErrorMs: errorMs,

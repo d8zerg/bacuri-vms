@@ -8,7 +8,8 @@
 #include <optional>
 #include <string>
 
-namespace bacuri::vms::domain {
+namespace bacuri::vms::domain
+{
 
 using Revision = std::int64_t;
 
@@ -69,9 +70,8 @@ enum class BindingError {
     invalid_revision,
 };
 
-[[nodiscard]] std::expected<ChannelBinding, BindingError> replace_channel(
-    const ChannelBinding& active, const Channel& replacement, UtcTime valid_from
-) noexcept;
+[[nodiscard]] std::expected<ChannelBinding, BindingError>
+replace_channel(const ChannelBinding& active, const Channel& replacement, UtcTime valid_from) noexcept;
 
 struct ConfigurationProgress {
     Revision desired_revision;
@@ -83,4 +83,4 @@ struct ConfigurationProgress {
     }
 };
 
-}  // namespace bacuri::vms::domain
+} // namespace bacuri::vms::domain

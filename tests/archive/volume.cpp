@@ -116,10 +116,9 @@ TEST(ArchiveVolume, FailedPublicationPreservesPreviousBlockAndResumes)
     TempVolume fixture;
     Volume volume{fixture.root, fixture.owner};
     volume.publish(example(), write_sample);
-    EXPECT_THROW(
-        volume.publish(example(),
-                       [](const fs::path&) { throw std::system_error(ENOSPC, std::generic_category()); }),
-        std::system_error);
+    EXPECT_THROW(volume.publish(example(),
+                                [](const fs::path&) { throw std::system_error(ENOSPC, std::generic_category()); }),
+                 std::system_error);
     EXPECT_THROW(volume.publish(example(), [](const fs::path& path) { std::ofstream{path} << "incomplete MP4"; }),
                  std::invalid_argument);
     auto previous = volume.pending();

@@ -298,9 +298,9 @@ void Volume::reconcile()
     }
 }
 
-std::vector<std::pair<std::int64_t, std::int64_t>> Volume::pending_intervals(const std::string& point,
-                                                                             std::int64_t begin, std::int64_t end,
-                                                                             std::optional<std::int64_t> binding) const
+std::vector<std::pair<std::int64_t, std::int64_t>>
+Volume::pending_intervals(const std::string& point, std::int64_t begin, std::int64_t end,
+                          std::optional<std::int64_t> binding) const
 {
     storage::Sqlite journal{root_ / "journal.db", storage::OpenMode::read_only};
     auto rows = journal.query(R"sql(WITH spans AS (
@@ -373,10 +373,10 @@ std::optional<Pending> Volume::pending()
 void Volume::acknowledge(const Pending& item, const std::string& rejection)
 {
     std::scoped_lock guard{mutex_};
-    auto row = db_.query(
-        "UPDATE committed_blocks SET registered_at_utc_us=CASE WHEN ?2='' THEN ?3 END,"
-        "catalog_error=nullif(?2,'') WHERE relative_directory=?1 AND coalesce(unavailable_reason,'')=?4 "
-        "AND manifest_json=?5");
+    auto row =
+        db_.query("UPDATE committed_blocks SET registered_at_utc_us=CASE WHEN ?2='' THEN ?3 END,"
+                  "catalog_error=nullif(?2,'') WHERE relative_directory=?1 AND coalesce(unavailable_reason,'')=?4 "
+                  "AND manifest_json=?5");
     bind_text(row.get(), 1, item.directory);
     bind_text(row.get(), 2, rejection);
     sqlite3_bind_int64(row.get(), 3, now_us());

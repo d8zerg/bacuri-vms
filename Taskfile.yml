@@ -17,7 +17,7 @@ tasks:
     requires:
       vars:
         - name: PRESET
-          enum: [gcc-release, gcc-debug, clang-debug, clang-asan-ubsan, clang-tsan]
+          enum: [gcc-release, gcc-debug, gcc-coverage, clang-debug, clang-asan-ubsan, clang-tsan]
     cmd: '{{.BUILD_RUN}} sh tools/build-preset {{.PRESET | shellQuote}}'
 
   test:
@@ -43,8 +43,12 @@ tasks:
       '^/workspace/(src|tests)/'
 
   check:
-    desc: Run the compiler and sanitizer matrix, static analysis, contract and stand checks
+    desc: Check secrets, formatting, sanitizer and compiler builds, static analysis, coverage and scenarios
     cmds:
+      - task: secrets:check
+      - task: format:check
+      - task: docs:check
+      - task: prototype:check
       - task: release:check
       - for: [gcc-debug, clang-debug, clang-asan-ubsan, clang-tsan]
         task: test
@@ -75,6 +79,36 @@ tasks:
       - for: [gcc-debug, clang-asan-ubsan, gcc-release]
         task: alerts:check
         vars: {PRESET: '{{.ITEM}}'}
+      - task: coverage:check
+
+  quality:image:
+    internal: true
+    run: once
+    cmd: docker compose build quality
+
+  secrets:check:
+    desc: Scan full Git history, staging area and working files with Gitleaks
+    deps: [quality:image]
+    cmd: |
+      set -eu
+      report=$(sh tools/quality-report-dir secrets)
+      echo "Gitleaks reports: $report"
+      {{.COMPOSE_RUN}} -T quality python3 tools/check-secrets.py "$report"
+
+  format:check:
+    desc: Check C++ sources and headers with clang-format
+    deps: [quality:image]
+    cmd: >-
+      {{.COMPOSE_RUN}} -T quality find src tests -type f
+      \( -name '*.cpp' -o -name '*.hpp' -o -name '*.hpp.in' -o -name '*.h' -o -name '*.cc' -o -name '*.cxx' \)
+      -exec clang-format-19 --dry-run --Werror --style=file {} +
+
+  coverage:check:
+    desc: Require 75 percent line coverage for both product C++ and browser JavaScript
+    deps: [quality:image, dev:image, stand:up]
+    cmds:
+      - docker compose build api-types
+      - bash tools/check-coverage
 
   check:report:
     desc: Run all checks and save the environment, log, and exit code
@@ -267,6 +301,29 @@ tasks:
   prototype:up:
     desc: Start the local browser prototype
     cmd: docker compose -f prototype/compose.yaml up --wait --wait-timeout 25
+
+  docs:check:
+    desc: Validate local documentation links, scenario coverage and decision references
+    deps: [dev:image]
+    cmd: '{{.BUILD_RUN}} python3 tests/docs/check.py'
+
+  prototype:check:
+    desc: Verify camera and alert workflows, accessibility and full-screen references in both browsers
+    cmds:
+      - docker compose build prototype-check
+      - '{{.COMPOSE_RUN}} -T --entrypoint node prototype-check render-brand.mjs'
+      - |
+        set -eu
+        mkdir -p build/reports
+        if [ -n "${BACURI_CHECK_REPORT:-}" ]; then
+          BACURI_PROTOTYPE_RESULTS="$BACURI_CHECK_REPORT/prototype"
+          mkdir -p "$BACURI_PROTOTYPE_RESULTS"
+        else
+          BACURI_PROTOTYPE_RESULTS=$(mktemp -d "$PWD/build/reports/prototype-XXXXXXXX")
+        fi
+        export BACURI_PROTOTYPE_RESULTS
+        echo "Prototype results: $BACURI_PROTOTYPE_RESULTS"
+        {{.COMPOSE_RUN}} -T prototype-check
 
   prototype:down:
     desc: Stop the local browser prototype

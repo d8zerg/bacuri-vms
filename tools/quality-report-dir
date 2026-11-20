@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+mkdir -p build/reports
+if [ -n "${BACURI_CHECK_REPORT:-}" ]; then
+    path="${BACURI_CHECK_REPORT#"$PWD/"}"/"$1"
+    mkdir -p "$path"
+else
+    path=$(mktemp -d "build/reports/$1-XXXXXXXX")
+fi
+printf '%s\n' "$path"

@@ -2,6 +2,7 @@
   "name": "bacuri-vms-api-client-tools",
   "private": true,
   "devDependencies": {
+    "c8": "10.1.3",
     "openapi-typescript": "7.9.1",
     "typescript": "5.9.3"
   }

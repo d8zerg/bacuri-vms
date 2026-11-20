@@ -34,7 +34,10 @@ std::vector<unsigned char> decode(const std::string& value)
     return bytes;
 }
 
-auto bytes(std::string_view text) { return reinterpret_cast<const unsigned char*>(text.data()); }
+auto bytes(std::string_view text)
+{
+    return reinterpret_cast<const unsigned char*>(text.data());
+}
 
 } // namespace
 

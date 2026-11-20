@@ -139,9 +139,8 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     if (req.count("Idempotency-Key") != 1 || !canonical_id(request_key)) {
         throw Failure{400, "invalid_request"};
     }
-    db.exec(
-        "UPDATE media_sessions SET request_key=NULL WHERE browser=$1 AND request_key=$2 AND expires_at<=now()",
-        {access.browser, request_key});
+    db.exec("UPDATE media_sessions SET request_key=NULL WHERE browser=$1 AND request_key=$2 AND expires_at<=now()",
+            {access.browser, request_key});
     auto previous =
         db.exec("SELECT id,begin_us,end_us,to_char(expires_at AT TIME ZONE 'UTC',$5),closed "
                 "FROM media_sessions WHERE browser=$1 AND site_id=$2 AND point_id=$3 AND request_key=$4",
@@ -163,13 +162,13 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
             .get(0) == "t") {
         throw Failure{429, "rate_limited"};
     }
-    auto session = db.exec(
-        "INSERT INTO media_sessions(browser,site_id,point_id,begin_us,end_us,request_key,expires_at) "
-        "SELECT token_hash,$2,$3,nullif($4,'')::bigint,nullif($5,'')::bigint,$6,least(now()+interval '5 "
-        "minutes',expires_at,last_active+interval '30 "
-        "minutes') "
-        "FROM browser_sessions WHERE token_hash=$1 RETURNING id,to_char(expires_at AT TIME ZONE 'UTC',$7)",
-        {access.browser, access.site, access.point, begin, end, request_key, expires_sql});
+    auto session =
+        db.exec("INSERT INTO media_sessions(browser,site_id,point_id,begin_us,end_us,request_key,expires_at) "
+                "SELECT token_hash,$2,$3,nullif($4,'')::bigint,nullif($5,'')::bigint,$6,least(now()+interval '5 "
+                "minutes',expires_at,last_active+interval '30 "
+                "minutes') "
+                "FROM browser_sessions WHERE token_hash=$1 RETURNING id,to_char(expires_at AT TIME ZONE 'UTC',$7)",
+                {access.browser, access.site, access.point, begin, end, request_key, expires_sql});
     if (!range) {
         return result(session.get(0), session.get(0, 1));
     }
@@ -182,8 +181,7 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     if (!parts.size()) {
         const auto page = search(db, key, access, range->json());
         const auto& items = page.at("items");
-        if (std::ranges::any_of(items,
-                                [](const Json& entry) { return entry.at("state") == "pending_catalog"; })) {
+        if (std::ranges::any_of(items, [](const Json& entry) { return entry.at("state") == "pending_catalog"; })) {
             throw Failure{409, "pending_catalog"};
         }
         if (!items.empty() &&
@@ -199,8 +197,7 @@ class RemotePart final : public MediaBody
 {
   public:
     explicit RemotePart(const v1::ReadPartRequest& request)
-        : lease_{request.scope()},
-          stub_{v1::ArchiveDelivery::NewStub(media::local_channel("BACURI_MEDIA_SOCKET"))}
+        : lease_{request.scope()}, stub_{v1::ArchiveDelivery::NewStub(media::local_channel("BACURI_MEDIA_SOCKET"))}
     {
         lease_.deadline();
         context_.set_deadline(std::chrono::system_clock::now() + 30s);

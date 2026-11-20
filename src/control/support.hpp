@@ -26,11 +26,11 @@ bool password_matches(const std::string& hash, std::string_view password);
 bool canonical_id(std::string_view value);
 class CameraNetworks
 {
-public:
+  public:
     explicit CameraNetworks(const std::string& specification);
     bool permits(const std::string& url) const;
 
-private:
+  private:
     std::vector<std::shared_ptr<GInetAddressMask>> masks_;
 };
 

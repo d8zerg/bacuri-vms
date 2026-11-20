@@ -2,11 +2,11 @@
 
 #include <limits>
 
-namespace bacuri::vms::domain {
+namespace bacuri::vms::domain
+{
 
-std::expected<ChannelBinding, BindingError> replace_channel(
-    const ChannelBinding& active, const Channel& replacement, UtcTime valid_from
-) noexcept
+std::expected<ChannelBinding, BindingError>
+replace_channel(const ChannelBinding& active, const Channel& replacement, UtcTime valid_from) noexcept
 {
     if (active.key.site != replacement.site) {
         return std::unexpected{BindingError::different_site};
@@ -24,4 +24,4 @@ std::expected<ChannelBinding, BindingError> replace_channel(
     };
 }
 
-}  // namespace bacuri::vms::domain
+} // namespace bacuri::vms::domain

@@ -1,15 +1,23 @@
-nav a, #alerts a { color: #b5e9db; }
+nav a, #alerts a { color: var(--action); }
 * {
     box-sizing: border-box;
 }
 :root {
-    color-scheme: dark;
+    color-scheme: light dark;
+    accent-color: var(--action);
+    --action: light-dark(#696046, #b4a989);
+    --action-fill: light-dark(#e1d8bb, #504a37);
+    --on-action: light-dark(#202020, #f0ece6);
     font:
         1rem/1.5 "Inter",
         system-ui,
         sans-serif;
-    background: #10161c;
-    color: #ecf3f7;
+    background: light-dark(#f7f4ed, #1e1e1e);
+    color: light-dark(#202020, #d4d4d4);
+}
+::selection {
+    background: var(--action-fill);
+    color: var(--on-action);
 }
 body {
     margin: 0;
@@ -37,7 +45,7 @@ label {
     display: grid;
     gap: 0.25rem;
     font-size: 0.9rem;
-    color: #c1cfd9;
+    color: light-dark(#575757, #a6a6a6);
 }
 input,
 select,
@@ -45,9 +53,9 @@ button {
     max-width: 100%;
     min-height: 2.6rem;
     padding: 0.45rem 0.7rem;
-    border: 1px solid #667681;
+    border: 1px solid light-dark(#827d6f, #8d8776);
     border-radius: 0.3rem;
-    background: #202932;
+    background: light-dark(#efeadf, #303031);
     color: inherit;
     font: inherit;
 }
@@ -58,16 +66,18 @@ input[name="position"] {
 }
 button {
     cursor: pointer;
-    background: #b5e9db;
-    color: #092821;
-    border-color: #b5e9db;
+    background: var(--action-fill);
+    color: var(--on-action);
     font-weight: 600;
 }
 button:hover {
-    background: #d5f6ec;
+    background: light-dark(#d7cdaf, #5b5540);
+}
+button:active {
+    background: light-dark(#cbbe9b, #645c44);
 }
 :focus-visible {
-    outline: 3px solid #f0cc72;
+    outline: 3px solid light-dark(#6b6044, #bbb08e);
     outline-offset: 3px;
 }
 video {
@@ -75,7 +85,7 @@ video {
     width: min(100%, 60rem);
     max-height: 55vh;
     aspect-ratio: 16/9;
-    background: #05080a;
+    background: #12110f;
     margin-bottom: 1rem;
 }
 #status {
@@ -92,7 +102,7 @@ li {
     flex-wrap: wrap;
     gap: 0.5rem;
     padding: 0.55rem 0;
-    border-bottom: 1px solid #37444e;
+    border-bottom: 1px solid light-dark(#dddad4, #413f3c);
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
 }

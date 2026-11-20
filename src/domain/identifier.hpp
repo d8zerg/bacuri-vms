@@ -7,11 +7,12 @@
 #include <string>
 #include <string_view>
 
-namespace bacuri::vms::domain {
+namespace bacuri::vms::domain
+{
 
-template <typename Tag>
-class Identifier {
-public:
+template <typename Tag> class Identifier
+{
+  public:
     [[nodiscard]] static constexpr std::optional<Identifier> parse(std::string_view text) noexcept
     {
         if (text.size() != 36 || text[8] != '-' || text[13] != '-' || text[18] != '-' || text[23] != '-') {
@@ -52,7 +53,7 @@ public:
 
     [[nodiscard]] friend constexpr bool operator==(const Identifier&, const Identifier&) noexcept = default;
 
-private:
+  private:
     explicit constexpr Identifier(std::array<std::uint8_t, 16> bytes) noexcept : bytes_{bytes} {}
 
     [[nodiscard]] static constexpr int hex_value(char character) noexcept
@@ -84,4 +85,4 @@ using BlockId = Identifier<struct BlockTag>;
 using ObservationSourceId = Identifier<struct ObservationSourceTag>;
 using ObservationId = Identifier<struct ObservationTag>;
 
-}  // namespace bacuri::vms::domain
+} // namespace bacuri::vms::domain

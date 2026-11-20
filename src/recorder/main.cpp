@@ -70,9 +70,9 @@ class Recorder final : public v1::RecorderControl::Service
             return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid archive selection"};
         }
         try {
-            for (const auto& [begin, end] :
-                 volume_.pending_intervals(q->point().point_id(), q->begin_us(), q->end_us(),
-                      q->has_binding_revision() ? std::optional{q->binding_revision()} : std::nullopt)) {
+            for (const auto& [begin, end] : volume_.pending_intervals(
+                     q->point().point_id(), q->begin_us(), q->end_us(),
+                     q->has_binding_revision() ? std::optional{q->binding_revision()} : std::nullopt)) {
                 auto* row = result->add_intervals();
                 row->set_begin_us(begin);
                 row->set_end_us(end);

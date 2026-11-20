@@ -6,14 +6,16 @@
 #include <optional>
 #include <string>
 
-namespace bacuri::vms::domain {
+namespace bacuri::vms::domain
+{
 
 struct ObservationKey {
     SiteId site;
     ObservationSourceId source;
     ObservationId id;
 
-    [[nodiscard]] friend constexpr bool operator==(const ObservationKey&, const ObservationKey&) noexcept = default;
+    [[nodiscard]] friend constexpr bool operator==(const ObservationKey&,
+                                                   const ObservationKey&) noexcept = default;
 };
 
 struct Observation {
@@ -26,4 +28,4 @@ struct Observation {
     std::string attributes_json;
 };
 
-}  // namespace bacuri::vms::domain
+} // namespace bacuri::vms::domain

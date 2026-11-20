@@ -1,0 +1,5 @@
+*
+!package*.json
+!playwright.config.mjs
+!routes.spec.mjs
+!render-brand.mjs

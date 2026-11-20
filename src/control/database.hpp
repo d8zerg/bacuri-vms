@@ -11,22 +11,25 @@ namespace bacuri::vms::control
 
 class Rows
 {
-public:
+  public:
     explicit Rows(PGresult* result) : result_{result, PQclear} {}
-    int size() const { return PQntuples(result_.get()); }
+    int size() const
+    {
+        return PQntuples(result_.get());
+    }
     std::string get(int row, int column = 0) const;
 
-private:
+  private:
     std::unique_ptr<PGresult, decltype(&PQclear)> result_;
 };
 
 class Database
 {
-public:
+  public:
     Database();
     Rows exec(const char* query, std::initializer_list<std::string> arguments = {});
 
-private:
+  private:
     std::unique_ptr<PGconn, decltype(&PQfinish)> connection_;
 };
 

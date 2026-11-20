@@ -74,6 +74,15 @@ services:
     volumes:
       - .:/workspace
 
+  quality:
+    profiles: ["tools"]
+    build:
+      context: .
+      target: quality
+    network_mode: none
+    volumes:
+      - .:/workspace
+
   conan:
     profiles: ["tools"]
     build:
@@ -88,6 +97,17 @@ services:
     profiles: ["playback-test"]
     image: selenium/standalone-chrome:4.35.0@sha256:be55620222a49b5ed58787573c6ae864ed86833668b5a54a792f5419befb1dfd
     shm_size: 1gb
+
+  prototype-check:
+    profiles: ["tools"]
+    build: ./tests/prototype
+    network_mode: none
+    shm_size: 1gb
+    volumes:
+      - ./prototype/dist:/usr/share/nginx/html:ro
+      - ./design/bacuri:/usr/share/design/bacuri:ro
+      - ./tests/prototype/screens:/opt/prototype-tests/screens:${BACURI_PROTOTYPE_SCREEN_MODE:-ro}
+      - ${BACURI_PROTOTYPE_RESULTS:-./build/prototype-results}:/results
 
   playback-firefox:
     profiles: ["playback-test"]

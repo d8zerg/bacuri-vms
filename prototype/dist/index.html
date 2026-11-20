@@ -3,9 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0c1118">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f4ed">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1e1e1e">
+  <link rel="icon" type="image/svg+xml" href="design/brand/favicon.svg">
+  <link rel="apple-touch-icon" href="design/brand/apple-touch-icon.png">
   <meta name="description" content="Локальный прототип рабочего места Bacuri VMS для оператора и монтажника.">
   <title>Bacuri VMS</title>
+  <link rel="stylesheet" href="design/tokens.css">
   <link rel="stylesheet" href="styles.css">
   <script src="app.js" type="module"></script>
 </head>
@@ -13,7 +17,7 @@
   <a class="skip-link" href="#main-content">К содержимому</a>
   <header class="topbar">
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
+      <img class="brand-mark" src="design/brand/mark.svg" alt="" width="34" height="34">
       <span>Bacuri <span class="brand-vms">VMS</span></span>
     </div>
     <div class="site-name"><span class="site-mark" aria-hidden="true"></span> Склад «Север»</div>
@@ -27,10 +31,10 @@
     <aside class="rail" aria-label="Рабочее место">
       <nav class="navigation" aria-label="Разделы">
         <button class="nav-item" id="show-monitor" type="button" aria-current="page" aria-controls="monitor-screen">
-          <span class="nav-icon nav-monitor" aria-hidden="true"></span> Мониторинг
+          <svg class="nav-icon" aria-hidden="true" focusable="false"><use href="design/icons/sprite.svg#i-monitor-play"/></svg> Мониторинг
         </button>
         <button class="nav-item" id="show-install" type="button" aria-controls="install-screen">
-          <span class="nav-icon nav-camera" aria-hidden="true"></span> Камеры
+          <svg class="nav-icon" aria-hidden="true" focusable="false"><use href="design/icons/sprite.svg#i-cctv"/></svg> Камеры
         </button>
       </nav>
 
@@ -68,7 +72,7 @@
               </div>
             </header>
 
-            <div class="media-frame">
+            <div class="media-frame" data-theme="dark">
               <video id="monitor-video" poster="assets/yard.webp" src="assets/yard-live.webm"
                 muted playsinline autoplay loop preload="metadata" aria-label="Тестовое видео с погрузочных ворот"></video>
               <div class="media-top">
@@ -197,7 +201,7 @@
                 <p class="panel-meta" id="preview-camera">Погрузочные ворота 02</p>
               </div>
             </header>
-            <div class="media-frame install-frame">
+            <div class="media-frame install-frame" data-theme="dark">
               <video id="install-video" poster="assets/yard.webp" muted playsinline preload="none"
                 aria-label="Запись подключаемой камеры"></video>
               <div class="media-message" id="install-message">

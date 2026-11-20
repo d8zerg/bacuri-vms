@@ -2,6 +2,7 @@ import { ArchivePlayer } from "./player.js";
 import { byId, status, csrf, action, json, post, request, initialize, points } from "/session.js";
 
 let player, session, cursor, selection, path, searchPath;
+let playback = null;
 const reasons = {
     source_offline: "Нет связи с камерой",
     overload: "Перегрузка",
@@ -13,7 +14,7 @@ const reasons = {
     outside_retention: "Истёк срок хранения",
 };
 
-async function play(position, autoplay = true) {
+async function playAt(position, autoplay) {
     if (session && Date.parse(session.expires_at) <= Date.now()) {
         player?.stop();
         player = session = null;
@@ -33,6 +34,28 @@ async function play(position, autoplay = true) {
     if (await player.seek(position)) {
         if (autoplay) await byId("video").play();
         status(autoplay ? "Воспроизведение" : "Кадр тревоги");
+    }
+}
+
+async function play(position, autoplay = true) {
+    const request = { position, autoplay };
+    if (playback) {
+        playback.next = request;
+        return;
+    }
+    playback = { next: request };
+    try {
+        while (playback.next) {
+            const target = playback.next;
+            playback.next = null;
+            try {
+                await playAt(target.position, target.autoplay);
+            } catch (error) {
+                if (!playback.next) throw error;
+            }
+        }
+    } finally {
+        playback = null;
     }
 }
 async function page() {
@@ -72,7 +95,14 @@ byId("search").onsubmit = action(async () => {
     await page();
     status("");
 });
-byId("seek").onsubmit = action(() => play(byId("seek").elements.position.value));
+const seek = byId("seek");
+const seekToInput = () => play(seek.elements.position.value);
+const startSeek = action(seekToInput);
+seek.onsubmit = (event) => {
+    if (!playback) return startSeek(event);
+    event.preventDefault();
+    return seekToInput();
+};
 byId("more").onclick = action(page);
 
 const end = Date.now();

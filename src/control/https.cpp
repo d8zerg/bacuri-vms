@@ -100,8 +100,7 @@ net::awaitable<void> exchange(std::shared_ptr<TlsStream> connection, net::thread
                 co_await http::async_write(stream, interim, net::use_awaitable);
             }
             if (!error && !parser.is_done()) {
-                auto result =
-                    co_await http::async_read(stream, buffer, parser, net::as_tuple(net::use_awaitable));
+                auto result = co_await http::async_read(stream, buffer, parser, net::as_tuple(net::use_awaitable));
                 error = std::get<0>(result);
             }
             if (error) {

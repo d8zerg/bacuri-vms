@@ -13,14 +13,15 @@
 #include <type_traits>
 #include <variant>
 
-namespace bacuri::vms::test {
-namespace {
+namespace bacuri::vms::test
+{
+namespace
+{
 
 using namespace std::chrono_literals;
 using namespace bacuri::vms::domain;
 
-template <typename Id>
-consteval Id fixture_id(std::string_view value)
+template <typename Id> consteval Id fixture_id(std::string_view value)
 {
     const auto id = Id::parse(value);
     if (!id) {
@@ -77,12 +78,12 @@ TEST(ChannelBinding, PreservesPointAndHistoricalBinding)
     EXPECT_EQ(old.key, binding);
     EXPECT_EQ(old.channel, original_channel);
     EXPECT_EQ(replace_channel(old, replacement, old.valid_from),
-        std::unexpected{BindingError::non_increasing_time});
+              std::unexpected{BindingError::non_increasing_time});
 
     auto final_binding = old;
     final_binding.key.revision = std::numeric_limits<Revision>::max();
     EXPECT_EQ(replace_channel(final_binding, replacement, UtcTime{10us}),
-        std::unexpected{BindingError::invalid_revision});
+              std::unexpected{BindingError::invalid_revision});
 
     replacement.site = other_site;
     EXPECT_EQ(replace_channel(old, replacement, UtcTime{10us}), std::unexpected{BindingError::different_site});
@@ -113,9 +114,9 @@ TEST(UtcInterval, IncludesOnlyItsStartBoundary)
     EXPECT_TRUE(interval->contains(interval->begin()));
     EXPECT_FALSE(interval->contains(interval->end()));
     EXPECT_EQ(UtcInterval::make(interval->end(), interval->begin()),
-        std::unexpected{TimeError::empty_or_reversed_interval});
+              std::unexpected{TimeError::empty_or_reversed_interval});
     EXPECT_EQ(UtcInterval::make(interval->begin(), interval->begin()),
-        std::unexpected{TimeError::empty_or_reversed_interval});
+              std::unexpected{TimeError::empty_or_reversed_interval});
 }
 
 TEST(ProjectedTime, RetainsSourceAndClockEpoch)
@@ -157,22 +158,22 @@ TEST(ProjectedTime, RejectsNegativeUncertaintyAndOverflow)
     auto invalid = anchor;
     invalid.uncertainty = -1us;
     EXPECT_EQ(ProjectedTime::from_source(invalid, SourceTime{100us}, UtcTime{1'151us}),
-        std::unexpected{TimeError::negative_uncertainty});
+              std::unexpected{TimeError::negative_uncertainty});
 
     invalid.uncertainty = 0us;
     invalid.utc = UtcTime{Microseconds::max()};
     EXPECT_EQ(ProjectedTime::from_source(invalid, SourceTime{101us}, UtcTime{1'151us}),
-        std::unexpected{TimeError::arithmetic_overflow});
+              std::unexpected{TimeError::arithmetic_overflow});
     invalid.utc = UtcTime{Microseconds::min()};
     EXPECT_EQ(ProjectedTime::from_source(invalid, SourceTime{99us}, UtcTime{1'151us}),
-        std::unexpected{TimeError::arithmetic_overflow});
+              std::unexpected{TimeError::arithmetic_overflow});
 
     invalid.source = SourceTime{Microseconds::min()};
     EXPECT_EQ(ProjectedTime::from_source(invalid, SourceTime{Microseconds::max()}, UtcTime{1'151us}),
-        std::unexpected{TimeError::arithmetic_overflow});
+              std::unexpected{TimeError::arithmetic_overflow});
     invalid.source = SourceTime{Microseconds::max()};
     EXPECT_EQ(ProjectedTime::from_source(invalid, SourceTime{Microseconds::min()}, UtcTime{1'151us}),
-        std::unexpected{TimeError::arithmetic_overflow});
+              std::unexpected{TimeError::arithmetic_overflow});
 }
 
 TEST(RecordedInterval, DistinguishesRecordingWithUncertainTimeFromGap)
@@ -183,7 +184,8 @@ TEST(RecordedInterval, DistinguishesRecordingWithUncertainTimeFromGap)
 
     const auto interval = UtcInterval::make(UtcTime{0us}, UtcTime{10us});
     ASSERT_TRUE(interval);
-    const auto recording = RecordedInterval::make(block, binding, *interval, ProjectedTime::from_reception(UtcTime{0us}));
+    const auto recording =
+        RecordedInterval::make(block, binding, *interval, ProjectedTime::from_reception(UtcTime{0us}));
     ASSERT_TRUE(recording);
     const ArchiveInterval recorded = *recording;
     const ArchiveInterval gap = RecordingGap{
@@ -207,20 +209,22 @@ TEST(RecordedInterval, RequiresSameSiteAndFirstFrameAtStart)
     ASSERT_TRUE(interval);
     auto foreign_binding = binding;
     foreign_binding.site = other_site;
-    EXPECT_EQ(RecordedInterval::make(block, foreign_binding, *interval, ProjectedTime::from_reception(UtcTime{0us})),
+    EXPECT_EQ(
+        RecordedInterval::make(block, foreign_binding, *interval, ProjectedTime::from_reception(UtcTime{0us})),
         std::unexpected{RecordingError::different_site});
     EXPECT_EQ(RecordedInterval::make(block, binding, *interval, ProjectedTime::from_reception(UtcTime{1us})),
-        std::unexpected{RecordingError::first_frame_not_at_begin});
+              std::unexpected{RecordingError::first_frame_not_at_begin});
 }
 
 TEST(Observation, UsesSourceAndIdForRetryIdentity)
 {
     const Observation event{
-        .key = {
-            site,
-            fixture_id<ObservationSourceId>("80000000-0000-4000-8000-000000000001"),
-            fixture_id<ObservationId>("90000000-0000-4000-8000-000000000001"),
-        },
+        .key =
+            {
+                site,
+                fixture_id<ObservationSourceId>("80000000-0000-4000-8000-000000000001"),
+                fixture_id<ObservationId>("90000000-0000-4000-8000-000000000001"),
+            },
         .type = "motion",
         .schema_version = 1,
         .time = ProjectedTime::from_reception(UtcTime{25us}),
@@ -235,5 +239,5 @@ TEST(Observation, UsesSourceAndIdForRetryIdentity)
     EXPECT_NE(event.key, retry.key);
 }
 
-}  // namespace
-}  // namespace bacuri::vms::test
+} // namespace
+} // namespace bacuri::vms::test

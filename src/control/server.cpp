@@ -37,8 +37,8 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     std::string_view path{req.target().data(), req.target().size()};
     path = path.substr(0, path.find('?'));
     if (path == "/alerts/" || path == "/alerts/app.js" || path == "/archive/" || path == "/archive/player.js" ||
-        path == "/archive/app.js" || path == "/archive/style.css" || path == "/live/" ||
-        path == "/live/live.js" || path == "/session.js") {
+        path == "/archive/app.js" || path == "/archive/style.css" || path == "/live/" || path == "/live/live.js" ||
+        path == "/session.js") {
         allow(req, res, {http::verb::get});
         const bool html = path.ends_with('/');
         std::ifstream file{"web" + std::string{path} + (html ? "index.html" : "")};
