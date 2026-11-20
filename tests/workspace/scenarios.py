@@ -36,7 +36,7 @@ def button(call, label):
 
 
 def field(call, name, value):
-    element = wait(call, "document.querySelector('input[name='+arguments[0]+']')", name, name)
+    element = wait(call, "document.querySelector('input[name='+arguments[0]+']:enabled')", name, name)
     call("POST", "/element/" + element["element-6066-11e4-a52e-4f735466cecf"] + "/value", {"text": value})
 
 

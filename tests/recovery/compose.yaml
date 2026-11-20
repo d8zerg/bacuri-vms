@@ -1,0 +1,7 @@
+services:
+  rtsp-camera:
+    image: ${BACURI_RECOVERY_CAMERA_IMAGE:?missing test camera image}
+    ports: !reset []
+  core:
+    volumes:
+      - ./build/${BACURI_RECOVERY_PRESET:-gcc-debug}:/opt/bacuri:ro

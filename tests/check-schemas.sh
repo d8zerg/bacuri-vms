@@ -38,6 +38,9 @@ sqlite3 -batch -bail "$sqlite_file" < storage/sqlite/migrations/0002_archive.sql
 test "$(sqlite3 "$sqlite_file" 'PRAGMA user_version')" = 2
 sqlite3 -batch -bail "$sqlite_file" < storage/sqlite/migrations/0003_coverage.sql
 test "$(sqlite3 "$sqlite_file" 'PRAGMA user_version')" = 3
+sqlite3 "$sqlite_file" "INSERT INTO pending_gaps VALUES(1,'point',1,1,2,'storage_failure')"
+sqlite3 -batch -bail "$sqlite_file" < storage/sqlite/migrations/0004_gap_history.sql
+test "$(sqlite3 "$sqlite_file" 'SELECT registered FROM archive_gaps WHERE id=1')" = 0
 test "$(sqlite3 "$sqlite_file" 'SELECT registered_at_utc_us FROM committed_blocks WHERE unavailable_reason IS NULL')" = 1155
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0002_control.sql
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" <<'SQL'
@@ -50,4 +53,5 @@ test "$(psql -XAtq --dbname "$database" -c 'SELECT desired_revision-decided_revi
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0004_playback.sql
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0005_live.sql
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0006_alerts.sql
+psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0007_recovery.sql
 printf '%s\n' 'PostgreSQL and SQLite schemas and archive upgrades passed'

@@ -1,0 +1,109 @@
+#include "control/recovery.hpp"
+#include "archive/volume.hpp"
+#include "control/database.hpp"
+#include "control/support.hpp"
+
+#include <ostream>
+#include <thread>
+
+namespace bacuri::vms::control
+{
+namespace
+{
+using archive::Json;
+
+void mark_unavailable(Database& db, const archive::Owner& owner, const Json& m, const std::string& reason)
+{
+    const auto updated = db.exec("UPDATE bacuri_archive.blocks SET unavailable_reason=$4 WHERE site_id=$1 "
+                                 "AND recording_node_id=$2 AND block_id=$3 RETURNING 1",
+                                 {owner.site, owner.node, m.at("block_id"), reason});
+    if (!updated.size()) {
+        // A journal entry can explain a gap but cannot prove that its video survived.
+        db.exec("INSERT INTO bacuri_archive.gaps VALUES($1,$2,$3,$4,$5,'storage_failure') ON CONFLICT DO NOTHING",
+                {owner.site, m.at("point_id"), m.at("binding_revision").dump(), m.at("begin_utc_us").dump(),
+                 m.at("end_utc_us").dump()});
+    }
+}
+} // namespace
+
+void rebuild_archive(std::ostream& output)
+{
+    const archive::Owner owner{setting("BACURI_SITE_ID"), setting("BACURI_NODE_ID")};
+    const archive::fs::path root{setting("BACURI_ARCHIVE_DIR")};
+    Database db;
+    if (db.exec("SELECT pg_try_advisory_lock(hashtextextended($1,1))", {owner.site}).get(0) != "t") {
+        throw std::runtime_error("Another site recovery is in progress");
+    }
+    db.exec("BEGIN");
+    db.exec("INSERT INTO archive_recovery VALUES($1,'verifying') ON CONFLICT(site_id) DO UPDATE SET "
+            "reason=excluded.reason",
+            {owner.site});
+    auto sessions = db.exec("UPDATE media_sessions SET closed=true WHERE site_id=$1 AND begin_us IS NOT NULL "
+                            "AND NOT closed AND expires_at>now() RETURNING 1",
+                            {owner.site});
+    db.exec("COMMIT");
+    if (sessions.size()) {
+        std::this_thread::sleep_for(std::chrono::seconds{5});
+    }
+    const bool journal = archive::fs::is_regular_file(archive::fs::symlink_status(root / "journal.db"));
+    if (!archive::fs::is_directory(archive::fs::symlink_status(root / "blocks")) ||
+        (!journal && archive::fs::is_empty(root / "blocks"))) {
+        db.exec("UPDATE archive_recovery SET reason='volume_unavailable' WHERE site_id=$1", {owner.site});
+        throw std::runtime_error("Archive volume unavailable or uninitialized");
+    }
+    db.exec("BEGIN");
+    db.exec(
+        "UPDATE bacuri_archive.blocks SET unavailable_reason='missing' WHERE site_id=$1 AND recording_node_id=$2",
+        {owner.site, owner.node});
+    std::size_t verified{}, corrupt{}, missing{};
+    archive::Volume volume{
+        root, owner, [&](const std::string& id) {
+            ++corrupt;
+            db.exec("UPDATE bacuri_archive.blocks SET unavailable_reason='corrupt' WHERE site_id=$1 "
+                    "AND recording_node_id=$2 AND block_id=$3",
+                    {owner.site, owner.node, id});
+        }};
+    volume.visit_inventory([&](const Json& m, const std::string& reason) {
+        archive::validate_manifest(m);
+        if (m.at("site_id") != owner.site || m.at("recording_node_id") != owner.node) {
+            throw std::runtime_error("Foreign archive journal entry");
+        }
+        if (!reason.empty()) {
+            mark_unavailable(db, owner, m, reason);
+            if (reason == "corrupt") {
+                ++corrupt;
+            } else {
+                ++missing;
+            }
+            return;
+        }
+        auto row = db.exec("INSERT INTO bacuri_archive.blocks(manifest,verification_generation) VALUES($1,$2) "
+                           "ON CONFLICT(site_id,block_id,recording_epoch_id,owner_generation) DO UPDATE SET "
+                           "unavailable_reason=NULL,verification_generation=excluded.verification_generation "
+                           "WHERE blocks.manifest=excluded.manifest RETURNING 1",
+                           {m.dump(), std::to_string(volume.generation())});
+        if (!row.size()) {
+            throw std::runtime_error("Catalog identity has different content");
+        }
+        ++verified;
+    });
+    volume.visit_gaps([&](const archive::Gap& gap) {
+        db.exec("INSERT INTO bacuri_archive.gaps VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING",
+                {owner.site, gap.point, std::to_string(gap.binding), std::to_string(gap.begin),
+                 std::to_string(gap.end), gap.reason});
+    });
+    auto absent = db.exec("SELECT count(*) FROM bacuri_archive.blocks WHERE site_id=$1 AND recording_node_id=$2 "
+                          "AND unavailable_reason='missing'",
+                          {owner.site, owner.node});
+    // A failed PostgreSQL commit keeps the fence. Its retry scans the entire inventory again.
+    volume.confirm_inventory();
+    db.exec("DELETE FROM archive_recovery WHERE site_id=$1", {owner.site});
+    db.exec("COMMIT");
+    output << Json{{"verified", verified},
+                   {"corrupt", corrupt},
+                   {"journal_missing", missing},
+                   {"catalog_missing", std::stoll(absent.get(0))}}
+                  .dump()
+           << '\n';
+}
+} // namespace bacuri::vms::control

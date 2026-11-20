@@ -44,6 +44,7 @@ endfunction()
 archive_sql(archive_initial storage/sqlite/migrations/0001_initial.sql)
 archive_sql(archive_upgrade storage/sqlite/migrations/0002_archive.sql)
 archive_sql(archive_coverage storage/sqlite/migrations/0003_coverage.sql)
+archive_sql(archive_gap_history storage/sqlite/migrations/0004_gap_history.sql)
 archive_sql(archive_insert storage/postgresql/insert-block.sql)
 archive_sql(archive_read storage/postgresql/read-block-manifest.sql)
 archive_sql(archive_search storage/postgresql/search-archive.sql)
@@ -70,9 +71,12 @@ target_link_libraries(bacuri-vms-ingest PUBLIC bacuri-vms-domain PRIVATE PkgConf
 target_compile_options(bacuri-vms-ingest PRIVATE -Wall -Wextra -Wpedantic)
 add_library(bacuri-vms-manifest STATIC src/archive/manifest.cpp)
 target_link_libraries(bacuri-vms-manifest PUBLIC bacuri-vms-control-support nlohmann_json::nlohmann_json)
-add_library(bacuri-vms-archive STATIC src/archive/volume.cpp src/archive/mp4.cpp src/archive/writer.cpp src/archive/delivery.cpp)
+add_library(bacuri-vms-volume STATIC src/archive/volume.cpp src/archive/mp4.cpp)
+target_include_directories(bacuri-vms-volume PRIVATE "${generated_dir}")
+target_link_libraries(bacuri-vms-volume PUBLIC bacuri-vms-manifest SQLite::SQLite3 PRIVATE Boost::headers)
+add_library(bacuri-vms-archive STATIC src/archive/writer.cpp src/archive/delivery.cpp)
 target_include_directories(bacuri-vms-archive PRIVATE "${generated_dir}")
-target_link_libraries(bacuri-vms-archive PUBLIC bacuri-vms-manifest bacuri-vms-ingest SQLite::SQLite3
+target_link_libraries(bacuri-vms-archive PUBLIC bacuri-vms-volume bacuri-vms-ingest SQLite::SQLite3
     PRIVATE bacuri-vms-rpc PkgConfig::GST Boost::headers)
 target_compile_options(bacuri-vms-archive PRIVATE -Wall -Wextra -Wpedantic)
 add_executable(bacuri-vms-recorder src/recorder/main.cpp src/recorder/sources.cpp)
@@ -88,11 +92,11 @@ target_link_libraries(bacuri-vms-media PRIVATE PkgConfig::WEBRTC PkgConfig::GST)
 target_link_libraries(bacuri-vms-media PRIVATE bacuri-vms-media-auth bacuri-vms-archive Boost::headers)
 add_executable(bacuri-vms-observation-source src/control/observation_source.cpp)
 target_link_libraries(bacuri-vms-observation-source PRIVATE bacuri-vms-rpc bacuri-vms-control-support)
-add_executable(bacuri-vms-core src/core/main.cpp src/control/database.cpp src/control/registry.cpp
+add_executable(bacuri-vms-core src/core/main.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/registry.cpp
     src/control/observations.cpp src/control/alerts.cpp src/control/alert_socket.cpp
     src/control/media_authority.cpp src/control/playback.cpp
     src/control/session.cpp src/control/server.cpp src/control/https.cpp src/control/delivery.cpp src/control/archive_catalog.cpp)
-target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-manifest bacuri-vms-media-auth)
+target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-volume bacuri-vms-media-auth)
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-control-support bacuri-vms-rpc
     PostgreSQL::PostgreSQL Boost::headers OpenSSL::SSL PkgConfig::GIO nlohmann_json::nlohmann_json)
 target_compile_definitions(bacuri-vms-core PRIVATE BACURI_VMS_VERSION="${PROJECT_VERSION}")

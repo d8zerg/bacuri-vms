@@ -139,14 +139,25 @@ void Writer::finish()
     }
     const auto end =
         batch.front()->time.utc() + std::chrono::ceil<domain::Microseconds>(std::chrono::nanoseconds{length});
+    const auto begin_us = batch.front()->time.utc().time_since_epoch().count();
+    const auto end_us = end.time_since_epoch().count();
     try {
+        if (storage_gap_) {
+            volume_.report_gap(*storage_gap_);
+            storage_gap_.reset();
+        }
         volume_.publish({origin_, batch.front()->time, end},
                         [&](const fs::path& path) { mux(path, batch, times); });
     } catch (const std::exception& error) {
+        if (storage_gap_) {
+            storage_gap_->begin = std::min(storage_gap_->begin, begin_us);
+            storage_gap_->end = std::max(storage_gap_->end, end_us);
+        } else {
+            storage_gap_ = Gap{origin_.point, origin_.binding, begin_us, end_us, "storage_failure"};
+        }
         try {
-            volume_.report_gap({origin_.point, origin_.binding,
-                                batch.front()->time.utc().time_since_epoch().count(),
-                                end.time_since_epoch().count(), "storage_failure"});
+            volume_.report_gap(*storage_gap_);
+            storage_gap_.reset();
         } catch (const std::exception&) {
             std::fputs("Archive gap journal unavailable\n", stderr);
         }

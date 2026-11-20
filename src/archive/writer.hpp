@@ -16,6 +16,7 @@ class Writer
     std::shared_ptr<ingest::FrameQueue> queue_;
     std::vector<ingest::FramePtr> frames_;
     std::size_t bytes_{};
+    std::optional<Gap> storage_gap_;
     std::jthread worker_;
 };
 } // namespace bacuri::vms::archive

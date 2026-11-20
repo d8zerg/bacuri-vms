@@ -1,4 +1,5 @@
 #include "control/api.hpp"
+#include "control/recovery.hpp"
 #include <sodium.h>
 #include <iostream>
 #include <print>
@@ -41,6 +42,16 @@ try {
         serve();
     } else if (action == "migrate" && argc == 2) {
         migrate();
+    } else if (action == "backup-config" && argc == 2) {
+        backup_configuration(std::cout);
+    } else if (action == "restore-config" && argc == 2) {
+        restore_configuration(std::cin);
+    } else if (action == "recovery-status" && argc == 2) {
+        Database db;
+        auto row = db.exec("SELECT reason FROM archive_recovery WHERE site_id=$1", {setting("BACURI_SITE_ID")});
+        std::cout << Json{{"archive", row.size() ? row.get(0) : "available"}}.dump() << '\n';
+    } else if (action == "rebuild-archive" && argc == 2) {
+        rebuild_archive(std::cout);
     } else if (action == "create-user" && argc == 4) {
         provision(argv[2], argv[3]);
     } else if (action == "grant-point" && argc == 4) {
@@ -58,7 +69,8 @@ try {
         db.exec("INSERT INTO point_grants VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", {user.get(0), site, argv[3]});
         db.exec("COMMIT");
     } else {
-        std::fputs("Usage: bacuri-vms-core --version | serve | migrate | create-user USER ROLE | grant-point USER "
+        std::fputs("Usage: bacuri-vms-core --version | serve | migrate | backup-config | restore-config | "
+                   "recovery-status | rebuild-archive | create-user USER ROLE | grant-point USER "
                    "POINT\n",
                    stderr);
         return 1;

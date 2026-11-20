@@ -12,13 +12,15 @@ flock 9
 docker compose up -d --wait playback-chrome playback-firefox
 trap 'docker compose stop playback-chrome playback-firefox' EXIT
 "${run[@]}" builder sh tools/build-preset gcc-coverage
-"${run[@]}" builder find build/gcc-coverage -name '*.gcda' -delete
+"${run[@]}" builder python3 tools/reset-coverage.py
 "${run[@]}" builder ctest --preset gcc-coverage
 "${run[@]}" dev python3 tests/ingest/relay.py build/gcc-coverage/bacuri-vms-rtsp-test rtsp-camera
 for scenario in control archive playback live alerts; do
     "${run[@]}" -e "BACURI_BROWSER_COVERAGE=/workspace/$browser_raw" \
         dev sh tests/check-control.sh gcc-coverage "$scenario"
 done
+
+python3 tools/check-recovery gcc-coverage
 
 "${run[@]}" quality gcovr --gcov-executable gcov-14 --filter 'src/' -j 2 \
     --txt --json-summary "$report/cpp/summary.json" --html-details "$report/cpp/index.html" \

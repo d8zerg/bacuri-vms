@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <google/protobuf/util/time_util.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <unistd.h>
 #include <array>
 #include <cstdio>
@@ -47,8 +48,12 @@ class Delivery final : public v1::ArchiveDelivery::Service
         try {
             Lease lease{request->scope()};
             lease.deadline();
+            Descriptor blocks{open(blocks_.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
+            if (flock(blocks.fd, LOCK_SH | LOCK_NB) < 0) {
+                throw std::runtime_error("Archive verification in progress");
+            }
             Descriptor directory{
-                openat(blocks_.fd, request->block_id().c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
+                openat(blocks.fd, request->block_id().c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
             Descriptor manifest{
                 openat(directory.fd, "manifest.json", O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)};
             struct stat metadata{};
@@ -105,8 +110,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
     }
 
   private:
-    Descriptor blocks_{open((std::filesystem::path{control::setting("BACURI_ARCHIVE_DIR")} / "blocks").c_str(),
-                            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
+    const std::filesystem::path blocks_{std::filesystem::path{control::setting("BACURI_ARCHIVE_DIR")} / "blocks"};
 };
 } // namespace
 } // namespace bacuri::vms::media

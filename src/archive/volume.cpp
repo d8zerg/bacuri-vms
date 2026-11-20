@@ -117,7 +117,7 @@ Volume::Lock::~Lock()
     close(fd);
 }
 
-Volume::Volume(const fs::path& root, Owner owner)
+Volume::Volume(const fs::path& root, Owner owner, const InvalidBlock& invalid)
     : root_{root}, lock_{root}, db_{root / "journal.db"}, identity_{std::move(owner), {}, 0}
 {
     int version{};
@@ -126,7 +126,7 @@ Volume::Volume(const fs::path& root, Owner owner)
         next(version_query.get());
         version = sqlite3_column_int(version_query.get(), 0);
     }
-    if (version < 0 || version > 3) {
+    if (version < 0 || version > 4) {
         throw std::runtime_error("Unsupported archive journal version");
     }
     if (version == 0) {
@@ -138,6 +138,13 @@ Volume::Volume(const fs::path& root, Owner owner)
     if (version < 3) {
         db_.exec(sql::coverage);
     }
+    if (version < 4) {
+        db_.exec(sql::gap_history);
+    }
+    db_.exec("BEGIN IMMEDIATE");
+    auto previous = db_.query("SELECT 1 FROM volume_owner");
+    const bool assigned = next(previous.get());
+    previous.reset();
     auto assign = db_.query("INSERT INTO volume_owner VALUES(1,?,?,?,1) ON CONFLICT(singleton) DO UPDATE SET "
                             "generation=generation+1 WHERE site_id=excluded.site_id AND node_id=excluded.node_id "
                             "RETURNING epoch,generation");
@@ -155,7 +162,22 @@ Volume::Volume(const fs::path& root, Owner owner)
         throw std::runtime_error("Invalid archive directory");
     }
     sync_path(root_, O_DIRECTORY);
-    reconcile();
+    File verification{root_ / "blocks", O_RDONLY | O_DIRECTORY};
+    system_check(flock(verification.fd, LOCK_EX));
+    reconcile(invalid);
+    if (invalid && !assigned) {
+        auto evidence = db_.query("SELECT 1 FROM committed_blocks WHERE unavailable_reason IS NULL LIMIT 1");
+        if (!next(evidence.get())) {
+            throw std::runtime_error("Cannot establish archive volume identity from manifests");
+        }
+    }
+    // A rebuilt journal can contain manifests from a higher previous generation.
+    auto generation = db_.query("UPDATE volume_owner SET generation=max(generation,1+coalesce("
+                                "(SELECT max(owner_generation) FROM committed_blocks),0)) RETURNING generation");
+    next(generation.get());
+    identity_.generation = sqlite3_column_int64(generation.get(), 0);
+    next(generation.get());
+    db_.exec("COMMIT");
 }
 
 void Volume::record(const std::string& relative, const Json& m)
@@ -233,7 +255,7 @@ void Volume::availability(const std::string& relative, const std::string& reason
     next(update.get());
 }
 
-void Volume::recover_directory(const fs::directory_entry& entry)
+void Volume::recover_directory(const fs::directory_entry& entry, const InvalidBlock& invalid)
 {
     const auto id = entry.path().filename().string();
     if (!control::canonical_id(id)) {
@@ -279,18 +301,25 @@ void Volume::recover_directory(const fs::directory_entry& entry)
         availability(relative, verified ? "" : "corrupt");
     } else if (verified) {
         record(relative, *verified);
+    } else if (invalid) {
+        invalid(id);
     }
 }
 
-void Volume::reconcile()
+void Volume::reconcile(const InvalidBlock& invalid)
 {
     sync_path(root_ / "blocks", O_DIRECTORY);
     for (const auto& entry : fs::directory_iterator(root_ / "blocks")) {
-        recover_directory(entry);
+        recover_directory(entry, invalid);
     }
-    auto directories = db_.query("SELECT relative_directory FROM committed_blocks ORDER BY relative_directory");
+    auto directories = db_.query("SELECT relative_directory,block_id,manifest_json->>'block_id' FROM "
+                                 "committed_blocks ORDER BY relative_directory");
     while (next(directories.get())) {
         auto relative = column(directories.get(), 0);
+        auto id = column(directories.get(), 1);
+        if (!control::canonical_id(id) || relative != "blocks/" + id || column(directories.get(), 2) != id) {
+            throw std::runtime_error("Invalid archive journal identity");
+        }
         if (!fs::exists(fs::symlink_status(root_ / relative))) {
             availability(relative, "missing");
             std::fprintf(stderr, "archive missing %s\n", relative.c_str());
@@ -326,10 +355,45 @@ Volume::pending_intervals(const std::string& point, std::int64_t begin, std::int
     return result;
 }
 
+void Volume::visit_inventory(const std::function<void(const Json&, const std::string&)>& visit)
+{
+    std::scoped_lock guard{mutex_};
+    auto rows = db_.query("SELECT manifest_json,coalesce(unavailable_reason,'') FROM committed_blocks");
+    while (next(rows.get())) {
+        visit(Json::parse(column(rows.get(), 0)), column(rows.get(), 1));
+    }
+}
+
+void Volume::confirm_inventory()
+{
+    std::scoped_lock guard{mutex_};
+    db_.exec("BEGIN IMMEDIATE");
+    try {
+        auto rows = db_.query("UPDATE committed_blocks SET registered_at_utc_us=?,catalog_error=NULL "
+                              "WHERE registered_at_utc_us IS NULL OR catalog_error IS NOT NULL");
+        sqlite3_bind_int64(rows.get(), 1, now_us());
+        next(rows.get());
+        db_.exec("UPDATE archive_gaps SET registered=1 WHERE registered=0; COMMIT");
+    } catch (...) {
+        db_.exec("ROLLBACK");
+        throw;
+    }
+}
+
+void Volume::visit_gaps(const std::function<void(const Gap&)>& visit)
+{
+    std::scoped_lock guard{mutex_};
+    auto rows = db_.query("SELECT point,binding,begin_us,end_us,reason FROM archive_gaps ORDER BY id");
+    while (next(rows.get())) {
+        visit({column(rows.get(), 0), sqlite3_column_int64(rows.get(), 1), sqlite3_column_int64(rows.get(), 2),
+               sqlite3_column_int64(rows.get(), 3), column(rows.get(), 4)});
+    }
+}
+
 void Volume::report_gap(const Gap& gap)
 {
     std::scoped_lock guard{mutex_};
-    auto row = db_.query("INSERT INTO pending_gaps(point,binding,begin_us,end_us,reason) VALUES(?,?,?,?,?) ON "
+    auto row = db_.query("INSERT INTO archive_gaps(point,binding,begin_us,end_us,reason) VALUES(?,?,?,?,?) ON "
                          "CONFLICT DO NOTHING");
     bind_text(row.get(), 1, gap.point);
     sqlite3_bind_int64(row.get(), 2, gap.binding);
@@ -341,7 +405,8 @@ void Volume::report_gap(const Gap& gap)
 std::optional<std::pair<std::int64_t, Gap>> Volume::pending_gap()
 {
     std::scoped_lock guard{mutex_};
-    auto rows = db_.query("SELECT id,point,binding,begin_us,end_us,reason FROM pending_gaps ORDER BY id LIMIT 1");
+    auto rows = db_.query(
+        "SELECT id,point,binding,begin_us,end_us,reason FROM archive_gaps WHERE registered=0 ORDER BY id LIMIT 1");
     if (!next(rows.get())) {
         return {};
     }
@@ -352,7 +417,7 @@ std::optional<std::pair<std::int64_t, Gap>> Volume::pending_gap()
 void Volume::acknowledge_gap(std::int64_t id)
 {
     std::scoped_lock guard{mutex_};
-    auto row = db_.query("DELETE FROM pending_gaps WHERE id=?");
+    auto row = db_.query("UPDATE archive_gaps SET registered=1 WHERE id=?");
     sqlite3_bind_int64(row.get(), 1, id);
     next(row.get());
 }

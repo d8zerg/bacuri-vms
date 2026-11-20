@@ -44,9 +44,17 @@ struct PointAccess {
     std::string site, point, browser, role;
 };
 
+void require_archive(Database& db, const std::string& site)
+{
+    if (db.exec("SELECT 1 FROM archive_recovery WHERE site_id=$1", {site}).size()) {
+        throw Failure{503, "media_unavailable"};
+    }
+}
+
 Json search(Database& db, const Key& key, const PointAccess& access, Json params,
             std::optional<std::int64_t> binding = {})
 {
+    require_archive(db, access.site);
     const auto cursor = params.value("cursor", std::string{});
     const bool continued = params.erase("cursor") != 0;
     const auto bounds = window(params);
@@ -125,6 +133,7 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     const auto mode = string_field(body, "mode", 16);
     std::optional<Window> range;
     if (mode == "archive" && body.contains("interval")) {
+        require_archive(db, access.site);
         range = window(body.at("interval"));
     } else if (mode != "live" || body.size() != 1) {
         throw Failure{400, "invalid_request"};
@@ -393,6 +402,7 @@ void Playback::alert_archive(const Request& req, Response& res, const std::strin
     if (!rows.size()) {
         throw Failure{404, "not_found"};
     }
+    require_archive(db, site);
     const auto point = rows.get(0);
     const auto time = std::stoll(rows.get(0, 2));
     Json link{{"point_id", point}, {"state", "uncertain_time"}, {"archive_interval", alert_window(time).json()}};

@@ -228,6 +228,24 @@ services:
       timeout: 3s
       retries: 10
 
+  archive-recovery:
+    profiles: ["tools"]
+    image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}
+    pull_policy: never
+    user: "11002:11010"
+    environment:
+      PGHOST: postgres
+      PGDATABASE: bacuri_vms
+      PGUSER: bacuri
+      PGPASSWORD: bacuri-stand
+      BACURI_SITE_ID: *site
+      BACURI_NODE_ID: *node
+      BACURI_ARCHIVE_DIR: /archive/recorder
+    volumes:
+      - ./build/gcc-debug:/opt/bacuri:ro
+      - archive-data:/archive
+    command: ["/opt/bacuri/bacuri-vms-core", "rebuild-archive"]
+
   observation-source:
     profiles: ["tools"]
     image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}

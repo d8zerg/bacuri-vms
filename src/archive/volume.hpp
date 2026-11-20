@@ -24,8 +24,12 @@ class Volume
   public:
     using MediaWriter = std::function<void(const fs::path&)>;
     using Observer = std::function<void(CommitStage)>;
-    Volume(const fs::path& root, Owner owner);
+    using InvalidBlock = std::function<void(const std::string&)>;
+    Volume(const fs::path& root, Owner owner, const InvalidBlock& invalid = {});
+    void visit_inventory(const std::function<void(const Json&, const std::string&)>& visit);
     void publish(const Block&, const MediaWriter&, const Observer& observer = {});
+    void confirm_inventory();
+    void visit_gaps(const std::function<void(const Gap&)>& visit);
     void report_gap(const Gap&);
     std::optional<std::pair<std::int64_t, Gap>> pending_gap();
     void acknowledge_gap(std::int64_t id);
@@ -51,8 +55,8 @@ class Volume
         Lock& operator=(const Lock&) = delete;
         int fd;
     };
-    void reconcile();
-    void recover_directory(const fs::directory_entry&);
+    void reconcile(const InvalidBlock&);
+    void recover_directory(const fs::directory_entry&, const InvalidBlock&);
     void record(const std::string& relative, const Json& manifest);
     void availability(const std::string& relative, const std::string& reason);
     fs::path root_;

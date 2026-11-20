@@ -79,6 +79,9 @@ tasks:
       - for: [gcc-debug, clang-asan-ubsan, gcc-release]
         task: alerts:check
         vars: {PRESET: '{{.ITEM}}'}
+      - for: [gcc-debug, clang-asan-ubsan]
+        task: recovery:check
+        vars: {PRESET: '{{.ITEM}}'}
       - task: coverage:check
 
   quality:image:
@@ -235,6 +238,16 @@ tasks:
       - task: build
         vars: {PRESET: '{{.PRESET}}'}
     cmd: '{{.DEV_RUN}} sh tests/check-control.sh {{.PRESET | shellQuote}} archive'
+
+  recovery:check:
+    desc: Measure configuration, recording and archive recovery on a disposable fault stand
+    deps:
+      - dev:image
+      - task: build
+        vars: {PRESET: '{{.PRESET}}'}
+    cmds:
+      - docker compose build rtsp-camera
+      - python3 tools/check-recovery {{.PRESET | shellQuote}}
 
   playback:check:
     desc: Verify archive search, playback permissions, first frame and seek in Chrome and Firefox

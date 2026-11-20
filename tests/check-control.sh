@@ -40,6 +40,11 @@ export BACURI_RECORDER_DB="$test_dir/recorder.db" BACURI_OBSERVATION_SOCKET="$te
 export BACURI_CATALOG_SOCKET="$test_dir/catalog.sock" BACURI_ARCHIVE_DIR="$test_dir/archive"
 export BACURI_AUTH_SOCKET="$test_dir/auth.sock" BACURI_MEDIA_SOCKET="$test_dir/media.sock"
 export BACURI_PREVIEW_SOCKET="$test_dir/preview.sock"
+if [ "${2:-}" = recovery ]; then
+    fault_dir=/var/lib/bacuri-vms/fault-test
+    test "$(stat -f -c %T "$fault_dir")" = tmpfs
+    export BACURI_ARCHIVE_DIR="$fault_dir/archive"
+fi
 mkdir -p "$BACURI_ARCHIVE_DIR/blocks"
 export BACURI_LISTEN=127.0.0.1 BACURI_PORT=8443 BACURI_ORIGIN=https://localhost:8443
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -noenc -days 1 -subj /CN=localhost \
@@ -52,6 +57,10 @@ psql -Xq -v ON_ERROR_STOP=1 -c "INSERT INTO bacuri_inventory.sites VALUES ('$BAC
 "$BACURI_TEST_BIN/bacuri-vms-core" migrate
 case "${2:-control}" in
     control) python3 tests/control/registry.py "$test_dir" ;;
+    recovery)
+        ctest --test-dir "$BACURI_TEST_BIN" -R PublicationDeathTest --no-tests=error --output-on-failure \
+            --output-junit "${BACURI_RECOVERY_REPORT%.json}.boundaries.xml"
+        PYTHONDONTWRITEBYTECODE=1 python3 tests/recovery/scenarios.py "$test_dir" ;;
     archive) PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/recording.py "$test_dir" ;;
     playback|live|alerts|workspace)
         export BACURI_LISTEN=0.0.0.0 BACURI_ORIGIN="https://$(hostname -i | awk '{print $1}'):8443"
