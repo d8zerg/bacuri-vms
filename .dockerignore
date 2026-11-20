@@ -1,5 +1,10 @@
 **
 !CMakeLists.txt
+!conanfile.py
+!conan.lock
+!conan/
+!conan/profiles/
+!conan/profiles/*
 !src/
 !src/**
 !storage/

@@ -1,4 +1,4 @@
-FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS dev
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS toolchain
 ARG DEBIAN_SNAPSHOT=20261119T030000Z
 RUN sed -i \
         -e "s|http://deb.debian.org/debian-security$|http://snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT}/|" \
@@ -7,6 +7,7 @@ RUN sed -i \
         /etc/apt/sources.list.d/debian.sources \
     && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::Languages=none update \
     && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
+        ca-certificates \
         clang-19 \
         clang-tidy-19 \
         cmake \
@@ -18,14 +19,11 @@ RUN sed -i \
         gstreamer1.0-x \
         fonts-dejavu-core \
         libclang-rt-19-dev \
-        libgmock-dev \
-        libboost1.83-dev \
         libgrpc++-dev \
         libpq-dev \
         libsodium-dev \
         libssl-dev \
         libsqlite3-dev \
-        nlohmann-json3-dev \
         protobuf-compiler-grpc \
         libgstrtspserver-1.0-dev \
         libprotobuf-dev \
@@ -45,6 +43,9 @@ RUN apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::Langu
     && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
         gstreamer1.0-nice libgstreamer-plugins-bad1.0-dev \
     && rm -rf /var/lib/apt/lists/*
+ADD --checksum=sha256:94d34280e3915535bd73ac9e6896b11a5d0dea31b6c04f8c1c1acf9bf61013a1 \
+    https://github.com/conan-io/conan/releases/download/2.34.0/conan-2.34.0-amd64.deb /tmp/conan.deb
+RUN dpkg -i /tmp/conan.deb && rm /tmp/conan.deb && conan --version
 ENV XDG_CACHE_HOME=/tmp/bacuri-vms-cache
 WORKDIR /workspace
 
@@ -55,15 +56,32 @@ RUN npm ci --ignore-scripts --no-audit --no-fund
 ENV PATH=/opt/bacuri-api-tools/node_modules/.bin:$PATH
 WORKDIR /workspace
 
+FROM toolchain AS dev
+COPY conanfile.py conan.lock /opt/bacuri/
+COPY conan/profiles/ /opt/bacuri/profiles/
+RUN export CONAN_HOME=/opt/bacuri/conan-cache && \
+    for profile in gcc-debug clang-debug gcc-release; do \
+        generators="/opt/bacuri/deps/$profile"; \
+        mkdir -p "$generators" && \
+        conan install /opt/bacuri/conanfile.py \
+            -pr:b /opt/bacuri/profiles/gcc-release -pr:h "/opt/bacuri/profiles/$profile" \
+            --lockfile=/opt/bacuri/conan.lock --build=missing -of "$generators" \
+            --format=json --out-file="$generators/graph.json" || exit 1; \
+    done && conan cache clean '*' --source --build --download --temp
+RUN (dpkg-query -W && sha256sum /opt/bacuri/deps/*/graph.json /opt/bacuri/profiles/*) \
+        > /tmp/bacuri-build-inputs && \
+    sha256sum /tmp/bacuri-build-inputs > /opt/bacuri/deps/toolchain.sha256 && \
+    rm /tmp/bacuri-build-inputs
+
 FROM dev AS rtsp-camera
 COPY CMakeLists.txt ./
 COPY src ./src
 COPY storage ./storage
 COPY contracts/v1/control.proto ./contracts/v1/
 COPY tests/fixtures ./tests/fixtures
-RUN cmake -S . -B /tmp/fixture-build -G Ninja \
+RUN --network=none cmake -S . -B /tmp/fixture-build -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_CXX_COMPILER=g++-14 \
+        -DCMAKE_TOOLCHAIN_FILE=/opt/bacuri/deps/gcc-release/conan_toolchain.cmake \
         -DBUILD_TESTING=OFF \
         -DBACURI_VMS_BUILD_RTSP_FIXTURE=ON \
     && cmake --build /tmp/fixture-build --target bacuri-vms-test-rtsp-camera \

@@ -58,10 +58,31 @@ services:
       - /var/lib/bacuri-vms/fault-test:size=64m,mode=1777
     environment:
       PGHOST: postgres
+      CONAN_HOME: /tmp/conan-cache
       PGDATABASE: bacuri_vms
       PGUSER: bacuri
       PGPASSWORD: bacuri-stand
     command: ["bash"]
+
+  builder:
+    profiles: ["tools"]
+    image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}
+    pull_policy: never
+    network_mode: none
+    environment:
+      CONAN_HOME: /tmp/conan-cache
+    volumes:
+      - .:/workspace
+
+  conan:
+    profiles: ["tools"]
+    build:
+      context: .
+      target: toolchain
+    environment:
+      CONAN_HOME: /tmp/conan-cache
+    volumes:
+      - .:/workspace
 
   playback-chrome:
     profiles: ["playback-test"]

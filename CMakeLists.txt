@@ -5,6 +5,11 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+add_compile_options(
+    "$<$<CONFIG:Release>:-ffile-prefix-map=${CMAKE_SOURCE_DIR}=.>"
+    "$<$<CONFIG:Release>:-ffile-prefix-map=${CMAKE_BINARY_DIR}=./build>"
+)
+
 option(BACURI_VMS_BUILD_RTSP_FIXTURE "Build the test RTSP camera" OFF)
 include(CTest)
 
@@ -20,7 +25,7 @@ find_package(PkgConfig REQUIRED)
 find_package(Protobuf REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(PostgreSQL REQUIRED)
-find_package(nlohmann_json REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 pkg_check_modules(GRPC REQUIRED IMPORTED_TARGET grpc++)
 find_package(Boost 1.83 CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)

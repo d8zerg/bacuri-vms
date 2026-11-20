@@ -1,0 +1,11 @@
+include(linux)
+
+[settings]
+compiler=gcc
+compiler.version=14
+compiler.cppstd=23
+compiler.libcxx=libstdc++11
+build_type=Debug
+
+[conf]
+tools.build:compiler_executables={"c": "gcc-14", "cpp": "g++-14"}

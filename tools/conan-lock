@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+mkdir -p build
+lock_dir=$(mktemp -d build/conan-lock-XXXXXXXX)
+trap 'rm -rf "$lock_dir"' EXIT
+for profile in gcc-debug clang-debug gcc-release; do
+    conan lock create . -pr:b conan/profiles/gcc-release -pr:h "conan/profiles/$profile" \
+        --lockfile="" --lockfile-out="$lock_dir/$profile.lock"
+done
+conan lock merge --lockfile="$lock_dir/gcc-debug.lock" --lockfile="$lock_dir/clang-debug.lock" \
+    --lockfile="$lock_dir/gcc-release.lock" --lockfile-out="$lock_dir/conan.lock"
+mv "$lock_dir/conan.lock" conan.lock

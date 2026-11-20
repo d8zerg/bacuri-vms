@@ -1,0 +1,7 @@
+include(gcc-debug)
+
+[settings]
+build_type=Release
+
+[options]
+&:with_tests=False

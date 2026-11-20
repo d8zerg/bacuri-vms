@@ -1,0 +1,11 @@
+include(linux)
+
+[settings]
+compiler=clang
+compiler.version=19
+compiler.cppstd=23
+compiler.libcxx=libstdc++11
+build_type=Debug
+
+[conf]
+tools.build:compiler_executables={"c": "clang-19", "cpp": "clang++-19"}

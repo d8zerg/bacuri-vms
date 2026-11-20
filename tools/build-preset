@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+preset=$1
+build_dir="build/$preset"
+stamp=/opt/bacuri/deps/toolchain.sha256
+mkdir -p "$build_dir"
+exec 9>"$build_dir/.build.lock"
+flock 9
+
+if [ -f "$build_dir/CMakeCache.txt" ] && ! cmp -s "$stamp" "$build_dir/.toolchain.sha256"; then
+    cmake --fresh --preset "$preset"
+else
+    cmake --preset "$preset"
+fi
+cp "$stamp" "$build_dir/.toolchain.sha256"
+cmake --build --parallel 2 --preset "$preset"

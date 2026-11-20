@@ -4,6 +4,7 @@ vars:
   PRESET: gcc-debug
   COMPOSE_RUN: 'docker compose run --rm --no-deps --user "$(id -u):$(id -g)"'
   DEV_RUN: '{{.COMPOSE_RUN}} -T dev'
+  BUILD_RUN: '{{.COMPOSE_RUN}} -T builder'
 
 tasks:
   default:
@@ -13,10 +14,11 @@ tasks:
     desc: Build the C++ targets in Docker using the selected CMake preset
     run: when_changed
     deps: [dev:image]
-    cmd: >-
-      {{.DEV_RUN}} sh -ec
-      'cmake --preset "$1" && cmake --build --parallel 2 --preset "$1"'
-      sh {{.PRESET | shellQuote}}
+    requires:
+      vars:
+        - name: PRESET
+          enum: [gcc-release, gcc-debug, clang-debug, clang-asan-ubsan, clang-tsan]
+    cmd: '{{.BUILD_RUN}} sh tools/build-preset {{.PRESET | shellQuote}}'
 
   test:
     desc: Build and run CTest using the selected CMake preset
@@ -24,7 +26,7 @@ tasks:
       - task: build
         vars: {PRESET: '{{.PRESET}}'}
     cmd: >-
-      {{if eq .PRESET "clang-tsan"}}{{.COMPOSE_RUN}} -T tsan{{else}}{{.DEV_RUN}}{{end}}
+      {{if eq .PRESET "clang-tsan"}}{{.COMPOSE_RUN}} -T tsan{{else}}{{.BUILD_RUN}}{{end}}
       ctest --preset {{.PRESET | shellQuote}}
 
   lint:
@@ -33,7 +35,7 @@ tasks:
       - task: build
         vars: {PRESET: clang-debug}
     cmd: >-
-      {{.DEV_RUN}} run-clang-tidy-19 -p build/clang-debug
+      {{.BUILD_RUN}} run-clang-tidy-19 -p build/clang-debug
       -clang-tidy-binary=/usr/bin/clang-tidy-19 -quiet -j 2
       -clang-apply-replacements-binary=/usr/bin/clang-apply-replacements-19
       -header-filter='^/workspace/src/'
@@ -43,6 +45,7 @@ tasks:
   check:
     desc: Run the compiler and sanitizer matrix, static analysis, contract and stand checks
     cmds:
+      - task: release:check
       - for: [gcc-debug, clang-debug, clang-asan-ubsan, clang-tsan]
         task: test
         vars: {PRESET: '{{.ITEM}}'}
@@ -69,13 +72,29 @@ tasks:
         task: live:check
         vars: {PRESET: '{{.ITEM}}'}
 
-      - for: [gcc-debug, clang-asan-ubsan]
+      - for: [gcc-debug, clang-asan-ubsan, gcc-release]
         task: alerts:check
         vars: {PRESET: '{{.ITEM}}'}
 
   check:report:
     desc: Run all checks and save the environment, log, and exit code
     cmd: bash tools/check-report
+
+  release:check:
+    desc: Build the optimized services offline and verify the core executable
+    deps:
+      - task: build
+        vars: {PRESET: gcc-release}
+    cmd: '{{.BUILD_RUN}} build/gcc-release/bacuri-vms-core --version'
+
+  build:repro:
+    desc: Compare all Release executables with a clean offline build
+    deps: [release:check]
+    cmd: '{{.BUILD_RUN}} sh tools/check-release-repro'
+
+  deps:lock:
+    desc: Resolve the Conan profiles and replace the dependency lockfile
+    cmd: '{{.COMPOSE_RUN}} --build -T conan sh tools/conan-lock'
 
   stand:up:
     desc: Start PostgreSQL and the RTSP test camera and wait for health checks

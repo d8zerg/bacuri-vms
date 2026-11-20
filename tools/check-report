@@ -12,9 +12,28 @@ printf 'Check report: %s\n' "$report_dir"
     printf 'Task: %s\n' "$(task --version)"
     printf 'Docker Engine: %s\n' "$(docker version --format '{{.Server.Version}}')"
     printf 'Docker Compose: %s\n' "$(docker compose version --short)"
+    sha256sum conan.lock
 } > "$report_dir/environment.txt" 2>&1
 
 result=0
 task check 2>&1 | tee "$report_dir/check.log" || result=$?
+if [ "$result" -eq 0 ]; then
+    docker image inspect --format 'Builder image: {{.Id}}' "$(docker compose config --images builder)" \
+        >> "$report_dir/environment.txt" 2>&1 || result=$?
+    docker compose run --rm --no-deps -T --user "$(id -u):$(id -g)" builder sh -ec '
+        conan --version
+        cmake --version
+        ninja --version
+        g++-14 --version
+        clang++-19 --version
+        dpkg-query -W > "$1/debian-packages.txt"
+        for profile in gcc-debug clang-debug gcc-release; do
+            cp "/opt/bacuri/deps/$profile/graph.json" "$1/conan-$profile.json"
+        done
+        for component in core recorder media observation-source; do
+            sha256sum "build/gcc-release/bacuri-vms-$component"
+        done > "$1/release-sha256.txt"
+    ' sh "$report_dir" >> "$report_dir/environment.txt" 2>&1 || result=$?
+fi
 printf '%s\n' "$result" > "$report_dir/exit-code.txt"
 exit "$result"

@@ -2,30 +2,48 @@
   "version": 6,
   "configurePresets": [
     {
-      "name": "dev-base",
+      "name": "build-base",
       "hidden": true,
       "generator": "Ninja",
+      "toolchainFile": "$env{BACURI_CONAN_GENERATORS}/conan_toolchain.cmake",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
+        "Boost_DIR": "$env{BACURI_CONAN_GENERATORS}",
+        "nlohmann_json_DIR": "$env{BACURI_CONAN_GENERATORS}",
         "CMAKE_COMPILE_WARNING_AS_ERROR": true,
-        "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true
+      }
+    },
+    {
+      "name": "dev-base",
+      "hidden": true,
+      "inherits": "build-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "GTest_DIR": "$env{BACURI_CONAN_GENERATORS}",
+        "BUILD_TESTING": true,
         "BACURI_VMS_BUILD_RTSP_FIXTURE": true
+      }
+    },
+    {
+      "name": "gcc-release",
+      "inherits": "build-base",
+      "environment": { "BACURI_CONAN_GENERATORS": "/opt/bacuri/deps/gcc-release" },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTING": false,
+        "BACURI_VMS_BUILD_RTSP_FIXTURE": false
       }
     },
     {
       "name": "gcc-debug",
       "inherits": "dev-base",
-      "cacheVariables": {
-        "CMAKE_CXX_COMPILER": "g++-14"
-      }
+      "environment": { "BACURI_CONAN_GENERATORS": "/opt/bacuri/deps/gcc-debug" }
     },
     {
       "name": "clang-debug",
       "inherits": "dev-base",
-      "cacheVariables": {
-        "CMAKE_CXX_COMPILER": "clang++-19"
-      }
+      "environment": { "BACURI_CONAN_GENERATORS": "/opt/bacuri/deps/clang-debug" }
     },
     {
       "name": "clang-asan-ubsan",
@@ -43,6 +61,7 @@
     }
   ],
   "buildPresets": [
+    { "name": "gcc-release", "configurePreset": "gcc-release" },
     { "name": "gcc-debug", "configurePreset": "gcc-debug" },
     { "name": "clang-debug", "configurePreset": "clang-debug" },
     { "name": "clang-asan-ubsan", "configurePreset": "clang-asan-ubsan" },

@@ -1,0 +1,11 @@
+{
+    "version": "0.5",
+    "requires": [
+        "nlohmann_json/3.11.3#45828be26eb619a2e04ca517bb7b828d%1701220705.259",
+        "gtest/1.16.0#f474c77ccf9e9534220374740ece47df%1786446851.972",
+        "boost/1.83.0#d59a21babae33a7dde35565450468f49%1790854199.647"
+    ],
+    "build_requires": [],
+    "python_requires": [],
+    "config_requires": []
+}
