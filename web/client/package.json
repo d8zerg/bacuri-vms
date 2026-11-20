@@ -10,11 +10,14 @@
     "check": "tsc --noEmit && eslint src stories --max-warnings 0 && prettier --check src stories tests .storybook *.mjs *.json",
     "build": "vite build --configLoader native",
     "catalog": "storybook build --disable-telemetry --output-dir /results/storybook",
-    "test": "playwright test"
+    "test": "playwright test",
+    "app": "vite build --configLoader native --config app.vite.config.mjs"
   },
   "dependencies": {
+    "openapi-fetch": "0.17.0",
     "react": "^19",
-    "react-dom": "^19"
+    "react-dom": "^19",
+    "react-router": "7.18.6"
   },
   "devDependencies": {
     "@storybook/react-vite": "10.6.8",

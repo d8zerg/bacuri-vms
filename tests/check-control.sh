@@ -53,9 +53,11 @@ psql -Xq -v ON_ERROR_STOP=1 -c "INSERT INTO bacuri_inventory.sites VALUES ('$BAC
 case "${2:-control}" in
     control) python3 tests/control/registry.py "$test_dir" ;;
     archive) PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/recording.py "$test_dir" ;;
-    playback|live|alerts)
+    playback|live|alerts|workspace)
         export BACURI_LISTEN=0.0.0.0 BACURI_ORIGIN="https://$(hostname -i | awk '{print $1}'):8443"
-        if [ "$2" = alerts ]; then
+        if [ "$2" = workspace ]; then
+            PYTHONDONTWRITEBYTECODE=1 python3 tests/workspace/scenarios.py "$test_dir"
+        elif [ "$2" = alerts ]; then
             PYTHONDONTWRITEBYTECODE=1 python3 tests/alerts/feed.py "$test_dir"
         elif [ "$2" = live ]; then
             PYTHONDONTWRITEBYTECODE=1 python3 tests/live/streaming.py "$test_dir"

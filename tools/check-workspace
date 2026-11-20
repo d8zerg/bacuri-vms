@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+report=$(sh tools/quality-report-dir workspace)
+export BACURI_UI_RESULTS="$PWD/$report"
+echo "Workspace evidence: $report"
+run=(docker compose run --rm --no-deps -T --user "$(id -u):$(id -g)")
+"${run[@]}" ui-kit-check
+docker compose up -d --wait playback-chrome playback-firefox
+trap 'docker compose stop playback-chrome playback-firefox' EXIT
+"${run[@]}" -e "BACURI_WORKSPACE_RESULTS=/workspace/$report" dev sh tests/check-control.sh "$1" workspace
+"${run[@]}" -v "$PWD/build/web-client:/results/client:ro" ui-kit-check node tests/workspace-coverage.mjs

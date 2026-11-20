@@ -127,7 +127,7 @@ void CameraRegistry::points(const Request& req, Response& res, const std::string
 {
     Database db;
     db.exec("BEGIN");
-    const auto identity = sessions_.authenticate(db, req, false);
+    const auto identity = sessions_.authenticate(db, req, false, false);
     const auto role = site_role(db, identity, site);
     auto rows = db.exec(R"sql(
             SELECT coalesce(jsonb_agg(jsonb_build_object('id',p.point_id,'name',p.name,

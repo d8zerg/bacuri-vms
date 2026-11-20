@@ -21,17 +21,18 @@ export const test = base.extend({
 });
 export async function checkAccessibility(page, selector) {
   await page.addScriptTag({ path: require.resolve("axe-core/axe.min.js") });
-  const violations = await page.evaluate(
-    async (selector) =>
-      (
-        await window.axe.run(document.querySelector(selector), {
-          runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"],
-        })
-      ).violations.map((v) => ({
-        id: v.id,
-        nodes: v.nodes.map((n) => n.target),
+  const result = await page.evaluate(async (selector) => {
+    const audit = await window.axe.run(document.querySelector(selector), {
+      runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"],
+    });
+    return {
+      passes: audit.passes.map((rule) => rule.id),
+      violations: audit.violations.map((rule) => ({
+        id: rule.id,
+        nodes: rule.nodes.map((node) => node.target),
       })),
-    selector,
-  );
-  expect(violations).toEqual([]);
+    };
+  }, selector);
+  expect(result.violations).toEqual([]);
+  return result;
 }

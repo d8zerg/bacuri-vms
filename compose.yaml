@@ -104,6 +104,9 @@ services:
     network_mode: none
     shm_size: 1gb
     volumes:
+      - ./tests/workspace/screens:/screen-references:${BACURI_WORKSPACE_SCREEN_MODE:-ro}
+      - ./prototype/dist:/workspace/prototype/dist:ro
+      - ./build/contracts:/workspace/build/contracts:ro
       - ./design/bacuri:/workspace/design/bacuri:ro
       - ${BACURI_UI_RESULTS:-./build/ui-kit}:/results
     command: ["sh", "-ec", "npm run check && npm run build && npm run catalog && npm test"]
@@ -210,6 +213,7 @@ services:
       - ./storage/postgresql/migrations:/workspace/storage/postgresql/migrations:ro
       - core-identity:/identity:ro
       - ./web:/workspace/web:ro
+      - ./build/web-client:/workspace/build/web-client:ro
       - observation-ipc:/observation-ipc
       - media-auth:/auth-ipc
       - media-ipc:/media-ipc:ro

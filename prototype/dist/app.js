@@ -203,7 +203,6 @@ function showLive() {
 function switchScreen(showInstaller) {
   monitor.hidden = showInstaller;
   installer.hidden = !showInstaller;
-  byId("current-role").textContent = showInstaller ? "Монтажник" : "Оператор";
 
   const current = byId(showInstaller ? "show-install" : "show-monitor");
   const other = byId(showInstaller ? "show-monitor" : "show-install");

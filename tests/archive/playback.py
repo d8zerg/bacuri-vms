@@ -90,7 +90,8 @@ def fixture(camera, offset, width, colors, padding=0):
         path.write_bytes(payload)
     manifest = json.loads(Path("tests/schema/block-manifest-v1.json").read_text())
     channel, profile = control.query(
-        "SELECT channel_id,profile_id FROM bacuri_inventory.stream_profiles WHERE stream_role='main'"
+        "SELECT channel_id,profile_id FROM bacuri_inventory.stream_profiles JOIN bacuri_inventory.channels USING(site_id,channel_id)"
+        f" WHERE device_id='{camera['id']}' AND stream_role='main'"
     ).split("|")
     start = ORIGIN_US + offset * 1_000_000
     manifest.update(

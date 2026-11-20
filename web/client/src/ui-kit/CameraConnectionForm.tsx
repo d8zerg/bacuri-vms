@@ -8,7 +8,8 @@ export type CameraDraft = Readonly<{
   main_url: string;
   secondary_url: string;
 }>;
-export type StreamCheck = "available" | "unreachable" | "incompatible";
+export type StreamCheck =
+  "available" | "unreachable" | "incompatible" | "unknown";
 export type CameraCheckResult =
   | { status: "error"; reason: "disconnected" | "unknown" }
   | { status: "profiles"; main: StreamCheck; secondary: StreamCheck };
@@ -20,10 +21,12 @@ export interface CameraConnectionFormProps {
   state: CameraCheckState;
   onChange: (draft: CameraDraft) => void;
   onCheck: () => void;
+  submitLabel?: string;
 }
 
 const labels = {
   available: "Доступен",
+  unknown: "Не подтверждён",
   unreachable: "Нет связи",
   incompatible: "Несовместимый профиль",
 };
@@ -70,6 +73,7 @@ export function CameraConnectionForm({
   state,
   onChange,
   onCheck,
+  submitLabel = "Проверить подключение",
 }: CameraConnectionFormProps) {
   const id = useId();
   const form = useRef<HTMLFormElement>(null);
@@ -153,7 +157,7 @@ export function CameraConnectionForm({
           type="submit"
           aria-disabled={state.status === "checking"}
         >
-          {retry ? "Повторить проверку" : "Проверить подключение"}
+          {retry ? "Повторить проверку" : submitLabel}
         </Button>
       </div>
       <div role="status" aria-atomic="true" className="bc-result">

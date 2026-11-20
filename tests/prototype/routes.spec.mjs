@@ -109,7 +109,7 @@ test("camera setup, archive states and keyboard navigation", async ({ page }) =>
   await page.locator("#show-install").focus();
   await page.keyboard.press("Enter");
   await focused(page, "install-heading");
-  await text(page, "#current-role", "Монтажник");
+  await text(page, "#current-role", "Администратор");
   await page.locator("#check-camera").focus();
   await page.keyboard.press("Enter");
   await focused(page, "main-url");
@@ -158,6 +158,7 @@ test("camera setup, archive states and keyboard navigation", async ({ page }) =>
 
 test("full operator and installer screens", async ({ page }, testInfo) => {
   await page.goto(url);
+  await text(page, "#current-role", "Администратор");
   await expect(page.locator("#camera-heading")).toHaveCSS("font-family", /^Inter\b/);
   const loadedFonts = await page.evaluate(async () => {
     await document.fonts.ready;

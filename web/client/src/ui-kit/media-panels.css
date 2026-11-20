@@ -1,0 +1,113 @@
+@import "../../../../design/bacuri/tokens.css";
+.ws-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ws-panel-head,
+.ws-actions,
+.ws-transport,
+.ws-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.ws-panel-head,
+.ws-transport,
+.ws-pad {
+  padding: var(--space-3) var(--space-4);
+}
+.ws-panel-head {
+  justify-content: space-between;
+}
+.ws-panel h2 {
+  font-size: var(--text-panel-title);
+  margin: 0;
+}
+.ws-panel-head p,
+.ws-feed-status {
+  color: var(--muted);
+  font-size: var(--text-meta);
+  margin: 0;
+}
+.ws-modes [aria-pressed="true"] {
+  background: var(--selected);
+  border-color: var(--action);
+}
+.ws-media {
+  position: relative;
+  background: var(--video);
+  aspect-ratio: 16/9;
+}
+.ws-media video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.ws-overlay,
+.ws-tag {
+  color: var(--on-video);
+  background: var(--overlay);
+}
+.ws-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: var(--space-4);
+}
+.ws-tag {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  padding: 0.2em 0.5em;
+  border-radius: 0.3em;
+  font-size: var(--text-caption);
+}
+.ws-transport {
+  font-size: var(--text-meta);
+  color: var(--muted);
+}
+.ws-transport time,
+.ws-alerts time {
+  font: var(--text-caption) var(--numerals);
+}
+.ws-feed-status {
+  margin: 0 var(--space-4) var(--space-2);
+}
+.ws-alerts ul {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  overflow: auto;
+  max-height: 65vh;
+  display: grid;
+  gap: var(--space-1);
+}
+.ws-alerts button {
+  display: grid;
+  text-align: left;
+  width: 100%;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--space-1);
+  font: inherit;
+  padding: var(--space-2);
+  gap: 0.25rem;
+  cursor: pointer;
+}
+.ws-alerts button:hover,
+.ws-alerts button[aria-current="true"] {
+  background: var(--selected);
+}
+.ws-alerts button span,
+.ws-alerts time {
+  color: var(--muted);
+  font-size: var(--text-caption);
+}

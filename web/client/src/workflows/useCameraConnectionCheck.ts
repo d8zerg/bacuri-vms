@@ -14,12 +14,20 @@ export type CheckCameraStreams = (
 export function useCameraConnectionCheck(
   initial: CameraDraft,
   check: CheckCameraStreams,
+  enabled = true,
 ): CameraConnectionFormProps {
   const [value, setValue] = useState(initial);
   const [state, setState] = useState<CameraCheckState>({ status: "idle" });
   const active = useRef<AbortController | null>(null);
   useEffect(() => () => active.current?.abort(), []);
 
+  useEffect(() => {
+    if (!enabled) {
+      active.current?.abort();
+      active.current = null;
+      setState({ status: "idle" });
+    }
+  }, [enabled]);
   function change(next: CameraDraft) {
     active.current?.abort();
     active.current = null;
@@ -28,7 +36,7 @@ export function useCameraConnectionCheck(
   }
 
   async function run() {
-    if (active.current) return;
+    if (!enabled || active.current) return;
     const request = new AbortController();
     active.current = request;
     setState({ status: "checking" });

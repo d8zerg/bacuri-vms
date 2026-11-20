@@ -167,7 +167,7 @@ void Sessions::handle(const Request& request, Response& response, const std::str
     case http::verb::get: {
         Database db;
         db.exec("BEGIN");
-        auto identity = authenticate(db, request, false);
+        auto identity = authenticate(db, request, false, false);
         respond(response, session_body(db, key_, identity));
         db.exec("COMMIT");
         return;

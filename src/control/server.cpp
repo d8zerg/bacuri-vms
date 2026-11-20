@@ -31,11 +31,58 @@ void allow(const Request& req, Response& res, std::initializer_list<http::verb> 
 
 namespace
 {
+bool workspace_page(std::string_view path)
+{
+    return path == "/" || path == "/monitor" || path == "/cameras";
+}
+
+void workspace_file(const Request& req, Response& res, std::string_view path)
+{
+    allow(req, res, {http::verb::get});
+    std::string file_name = "build/web-client/index.html";
+    std::string_view mime = "text/html; charset=utf-8";
+    if (!workspace_page(path)) {
+        const auto name = path.substr(std::string_view{"/assets/"}.size());
+        if (name.empty() ||
+            name.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.") !=
+                name.npos ||
+            name.find("..") != name.npos) {
+            throw Failure{404, "not_found"};
+        }
+        if (name.ends_with(".js")) {
+            mime = "text/javascript; charset=utf-8";
+        } else if (name.ends_with(".css")) {
+            mime = "text/css";
+        } else if (name.ends_with(".svg")) {
+            mime = "image/svg+xml";
+        } else if (name.ends_with(".webm")) {
+            mime = "video/webm";
+        } else if (name.ends_with(".woff2")) {
+            mime = "font/woff2";
+        } else {
+            throw Failure{404, "not_found"};
+        }
+        file_name = "build/web-client/assets/" + std::string{name};
+    }
+    std::ifstream file{file_name, std::ios::binary};
+    if (!file) {
+        throw workspace_page(path) ? Failure{503, "dependency_unavailable"} : Failure{404, "not_found"};
+    }
+    res.result(http::status::ok);
+    res.set(http::field::content_type, mime);
+    res.set("Content-Security-Policy", "default-src 'self'; media-src 'self' blob:; object-src 'none'; "
+                                       "frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    res.body().assign(std::istreambuf_iterator<char>{file}, {});
+}
+
 void route(const Request& req, Response& res, const std::string& peer, const Sessions& sessions,
            const CameraRegistry& registry, const Playback& playback, const Key& key, const std::string& origin)
 {
     std::string_view path{req.target().data(), req.target().size()};
     path = path.substr(0, path.find('?'));
+    if (workspace_page(path) || path.starts_with("/assets/")) {
+        return workspace_file(req, res, path);
+    }
     if (path == "/alerts/" || path == "/alerts/app.js" || path == "/archive/" || path == "/archive/player.js" ||
         path == "/archive/app.js" || path == "/archive/style.css" || path == "/live/" || path == "/live/live.js" ||
         path == "/session.js") {

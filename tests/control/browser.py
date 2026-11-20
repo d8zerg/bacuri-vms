@@ -12,7 +12,7 @@ import registry as control
 
 
 @contextmanager
-def browser_session(browser, credential, page):
+def browser_session(browser, credential, page, *, workspace_coverage=None):
     root = f"http://playback-{browser}:4444"
 
     def call(method, path, body=None):
@@ -41,32 +41,38 @@ def browser_session(browser, credential, page):
         return call("POST", path + "/goog/cdp/execute", {"cmd": "Profiler." + command, "params": params})
 
     try:
-        if coverage:
+        workspace = workspace_coverage if browser == "chrome" else None
+        if coverage or workspace:
             profiler("enable")
             profiler("startPreciseCoverage", callCount=True, detailed=True)
         call("POST", path + "/timeouts", {"script": 50000})
+        if credential:
+            call("POST", path + "/url", {"url": control.ORIGIN + "/session.js"})
+            name, value = credential["Cookie"].split("=", 1)
+            call(
+                "POST",
+                path + "/cookie",
+                {
+                    "cookie": {
+                        "name": name,
+                        "value": value,
+                        "path": "/",
+                        "secure": True,
+                        "httpOnly": True,
+                        "sameSite": "Strict",
+                    }
+                },
+            )
         call("POST", path + "/url", {"url": control.ORIGIN + page})
-        name, value = credential["Cookie"].split("=", 1)
-        call(
-            "POST",
-            path + "/cookie",
-            {
-                "cookie": {
-                    "name": name,
-                    "value": value,
-                    "path": "/",
-                    "secure": True,
-                    "httpOnly": True,
-                    "sameSite": "Strict",
-                }
-            },
-        )
-        call("POST", path + "/refresh", {})
         yield (
             lambda method, endpoint, body=None: call(method, path + endpoint, body),
             result["capabilities"]["browserVersion"],
         )
-        if coverage:
+        if workspace:
+            scripts = [s for s in profiler("takePreciseCoverage")["result"] if s["url"].startswith(control.ORIGIN + "/assets/") and s["url"].endswith(".js")]
+            assert scripts, "No workspace bundle in Chrome coverage"
+            (workspace / f"{uuid4()}.json").write_text(json.dumps(scripts))
+        elif coverage:
             scripts = []
             for script in profiler("takePreciseCoverage")["result"]:
                 url = script["url"]

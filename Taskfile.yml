@@ -49,7 +49,6 @@ tasks:
       - task: format:check
       - task: docs:check
       - task: prototype:check
-      - task: ui-kit:check
       - task: release:check
       - for: [gcc-debug, clang-debug, clang-asan-ubsan, clang-tsan]
         task: test
@@ -105,8 +104,8 @@ tasks:
       -exec clang-format-19 --dry-run --Werror --style=file {} +
 
   coverage:check:
-    desc: Require 75 percent line coverage for both product C++ and browser JavaScript
-    deps: [quality:image, dev:image, stand:up, ui-kit:check]
+    desc: Require 75 percent line coverage separately for C++, browser JavaScript and client TypeScript
+    deps: [quality:image, dev:image, stand:up, workspace:check]
     cmds:
       - docker compose build api-types
       - bash tools/check-coverage
@@ -197,6 +196,7 @@ tasks:
   control:up:
     desc: Start the local HTTPS control, recorder and media delivery services
     deps:
+      - web:build
       - task: build
         vars: {PRESET: gcc-debug}
     cmds:
@@ -299,7 +299,27 @@ tasks:
         openapi-typescript contracts/v1/openapi.yaml --output build/contracts/api.d.ts &&
         tsc --noEmit --strict build/contracts/api.d.ts'
 
+  web:build:
+    desc: Build the typed HTTPS workspace and isolated performance reference
+    deps: [api:types]
+    cmds:
+      - docker compose build ui-kit-check
+      - mkdir -p build/web-client build/workspace-fixture
+      - >-
+        {{.COMPOSE_RUN}} -T -v "$PWD/build/web-client:/results/client" -v "$PWD/build/workspace-fixture:/results/fixture"
+        ui-kit-check sh -ec 'npm run app -- --mode fixture && npm run app'
+
+  workspace:check:
+    desc: Exercise both workspaces on HTTPS with real media, WSS and browser coverage
+    deps:
+      - web:build
+      - stand:up
+      - task: build
+        vars: {PRESET: '{{.PRESET}}'}
+    cmd: bash tools/check-workspace {{.PRESET | shellQuote}}
+
   ui-kit:check:
+    deps: [api:types]
     desc: Build the React UI Kit and Storybook, check types, keyboard, accessibility and browser coverage
     run: once
     cmds:
@@ -312,6 +332,7 @@ tasks:
         {{.COMPOSE_RUN}} -T ui-kit-check
 
   ui-kit:up:
+    deps: [api:types]
     desc: Build and serve the local Storybook catalog
     cmds:
       - docker compose build ui-kit-check

@@ -53,12 +53,12 @@ async function signedIn(identity) {
     status("");
     if (identity.site_roles.length) await siteChanged();
 }
-byId("login").onsubmit = action(async () => {
-    await signedIn(await json("/session", post(Object.fromEntries(new FormData(byId("login"))))));
-    byId("login").reset();
-});
 export { points };
 export async function initialize(onSite = points, preferredSite) {
+    byId("login").onsubmit = action(async () => {
+        await signedIn(await json("/session", post(Object.fromEntries(new FormData(byId("login"))))));
+        byId("login").reset();
+    });
     siteChanged = onSite;
     initialSite = preferredSite;
     byId("site").onchange = action(onSite);
