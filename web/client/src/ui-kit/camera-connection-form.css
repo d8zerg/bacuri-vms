@@ -1,0 +1,55 @@
+.bc-camera {
+  box-sizing: border-box;
+  max-inline-size: 35rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  background: var(--surface);
+  font: var(--text-body) / var(--leading-body) var(--font);
+  overflow-wrap: anywhere;
+}
+.bc-camera header {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.bc-camera h2,
+.bc-camera h3 {
+  margin: 0;
+  font-size: var(--text-panel-title);
+}
+.bc-fields {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.bc-fields .bk-button {
+  justify-self: start;
+  padding: var(--space-2) var(--space-3);
+}
+.bc-result {
+  font-size: var(--text-control);
+}
+.bc-result:not(:empty) {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.bc-result h3 {
+  font-size: var(--text-control);
+}
+.bc-result dl {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+}
+.bc-result dl div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+.bc-result dt {
+  color: var(--muted);
+}
+.bc-result dd {
+  margin: 0;
+}

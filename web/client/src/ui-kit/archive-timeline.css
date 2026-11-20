@@ -30,23 +30,6 @@
   margin: 0;
   font-size: var(--text-panel-title);
 }
-.bt-header button {
-  border: 1px solid var(--control);
-  border-radius: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--text-control);
-  cursor: pointer;
-}
-.bt-header button:hover {
-  background: var(--raised);
-}
-.bt-header button[aria-disabled="true"] {
-  color: var(--muted);
-  cursor: wait;
-}
 .bt-timeline :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;

@@ -317,7 +317,7 @@ tasks:
       - docker compose build ui-kit-check
       - mkdir -p build/ui-kit
       - '{{.COMPOSE_RUN}} -T -v "$PWD/build/ui-kit:/results" ui-kit-check npm run catalog'
-      - docker compose up --wait --wait-timeout 30 ui-kit-catalog
+      - docker compose up --force-recreate --wait --wait-timeout 30 ui-kit-catalog
 
   ui-kit:down:
     desc: Stop the local Storybook catalog

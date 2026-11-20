@@ -1,0 +1,93 @@
+@import "../../../../design/bacuri/tokens.css";
+
+.bk-button {
+  max-inline-size: 100%;
+  border: 1px solid var(--control);
+  border-radius: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface);
+  color: var(--ink);
+  font: var(--text-control) / var(--leading-body) var(--font);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.bk-button:hover {
+  background: var(--raised);
+}
+.bk-button[data-variant="primary"] {
+  background: var(--action-fill);
+  color: var(--on-action);
+  font-weight: 600;
+}
+.bk-button[data-variant="primary"]:hover {
+  background: var(--action-hover);
+}
+.bk-button[data-variant="primary"]:active {
+  background: var(--action-pressed);
+}
+.bk-button[aria-disabled="true"] {
+  color: var(--muted);
+  background: var(--surface);
+  cursor: wait;
+}
+.bk-button:focus-visible,
+.bk-field input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.bk-field {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--space-1);
+}
+.bk-field label {
+  color: var(--ink);
+  font-size: var(--text-control);
+  font-weight: 620;
+}
+.bk-field input {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  inline-size: 100%;
+  padding: var(--space-2);
+  border: 1px solid var(--control);
+  border-radius: var(--space-1);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.bk-field input::placeholder,
+.bk-hint {
+  color: var(--muted);
+}
+.bk-field input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.bk-error {
+  color: var(--danger);
+}
+.bk-hint,
+.bk-error {
+  font-size: var(--text-caption);
+}
+.bk-indicator {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  color: var(--muted);
+}
+.bk-indicator::before {
+  content: "";
+  inline-size: 0.45em;
+  block-size: 0.45em;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+  align-self: baseline;
+}
+.bk-indicator[data-tone="success"] {
+  color: var(--success);
+}
+.bk-indicator[data-tone="danger"] {
+  color: var(--danger);
+}

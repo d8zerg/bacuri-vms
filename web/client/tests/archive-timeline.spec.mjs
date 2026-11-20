@@ -1,7 +1,4 @@
-import { createRequire } from "node:module";
-import { test, expect } from "playwright/test";
-import { coverageReport } from "./coverage.mjs";
-const require = createRequire(import.meta.url);
+import { test, expect, checkAccessibility } from "./browser.mjs";
 const open = async (page, name) => {
   await page.goto("/iframe.html?viewMode=story&id=archive-timeline--" + name);
   await expect(
@@ -10,20 +7,6 @@ const open = async (page, name) => {
 };
 const slider = (page) => page.getByRole("slider", { name: "Позиция в архиве" });
 
-test.beforeEach(async ({ page }, info) => {
-  if (info.project.name === "chromium-light")
-    await page.coverage.startJSCoverage({ resetOnNavigation: false });
-});
-test.afterEach(async ({ page }, info) => {
-  if (info.project.name === "chromium-light") {
-    const entries = await page.coverage.stopJSCoverage();
-    await coverageReport().add(
-      entries.filter((entry) =>
-        entry.url.startsWith("http://127.0.0.1:6006/assets/"),
-      ),
-    );
-  }
-});
 test("Catalog theme overrides the system setting and exposes Russian content", async ({
   page,
 }, info) => {
@@ -110,18 +93,7 @@ test("Coverage evidence, accessible names and reflow at narrow widths", async ({
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(320);
-  await page.addScriptTag({ path: require.resolve("axe-core/axe.min.js") });
-  const violations = await page.evaluate(async () =>
-    (
-      await window.axe.run(document.querySelector(".bt-timeline"), {
-        runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"],
-      })
-    ).violations.map((v) => ({
-      id: v.id,
-      nodes: v.nodes.map((n) => n.target),
-    })),
-  );
-  expect(violations).toEqual([]);
+  await checkAccessibility(page, ".bt-timeline");
   await info.attach("timeline-320", {
     body: await page.locator(".bt-timeline").screenshot(),
     contentType: "image/png",

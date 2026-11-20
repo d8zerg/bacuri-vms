@@ -1,5 +1,6 @@
 import { useId } from "react";
 import type { KeyboardEvent } from "react";
+import { Button } from "./FormControls";
 import "./archive-timeline.css";
 
 type Interval = Readonly<{ startMs: number; endMs: number }>;
@@ -137,15 +138,13 @@ export function ArchiveTimeline({
     <section className="bt-timeline" aria-labelledby={id}>
       <header className="bt-header">
         <h2 id={id}>Шкала архива</h2>
-        <button
+        <Button
           type="button"
           aria-disabled={data.status === "loading"}
-          onClick={() => {
-            if (data.status !== "loading") onRefresh();
-          }}
+          onClick={onRefresh}
         >
           Обновить шкалу
-        </button>
+        </Button>
       </header>
       <div
         role="status"

@@ -3,9 +3,15 @@ export default defineConfig({
   cacheDir: "/tmp/bacuri-vite",
   build: {
     lib: {
-      entry: "src/ui-kit/ArchiveTimeline.tsx",
+      entry: {
+        "archive-timeline": "src/ui-kit/ArchiveTimeline.tsx",
+        "camera-connection-form": "src/ui-kit/CameraConnectionForm.tsx",
+        "form-controls": "src/ui-kit/FormControls.tsx",
+        "camera-connection-check": "src/workflows/useCameraConnectionCheck.ts",
+      },
       formats: ["es"],
-      fileName: "archive-timeline",
+      fileName: (_format, name) => name + ".js",
+      cssFileName: "archive-timeline",
     },
     outDir: "/results/library",
     emptyOutDir: true,
