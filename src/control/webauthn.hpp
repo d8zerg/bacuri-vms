@@ -3,7 +3,8 @@
 
 namespace bacuri::vms::control
 {
-std::string enrollment_code(const std::string& username);
+enum class Enrollment { first, recovery };
+std::string enrollment_code(const std::string& username, Enrollment mode = Enrollment::first);
 Json begin_webauthn(Database&, const Key&, const std::string& origin, const std::string& user, const Json& login);
 struct VerifiedFactor {
     std::string user;

@@ -1,0 +1,11 @@
+[Unit]
+Description=Serve Bacuri Prometheus metrics
+[Service]
+ExecStart=/usr/sbin/bacuri-maintain scrape
+StandardInput=socket
+StandardOutput=socket
+DynamicUser=true
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+RuntimeMaxSec=5s

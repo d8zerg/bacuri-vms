@@ -217,7 +217,7 @@ void setup(char** v)
     run({"/usr/sbin/bacuri-basic", "admin", "migrate"});
     run({"/usr/sbin/bacuri-basic", "admin", "initial-admin", user});
     run({"/usr/bin/systemctl", "enable", "--now", "bacuri-core.service", "bacuri-recorder.service",
-         "bacuri-media.service"});
+         "bacuri-media.service", "bacuri-diagnostics.timer", "bacuri-metrics.socket"});
 }
 } // namespace
 int main(int argc, char** argv)

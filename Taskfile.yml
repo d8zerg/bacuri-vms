@@ -405,6 +405,22 @@ tasks:
         {{.COMPOSE_RUN}} -T basic-packager python3 tools/basic-package.py "$report" --qualification
         bash tools/check-basic-install "$report"
 
+  basic:operations:
+    desc: Qualify upgrade, interrupted migration, rollback and recovery with a signed predecessor
+    requires: {vars: [PREVIOUS]}
+    deps:
+      - web:build
+      - task: build
+        vars: {PRESET: gcc-release}
+    cmds:
+      - docker compose build basic-packager basic-vm rtsp-camera
+      - |
+        set -eu
+        report=$(sh tools/quality-report-dir basic-operations)
+        echo "Upgrade and recovery results: $report"
+        {{.COMPOSE_RUN}} -T basic-packager python3 tools/basic-package.py "$report" --qualification
+        bash tools/check-basic-operations "$report" {{.PREVIOUS | shellQuote}}
+
   basic:package:
     desc: Assemble the offline Basic release with the supplied GnuPG home and signing fingerprint
     requires: {vars: [SIGNING_HOME, SIGNER, OUTPUT]}

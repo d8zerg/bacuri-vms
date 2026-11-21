@@ -30,7 +30,7 @@ def ext4(name, size, contents=None):
     return disk
 
 
-def seed_guest():
+def configure_guest(proof, trusted):
     (guest / "mnt/bundle").mkdir(parents=True, exist_ok=True)
     (guest / "srv/bacuri-archive").mkdir(parents=True, exist_ok=True)
     (guest / "etc/fstab").write_text(
@@ -40,13 +40,17 @@ def seed_guest():
     (guest / "etc/systemd/network/10-guest.network").write_text(
         "[Match]\nName=en* eth*\n[Network]\nAddress=10.0.2.15/24\nGateway=10.0.2.2\nLinkLocalAddressing=no\nIPv6AcceptRA=no\n"
     )
-    shutil.copyfile(report / "release-key.gpg", guest / "etc/bacuri-test-key.gpg")
-    shutil.copyfile("tests/basic/guest", guest / "usr/local/sbin/basic-test")
+    shutil.copyfile(trusted, guest / "etc/bacuri-test-key.gpg")
+    shutil.copyfile(proof, guest / "usr/local/sbin/basic-test")
     unit = guest / "etc/systemd/system/basic-proof.service"
     unit.write_text(
         "[Unit]\nDescription=Offline installation test console\nAfter=network.target local-fs.target bacuri-core.service bacuri-media.service bacuri-recorder.service\n[Service]\nType=simple\nExecStart=/bin/bash /usr/local/sbin/basic-test\nStandardOutput=journal+console\nStandardError=journal+console\n[Install]\nWantedBy=multi-user.target\n"
     )
     (unit.parent / "multi-user.target.wants" / unit.name).symlink_to("../" + unit.name)
+
+
+def seed_guest():
+    configure_guest("tests/basic/guest", report / "release-key.gpg")
     root = ext4("bacuri-root", 6144, guest)
     archive = ext4("bacuri-archive", 256)
     bundle = report / "bundle"
@@ -282,10 +286,7 @@ def publish(name, data):
     temporary.replace(path)
 
 
-def main():
-    (report / "installation.json").unlink(missing_ok=True)
-    root, archive, kit = seed_guest()
-    local, remote = socket.socketpair()
+def qemu_command(disks, kit, remote):
     cmd = [
         "qemu-system-x86_64",
         "-accel",
@@ -317,8 +318,16 @@ def main():
         "-device",
         "virtio-net-pci,netdev=net",
     ]
-    for path in (root, archive, kit):
+    for path in disks:
         cmd.extend(["-drive", f"file={path},format=raw,if=virtio,readonly={'on' if path==kit else 'off'}"])
+    return cmd
+
+
+def main():
+    (report / "installation.json").unlink(missing_ok=True)
+    root, archive, kit = seed_guest()
+    local, remote = socket.socketpair()
+    cmd = qemu_command([root, archive, kit], kit, remote)
     with (report / "guest.log").open("wb") as log, subprocess.Popen(
         cmd, pass_fds=[remote.fileno()], stdout=log, stderr=log
     ) as vm:

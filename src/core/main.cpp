@@ -131,6 +131,8 @@ try {
             if (!grant.size())
                 throw std::invalid_argument("User has no access to this point");
         }
+    } else if (action == "recover-admin" && argc == 3) {
+        std::cout << enrollment_code(argv[2], Enrollment::recovery) << '\n';
     } else if (action == "enroll-admin" && argc == 3) {
         std::cout << enrollment_code(argv[2]) << '\n';
     } else if (action == "revoke-point" && argc == 4) {
@@ -157,7 +159,7 @@ try {
             "Usage: bacuri-vms-core --version | serve | migrate | backup-config | restore-config | "
             "recovery-status | set-retention DAYS [RESERVE_PERCENT] | rebuild-archive | import-map "
             "REGION.mbtiles | create-user USER ROLE | "
-            "enroll-admin USER | revoke-point USER POINT | grant-point USER "
+            "enroll-admin USER | recover-admin USER | revoke-point USER POINT | grant-point USER "
             "POINT | grant-export USER POINT START_UTC END_UTC | revoke-export USER POINT | export-public-key\n",
             stderr);
         return 1;

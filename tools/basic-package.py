@@ -35,6 +35,9 @@ def make_package(work, repo, version, runtime, headers):
         file = "bacuri-vms-" + binary
         copy(Path("build/gcc-release") / file, pkg / "usr/lib/bacuri-vms" / file)
     copy("build/gcc-release/bacuri-basic", pkg / "usr/sbin/bacuri-basic")
+    copy("build/gcc-release/bacuri-maintain", pkg / "usr/sbin/bacuri-maintain")
+    for unit in ("bacuri-diagnostics.timer","bacuri-diagnostics.service","bacuri-metrics.socket","bacuri-metrics@.service"):
+        copy(Path("packaging/basic")/unit,pkg/"usr/lib/systemd/system"/unit)
     for name in ("core", "recorder", "media"):
         unit = f"bacuri-{name}.service"
         copy(Path("packaging/basic") / unit, pkg / "usr/lib/systemd/system" / unit)
@@ -132,6 +135,8 @@ def main():
         product = make_package(work, repo, version, packages, headers)
         packages.append(package_info(product))
         copy("build/gcc-release/bacuri-install", kit / "bacuri-install")
+        copy("build/gcc-release/bacuri-maintain", kit / "bacuri-maintain")
+        copy("docs/basic-maintenance.md", kit / "MAINTENANCE.md")
         copy("LICENSE", kit / "LICENSE")
         copy("docs/basic-install.md", kit / "INSTALL.md")
         (kit / "VERSION").write_text(version + "\n")
@@ -196,6 +201,7 @@ def main():
         sign(repo / "Release", repo / "InRelease", "--clearsign")
         sign(product, repo / (product.name + ".sig"))
         sign(kit / "bacuri-install", kit / "bacuri-install.sig")
+        sign(kit / "bacuri-maintain", kit / "bacuri-maintain.sig")
         entries = [f"{digest(p)}  {p.relative_to(kit)}\n" for p in sorted(kit.rglob("*")) if p.is_file()]
         (kit / "SHA256SUMS").write_text("".join(entries))
         sign(kit / "SHA256SUMS", kit / "SHA256SUMS.sig")

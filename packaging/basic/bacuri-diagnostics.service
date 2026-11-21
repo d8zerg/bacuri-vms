@@ -1,0 +1,11 @@
+[Unit]
+Description=Collect Bacuri operational diagnostics
+ConditionPathExists=!/var/lib/bacuri-maintenance/pending
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/bacuri-maintain sample
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+ReadWritePaths=/run/bacuri-vms

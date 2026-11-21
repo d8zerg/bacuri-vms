@@ -49,14 +49,20 @@ void check(int result)
     require(result == FIDO_OK);
 }
 } // namespace
-std::string enrollment_code(const std::string& username)
+std::string enrollment_code(const std::string& username, Enrollment mode)
 {
     Database db;
     db.exec("BEGIN");
     auto row = db.exec("SELECT u.user_id FROM local_users u WHERE username=$1 AND EXISTS(SELECT FROM site_roles r "
                        "WHERE r.user_id=u.user_id AND role='administrator') FOR UPDATE",
                        {username});
-    if (!row.size() || db.exec("SELECT FROM webauthn_credentials WHERE user_id=$1", {row.get(0)}).size())
+    if (!row.size())
+        throw std::invalid_argument("Expected a local administrator");
+    if (mode == Enrollment::recovery) {
+        db.exec("DELETE FROM webauthn_credentials WHERE user_id=$1", {row.get(0)});
+        db.exec("DELETE FROM browser_sessions WHERE user_id=$1", {row.get(0)});
+        db.exec("INSERT INTO credential_audit(user_id,action) VALUES($1,'recovery_started')", {row.get(0)});
+    } else if (db.exec("SELECT FROM webauthn_credentials WHERE user_id=$1", {row.get(0)}).size())
         throw std::invalid_argument("Expected administrator awaiting first enrollment");
     const auto secret = token();
     db.exec("DELETE FROM webauthn_challenges WHERE user_id=$1", {row.get(0)});

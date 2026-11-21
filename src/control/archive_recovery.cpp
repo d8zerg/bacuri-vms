@@ -28,9 +28,13 @@ void mark_unavailable(Database& db, const archive::Owner& owner, const Json& m, 
 
 void rebuild_archive(std::ostream& output)
 {
+    Database db;
+    rebuild_archive(db, output);
+}
+void rebuild_archive(Database& db, std::ostream& output)
+{
     const archive::Owner owner{setting("BACURI_SITE_ID"), setting("BACURI_NODE_ID")};
     const archive::fs::path root{setting("BACURI_ARCHIVE_DIR")};
-    Database db;
     if (db.exec("SELECT pg_try_advisory_lock(hashtextextended($1,1))", {owner.site}).get(0) != "t") {
         throw std::runtime_error("Another site recovery is in progress");
     }

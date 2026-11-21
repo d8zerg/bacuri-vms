@@ -69,7 +69,8 @@ void migrate()
                                     "0011_alert_work.sql",
                                     "0012_archive_retention.sql",
                                     "0013_fragment_export.sql",
-                                    "0014_admin_mfa.sql"};
+                                    "0014_admin_mfa.sql",
+                                    "0015_credential_recovery.sql"};
     if (version > static_cast<int>(migrations.size())) {
         throw std::runtime_error("Unsupported database schema");
     }

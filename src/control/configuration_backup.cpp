@@ -16,7 +16,7 @@ using Json = nlohmann::json;
 // Table order follows inventory foreign keys. Session tokens and delivery attempts are transient.
 constexpr std::array tables{"sites",
                             "local_users",
-                            "webauthn_credentials",
+                            "credential_audit",
                             "observation_points",
                             "devices",
                             "channels",
@@ -105,7 +105,8 @@ void restore_configuration(std::istream& input)
     }
     encrypted.pop_back();
     auto data = Json::parse(unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site)));
-    for (const auto* table : {"webauthn_credentials", "camera_transport_audit", "floor_plans", "point_placements",
+    data.erase("webauthn_credentials");
+    for (const auto* table : {"credential_audit", "camera_transport_audit", "floor_plans", "point_placements",
                               "archive_retention", "export_grants"}) {
         if (!data.contains(table))
             data[table] = Json::array();
@@ -116,7 +117,9 @@ void restore_configuration(std::istream& input)
     db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,1))", {site});
     const auto existing = snapshot(db);
     if (std::ranges::any_of(existing, [](const Json& rows) { return !rows.empty(); })) {
-        if (existing != data) {
+        auto configuration = existing;
+        configuration["credential_audit"] = data.at("credential_audit");
+        if (configuration != data) {
             throw std::runtime_error("Restore requires a clean database or an identical inventory");
         }
     } else {
@@ -133,7 +136,10 @@ void restore_configuration(std::istream& input)
     db.exec(
         "DELETE FROM recorder_attempt; UPDATE recorder_delivery SET decided_revision=0; "
         "UPDATE configuration_progress SET applied_revision=NULL,application_state='pending',failure_code=NULL; "
-        "DELETE FROM webauthn_challenges; DELETE FROM webauthn_enrollment; DELETE FROM browser_sessions");
+        "INSERT INTO credential_audit(user_id,action) SELECT DISTINCT user_id,'restore_reset' FROM site_roles "
+        "WHERE role='administrator'; "
+        "DELETE FROM webauthn_credentials; DELETE FROM webauthn_challenges; DELETE FROM webauthn_enrollment; "
+        "DELETE FROM browser_sessions");
     db.exec("COMMIT");
 }
 } // namespace bacuri::vms::control

@@ -23,6 +23,7 @@ task check
 | Команда | Действие |
 | --- | --- |
 | `task basic:check` | Установить подписанный комплект на чистую Debian 13 в KVM, перезагрузить узел и проверить WebAuthn и права на точки. На хосте требуется `/dev/kvm`. [Автономная установка](docs/basic-install.md) |
+| `task basic:operations PREVIOUS=/путь/к/отчёту` | Проверить переход со схемы 14 на 15, повтор миграции, откат и восстановление на отдельном узле с сохранным архивом. Нужен каталог подписанного комплекта 0.1.0 с `bundle/` и `release-key.gpg`. [Обслуживание Basic](docs/basic-maintenance.md) |
 | `task build` | Собрать C++ цели с пресетом `gcc-debug` |
 | `task build PRESET=clang-debug` | Собрать с указанным пресетом CMake |
 | `task release:check` | Собрать оптимизированные службы, запустить `bacuri-vms-core --version` |
