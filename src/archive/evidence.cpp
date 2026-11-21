@@ -81,8 +81,8 @@ std::string sign_description(const control::Key& seed, const std::string& descri
 }
 Json verify_evidence(const std::filesystem::path& dir, const Json& trusted)
 {
-    const auto description = read_text(dir / "manifest.json", 4 * 1024 * 1024);
-    const auto sig = unhex<crypto_sign_BYTES>(read_text(dir / "manifest.sig", 2 * crypto_sign_BYTES));
+    const auto description = read_text(dir / "manifest.json", 4uz * 1024 * 1024);
+    const auto sig = unhex<crypto_sign_BYTES>(read_text(dir / "manifest.sig", 2uz * crypto_sign_BYTES));
     require(trusted.at("algorithm") == "Ed25519");
     const auto pub = unhex<crypto_sign_PUBLICKEYBYTES>(trusted.at("public_key"));
     require(crypto_sign_verify_detached(sig.data(), reinterpret_cast<const unsigned char*>(description.data()),

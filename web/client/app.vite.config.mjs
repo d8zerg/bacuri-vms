@@ -17,8 +17,9 @@ export default defineConfig(({ mode }) => ({
     emptyOutDir: true,
     assetsInlineLimit: 0,
     sourcemap: "hidden",
+    license: { fileName: "assets/third-party-licenses.txt" },
     rolldownOptions: {
-      external: ["/archive/player.js"],
+      external: ["/archive/player.js", "/webauthn.js"],
       output: {
         assetFileNames: (asset) =>
           asset.names.some((name) =>

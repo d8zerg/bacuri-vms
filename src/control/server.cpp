@@ -91,7 +91,7 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     }
     if (path == "/alerts/" || path == "/alerts/app.js" || path == "/archive/" || path == "/archive/player.js" ||
         path == "/archive/app.js" || path == "/archive/style.css" || path == "/live/" || path == "/live/live.js" ||
-        path == "/session.js") {
+        path == "/session.js" || path == "/webauthn.js") {
         allow(req, res, {http::verb::get});
         const bool html = path.ends_with('/');
         std::ifstream file{"web" + std::string{path} + (html ? "index.html" : "")};
@@ -116,6 +116,10 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
             throw Failure{404, "not_found"};
         }
         return playback.session(req, res, id, slash == path.npos ? std::string_view{} : path.substr(slash + 1));
+    }
+    if (path == "/api/v1/session/webauthn") {
+        allow(req, res, {http::verb::post});
+        return sessions.factor(req, res);
     }
     if (path == "/api/v1/session") {
         return sessions.handle(req, res, peer);

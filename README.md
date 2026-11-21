@@ -22,10 +22,11 @@ task check
 
 | Команда | Действие |
 | --- | --- |
+| `task basic:check` | Установить подписанный комплект на чистую Debian 13 в KVM, перезагрузить узел и проверить WebAuthn и права на точки. На хосте требуется `/dev/kvm`. [Автономная установка](docs/basic-install.md) |
 | `task build` | Собрать C++ цели с пресетом `gcc-debug` |
 | `task build PRESET=clang-debug` | Собрать с указанным пресетом CMake |
 | `task release:check` | Собрать оптимизированные службы, запустить `bacuri-vms-core --version` |
-| `task build:repro` | Побайтно сравнить четыре Release-файла с чистой сборкой в отдельном каталоге того же образа |
+| `task build:repro` | Побайтно сравнить исполняемые файлы Release с чистой сборкой в отдельном каталоге того же образа |
 | `task deps:lock` | Пересчитать общий Conan lockfile по всем профилям после изменения зависимостей |
 | `task test` | Собрать и запустить CTest. Поддерживает `PRESET` |
 | `task lint` | Запустить clang-tidy |
@@ -114,7 +115,7 @@ python3 tools/lifecycle/policy.py "$report/snapshot" "$report/replay.json"
 
 При первом запуске стенд создаёт локальный сертификат и отдельные ключи шифрования ядра и узла записи. Публичный сертификат можно получить командой `docker compose exec -T core cat /identity/tls.crt` и использовать для проверки TLS. Том каждого ключа требуется сохранять вместе с соответствующей базой. Процессы работают под разными UID и передают снимки конфигурации через gRPC по Unix-сокету. Узел восстанавливает последнюю применённую версию из зашифрованного снимка в SQLite.
 
-Для создания учётной записи используйте `task control:create-user USERNAME=admin ROLE=administrator`, передав пароль одной строкой через stdin. Для оператора укажите `ROLE=operator` и выдайте доступ к зарегистрированной точке командой `task control:grant-point USERNAME=operator POINT=<UUID>`. Для входа браузер отправляет JSON в `POST /api/v1/session` с текущим HTTPS Origin. Запись конфигурации использует сессионную cookie и CSRF-токен. [Контракты и модель доступа](docs/adr/001-api-contracts.md)
+Для создания учётной записи используйте `task control:create-user USERNAME=admin ROLE=administrator`, передав пароль одной строкой через stdin. Перед первым входом администратора выполните `task control:enroll-admin USERNAME=admin` в локальной консоли. Откройте `/cameras` по доверенному HTTPS, введите пароль и код, затем подтвердите регистрацию и вход ключом WebAuthn. Для оператора укажите `ROLE=operator` и выдайте доступ к зарегистрированной точке командой `task control:grant-point USERNAME=operator POINT=<UUID>`. Для входа браузер отправляет JSON в `POST /api/v1/session` с текущим HTTPS Origin. Запись конфигурации использует сессионную cookie и CSRF-токен. [Контракты и модель доступа](docs/adr/001-api-contracts.md)
 
 ## Рабочее место администратора и оператора
 

@@ -1,4 +1,5 @@
 #include "control/api.hpp"
+#include "control/webauthn.hpp"
 #include "control/playback_time.hpp"
 #include "archive/evidence.hpp"
 #include "control/recovery.hpp"
@@ -21,7 +22,7 @@ int integer(std::string_view value, int maximum)
     return result;
 }
 
-void provision(const std::string& username, const std::string& role)
+void provision(const std::string& username, const std::string& role, bool initial = false)
 {
     std::string password;
     if (username.empty() || username.size() > 128 || (role != "administrator" && role != "operator") ||
@@ -32,6 +33,21 @@ void provision(const std::string& username, const std::string& role)
     db.exec("BEGIN");
     auto site = setting("BACURI_SITE_ID");
     db.exec("INSERT INTO sites VALUES ($1,'Local site','UTC') ON CONFLICT DO NOTHING", {site});
+    if (initial) {
+        db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,1))", {site});
+        auto existing = db.exec("SELECT username FROM site_roles JOIN local_users USING(user_id) WHERE site_id=$1 "
+                                "AND role='administrator'",
+                                {site});
+        if (existing.size()) {
+            auto same = db.exec("SELECT FROM site_roles JOIN local_users USING(user_id) WHERE site_id=$1 AND "
+                                "username=$2 AND role='administrator'",
+                                {site, username});
+            if (!same.size())
+                throw std::invalid_argument("Site already has an administrator");
+            db.exec("COMMIT");
+            return;
+        }
+    }
     auto user = db.exec("INSERT INTO local_users(username,password_hash) VALUES ($1,$2) RETURNING user_id",
                         {username, password_hash(password)})
                     .get(0);
@@ -79,6 +95,13 @@ try {
         rebuild_archive(std::cout);
     } else if (action == "import-map" && argc == 3) {
         import_map(argv[2]);
+    } else if (action == "initial-admin" && argc == 3) {
+        provision(argv[2], "administrator", true);
+        Database db;
+        if (!db.exec("SELECT FROM webauthn_credentials JOIN local_users USING(user_id) WHERE username=$1",
+                     {argv[2]})
+                 .size())
+            std::cout << enrollment_code(argv[2]) << '\n';
     } else if (action == "create-user" && argc == 4) {
         provision(argv[2], argv[3]);
     } else if (action == "export-public-key" && argc == 2) {
@@ -108,6 +131,13 @@ try {
             if (!grant.size())
                 throw std::invalid_argument("User has no access to this point");
         }
+    } else if (action == "enroll-admin" && argc == 3) {
+        std::cout << enrollment_code(argv[2]) << '\n';
+    } else if (action == "revoke-point" && argc == 4) {
+        Database db;
+        db.exec("DELETE FROM point_grants g USING local_users u WHERE g.user_id=u.user_id AND u.username=$1 AND "
+                "g.site_id=$2 AND g.point_id=$3",
+                {argv[2], setting("BACURI_SITE_ID"), argv[3]});
     } else if (action == "grant-point" && argc == 4) {
         Database db;
         db.exec("BEGIN");
@@ -127,7 +157,7 @@ try {
             "Usage: bacuri-vms-core --version | serve | migrate | backup-config | restore-config | "
             "recovery-status | set-retention DAYS [RESERVE_PERCENT] | rebuild-archive | import-map "
             "REGION.mbtiles | create-user USER ROLE | "
-            "grant-point USER "
+            "enroll-admin USER | revoke-point USER POINT | grant-point USER "
             "POINT | grant-export USER POINT START_UTC END_UTC | revoke-export USER POINT | export-public-key\n",
             stderr);
         return 1;

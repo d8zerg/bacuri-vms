@@ -142,7 +142,7 @@ RUN export CONAN_HOME=/opt/bacuri/conan-cache && \
 RUN --mount=from=maintenance-build,source=/sdk/xml-dev,target=/packages \
     dpkg --path-include='*' -i /packages/*.deb
 COPY --from=maintenance-build /sdk/xml-dev/provenance.json /usr/share/bacuri/maintenance/xml-dev.json
-RUN apt-get -o Acquire::Retries=2 update && apt-get install -y --no-install-recommends libpng-dev \
+RUN apt-get -o Acquire::Retries=2 update && apt-get install -y --no-install-recommends libpng-dev libfido2-dev \
     && rm -rf /var/lib/apt/lists/*
 RUN (dpkg-query -W && sha256sum /opt/bacuri/deps/*/graph.json /opt/bacuri/profiles/*) \
         > /tmp/bacuri-build-inputs && \
@@ -154,6 +154,31 @@ RUN apt-get -o Acquire::Retries=3 update \
     && apt-get -o Acquire::Retries=3 install -y --no-install-recommends clang-format-19 gcovr git \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=go-tools /out/gitleaks /usr/local/bin/gitleaks
+
+FROM debian-base AS basic-dependencies
+COPY packaging/basic/runtime-packages /tmp/runtime-packages
+COPY --from=maintenance-build /out/xml/ /patched/xml/
+COPY --from=maintenance-build /out/soup/ /patched/soup/
+RUN mkdir -p /packages/partial && touch /tmp/empty-status && apt-get update && \
+    apt-get --download-only --no-install-recommends -y -o Dir::State::status=/tmp/empty-status \
+        -o Dir::Cache::archives=/packages install $(cat /tmp/runtime-packages) /patched/*/*.deb && \
+    cp /patched/*/*.deb /packages/ && rm -rf /packages/partial /packages/lock
+
+FROM dev AS basic-packager
+RUN apt-get update && apt-get install -y --no-install-recommends gnupg apt-utils dpkg-dev && rm -rf /var/lib/apt/lists/*
+COPY --from=basic-dependencies /packages /opt/bacuri/offline-packages
+
+FROM debian-base AS basic-guest
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends systemd-sysv linux-image-cloud-amd64 \
+    initramfs-tools busybox iproute2 openssl gpgv e2fsprogs && rm -rf /var/lib/apt/lists/* && \
+    rm -f /usr/sbin/policy-rc.d /etc/machine-id && touch /etc/machine-id && \
+    systemctl enable systemd-networkd.service
+
+FROM debian-base AS basic-vm
+RUN apt-get update && apt-get install -y --no-install-recommends qemu-system-x86 e2fsprogs python3 && rm -rf /var/lib/apt/lists/*
+COPY --from=basic-guest / /guest/
+WORKDIR /workspace
 
 FROM dev AS rtsp-camera
 COPY CMakeLists.txt ./

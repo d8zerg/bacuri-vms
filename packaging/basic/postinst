@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+systemd-sysusers /usr/lib/sysusers.d/bacuri-vms.conf
+systemd-tmpfiles --create /usr/lib/tmpfiles.d/bacuri-vms.conf
+if [ -d /run/systemd/system ]; then systemctl daemon-reload; fi

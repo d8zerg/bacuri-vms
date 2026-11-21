@@ -76,8 +76,9 @@ class ExportBody final : public MediaBody
     {
         if (std::chrono::steady_clock::now() + 100ms >= deadline)
             deadline = authorize();
-        std::string bytes(64 * 1024, '\0');
-        input.read(bytes.data(), bytes.size());
+        constexpr std::streamsize chunk_size = 65536;
+        std::string bytes(static_cast<std::size_t>(chunk_size), '\0');
+        input.read(bytes.data(), chunk_size);
         bytes.resize(input.gcount());
         return {std::move(bytes), deadline};
     }
@@ -219,6 +220,7 @@ void export_fragment(const Request& req, Response& res, const Sessions& sessions
                 try {
                     db.exec("DELETE FROM media_sessions WHERE id=$1", {id});
                 } catch (const std::exception&) {
+                    std::fputs("Export session cleanup deferred until expiry\n", stderr);
                 }
             }
         } close_session{db, session};
@@ -236,7 +238,7 @@ void export_fragment(const Request& req, Response& res, const Sessions& sessions
             cursor = until;
             const auto file = "clip-" + std::to_string(clips.size() + 1) + ".mp4";
             const auto input = stream->root / "source.mp4";
-            copy_export_block(session, browser, m, input);
+            copy_export_block(session, m, browser, input);
             if (m.at("media").at("sha256") != archive::file_digest(input).sha256)
                 throw Failure{503, "media_unavailable"};
             Json clip{{"source", m}, {"state", "recorded"}, {"file", file}, {"transform", "original"}};
@@ -280,7 +282,7 @@ void export_fragment(const Request& req, Response& res, const Sessions& sessions
         if (!alert.empty())
             manifest["alert_id"] = alert;
         const auto description = manifest.dump(2);
-        if (description.size() > 4 * 1024 * 1024)
+        if (description.size() > 4uz * 1024 * 1024)
             throw Failure{413, "export_too_large"};
         write_text(dir / "manifest.json", description);
         write_text(dir / "manifest.sig",

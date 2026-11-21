@@ -56,7 +56,22 @@ async function signedIn(identity) {
 export { points };
 export async function initialize(onSite = points, preferredSite) {
     byId("login").onsubmit = action(async () => {
-        await signedIn(await json("/session", post(Object.fromEntries(new FormData(byId("login"))))));
+        const fields = Object.fromEntries(new FormData(byId("login")));
+        let identity;
+        try {
+            identity = await json("/session", post(fields));
+        } catch (error) {
+            if (error.message === "enrollment_required") {
+                location.assign("/cameras");
+                return;
+            }
+            throw error;
+        }
+        if (identity.kind === "get") {
+            const { factorAnswer } = await import("/webauthn.js");
+            identity = await json("/session/webauthn", post(await factorAnswer(identity, fields.username)));
+        }
+        await signedIn(identity);
         byId("login").reset();
     });
     siteChanged = onSite;

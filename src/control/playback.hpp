@@ -3,7 +3,7 @@
 namespace bacuri::vms::control
 {
 void allow(const Request&, Response&, std::initializer_list<http::verb>);
-void copy_export_block(const std::string& session, const std::string& browser, const Json& source,
+void copy_export_block(const std::string& session, const Json& source, const std::string& browser,
                        const std::filesystem::path& destination);
 void export_fragment(const Request&, Response&, const Sessions&, const Key&, const std::string& site,
                      const std::string& point);

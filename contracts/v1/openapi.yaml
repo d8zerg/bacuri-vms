@@ -236,6 +236,26 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /session/webauthn:
+    post:
+      operationId: verifyAdminFactor
+      security: []
+      description: Complete a password-authenticated challenge on the issuing origin. Enrollment requires a subsequent assertion.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FactorAnswer' }
+      responses:
+        '201':
+          description: Both factors verified.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BrowserSession' }
+        '204': { description: Credential registered. }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
   /session:
     post:
       operationId: createSession
@@ -247,6 +267,11 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/Login' }
       responses:
+        '202':
+          description: Password accepted. A WebAuthn ceremony is required before issuing a session.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FactorChallenge' }
         '201':
           description: Session created. Rotate the browser credential on every successful login.
           headers:
@@ -1063,6 +1088,26 @@ components:
         start: { $ref: '#/components/schemas/UtcTime' }
         end: { $ref: '#/components/schemas/UtcTime' }
       description: Half-open interval with start strictly earlier than end.
+    FactorChallenge:
+      type: object
+      required: [kind, rp_id, user_id, ticket, challenge]
+      properties:
+        kind: { type: string, enum: [get, create] }
+        rp_id: { type: string }
+        user_id: { $ref: '#/components/schemas/Id' }
+        ticket: { type: string, minLength: 64, maxLength: 64 }
+        challenge: { type: string }
+        credential_id: { type: string }
+    FactorAnswer:
+      type: object
+      additionalProperties: false
+      required: [ticket, credential_id, client_data, authenticator_data]
+      properties:
+        ticket: { type: string }
+        credential_id: { type: string }
+        client_data: { type: string }
+        authenticator_data: { type: string }
+        signature: { type: string }
     Login:
       type: object
       additionalProperties: false
@@ -1070,6 +1115,7 @@ components:
       properties:
         username: { type: string, minLength: 1, maxLength: 128 }
         password: { type: string, minLength: 1, maxLength: 1024, writeOnly: true }
+        enrollment_code: { type: string, minLength: 64, maxLength: 64, writeOnly: true }
     BrowserSession:
       type: object
       required: [user_id, site_roles, expires_at, csrf_token]
@@ -1369,6 +1415,8 @@ components:
             - camera_authentication_failed
             - camera_binding_conflict
             - camera_discovery_unavailable
+            - invalid_factor
+            - enrollment_required
             - invalid_credentials
             - unauthenticated
             - forbidden

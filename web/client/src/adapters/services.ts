@@ -26,12 +26,30 @@ export function createServices(): Services {
       csrf = identity.csrf_token;
       return identity;
     },
-    async login(username, password) {
-      const identity = data(
-        await api.POST("/session", { body: { username, password } }),
-      );
-      csrf = identity.csrf_token;
-      return identity;
+    async login(username, password, enrollment) {
+      const body = {
+        username,
+        password,
+        ...(enrollment ? { enrollment_code: enrollment } : {}),
+      };
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const stage = data(await api.POST("/session", { body }));
+        if ("csrf_token" in stage) {
+          csrf = stage.csrf_token;
+          return stage;
+        }
+        const { factorAnswer } = await import("/webauthn.js");
+        const verified = await api.POST("/session/webauthn", {
+          body: await factorAnswer(stage, username),
+        });
+        if (verified.response.status === 204 && stage.kind === "create")
+          continue;
+        const identity = data(verified);
+        if (!identity) throw new HttpFailure(403, "invalid_factor");
+        csrf = identity.csrf_token;
+        return identity;
+      }
+      throw new HttpFailure(403, "invalid_factor");
     },
     async logout() {
       const { response } = await api.DELETE("/session", {

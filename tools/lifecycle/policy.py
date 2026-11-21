@@ -10,7 +10,7 @@ import maintenance
 
 
 IMAGES = {"conan": "build", "ui-kit-catalog": "test", "scanner": "test", "dev": "build", "quality": "test", "postgres": "product", "rtsp-camera": "test",
-          "api-types": "build", "ui-kit-check": "build", "prototype-check": "test",
+          "basic-packager": "build", "basic-vm": "test", "api-types": "build", "ui-kit-check": "build", "prototype-check": "test",
           "playback-chrome": "test", "playback-firefox": "test"}
 LOCKS = {"conan.lock", "tests/prototype/package-lock.json", "tools/api-client/package-lock.json",
          "web/client/package-lock.json"}
@@ -22,7 +22,8 @@ DISTROS = {"alpine": "https://security.alpinelinux.org/", "debian": "https://sec
 
 EXTRA_EVIDENCE = {"backport-reference", "host", "vendor", "maintenance-policy", "conan-gcc-debug", "conan-gcc-release", "conan-clang-debug",
                   "installed-api-types", "installed-ui-kit-check", "installed-prototype-check"}
-BUNDLERS = {"conan": "https://www.debian.org/security/",
+BUNDLERS = {"basic-packager": "https://www.debian.org/security/", "basic-vm": "https://www.debian.org/security/",
+            "conan": "https://www.debian.org/security/",
             "ui-kit-catalog": "https://github.com/nginx/docker-nginx-unprivileged",
             "scanner": "https://github.com/aquasecurity/trivy/security", "dev": "https://www.debian.org/security/", "quality": "https://github.com/gitleaks/gitleaks/security",
             "rtsp-camera": "https://www.debian.org/security/", "api-types": "https://github.com/nodejs/docker-node",

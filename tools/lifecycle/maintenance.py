@@ -5,7 +5,7 @@ from hashlib import file_digest
 import subprocess
 
 TARGETS = {"conan": ("xml", "soup"), "dev": ("xml", "xml-dev", "soup"), "quality": ("xml", "xml-dev", "soup"),
-           "rtsp-camera": ("xml", "xml-dev", "soup"), "postgres": ("xml",)}
+           "basic-packager": ("xml", "xml-dev", "soup"), "rtsp-camera": ("xml", "xml-dev", "soup"), "postgres": ("xml",)}
 ONNX = "CVE-2026-28500"
 ONNX_SOURCE = "https://github.com/onnx/onnx/security/advisories/GHSA-hqmj-h5c6-369m"
 

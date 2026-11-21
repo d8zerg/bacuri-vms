@@ -1,0 +1,21 @@
+[Unit]
+Description=Bacuri VMS control and HTTPS API
+After=postgresql.service network.target
+Requires=postgresql.service
+
+[Service]
+User=bacuri-core
+EnvironmentFile=/etc/bacuri-vms/core.env
+WorkingDirectory=/usr/share/bacuri-vms
+ExecStartPre=/usr/lib/bacuri-vms/bacuri-vms-core migrate
+ExecStart=/usr/lib/bacuri-vms/bacuri-vms-core serve
+Restart=on-failure
+UMask=0007
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/bacuri-vms/core /var/lib/bacuri-core
+
+[Install]
+WantedBy=multi-user.target

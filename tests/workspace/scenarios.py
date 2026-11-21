@@ -78,8 +78,7 @@ def action_cost(browser, phase, credential, route):
 
 
 def installer(browser, admin, restart):
-    with browser_session(browser, None, "/cameras", workspace_coverage=raw) as (call, _):
-        login(call, "installer")
+    with browser_session(browser, c.login("installer"), "/cameras", workspace_coverage=raw) as (call, _):
         camera_name = "Workspace " + browser
         field(call, "name", camera_name)
         base = "rtsp://" + os.environ["BACURI_TEST_CAMERA_HOST"] + ":8554"

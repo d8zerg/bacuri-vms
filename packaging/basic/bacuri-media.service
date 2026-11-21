@@ -1,0 +1,21 @@
+[Unit]
+Description=Bacuri VMS media
+After=network.target bacuri-core.service
+RequiresMountsFor=/srv/bacuri-archive
+ConditionPathIsMountPoint=/srv/bacuri-archive
+
+[Service]
+User=bacuri-media
+EnvironmentFile=/etc/bacuri-vms/media.env
+WorkingDirectory=/usr/share/bacuri-vms
+ExecStart=/usr/lib/bacuri-vms/bacuri-vms-media
+Restart=on-failure
+UMask=0007
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/bacuri-vms/media
+
+[Install]
+WantedBy=multi-user.target

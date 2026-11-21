@@ -8,7 +8,7 @@ namespace bacuri::vms::control
 {
 namespace
 {
-constexpr std::size_t image_limit = 4 * 1024 * 1024;
+constexpr std::size_t image_limit = 4uz * 1024 * 1024;
 void require(bool valid)
 {
     if (!valid)
@@ -36,8 +36,10 @@ class Statement
         require(ptr != nullptr);
         return {ptr, static_cast<std::size_t>(sqlite3_column_bytes(stmt.get(), column))};
     }
-    int integer(int column, int maximum) const
+    enum class TileColumn { zoom, x, tms_y };
+    int integer(TileColumn field, int maximum) const
     {
+        const auto column = static_cast<int>(field);
         require(sqlite3_column_type(stmt.get(), column) == SQLITE_INTEGER);
         const auto n = sqlite3_column_int64(stmt.get(), column);
         require(n >= 0 && n <= maximum);
@@ -52,8 +54,9 @@ Json parse_bounds(std::string_view csv)
     Json values = Json::array();
     for (int i = 0; i < 4; ++i) {
         double coordinate{};
-        const char* end = csv.data() + csv.size();
-        auto [next, ec] = std::from_chars(csv.data(), end, coordinate);
+        const char* first = csv.data();
+        const char* end = first + csv.size();
+        auto [next, ec] = std::from_chars(first, end, coordinate);
         require(ec == std::errc{} && std::isfinite(coordinate) &&
                 std::abs(coordinate) <= (i % 2 ? 85.051129 : 180));
         values.push_back(coordinate);
@@ -61,7 +64,7 @@ Json parse_bounds(std::string_view csv)
             require(next == end);
         else {
             require(next != end && *next == ',');
-            csv.remove_prefix(next - csv.data() + 1);
+            csv.remove_prefix(next - first + 1);
         }
     }
     require(values[0] < values[2] && values[1] < values[3]);
@@ -140,8 +143,9 @@ void import_map(const std::filesystem::path& file)
     Statement tiles(raw, "SELECT zoom_level,tile_column,tile_row,tile_data FROM tiles");
     int min_zoom = 23, max_zoom = -1;
     while (tiles.next()) {
-        const int z = tiles.integer(0, 22), last = (1 << z) - 1, x = tiles.integer(1, last),
-                  y = last - tiles.integer(2, last);
+        const int z = tiles.integer(Statement::TileColumn::zoom, 22), last = (1 << z) - 1,
+                  x = tiles.integer(Statement::TileColumn::x, last),
+                  y = last - tiles.integer(Statement::TileColumn::tms_y, last);
         auto tile = read_map_png(tiles.bytes(3), true);
         std::unique_ptr<char, decltype(&g_free)> encoded{
             g_base64_encode(reinterpret_cast<const guchar*>(tile.png.data()), tile.png.size()), g_free};

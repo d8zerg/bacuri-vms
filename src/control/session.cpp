@@ -1,4 +1,5 @@
 #include "control/api.hpp"
+#include "control/webauthn.hpp"
 
 #include <algorithm>
 
@@ -125,7 +126,7 @@ Identity Sessions::authenticate(Database& db, const Request& request, bool mutat
 void Sessions::login(const Request& request, Response& response, const std::string& peer) const
 {
     check_origin(request, origin_);
-    const auto body = object_body(request, {"username", "password"});
+    const auto body = object_body(request, {"username", "password", "enrollment_code"});
     const auto username = string_field(body, "username", 128);
     const auto password = string_field(body, "password", 1024);
     Database db;
@@ -141,15 +142,49 @@ void Sessions::login(const Request& request, Response& response, const std::stri
         throw Failure{429, "rate_limited"};
     }
     db.exec("BEGIN");
-    auto user = db.exec("SELECT user_id,password_hash FROM local_users WHERE username=$1 FOR SHARE", {username});
+    auto user = db.exec("SELECT user_id,password_hash FROM local_users WHERE username=$1 FOR UPDATE", {username});
     if (!password_matches(user.size() ? user.get(0, 1) : dummy_hash_, password) || !user.size()) {
         throw Failure{401, "invalid_credentials"};
     }
+    if (db.exec("SELECT FROM site_roles WHERE user_id=$1 AND role='administrator'", {user.get(0)}).size()) {
+        auto challenge = begin_webauthn(db, key_, origin_, user.get(0), body);
+        db.exec("COMMIT");
+        return respond(response, challenge, 202);
+    }
+    issue(db, request, response, user.get(0));
+}
+void Sessions::factor(const Request& request, Response& response) const
+{
+    check_origin(request, origin_);
+    const auto body =
+        object_body(request, {"ticket", "credential_id", "client_data", "authenticator_data", "signature"});
+    Database db;
+    db.exec("BEGIN");
+    const auto ticket = fingerprint(key_, "webauthn", string_field(body, "ticket", 64));
+    db.exec("SAVEPOINT verify_factor");
+    VerifiedFactor result;
+    try {
+        result = finish_webauthn(db, key_, origin_, body);
+    } catch (const Failure&) {
+        db.exec("ROLLBACK TO SAVEPOINT verify_factor");
+        db.exec("DELETE FROM webauthn_challenges WHERE ticket_hash=$1", {ticket});
+        db.exec("COMMIT");
+        throw;
+    }
+    if (result.enrolled) {
+        db.exec("COMMIT");
+        response.result(http::status::no_content);
+        return;
+    }
+    issue(db, request, response, result.user);
+}
+void Sessions::issue(Database& db, const Request& request, Response& response, const std::string& user_id) const
+{
     auto previous = cookie(request);
     db.exec("DELETE FROM browser_sessions WHERE token_hash=$1 OR expires_at<=now() OR "
             "last_active<=now()-interval '30 minutes'",
             {fingerprint(key_, "session", previous)});
-    const Identity identity{user.get(0), token()};
+    const Identity identity{user_id, token()};
     db.exec("INSERT INTO browser_sessions(token_hash,user_id,expires_at) VALUES ($1,$2,now()+interval '8 hours')",
             {fingerprint(key_, "session", identity.cookie), identity.user});
     auto result = session_body(db, key_, identity);

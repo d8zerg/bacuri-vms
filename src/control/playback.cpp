@@ -281,7 +281,7 @@ v1::AuthorizeDeliveryRequest scope(const Rows& session, std::optional<Window> in
 }
 } // namespace
 
-void copy_export_block(const std::string& session, const std::string& browser, const Json& source,
+void copy_export_block(const std::string& session, const Json& source, const std::string& browser,
                        const std::filesystem::path& destination)
 {
     v1::ReadPartRequest q;
@@ -304,7 +304,7 @@ void copy_export_block(const std::string& session, const std::string& browser, c
         auto chunk = stream.next();
         if (chunk.bytes.empty() || chunk.bytes.size() > remaining)
             throw Failure{503, "media_unavailable"};
-        out.write(chunk.bytes.data(), chunk.bytes.size());
+        out.write(chunk.bytes.data(), static_cast<std::streamsize>(chunk.bytes.size()));
         remaining -= chunk.bytes.size();
     }
     out.close();

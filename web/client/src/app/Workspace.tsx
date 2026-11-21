@@ -11,6 +11,7 @@ import {
   type RouteObject,
 } from "react-router";
 import type { Feed, Point, Services, Session } from "../contracts/workspace";
+import { HttpFailure } from "../adapters/api";
 import { Installer } from "./installer";
 import { Monitor } from "./monitor";
 import { Button } from "../ui-kit/FormControls";
@@ -32,18 +33,36 @@ function Login({
   message: string;
 }) {
   const [notice, setNotice] = useState(message),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [enroll, setEnroll] = useState(false);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (busy) return;
     const fields = new FormData(e.currentTarget);
     const username = fields.get("username"),
-      password = fields.get("password");
+      password = fields.get("password"),
+      enrollment = fields.get("enrollment");
     if (typeof username !== "string" || typeof password !== "string") return;
     setBusy(true);
     try {
-      onLogin(await services.login(username, password));
-    } catch {
+      onLogin(
+        await services.login(
+          username,
+          password,
+          typeof enrollment === "string" ? enrollment : undefined,
+        ),
+      );
+    } catch (error) {
+      if (
+        error instanceof HttpFailure &&
+        error.code === "enrollment_required"
+      ) {
+        setEnroll(true);
+        setNotice(
+          "Введите одноразовый код из локальной консоли площадки и подключите ключ безопасности.",
+        );
+        return;
+      }
       setNotice("Вход не выполнен. Проверьте данные и связь с площадкой.");
     } finally {
       setBusy(false);
@@ -66,6 +85,17 @@ function Login({
             autoComplete="current-password"
           />
         </label>
+        {enroll && (
+          <label>
+            Код первичной привязки
+            <input
+              type="password"
+              name="enrollment"
+              autoComplete="off"
+              required
+            />
+          </label>
+        )}
         <Button type="submit" variant="primary" disabled={busy}>
           Войти
         </Button>

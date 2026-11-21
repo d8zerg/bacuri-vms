@@ -117,7 +117,7 @@ Json add_plan(Database& db, const Request& req, const std::string& site)
     const auto name = string_field(body, "name", 128);
     valid(body.contains("png") && body["png"].is_string());
     const auto& encoded = body["png"].get_ref<const std::string&>();
-    constexpr std::size_t maximum = 4 * 1024 * 1024;
+    constexpr std::size_t maximum = 4uz * 1024 * 1024;
     valid(encoded.size() <= 4 * ((maximum + 2) / 3));
     std::string bytes(encoded.size() / 4 * 3 + 3, '\0');
     std::size_t length{};

@@ -71,6 +71,8 @@ struct Pipeline {
         auto bus = own(gst_element_get_bus(pipeline.get()));
         std::unique_ptr<GstMessage, decltype(&gst_message_unref)> msg{
             gst_bus_timed_pop_filtered(bus.get(), timeout,
+                                       // GStreamer accepts a bit mask of message types.
+                                       // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
                                        static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR)),
             gst_message_unref};
         if (msg && GST_MESSAGE_TYPE(msg.get()) == GST_MESSAGE_ERROR)
@@ -82,6 +84,8 @@ struct Pipeline {
 ClipFrames select_frames(const std::filesystem::path& input, const std::filesystem::path& output,
                          std::int64_t from_us, std::int64_t until_us)
 {
+    if (from_us < 0 || until_us <= from_us)
+        throw std::invalid_argument("Invalid export interval");
     gst_init(nullptr, nullptr);
     Pipeline decoder{"filesrc name=file ! qtdemux ! h264parse ! avdec_h264 ! videoconvert ! "
                      "video/x-raw,format=I420 ! appsink name=frames max-buffers=2 sync=false"};
@@ -141,7 +145,7 @@ ClipFrames select_frames(const std::filesystem::path& input, const std::filesyst
         }
         if (gst_app_src_push_buffer(GST_APP_SRC(raw.get()), frame) != GST_FLOW_OK)
             throw std::runtime_error("Cannot encode export frame");
-        result.end_us = pos + std::max<std::int64_t>(1, duration / GST_USECOND);
+        result.end_us = pos + std::max<std::int64_t>(1, static_cast<std::int64_t>(duration / GST_USECOND));
         ++result.count;
         if (result.count % 25 == 0 && std::filesystem::file_size(output) > evidence_limit)
             throw std::runtime_error("Export media exceeds size limit");

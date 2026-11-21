@@ -1,0 +1,21 @@
+[Unit]
+Description=Bacuri VMS recorder
+After=network.target bacuri-core.service
+RequiresMountsFor=/srv/bacuri-archive
+ConditionPathIsMountPoint=/srv/bacuri-archive
+
+[Service]
+User=bacuri-recorder
+EnvironmentFile=/etc/bacuri-vms/recorder.env
+WorkingDirectory=/usr/share/bacuri-vms
+ExecStart=/usr/lib/bacuri-vms/bacuri-vms-recorder
+Restart=on-failure
+UMask=0007
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/bacuri-vms/recorder /var/lib/bacuri-recorder /srv/bacuri-archive/recorder
+
+[Install]
+WantedBy=multi-user.target

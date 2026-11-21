@@ -5,8 +5,7 @@ scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 cmake --preset gcc-release -B "$scratch"
 cmake --build "$scratch" --parallel 2
-for component in core recorder media observation-source verify-export; do
-    executable="bacuri-vms-$component"
+for executable in bacuri-vms-core bacuri-vms-recorder bacuri-vms-media bacuri-vms-observation-source bacuri-vms-verify-export bacuri-basic bacuri-install; do
     cmp "build/gcc-release/$executable" "$scratch/$executable"
     sha256sum "build/gcc-release/$executable"
 done

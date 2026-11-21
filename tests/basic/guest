@@ -1,0 +1,63 @@
+#!/bin/bash
+set -euo pipefail
+umask 077
+exec 3<>/dev/ttyS1
+stty -F /dev/ttyS1 raw -echo
+trap 'n=$LINENO; journalctl -b -u bacuri-core -u bacuri-recorder -u bacuri-media --no-pager -n 30 >/dev/ttyS0; echo "FAILED at line $n" >&3' ERR
+kit=/mnt/bundle
+keyring=/etc/bacuri-test-key.gpg
+point=10000000-0000-4000-8000-000000000042
+admin=/usr/sbin/bacuri-basic
+if [ ! -f /root/first-boot ]; then
+    test "$(dpkg-query -W -f='${db:Status-Status}' bacuri-vms-basic 2>/dev/null || true)" != installed
+    gpgv --keyring "$keyring" "$kit/bacuri-install.sig" "$kit/bacuri-install"
+    before=$(sha256sum /var/lib/dpkg/status)
+    mkdir /tmp/bad
+    cp -a "$kit"/. /tmp/bad/
+    bad=$(find /tmp/bad/repository -name 'bacuri-vms-basic_*.deb')
+    printf 'corrupt' >> "$bad"
+    if "$kit/bacuri-install" "$keyring" /tmp/bad; then exit 1; fi
+    test "$before" = "$(sha256sum /var/lib/dpkg/status)"
+    test ! -e /etc/bacuri-vms
+    rm -rf /tmp/bad
+    "$kit/bacuri-install" "$keyring" "$kit"
+    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -noenc -days 2 -subj /CN=bacuri.test \
+        -addext subjectAltName=DNS:bacuri.test -keyout /root/tls.key -out /root/tls.crt
+    openssl rand -hex 24 >/root/password
+    "$admin" setup bacuri.test installer /root/tls.crt /root/tls.key 10.0.2.0/24 </root/password >/root/setup-output
+    "$admin" admin create-user viewer operator </root/password
+    site=$(cat /etc/bacuri-vms/site-id)
+    runuser -u postgres -- psql -X -v ON_ERROR_STOP=1 -d bacuri_vms -c "INSERT INTO bacuri_inventory.observation_points VALUES('$site','$point','Offline verification point')"
+    cat /proc/sys/kernel/random/boot_id >/root/first-boot
+    sync
+    systemctl --no-block reboot
+    exit 0
+fi
+for unit in bacuri-core bacuri-media bacuri-recorder; do
+    systemctl is-enabled "$unit"
+    systemctl is-active "$unit"
+done
+for i in {1..200}; do
+    if test -S /run/bacuri-vms/core/catalog.sock && test -S /run/bacuri-vms/media/media.sock && test -S /run/bacuri-vms/recorder/control.sock; then break; fi
+    sleep 0.1
+done
+test -S /run/bacuri-vms/core/catalog.sock
+test -S /run/bacuri-vms/media/media.sock
+test -S /run/bacuri-vms/recorder/control.sock
+test "$(cat /root/first-boot)" != "$(cat /proc/sys/kernel/random/boot_id)"
+printf 'READY %s %s %s %s %s %s\n' "$(cat /root/password)" "$(grep -E '^[a-f0-9]{64}$' /root/setup-output)" "$(cat /etc/bacuri-vms/site-id)" "$point" "$(cat /root/first-boot)" "$(cat /proc/sys/kernel/random/boot_id)" >&3
+openssl x509 -in /root/tls.crt -outform DER | base64 -w0 >&3
+printf '\n' >&3
+openssl x509 -in /root/tls.crt -pubkey -noout | openssl pkey -pubin -outform DER | openssl dgst -sha256 -binary | base64 >&3
+while IFS= read -r command <&3; do
+    case "$command" in
+        grant) "$admin" admin grant-point viewer "$point"; echo OK >&3 ;;
+        revoke) "$admin" admin revoke-point viewer "$point"; echo OK >&3 ;;
+        promote) runuser -u postgres -- psql -X -v ON_ERROR_STOP=1 -d bacuri_vms -c "UPDATE bacuri_inventory.site_roles SET role='administrator' FROM bacuri_inventory.local_users u WHERE site_roles.user_id=u.user_id AND u.username='viewer'"; echo OK >&3 ;;
+        legacy) (cd /usr/share/bacuri-vms/web && find . -type f -printf '%P\n' | sort | xargs sha256sum) >&3; echo END >&3 ;;
+        packages) dpkg-query -W -f='${db:Status-Status} ${Package} ${Architecture} ${Version}\n' | awk '$1=="installed" {print $2,$3,$4}' >&3; echo END >&3 ;;
+        assets) (cd /usr/share/bacuri-vms/build/web-client && sha256sum index.html assets/*) >&3; echo END >&3 ;;
+        done) systemctl --no-block poweroff; exit 0 ;;
+        *) exit 1 ;;
+    esac
+done

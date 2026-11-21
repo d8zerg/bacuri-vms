@@ -61,7 +61,13 @@ def check_https_transport():
 
 
 def login(name):
-    status, headers, body = http("POST", "session", {"username": name, "password": PASSWORD})
+    from factor import complete
+
+    fields = {"username": name, "password": PASSWORD}
+    response = http("POST", "session", fields)
+    if response[0] == 202 or (response[0] == 403 and response[2]["code"] == "enrollment_required"):
+        response = complete(http, CORE, ROOT, ORIGIN, fields, response)
+    status, headers, body = response
     assert status == 201, (status, body)
     cookie = headers["Set-Cookie"]
     assert all(attr in cookie for attr in ("Secure", "HttpOnly", "SameSite=Strict", "Path=/"))

@@ -56,11 +56,20 @@ void migrate()
     if (db.exec("SELECT to_regclass('bacuri_inventory.schema_migrations') IS NOT NULL").get(0) == "t") {
         version = std::stoi(db.exec("SELECT max(version) FROM schema_migrations").get(0));
     }
-    constexpr std::array migrations{
-        "0001_initial.sql",        "0002_control.sql", "0003_archive.sql",    "0004_playback.sql",
-        "0005_live.sql",           "0006_alerts.sql",  "0007_recovery.sql",   "0008_camera_bindings.sql",
-        "0009_ptz_commands.sql",   "0010_maps.sql",    "0011_alert_work.sql", "0012_archive_retention.sql",
-        "0013_fragment_export.sql"};
+    constexpr std::array migrations{"0001_initial.sql",
+                                    "0002_control.sql",
+                                    "0003_archive.sql",
+                                    "0004_playback.sql",
+                                    "0005_live.sql",
+                                    "0006_alerts.sql",
+                                    "0007_recovery.sql",
+                                    "0008_camera_bindings.sql",
+                                    "0009_ptz_commands.sql",
+                                    "0010_maps.sql",
+                                    "0011_alert_work.sql",
+                                    "0012_archive_retention.sql",
+                                    "0013_fragment_export.sql",
+                                    "0014_admin_mfa.sql"};
     if (version > static_cast<int>(migrations.size())) {
         throw std::runtime_error("Unsupported database schema");
     }

@@ -16,6 +16,7 @@ using Json = nlohmann::json;
 // Table order follows inventory foreign keys. Session tokens and delivery attempts are transient.
 constexpr std::array tables{"sites",
                             "local_users",
+                            "webauthn_credentials",
                             "observation_points",
                             "devices",
                             "channels",
@@ -104,8 +105,8 @@ void restore_configuration(std::istream& input)
     }
     encrypted.pop_back();
     auto data = Json::parse(unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site)));
-    for (const auto* table :
-         {"camera_transport_audit", "floor_plans", "point_placements", "archive_retention", "export_grants"}) {
+    for (const auto* table : {"webauthn_credentials", "camera_transport_audit", "floor_plans", "point_placements",
+                              "archive_retention", "export_grants"}) {
         if (!data.contains(table))
             data[table] = Json::array();
     }
@@ -132,7 +133,7 @@ void restore_configuration(std::istream& input)
     db.exec(
         "DELETE FROM recorder_attempt; UPDATE recorder_delivery SET decided_revision=0; "
         "UPDATE configuration_progress SET applied_revision=NULL,application_state='pending',failure_code=NULL; "
-        "DELETE FROM browser_sessions");
+        "DELETE FROM webauthn_challenges; DELETE FROM webauthn_enrollment; DELETE FROM browser_sessions");
     db.exec("COMMIT");
 }
 } // namespace bacuri::vms::control

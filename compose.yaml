@@ -67,6 +67,21 @@ services:
       PGPASSWORD: bacuri-stand
     command: ["bash"]
 
+  basic-packager:
+    environment: {CONAN_HOME: /tmp/bacuri-package-conan}
+    profiles: ["tools"]
+    build: {context: ., target: basic-packager}
+    network_mode: none
+    volumes:
+      - .:/workspace
+
+  basic-vm:
+    profiles: ["tools"]
+    build: {context: ., target: basic-vm}
+    devices: ["/dev/kvm:/dev/kvm"]
+    volumes:
+      - .:/workspace:ro
+
   builder:
     profiles: ["tools"]
     image: ${BACURI_DEV_IMAGE:-${COMPOSE_PROJECT_NAME}-dev}
