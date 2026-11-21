@@ -54,6 +54,7 @@ tasks:
       - task: secrets:check
       - task: format:check
       - task: docs:check
+      - task: camera:check
       - task: prototype:check
       - task: release:check
       - for: [gcc-debug, clang-debug, clang-asan-ubsan, clang-tsan]
@@ -398,6 +399,23 @@ tasks:
   prototype:up:
     desc: Start the local browser prototype
     cmd: docker compose -f prototype/compose.yaml up --build --wait --wait-timeout 25
+
+  camera:check:
+    desc: Validate the Basic profile and ASVS matrix and run the ONVIF equipment series on the emulator
+    deps:
+      - task: build
+        vars: {PRESET: gcc-debug}
+    cmd: '{{.BUILD_RUN}} python3 -B tests/cameras/check.py emulator "$(sh tools/quality-report-dir cameras)"'
+
+  camera:hardware:
+    desc: Run the equipment series for the release bundle and every physical model and firmware
+    requires: {vars: [STAND]}
+    deps:
+      - task: build
+        vars: {PRESET: gcc-debug}
+    cmd: >-
+      {{.COMPOSE_RUN}} -T -v {{.STAND | shellQuote}}:/stand:ro dev python3 -B tests/cameras/check.py
+      hardware "$(sh tools/quality-report-dir cameras)"
 
   docs:check:
     desc: Validate local documentation links, scenario coverage and decision references

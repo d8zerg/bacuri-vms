@@ -41,6 +41,8 @@ void mount_stream(GstRTSPMountPoints* mounts, const StreamProfile& profile)
     auto* factory = gst_rtsp_media_factory_new();
     gst_rtsp_media_factory_set_launch(factory, profile.pipeline);
     gst_rtsp_media_factory_set_shared(factory, TRUE);
+    gst_rtsp_media_factory_add_role(factory, "viewer", GST_RTSP_PERM_MEDIA_FACTORY_ACCESS, G_TYPE_BOOLEAN, TRUE,
+                                    GST_RTSP_PERM_MEDIA_FACTORY_CONSTRUCT, G_TYPE_BOOLEAN, TRUE, nullptr);
     gst_rtsp_mount_points_add_factory(mounts, profile.path, factory);
 }
 
@@ -88,7 +90,7 @@ gboolean capture_message(GstBus*, GstMessage* message, gpointer data)
     return G_SOURCE_CONTINUE;
 }
 
-int run_camera(bool webcam)
+int run_camera(bool webcam, const char* certificate_file)
 {
     const std::unique_ptr<GstRTSPServer, decltype(&g_object_unref)> server{gst_rtsp_server_new(), g_object_unref};
     const std::unique_ptr<GstRTSPMountPoints, decltype(&g_object_unref)> mounts{
@@ -97,6 +99,20 @@ int run_camera(bool webcam)
                                                                         g_main_loop_unref};
 
     gst_rtsp_server_set_service(server.get(), "8554");
+    if (certificate_file) {
+        std::unique_ptr<GTlsCertificate, decltype(&g_object_unref)> certificate{
+            g_tls_certificate_new_from_file(certificate_file, nullptr), g_object_unref};
+        if (!certificate) {
+            std::fputs("Cannot load RTSP test certificate and key\n", stderr);
+            return EXIT_FAILURE;
+        }
+        std::unique_ptr<GstRTSPAuth, decltype(&g_object_unref)> auth{gst_rtsp_auth_new(), g_object_unref};
+        gst_rtsp_auth_set_tls_certificate(auth.get(), certificate.get());
+        auto* token = gst_rtsp_token_new(GST_RTSP_TOKEN_MEDIA_FACTORY_ROLE, G_TYPE_STRING, "viewer", nullptr);
+        gst_rtsp_auth_set_default_token(auth.get(), token);
+        gst_rtsp_token_unref(token);
+        gst_rtsp_server_set_auth(server.get(), auth.get());
+    }
     std::unique_ptr<GstElement, decltype(&gst_object_unref)> capture{nullptr, gst_object_unref};
     CaptureState state{loop.get()};
     guint bus_watch{};
@@ -154,10 +170,11 @@ int run_camera(bool webcam)
 int main(int argc, char** argv)
 {
     const bool webcam = argc == 2 && std::string_view{argv[1]} == "--webcam";
-    if (argc != 1 && !webcam) {
-        std::fputs("Usage: bacuri-vms-test-rtsp-camera [--webcam]\n", stderr);
+    const bool tls = argc == 3 && std::string_view{argv[1]} == "--tls";
+    if (argc != 1 && !webcam && !tls) {
+        std::fputs("Usage: bacuri-vms-test-rtsp-camera [--webcam | --tls PEM]\n", stderr);
         return EXIT_FAILURE;
     }
     gst_init(nullptr, nullptr);
-    return bacuri::vms::test::run_camera(webcam);
+    return bacuri::vms::test::run_camera(webcam, tls ? argv[2] : nullptr);
 }

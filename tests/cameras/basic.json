@@ -1,0 +1,14 @@
+{
+  "node": {"cpu": "Intel Core i7-13700H", "logical_cpus": 20, "ram_gib": 15, "os": "Debian 13 x86-64", "filesystem": "ext4", "network_mbps": 1000},
+  "load": {"cameras": 8, "live_viewers": 1, "archive_viewers": 1, "codec": "H264", "main_mbps": [2, 4], "sub_mbps": 0.5, "gop_seconds": 1, "events_per_second": 1, "warmup_minutes": 5, "measure_minutes": 30, "samples_per_metric": 200},
+  "archive": {"days": 30, "volume_tb": 14, "reserved_percent": 20},
+  "latency": {"live_p95_ms": 2000, "alarm_p95_ms": 2000, "cold_search_p95_ms": 2000, "warm_search_p95_ms": 2000, "archive_frame_p95_ms": 3000, "seek_error_ms": 1000, "revoke_max_ms": 5000, "additional_gaps": 0},
+  "recovery": {"configuration": {"rpo_s": 300, "rto_s": 300}, "completed_archive": {"rpo_s": 0, "rto_s": 900}, "new_recording": {"rpo_s": 30, "rto_s": 60}},
+  "role_minutes": {"first_recording": 5, "alarm": 2, "correct_address": 3, "explain_gap": 1, "replace": 10, "investigate": 10, "install": 30, "upgrade": 15, "restore": 30},
+  "emulator": {
+    "manufacturer": "bacuri.vms", "model": "bacuri.vms ONVIF emulator", "firmware": "1.0",
+    "control": "https", "media": "rtsps", "trust": "ephemeral fixture CA", "legacy_exception": false,
+    "features": ["discovery", "identity", "authentication", "profiles", "main", "sub", "ptz", "motion"]
+  },
+  "hardware": []
+}
