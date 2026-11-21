@@ -4,10 +4,20 @@
 #include <sodium.h>
 #include <iostream>
 #include <print>
+#include <charconv>
 
 namespace
 {
 using namespace bacuri::vms::control;
+
+int integer(std::string_view value, int maximum)
+{
+    int result{};
+    const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), result);
+    if (error != std::errc{} || end != value.data() + value.size() || result < 1 || result > maximum)
+        throw std::invalid_argument("Invalid archive retention parameter");
+    return result;
+}
 
 void provision(const std::string& username, const std::string& role)
 {
@@ -51,6 +61,18 @@ try {
         Database db;
         auto row = db.exec("SELECT reason FROM archive_recovery WHERE site_id=$1", {setting("BACURI_SITE_ID")});
         std::cout << Json{{"archive", row.size() ? row.get(0) : "available"}}.dump() << '\n';
+    } else if (action == "set-retention" && (argc == 3 || argc == 4)) {
+        const auto days = integer(argv[2], 36500), reserve = argc == 4 ? integer(argv[3], 90) : 20;
+        Database db;
+        const auto site = setting("BACURI_SITE_ID");
+        db.exec("BEGIN");
+        db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,1))", {site});
+        db.exec("SELECT bacuri_archive.advance_cutoff($1)", {site});
+        db.exec("INSERT INTO archive_retention(site_id,days,reserve_percent) VALUES($1,$2,$3) "
+                "ON CONFLICT(site_id) DO UPDATE SET days=excluded.days,reserve_percent=excluded.reserve_percent",
+                {site, std::to_string(days), std::to_string(reserve)});
+        db.exec("SELECT bacuri_archive.advance_cutoff($1)", {site});
+        db.exec("COMMIT");
     } else if (action == "rebuild-archive" && argc == 2) {
         rebuild_archive(std::cout);
     } else if (action == "import-map" && argc == 3) {
@@ -73,7 +95,8 @@ try {
         db.exec("COMMIT");
     } else {
         std::fputs("Usage: bacuri-vms-core --version | serve | migrate | backup-config | restore-config | "
-                   "recovery-status | rebuild-archive | import-map REGION.mbtiles | create-user USER ROLE | "
+                   "recovery-status | set-retention DAYS [RESERVE_PERCENT] | rebuild-archive | import-map "
+                   "REGION.mbtiles | create-user USER ROLE | "
                    "grant-point USER "
                    "POINT\n",
                    stderr);

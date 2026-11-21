@@ -82,7 +82,9 @@ class Recorder final : public v1::RecorderControl::Service
         try {
             for (const auto& [begin, end] : volume_.pending_intervals(
                      q->point().point_id(), q->begin_us(), q->end_us(),
-                     q->has_binding_revision() ? std::optional{q->binding_revision()} : std::nullopt)) {
+                     q->has_binding_revision() ? std::optional{q->binding_revision()} : std::nullopt,
+                     q->has_retention_cutoff_us() ? q->retention_cutoff_us()
+                                                  : std::numeric_limits<std::int64_t>::min())) {
                 auto* row = result->add_intervals();
                 row->set_begin_us(begin);
                 row->set_end_us(end);

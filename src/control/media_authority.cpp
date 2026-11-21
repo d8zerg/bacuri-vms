@@ -34,9 +34,11 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
         Database db;
         const auto rows =
             db.exec(R"sql(
-          SELECT least(5000,floor(extract(epoch FROM valid_until-clock_timestamp())*1000))::bigint
+          SELECT least(5000,floor(extract(epoch FROM valid_until-clock_timestamp())*1000),
+              CASE WHEN NOT $7::boolean THEN floor(($6::numeric-bacuri_archive.retention_now_us()+
+                    (SELECT days FROM archive_retention WHERE site_id=$3)*86400000000::bigint)/1000) END)::bigint
           FROM media_rights WHERE id=$1 AND browser=$2 AND site_id=$3 AND point_id=$4 AND NOT closed
-          AND CASE WHEN $7::boolean THEN begin_us IS NULL ELSE begin_us<=$5::bigint AND $5::bigint<$6::bigint AND $6::bigint<=end_us END
+          AND CASE WHEN $7::boolean THEN begin_us IS NULL ELSE begin_us<=$5::bigint AND $5::bigint<$6::bigint AND $6::bigint<=end_us AND $6::bigint>bacuri_archive.retention_cutoff($3) END
         )sql",
                     {q->media_session_id(), q->browser_session_id(), q->point().site_id(), q->point().point_id(),
                      std::to_string(bounds.start), std::to_string(bounds.end), q->has_live() ? "true" : "false"});

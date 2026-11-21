@@ -85,6 +85,8 @@ Json search(Database& db, const Key& key, const PointAccess& access, Json params
     q.mutable_point()->set_point_id(access.point);
     q.set_begin_us(position);
     q.set_end_us(bounds.end);
+    q.set_retention_cutoff_us(
+        std::stoll(db.exec("SELECT bacuri_archive.retention_cutoff($1)", {access.site}).get(0)));
     if (binding) {
         q.set_binding_revision(*binding);
     }
@@ -198,13 +200,13 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     if (!range) {
         return result(session.get(0), session.get(0, 1));
     }
-    auto parts =
-        db.exec("INSERT INTO playback_parts(session_id,site_id,block_id,recording_epoch_id,owner_generation) "
-                "SELECT $1,site_id,block_id,recording_epoch_id,owner_generation FROM bacuri_archive.blocks WHERE "
-                "site_id=$2 AND point_id=$3 "
-                "AND (nullif($6,'')::bigint IS NULL OR binding_revision=nullif($6,'')::bigint) AND "
-                "begin_utc_us>=$4 AND end_utc_us<=$5 AND unavailable_reason IS NULL RETURNING media_id",
-                {session.get(0), access.site, access.point, begin, end, revision});
+    auto parts = db.exec(
+        "INSERT INTO playback_parts(session_id,site_id,block_id,recording_epoch_id,owner_generation) "
+        "SELECT $1,site_id,block_id,recording_epoch_id,owner_generation FROM bacuri_archive.retained_blocks WHERE "
+        "site_id=$2 AND point_id=$3 "
+        "AND (nullif($6,'')::bigint IS NULL OR binding_revision=nullif($6,'')::bigint) AND "
+        "begin_utc_us>=$4 AND end_utc_us<=$5 AND unavailable_reason IS NULL RETURNING media_id",
+        {session.get(0), access.site, access.point, begin, end, revision});
     if (!parts.size()) {
         const auto page = search(db, key, access, range->json(), binding);
         const auto& items = page.at("items");
@@ -367,12 +369,12 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
     }
     if (operation == "manifest") {
         media::Lease lease{scope(session, Window{std::stoll(session.get(0, 2)), std::stoll(session.get(0, 3))})};
-        auto rows = db.exec(
-            "SELECT init_id,media_id,begin_utc_us,end_utc_us FROM playback_parts JOIN bacuri_archive.blocks "
-            "USING(site_id,block_id,recording_epoch_id,owner_generation) WHERE session_id=$1 AND "
-            "unavailable_reason IS NULL "
-            "ORDER BY begin_utc_us,end_utc_us,media_id",
-            {id});
+        auto rows = db.exec("SELECT init_id,media_id,begin_utc_us,end_utc_us FROM playback_parts JOIN "
+                            "bacuri_archive.retained_blocks "
+                            "USING(site_id,block_id,recording_epoch_id,owner_generation) WHERE session_id=$1 AND "
+                            "unavailable_reason IS NULL "
+                            "ORDER BY begin_utc_us,end_utc_us,media_id",
+                            {id});
         auto parts = Json::array();
         for (int i = 0; i < rows.size(); ++i) {
             Window span{std::stoll(rows.get(i, 2)), std::stoll(rows.get(i, 3))};
@@ -387,7 +389,7 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
     }
     auto part = db.exec(
         "SELECT block_id,manifest#>>'{media,sha256}',init_id=$2,begin_utc_us,end_utc_us FROM playback_parts "
-        "JOIN bacuri_archive.blocks USING(site_id,block_id,recording_epoch_id,owner_generation) WHERE "
+        "JOIN bacuri_archive.retained_blocks USING(site_id,block_id,recording_epoch_id,owner_generation) WHERE "
         "session_id=$1 "
         "AND (init_id=$2 OR media_id=$2) AND unavailable_reason IS NULL",
         {id, std::string{operation.substr(6)}});
@@ -429,7 +431,7 @@ void Playback::alert_archive(const Request& req, Response& res, const std::strin
         Window instant{time - uncertainty, time + uncertainty + 1};
         auto blocks = db.exec(
             "SELECT begin_utc_us,end_utc_us,binding_revision,time_basis,uncertainty_us,unavailable_reason FROM "
-            "bacuri_archive.blocks "
+            "bacuri_archive.retained_blocks "
             "WHERE site_id=$1 AND point_id=$2 AND int8range(begin_utc_us,end_utc_us,'[)') && "
             "int8range($3,$4,'[)') LIMIT 2",
             {site, point, std::to_string(instant.start), std::to_string(instant.end)});

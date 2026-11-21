@@ -131,7 +131,7 @@ void Writer::finish()
         return;
     }
     auto batch = std::exchange(frames_, {});
-    bytes_ = 0;
+    const auto payload_bytes = std::exchange(bytes_, 0);
     const auto times = sample_times(batch);
     std::uint64_t length{};
     for (const auto& sample : times) {
@@ -146,8 +146,9 @@ void Writer::finish()
             volume_.report_gap(*storage_gap_);
             storage_gap_.reset();
         }
-        volume_.publish({origin_, batch.front()->time, end},
-                        [&](const fs::path& path) { mux(path, batch, times); });
+        volume_.publish(
+            {origin_, batch.front()->time, end}, [&](const fs::path& path) { mux(path, batch, times); }, {},
+            payload_bytes);
     } catch (const std::exception& error) {
         if (storage_gap_) {
             storage_gap_->begin = std::min(storage_gap_->begin, begin_us);

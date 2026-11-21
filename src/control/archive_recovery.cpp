@@ -63,11 +63,27 @@ void rebuild_archive(std::ostream& output)
                     "AND recording_node_id=$2 AND block_id=$3",
                     {owner.site, owner.node, id});
         }};
+    const auto local_cutoff = volume.retired_through();
+    if (local_cutoff != std::numeric_limits<std::int64_t>::min())
+        db.exec("INSERT INTO bacuri_archive.retired_through VALUES($1,$2) ON CONFLICT(site_id) DO UPDATE SET "
+                "end_us=greatest(retired_through.end_us,excluded.end_us)",
+                {owner.site, std::to_string(local_cutoff)});
+    db.exec("SELECT bacuri_archive.advance_cutoff($1)", {owner.site});
+    auto cutoff = std::stoll(db.exec("SELECT coalesce((SELECT end_us FROM bacuri_archive.retired_through WHERE "
+                                     "site_id=$1),'-9223372036854775808'::bigint)",
+                                     {owner.site})
+                                 .get(0));
+    db.exec("DELETE FROM bacuri_archive.blocks WHERE site_id=$1 AND end_utc_us<=$2",
+            {owner.site, std::to_string(cutoff)});
+    db.exec("DELETE FROM bacuri_archive.gaps WHERE site_id=$1 AND end_utc_us<=$2",
+            {owner.site, std::to_string(cutoff)});
     volume.visit_inventory([&](const Json& m, const std::string& reason) {
         archive::validate_manifest(m);
         if (m.at("site_id") != owner.site || m.at("recording_node_id") != owner.node) {
             throw std::runtime_error("Foreign archive journal entry");
         }
+        if (m.at("end_utc_us").get<std::int64_t>() <= cutoff)
+            return;
         if (!reason.empty()) {
             mark_unavailable(db, owner, m, reason);
             if (reason == "corrupt") {
@@ -88,6 +104,8 @@ void rebuild_archive(std::ostream& output)
         ++verified;
     });
     volume.visit_gaps([&](const archive::Gap& gap) {
+        if (gap.end <= cutoff)
+            return;
         db.exec("INSERT INTO bacuri_archive.gaps VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING",
                 {owner.site, gap.point, std::to_string(gap.binding), std::to_string(gap.begin),
                  std::to_string(gap.end), gap.reason});

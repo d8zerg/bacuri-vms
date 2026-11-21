@@ -91,6 +91,7 @@ tasks:
       - for: [gcc-debug, clang-asan-ubsan]
         task: recovery:check
         vars: {PRESET: '{{.ITEM}}'}
+      - task: retention:check
       - task: coverage:check
 
   packages:build:
@@ -278,6 +279,16 @@ tasks:
       - task: build
         vars: {PRESET: '{{.PRESET}}'}
     cmd: '{{.DEV_RUN}} sh tests/check-control.sh {{.PRESET | shellQuote}} archive'
+
+  retention:check:
+    desc: Verify retention expiry and recording capacity on a disposable 64 MiB volume
+    deps:
+      - stand:up
+      - task: build
+        vars: {PRESET: '{{.PRESET}}'}
+    cmd: >-
+      {{.DEV_RUN}} env BACURI_RETENTION_REPORT="$(sh tools/quality-report-dir retention)/capacity.json"
+      sh tests/check-control.sh {{.PRESET | shellQuote}} retention
 
   recovery:check:
     desc: Measure configuration, recording and archive recovery on a disposable fault stand

@@ -7,6 +7,18 @@
 
 namespace bacuri::vms::control
 {
+namespace
+{
+// Serialize late deliveries with a committed retirement decision or a catalog rebuild.
+bool retired(Database& db, const std::string& site, std::int64_t end)
+{
+    db.exec("SELECT pg_advisory_xact_lock_shared(hashtextextended($1,1))", {site});
+    return db.exec("SELECT FROM bacuri_archive.retired_through WHERE site_id=$1 AND end_us>=$2",
+                   {site, std::to_string(end)})
+               .size() != 0;
+}
+} // namespace
+
 ArchiveCatalog::ArchiveCatalog(archive::Owner owner) : owner_{std::move(owner)}
 {
     const auto socket = setting("BACURI_CATALOG_SOCKET");
@@ -25,6 +37,42 @@ ArchiveCatalog::~ArchiveCatalog()
     server_->Wait();
 }
 
+grpc::Status ArchiveCatalog::AdvanceRetention(grpc::ServerContext*, const v1::RetentionQuery* q,
+                                              v1::RetentionPolicy* result)
+{
+    if (q->site_id() != owner_.site || q->recording_node_id() != owner_.node)
+        return {grpc::StatusCode::PERMISSION_DENIED, "Different archive assignment"};
+    try {
+        Database db;
+        db.exec("BEGIN");
+        db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,1))", {owner_.site});
+        const auto policy = db.exec(
+            "SELECT days,reserve_percent FROM archive_retention WHERE site_id=$1 FOR SHARE", {owner_.site});
+        if (db.exec("SELECT FROM archive_recovery WHERE site_id=$1", {owner_.site}).size())
+            return {grpc::StatusCode::UNAVAILABLE, "Archive verification in progress"};
+        db.exec("SELECT bacuri_archive.advance_cutoff($1)", {owner_.site});
+        auto boundary =
+            db.exec("SELECT end_us FROM bacuri_archive.retired_through WHERE site_id=$1", {owner_.site});
+        const auto cutoff =
+            boundary.size() ? std::stoll(boundary.get(0)) : std::numeric_limits<std::int64_t>::min();
+        if (boundary.size()) {
+            // Limit each transaction after shortening retention on an existing volume.
+            db.exec("DELETE FROM bacuri_archive.blocks WHERE ctid IN (SELECT ctid FROM bacuri_archive.blocks "
+                    "WHERE site_id=$1 AND end_utc_us<=$2 ORDER BY end_utc_us LIMIT 512)",
+                    {owner_.site, std::to_string(cutoff)});
+            db.exec("DELETE FROM bacuri_archive.gaps WHERE ctid IN (SELECT ctid FROM bacuri_archive.gaps "
+                    "WHERE site_id=$1 AND end_utc_us<=$2 ORDER BY end_utc_us LIMIT 512)",
+                    {owner_.site, std::to_string(cutoff)});
+        }
+        db.exec("COMMIT");
+        result->set_cutoff_us(cutoff);
+        result->set_days(policy.size() ? std::stoi(policy.get(0)) : 0);
+        result->set_reserve_percent(policy.size() ? std::stoi(policy.get(0, 1)) : 20);
+        return grpc::Status::OK;
+    } catch (const std::exception&) {
+        return {grpc::StatusCode::UNAVAILABLE, "Retention catalog unavailable"};
+    }
+}
 grpc::Status ArchiveCatalog::RegisterBlock(grpc::ServerContext*, const v1::RegisterBlockRequest* request,
                                            v1::RegistrationResult* result)
 {
@@ -45,6 +93,11 @@ grpc::Status ArchiveCatalog::RegisterBlock(grpc::ServerContext*, const v1::Regis
     try {
         Database db;
         db.exec("BEGIN");
+        if (retired(db, owner_.site, m.at("end_utc_us"))) {
+            result->set_state(v1::REGISTRATION_STATE_RETIRED);
+            db.exec("COMMIT");
+            return grpc::Status::OK;
+        }
         const bool inserted = db.exec(archive::sql::insert_block, {m.dump()}).size() != 0;
         const std::string id = m.at("block_id"), epoch = m.at("recording_epoch_id");
         const auto generation = std::to_string(m.at("owner_generation").get<std::int64_t>());
@@ -84,10 +137,17 @@ grpc::Status ArchiveCatalog::RegisterGap(grpc::ServerContext*, const v1::Registe
     }
     try {
         Database db;
+        db.exec("BEGIN");
+        if (retired(db, owner_.site, q->interval().end_us())) {
+            result->set_state(v1::REGISTRATION_STATE_RETIRED);
+            db.exec("COMMIT");
+            return grpc::Status::OK;
+        }
         auto rows = db.exec(
             "INSERT INTO bacuri_archive.gaps VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING 1",
             {owner_.site, q->point().point_id(), std::to_string(q->binding_revision()),
              std::to_string(q->interval().begin_us()), std::to_string(q->interval().end_us()), q->reason()});
+        db.exec("COMMIT");
         result->set_state(rows.size() ? v1::REGISTRATION_STATE_COMMITTED : v1::REGISTRATION_STATE_REPLAYED);
         return grpc::Status::OK;
     } catch (const std::exception&) {

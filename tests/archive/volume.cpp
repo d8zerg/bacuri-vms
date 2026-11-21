@@ -71,6 +71,55 @@ INSTANTIATE_TEST_SUITE_P(DurableBoundaries, PublicationDeathTest,
                                          CommitStage::directory_synced, CommitStage::renamed,
                                          CommitStage::parent_synced, CommitStage::journaled));
 
+class RetirementDeathTest : public testing::TestWithParam<RetirementStage>
+{
+};
+
+TEST_P(RetirementDeathTest, RestartCompletesOnlyAuthorizedRemoval)
+{
+    TempVolume fixture;
+    auto expired = example(), protected_block = expired;
+    protected_block.end += 1us;
+    std::string expired_directory, protected_directory;
+    {
+        Volume volume{fixture.root, fixture.owner};
+        volume.publish(expired, write_sample);
+        auto old = volume.pending();
+        if (!old)
+            FAIL() << "Expected the first published block";
+        expired_directory = old->directory;
+        volume.acknowledge(*old);
+        volume.publish(protected_block, write_sample);
+        auto remaining = volume.pending();
+        if (!remaining)
+            FAIL() << "Expected the second published block";
+        protected_directory = remaining->directory;
+    }
+    const auto stage = GetParam();
+    const auto cutoff = expired.end.time_since_epoch().count();
+    auto interrupt = [&] {
+        Volume volume{fixture.root, fixture.owner};
+        volume.apply_retention({.cutoff_us = cutoff, .days = 1, .reserve_percent = 20},
+                               [&](RetirementStage current) {
+                                   if (current == stage)
+                                       _exit(42);
+                               });
+    };
+    EXPECT_EXIT(interrupt(), testing::ExitedWithCode(42), "");
+    Volume restarted{fixture.root, fixture.owner};
+    restarted.apply_retention({.cutoff_us = cutoff - 1, .days = 2, .reserve_percent = 20});
+    EXPECT_FALSE(fs::exists(fixture.root / expired_directory));
+    EXPECT_TRUE(fs::is_regular_file(fixture.root / protected_directory / "media.mp4"));
+    const auto status = archive_status(fixture.root);
+    EXPECT_EQ(status.at("cutoff_utc_us"), cutoff);
+    EXPECT_EQ(status.at("removed_blocks"), 1);
+    EXPECT_EQ(status.at("committed"), 1);
+    EXPECT_EQ(status.at("missing"), 0);
+}
+INSTANTIATE_TEST_SUITE_P(DurableBoundaries, RetirementDeathTest,
+                         testing::Values(RetirementStage::authorized, RetirementStage::renamed,
+                                         RetirementStage::removed));
+
 TEST(ArchiveVolume, PreservesConfirmedGapsAndReportsOnlyPendingPointCoverage)
 {
     TempVolume fixture;
@@ -94,6 +143,9 @@ TEST(ArchiveVolume, PreservesConfirmedGapsAndReportsOnlyPendingPointCoverage)
     ASSERT_EQ(restored.pending_intervals(block.origin.point, 1, 10000).size(), 1u);
     EXPECT_EQ(restored.pending_intervals(block.origin.point, 1, 10000, block.origin.binding).size(), 1u);
     EXPECT_TRUE(restored.pending_intervals(block.origin.point, 1, 10000, block.origin.binding + 1).empty());
+    const auto end = block.end.time_since_epoch().count();
+    EXPECT_TRUE(restored.pending_intervals(block.origin.point, 1, 10000, {}, end).empty());
+    EXPECT_EQ(restored.pending_intervals(block.origin.point, 1, 10000, {}, end - 1).size(), 1u);
     auto item = restored.pending();
     if (!item) {
         FAIL() << "Missing pending block";

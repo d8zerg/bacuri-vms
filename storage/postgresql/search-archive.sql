@@ -5,7 +5,7 @@ WITH catalog AS NOT MATERIALIZED (
     WHERE site_id = $1 AND point_id = $2 AND ($6 = '' OR binding_revision = nullif($6, '')::bigint)
 ), pending AS MATERIALIZED (
     SELECT a, b FROM jsonb_to_recordset($5::jsonb) AS p(a bigint, b bigint)
-    WHERE a < $4 AND b > $3
+    WHERE a < $4 AND b > $3 AND b > bacuri_archive.retention_cutoff($1)
 ), intervals AS (
     SELECT a, b FROM catalog WHERE coverage && int8range($3, $4, '[)')
     UNION ALL SELECT a, b FROM pending

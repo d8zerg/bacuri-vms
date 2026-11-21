@@ -10,6 +10,7 @@ class ArchiveCatalog final : public v1::ArchiveCatalog::Service
   public:
     explicit ArchiveCatalog(archive::Owner owner);
     ~ArchiveCatalog() override;
+    grpc::Status AdvanceRetention(grpc::ServerContext*, const v1::RetentionQuery*, v1::RetentionPolicy*) override;
     grpc::Status RegisterGap(grpc::ServerContext*, const v1::RegisterGapRequest*,
                              v1::RegistrationResult*) override;
     grpc::Status RegisterBlock(grpc::ServerContext*, const v1::RegisterBlockRequest*,

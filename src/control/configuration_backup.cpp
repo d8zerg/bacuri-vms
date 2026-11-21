@@ -31,7 +31,8 @@ constexpr std::array tables{"sites",
                             "configuration_progress",
                             "recorder_delivery",
                             "floor_plans",
-                            "point_placements"};
+                            "point_placements",
+                            "archive_retention"};
 
 std::string context(const std::string& site)
 {
@@ -102,7 +103,7 @@ void restore_configuration(std::istream& input)
     }
     encrypted.pop_back();
     auto data = Json::parse(unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site)));
-    for (const auto* table : {"camera_transport_audit", "floor_plans", "point_placements"}) {
+    for (const auto* table : {"camera_transport_audit", "floor_plans", "point_placements", "archive_retention"}) {
         if (!data.contains(table))
             data[table] = Json::array();
     }

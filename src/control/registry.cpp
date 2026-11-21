@@ -199,7 +199,7 @@ void CameraRegistry::previous_recording(const Request& req, Response& res, const
     const auto current = camera(db, site, device);
     if (db.exec("SELECT 1 FROM archive_recovery WHERE site_id=$1", {site}).size())
         throw Failure{503, "media_unavailable"};
-    auto rows = db.exec("SELECT binding_revision,begin_utc_us,end_utc_us FROM bacuri_archive.blocks "
+    auto rows = db.exec("SELECT binding_revision,begin_utc_us,end_utc_us FROM bacuri_archive.retained_blocks "
                         "WHERE site_id=$1 AND point_id=$2 AND binding_revision<$3 AND unavailable_reason IS NULL "
                         "ORDER BY binding_revision DESC,begin_utc_us DESC LIMIT 1",
                         {site, current.at("point_id"), current.at("binding_revision")});

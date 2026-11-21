@@ -65,6 +65,8 @@ service ArchiveCatalog {
   // Acknowledge only after the catalog transaction commits.
   rpc RegisterBlock(RegisterBlockRequest) returns (RegistrationResult);
   rpc RegisterGap(RegisterGapRequest) returns (RegistrationResult);
+  // Commit the catalog cutoff before authorizing local reclamation.
+  rpc AdvanceRetention(RetentionQuery) returns (RetentionPolicy);
 }
 
 service ObservationIngest {
@@ -87,6 +89,8 @@ message PendingQuery {
   int64 begin_us = 2;
   int64 end_us = 3;
   optional int64 binding_revision = 4;
+  // Filter individual blocks before coalescing adjacent pending intervals.
+  optional sint64 retention_cutoff_us = 5;
 }
 message Coverage { int64 begin_us = 1; int64 end_us = 2; }
 message RegisterGapRequest {
@@ -144,6 +148,17 @@ enum ApplyFailure {
   APPLY_FAILURE_SOURCE_UNREACHABLE = 4;
 }
 
+message RetentionQuery {
+  string site_id = 1;
+  string recording_node_id = 2;
+}
+
+message RetentionPolicy {
+  sint64 cutoff_us = 1;
+  int32 days = 2;
+  int32 reserve_percent = 3;
+}
+
 message RegisterBlockRequest {
   // UTF-8 JSON block manifest. Its version and content define the block identity.
   bytes manifest_json = 1;
@@ -187,6 +202,8 @@ enum RegistrationState {
   REGISTRATION_STATE_UNSPECIFIED = 0;
   REGISTRATION_STATE_COMMITTED = 1;
   REGISTRATION_STATE_REPLAYED = 2;
+  // The archive cutoff already covers this delivery.
+  REGISTRATION_STATE_RETIRED = 3;
 }
 
 message AuthorizeDeliveryRequest {

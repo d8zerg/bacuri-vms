@@ -15,8 +15,28 @@ void deliver_blocks(std::stop_token stop, Volume& volume, const std::string& soc
     std::mutex mutex;
     std::unique_lock guard{mutex};
     auto retry = 1s;
+    auto refresh = std::chrono::steady_clock::time_point::min();
     while (!stop.stop_requested()) {
         auto delay = 250ms;
+        if (std::chrono::steady_clock::now() >= refresh) {
+            try {
+                grpc::ClientContext context;
+                context.set_deadline(std::chrono::system_clock::now() + 3s);
+                v1::RetentionQuery query;
+                query.set_site_id(volume.owner().site);
+                query.set_recording_node_id(volume.owner().node);
+                v1::RetentionPolicy policy;
+                if (catalog->AdvanceRetention(&context, query, &policy).ok())
+                    volume.apply_retention({.cutoff_us = policy.cutoff_us(),
+                                            .days = policy.days(),
+                                            .reserve_percent = policy.reserve_percent()});
+                else
+                    volume.reclaim_authorized();
+            } catch (const std::exception& error) {
+                std::fprintf(stderr, "archive retention pending: %s\n", error.what());
+            }
+            refresh = std::chrono::steady_clock::now() + 2s;
+        }
         try {
             if (auto pending = volume.pending_gap()) {
                 const auto& [id, gap] = *pending;
@@ -51,7 +71,8 @@ void deliver_blocks(std::stop_token stop, Volume& volume, const std::string& soc
                 v1::RegistrationResult result;
                 const auto status = catalog->RegisterBlock(&context, request, &result);
                 if (status.ok() && (result.state() == v1::REGISTRATION_STATE_COMMITTED ||
-                                    result.state() == v1::REGISTRATION_STATE_REPLAYED)) {
+                                    result.state() == v1::REGISTRATION_STATE_REPLAYED ||
+                                    result.state() == v1::REGISTRATION_STATE_RETIRED)) {
                     volume.acknowledge(*item);
                     retry = 1s;
                     continue;

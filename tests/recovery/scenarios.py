@@ -231,6 +231,7 @@ def run():
 
         # Snapshot, then make one independently observable post-snapshot configuration change.
         snapshot_time = time.monotonic()
+        op("set-retention", "30", "20")
         backup = op("backup-config")
         assert b"Recovery camera" not in backup and config["credentials"]["password"].encode() not in backup
         op("create-user", "after-backup", "operator", input=(c.PASSWORD + "\n").encode())
@@ -261,6 +262,7 @@ def run():
         assert core("restore-config", env=RECORDER_ENV, input=backup).returncode != 0
         assert c.query("SELECT count(*) FROM bacuri_inventory.sites") == "0"
         op("restore-config", input=backup)
+        assert c.query("SELECT days,reserve_percent FROM bacuri_inventory.archive_retention") == "30|20"
         op("restore-config", input=backup)
         server = start_core()
         assert c.http("GET", "session", headers=viewer)[0] == 401

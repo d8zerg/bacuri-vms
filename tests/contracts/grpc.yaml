@@ -143,3 +143,7 @@ read_archive_part:
     sha256: f3ef000000000000000000000000000000000000000000000000000000000001
     initialization: true
   response: { total_bytes: '4', data: ZnR5cA== }
+advance_retention:
+  rpc: ArchiveCatalog.AdvanceRetention
+  request: { site_id: *site, recording_node_id: 70000000-0000-4000-8000-000000000001 }
+  response: { cutoff_us: '2592000000000', days: 30, reserve_percent: 20 }
