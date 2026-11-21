@@ -69,7 +69,9 @@ class Delivery final : public v1::ArchiveDelivery::Service
             archive::validate_manifest(block);
             using Time = google::protobuf::util::TimeUtil;
             const auto& scope = request->scope();
-            if (block.at("site_id") != scope.point().site_id() ||
+            const bool complete = !request->complete_block_manifest().empty();
+            if ((complete && block.dump() != request->complete_block_manifest()) ||
+                block.at("site_id") != scope.point().site_id() ||
                 block.at("point_id") != scope.point().point_id() || block.at("block_id") != request->block_id() ||
                 block.at("media").at("sha256") != request->sha256() ||
                 block.at("begin_utc_us") != Time::TimestampToMicroseconds(scope.archive().start()) ||
@@ -85,8 +87,10 @@ class Delivery final : public v1::ArchiveDelivery::Service
             if (archive::digest_media(media.fd).sha256 != request->sha256()) {
                 throw std::runtime_error("Archive checksum mismatch");
             }
-            auto offset = request->initialization() ? 0 : layout.media_begin;
-            const auto end = request->initialization() ? layout.media_begin : layout.media_end;
+            auto offset = complete || request->initialization() ? 0 : layout.media_begin;
+            const auto end = complete                    ? static_cast<std::uint64_t>(info.st_size)
+                             : request->initialization() ? layout.media_begin
+                                                         : layout.media_end;
             v1::PartChunk chunk;
             chunk.set_total_bytes(end - offset);
             std::array<char, chunk_size> bytes;

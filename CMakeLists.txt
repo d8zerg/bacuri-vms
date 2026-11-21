@@ -77,6 +77,10 @@ target_link_libraries(bacuri-vms-manifest PUBLIC bacuri-vms-control-support nloh
 add_library(bacuri-vms-volume STATIC src/archive/volume.cpp src/archive/mp4.cpp)
 target_include_directories(bacuri-vms-volume PRIVATE "${generated_dir}")
 target_link_libraries(bacuri-vms-volume PUBLIC bacuri-vms-manifest SQLite::SQLite3 PRIVATE Boost::headers)
+add_library(bacuri-vms-evidence STATIC src/archive/evidence.cpp)
+target_link_libraries(bacuri-vms-evidence PUBLIC bacuri-vms-volume)
+add_executable(bacuri-vms-verify-export src/archive/verify_export.cpp)
+target_link_libraries(bacuri-vms-verify-export PRIVATE bacuri-vms-evidence)
 add_library(bacuri-vms-archive STATIC src/archive/writer.cpp src/archive/delivery.cpp)
 target_include_directories(bacuri-vms-archive PRIVATE "${generated_dir}")
 target_link_libraries(bacuri-vms-archive PUBLIC bacuri-vms-volume bacuri-vms-ingest SQLite::SQLite3
@@ -97,9 +101,9 @@ add_executable(bacuri-vms-observation-source src/control/observation_source.cpp)
 target_link_libraries(bacuri-vms-observation-source PRIVATE bacuri-vms-rpc bacuri-vms-control-support)
 add_executable(bacuri-vms-core src/core/main.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/registry.cpp src/control/onvif.cpp src/control/camera_events.cpp
     src/control/observations.cpp src/control/alert_work.cpp src/control/alerts.cpp src/control/alert_socket.cpp
-    src/control/media_authority.cpp src/control/playback.cpp
+    src/archive/clip.cpp src/control/export.cpp src/control/media_authority.cpp src/control/playback.cpp
     src/control/session.cpp src/control/server.cpp src/control/https.cpp src/control/maps.cpp src/control/map_import.cpp src/control/delivery.cpp src/control/archive_catalog.cpp)
-target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-volume bacuri-vms-media-auth PNG::PNG)
+target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-evidence bacuri-vms-media-auth PNG::PNG PkgConfig::GST)
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-control-support bacuri-vms-rpc
     LibXml2::LibXml2 PostgreSQL::PostgreSQL Boost::headers OpenSSL::SSL PkgConfig::GIO nlohmann_json::nlohmann_json)
 target_compile_definitions(bacuri-vms-core PRIVATE BACURI_VMS_VERSION="${PROJECT_VERSION}")

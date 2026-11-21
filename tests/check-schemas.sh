@@ -83,6 +83,7 @@ test "$(psql -XAtq --dbname "$database" -c "SELECT count(*) FROM bacuri_events.a
     work_state='new' AND work_version=0 AND owner_id IS NULL AND work_result=''")" = 1
 sqlite3 -bail "$sqlite_file" < storage/sqlite/migrations/0005_retention.sql
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0012_archive_retention.sql
+psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0013_fragment_export.sql
 test "$(sqlite3 "$sqlite_file" 'PRAGMA user_version')" = 5
 test "$(sqlite3 "$sqlite_file" 'SELECT days,reserve_percent FROM retention')" = '0|20'
 printf '%s\n' 'PostgreSQL and SQLite schemas and archive upgrades passed'

@@ -92,6 +92,7 @@ tasks:
         task: recovery:check
         vars: {PRESET: '{{.ITEM}}'}
       - task: retention:check
+      - task: export:check
       - task: coverage:check
 
   packages:build:
@@ -279,6 +280,16 @@ tasks:
       - task: build
         vars: {PRESET: '{{.PRESET}}'}
     cmd: '{{.DEV_RUN}} sh tests/check-control.sh {{.PRESET | shellQuote}} archive'
+
+  export:check:
+    desc: Export a synthetic alert in Chrome and verify the signed media in a disconnected container
+    deps: [web:build, build]
+    cmd: |
+      set -eu
+      report=$(sh tools/quality-report-dir export)
+      echo "Export evidence: $report"
+      bash tests/workspace/isolated.sh {{.PRESET | shellQuote}} "$report" export
+      {{.BUILD_RUN}} python3 tests/archive/verify_export.py {{.PRESET | shellQuote}} "$report"
 
   retention:check:
     desc: Verify retention expiry and recording capacity on a disposable 64 MiB volume

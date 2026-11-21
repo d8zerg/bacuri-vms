@@ -214,6 +214,7 @@ services:
       BACURI_LISTEN: 0.0.0.0
       BACURI_TLS_CERT: /identity/tls.crt
       BACURI_TLS_KEY: /identity/tls.key
+      BACURI_EXPORT_KEY_FILE: /identity/export.key
       BACURI_KEY_FILE: /identity/configuration.key
     volumes:
       - ./build/gcc-debug:/opt/bacuri:ro

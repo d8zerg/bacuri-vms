@@ -16,6 +16,15 @@ for dir in core recorder; do
         mv "$key.new" "$key"
     fi
 done
+if [ ! -e /identity/core/export.key ]; then
+    seed=$(mktemp /identity/core/export.key.XXXXXX)
+    trap 'rm -f -- "$seed"' EXIT
+    openssl rand -hex 32 > "$seed"
+    chown 11001:11010 "$seed"
+    ln "$seed" /identity/core/export.key || test -f /identity/core/export.key
+    rm -f -- "$seed"
+    trap - EXIT
+fi
 if [ ! -e /identity/core/tls.key ]; then
     openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out /identity/core/tls.key.new
     mv /identity/core/tls.key.new /identity/core/tls.key
@@ -25,5 +34,5 @@ if [ ! -e /identity/core/tls.crt ]; then
         -subj /CN=localhost -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1'
     mv /identity/core/tls.crt.new /identity/core/tls.crt
 fi
-chown 11001:11010 /identity/core/configuration.key /identity/core/tls.key /identity/core/tls.crt
+chown 11001:11010 /identity/core/export.key /identity/core/configuration.key /identity/core/tls.key /identity/core/tls.crt
 chown 11002:11010 /identity/recorder/configuration.key

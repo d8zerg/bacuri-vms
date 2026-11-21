@@ -232,6 +232,10 @@ def run():
         # Snapshot, then make one independently observable post-snapshot configuration change.
         snapshot_time = time.monotonic()
         op("set-retention", "30", "20")
+        op("grant-export", "viewer", point, playback.utc(0), playback.utc(60))
+        grants_sql = "SELECT user_id,site_id,point_id,begin_us,end_us,grant_id FROM bacuri_inventory.export_grants"
+        original_grant = c.query(grants_sql)
+        assert original_grant and point in original_grant
         backup = op("backup-config")
         assert b"Recovery camera" not in backup and config["credentials"]["password"].encode() not in backup
         op("create-user", "after-backup", "operator", input=(c.PASSWORD + "\n").encode())
@@ -262,6 +266,7 @@ def run():
         assert core("restore-config", env=RECORDER_ENV, input=backup).returncode != 0
         assert c.query("SELECT count(*) FROM bacuri_inventory.sites") == "0"
         op("restore-config", input=backup)
+        assert c.query(grants_sql) == original_grant
         assert c.query("SELECT days,reserve_percent FROM bacuri_inventory.archive_retention") == "30|20"
         op("restore-config", input=backup)
         server = start_core()

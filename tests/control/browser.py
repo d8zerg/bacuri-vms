@@ -12,7 +12,7 @@ import registry as control
 
 
 @contextmanager
-def browser_session(browser, credential, page, *, workspace_coverage=None, software_map=False):
+def browser_session(browser, credential, page, *, workspace_coverage=None, software_map=False, downloads=False):
     root = f"http://playback-{browser}:4444"
 
     def call(method, path, body=None):
@@ -30,6 +30,8 @@ def browser_session(browser, credential, page, *, workspace_coverage=None, softw
 
     control.wait_for(lambda: call("GET", "/status")["ready"], browser)
     capabilities = {"browserName": browser, "acceptInsecureCerts": True}
+    if downloads:
+        capabilities["se:downloadsEnabled"] = True
     if software_map and browser == "chrome":
         capabilities["goog:chromeOptions"] = {"args": ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]}
     result = call(

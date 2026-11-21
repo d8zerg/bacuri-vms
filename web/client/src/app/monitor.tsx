@@ -24,6 +24,7 @@ import {
 
 import { Button } from "../ui-kit/FormControls";
 import { cameraError } from "./CameraSelection";
+const FragmentExport = lazy(() => import("./FragmentExport"));
 const AlertWorkPanel = lazy(() =>
   import("./AlertWork").then((m) => ({ default: m.AlertWorkPanel })),
 );
@@ -235,6 +236,24 @@ function View({
             }
           : {})}
       />
+      {archive && loaded && point.can_export && (
+        <Suspense fallback={null}>
+          <FragmentExport
+            key={[
+              site,
+              point.id,
+              alert,
+              loaded.window.start,
+              loaded.window.end,
+            ].join("/")}
+            services={services}
+            site={site}
+            point={point.id}
+            alert={alert}
+            interval={loaded.window}
+          />
+        </Suspense>
+      )}
       {!archive && point.ptz && (
         <PtzControls
           key={point.ptz.device_id}

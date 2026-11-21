@@ -4,6 +4,7 @@
 #include "archive_sql.hpp"
 #include "media/lease.hpp"
 #include <charconv>
+#include <fstream>
 
 namespace bacuri::vms::control
 {
@@ -280,6 +281,34 @@ v1::AuthorizeDeliveryRequest scope(const Rows& session, std::optional<Window> in
 }
 } // namespace
 
+void copy_export_block(const std::string& session, const std::string& browser, const Json& source,
+                       const std::filesystem::path& destination)
+{
+    v1::ReadPartRequest q;
+    auto* s = q.mutable_scope();
+    s->set_media_session_id(session);
+    s->set_browser_session_id(browser);
+    s->mutable_point()->set_site_id(source.at("site_id").get<std::string>());
+    s->mutable_point()->set_point_id(source.at("point_id").get<std::string>());
+    *s->mutable_archive()->mutable_start() = ProtoTime::MicrosecondsToTimestamp(source.at("begin_utc_us"));
+    *s->mutable_archive()->mutable_end() = ProtoTime::MicrosecondsToTimestamp(source.at("end_utc_us"));
+    q.set_block_id(source.at("block_id").get<std::string>());
+    q.set_sha256(source.at("media").at("sha256").get<std::string>());
+    q.set_complete_block_manifest(source.dump());
+    RemotePart stream{q};
+    if (stream.size != source.at("media").at("size_bytes").get<std::uint64_t>())
+        throw Failure{503, "media_unavailable"};
+    std::ofstream out(destination, std::ios::binary);
+    out.exceptions(std::ios::badbit | std::ios::failbit);
+    for (auto remaining = stream.size; remaining;) {
+        auto chunk = stream.next();
+        if (chunk.bytes.empty() || chunk.bytes.size() > remaining)
+            throw Failure{503, "media_unavailable"};
+        out.write(chunk.bytes.data(), chunk.bytes.size());
+        remaining -= chunk.bytes.size();
+    }
+    out.close();
+}
 void Playback::point(const Request& req, Response& res, const std::string& site, const std::string& point,
                      bool searching) const
 {

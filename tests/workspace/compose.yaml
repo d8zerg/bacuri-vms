@@ -1,4 +1,7 @@
 services:
+  playback-chrome:
+    environment:
+      SE_NODE_ENABLE_MANAGED_DOWNLOADS: "true"
   rtsp-camera:
     image: ${BACURI_WORKSPACE_CAMERA_IMAGE:?missing camera image}
     ports: !reset []

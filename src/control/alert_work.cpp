@@ -191,9 +191,10 @@ Json detail(Database& db, const std::string& site, const std::string& id, const 
         if (!row.get(0, 5).empty())
             actions.push_back("close");
     }
-    const auto history = db.exec("SELECT body FROM bacuri_events.alert_audit_details WHERE site_id=$1 AND "
-                                 "alert_id=$2 AND outcome='applied' ORDER BY version DESC LIMIT 25",
-                                 {site, id});
+    const auto history =
+        db.exec("SELECT body FROM bacuri_events.alert_audit_details WHERE site_id=$1 AND "
+                "alert_id=$2 AND outcome='applied' AND version IS NOT NULL ORDER BY version DESC LIMIT 25",
+                {site, id});
     const auto grants = db.exec(R"sql(
         SELECT jsonb_build_object('id',delegation_id,'service',service_name,'action',action,'expires_at',
                                   to_char(expires_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))
@@ -220,13 +221,15 @@ Json search(Database& db, const Request& req, const std::string& site, const std
     const auto before = body.contains("before") ? uuid_field(body, "before") : "";
     auto rows = db.exec(R"sql(
         WITH accessible AS NOT MATERIALIZED (
-          SELECT e.* FROM bacuri_events.alert_audit_details e JOIN site_roles r ON r.site_id=e.site_id AND r.user_id=$2
+          SELECT e.*, a.export_details FROM bacuri_events.alert_audit_details e
+          JOIN bacuri_events.alert_audit a USING(event_id) JOIN site_roles r ON r.site_id=e.site_id AND r.user_id=$2
           WHERE e.site_id=$1 AND (r.role='administrator' OR
               ((e.outcome='applied' OR e.initiator_id=$2) AND EXISTS (
                SELECT FROM point_grants g WHERE g.site_id=$1 AND g.user_id=$2 AND g.point_id=e.point_id)))
         )
-        SELECT body,event_id FROM accessible e WHERE ($3='' OR alert_id=nullif($3,'')::uuid)
-        AND strpos(lower(reason),lower($4))>0 AND ($5='' OR (recorded_at,event_id)<(
+        SELECT body || CASE WHEN export_details IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('export',export_details) END,
+               event_id FROM accessible e WHERE ($3='' OR alert_id=nullif($3,'')::uuid)
+        AND (strpos(lower(reason),lower($4))>0 OR export_details->>'id'=$4) AND ($5='' OR (recorded_at,event_id)<(
             SELECT recorded_at,event_id FROM accessible WHERE event_id=nullif($5,'')::uuid))
         ORDER BY recorded_at DESC,event_id DESC LIMIT 51
     )sql",

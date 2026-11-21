@@ -29,6 +29,7 @@ const events = {
   close: "Закрытие тревоги",
   delegate: "Выдача поручения",
   revoke: "Отзыв поручения",
+  export: "Экспорт фрагмента",
 };
 const outcomes = {
   applied: "Выполнено",
@@ -37,6 +38,9 @@ const outcomes = {
 };
 const reasons: Record<string, string> = {
   forbidden: "Действие запрещено",
+  media_unavailable: "Запись недоступна",
+  rate_limited: "Достигнут предел одновременных запросов",
+  export_too_large: "Превышен предел размера экспорта",
   not_found: "Точка или тревога недоступна",
   alert_state_conflict: "Состояние или версия тревоги изменились",
   alert_result_required: "Требуется результат проверки",
@@ -77,7 +81,10 @@ function Entries({
       {items.map((e) => (
         <li key={e.id}>
           <strong>
-            {events[e.action]} · {outcomes[e.outcome]}
+            {events[e.action]} ·{" "}
+            {e.action === "export" && e.outcome === "denied"
+              ? "В выдаче отказано"
+              : outcomes[e.outcome]}
           </strong>
           <time dateTime={e.recorded_at}>
             {date.format(new Date(e.recorded_at))} UTC
@@ -107,9 +114,18 @@ function Entries({
             </span>
           )}
           {points && e.alert_id && <span>Тревога · {e.alert_id}</span>}
+          {e.export && (
+            <>
+              <span>Комплект · {e.export.id}</span>
+              <span>
+                Интервал · {e.export.interval.start} / {e.export.interval.end}
+              </span>
+            </>
+          )}
           {e.outcome !== "applied" ? (
             <span>{reasons[e.reason] ?? e.reason}</span>
           ) : (
+            e.action !== "export" &&
             e.action !== "revoke" &&
             e.action !== "delegate" && <span>{e.reason}</span>
           )}

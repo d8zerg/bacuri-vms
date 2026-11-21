@@ -5,7 +5,7 @@ scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 cmake --preset gcc-release -B "$scratch"
 cmake --build "$scratch" --parallel 2
-for component in core recorder media observation-source; do
+for component in core recorder media observation-source verify-export; do
     executable="bacuri-vms-$component"
     cmp "build/gcc-release/$executable" "$scratch/$executable"
     sha256sum "build/gcc-release/$executable"

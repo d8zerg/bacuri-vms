@@ -131,17 +131,24 @@ def binary(path, headers):
         connection.close()
 
 
-def slow_reader(path, headers, revoke):
+def slow_reader(path, headers, revoke, post_body=None):
     with socket.socket() as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 8192)
         sock.settimeout(10)
         sock.connect(("localhost", 8443))
         with control.TLS.wrap_socket(sock, server_hostname="localhost") as tls:
             request = f"GET /api/v1/{path} HTTP/1.1\r\nHost: localhost\r\nCookie: {headers['Cookie']}\r\nConnection: close\r\n\r\n"
+            if post_body is not None:
+                payload = json.dumps(post_body)
+                request = (f"POST /api/v1/{path} HTTP/1.1\r\nHost: localhost\r\nCookie: {headers['Cookie']}\r\n"
+                           f"Origin: {control.ORIGIN}\r\nX-CSRF-Token: {headers['X-CSRF-Token']}\r\n"
+                           f"Content-Type: application/json\r\nContent-Length: {len(payload)}\r\nConnection: close\r\n\r\n{payload}")
             tls.sendall(request.encode())
             received = b""
             while b"\r\n\r\n" not in received:
-                received += tls.recv(1024)
+                chunk = tls.recv(1024)
+                assert chunk, "Closed before response header"
+                received += chunk
             head, body = received.split(b"\r\n\r\n", 1)
             assert b"200 OK" in head
             size = int(
@@ -166,6 +173,7 @@ def slow_reader(path, headers, revoke):
             elapsed = time.monotonic() - revoked
             assert elapsed < 5
             print(f"Active HTTPS transfer stopped {elapsed:.3f} s after grant revocation", flush=True)
+            return elapsed
 
 
 def camera_recording(start_process, path, admin):

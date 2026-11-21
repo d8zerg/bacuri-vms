@@ -33,6 +33,13 @@ export type AlertCommand = Schema["AlertCommand"];
 export type AuditEntry = Schema["AuditEntry"];
 export type AuditFilter = Schema["AuditFilter"];
 export interface Services {
+  exportFragment(
+    site: string,
+    point: string,
+    interval: Interval,
+    alert: string | null,
+    signal: AbortSignal,
+  ): Promise<Blob>;
   alertWork(
     site: string,
     alert: string,

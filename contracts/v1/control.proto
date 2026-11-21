@@ -54,6 +54,8 @@ message ReadPartRequest {
   string block_id = 2;
   string sha256 = 3;
   bool initialization = 4;
+  // For a complete block the catalog manifest must match the manifest on the volume.
+  string complete_block_manifest = 5;
 }
 
 message PartChunk {

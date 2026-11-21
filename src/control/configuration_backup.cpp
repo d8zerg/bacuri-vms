@@ -26,6 +26,7 @@ constexpr std::array tables{"sites",
                             "registration_requests",
                             "site_roles",
                             "point_grants",
+                            "export_grants",
                             "configuration_audit",
                             "camera_transport_audit",
                             "configuration_progress",
@@ -103,7 +104,8 @@ void restore_configuration(std::istream& input)
     }
     encrypted.pop_back();
     auto data = Json::parse(unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site)));
-    for (const auto* table : {"camera_transport_audit", "floor_plans", "point_placements", "archive_retention"}) {
+    for (const auto* table :
+         {"camera_transport_audit", "floor_plans", "point_placements", "archive_retention", "export_grants"}) {
         if (!data.contains(table))
             data[table] = Json::array();
     }

@@ -1,0 +1,23 @@
+.ws-export {
+  border: 1px solid var(--line);
+  border-radius: var(--space-1);
+  padding: var(--space-3);
+  background: var(--surface);
+}
+.ws-export summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.ws-export fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: var(--space-3);
+  align-items: end;
+  min-width: 0;
+  padding: var(--space-3) 0;
+  margin: 0;
+  border: 0;
+}
+.ws-export a {
+  color: var(--ink);
+}

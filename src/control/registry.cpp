@@ -309,6 +309,8 @@ void CameraRegistry::points(const Request& req, Response& res, const std::string
     auto rows = db.exec(R"sql(
             SELECT coalesce(jsonb_agg(jsonb_build_object('id',p.point_id,'name',p.name,
               'connection','unknown','recording','unknown') ||
+              CASE WHEN EXISTS(SELECT FROM export_grants g WHERE (g.site_id,g.point_id,g.user_id)=(p.site_id,p.point_id,$3::uuid))
+              THEN jsonb_build_object('can_export',true) ELSE '{}'::jsonb END ||
               CASE WHEN r.sealed_credentials IS NOT NULL AND jsonb_array_length(cfg.settings->'onvif_control'->'directions')>0
               THEN jsonb_build_object('ptz',jsonb_build_object('device_id',r.device_id,'commands',cfg.settings->'onvif_control'->'directions'))
               ELSE '{}'::jsonb END ORDER BY p.point_id),'[]')

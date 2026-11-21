@@ -1,4 +1,6 @@
 #include "control/api.hpp"
+#include "control/playback_time.hpp"
+#include "archive/evidence.hpp"
 #include "control/recovery.hpp"
 #include "control/maps.hpp"
 #include <sodium.h>
@@ -79,6 +81,33 @@ try {
         import_map(argv[2]);
     } else if (action == "create-user" && argc == 4) {
         provision(argv[2], argv[3]);
+    } else if (action == "export-public-key" && argc == 2) {
+        std::cout << bacuri::vms::archive::export_public_key(load_key(setting("BACURI_EXPORT_KEY_FILE")),
+                                                             setting("BACURI_SITE_ID"))
+                         .dump()
+                  << '\n';
+    } else if ((action == "grant-export" && argc == 6) || (action == "revoke-export" && argc == 4)) {
+        Database db;
+        const auto site = setting("BACURI_SITE_ID");
+        if (action == "revoke-export") {
+            db.exec("DELETE FROM export_grants g USING local_users u WHERE u.username=$1 AND g.user_id=u.user_id "
+                    "AND g.site_id=$2 AND g.point_id=$3",
+                    {argv[2], site, argv[3]});
+        } else {
+            const auto a = parse_utc(argv[4]), b = parse_utc(argv[5]);
+            if (b <= a)
+                throw std::invalid_argument("Invalid export interval");
+            auto grant = db.exec(
+                "INSERT INTO export_grants(user_id,site_id,point_id,begin_us,end_us) "
+                "SELECT v.user_id,v.site_id,v.point_id,$4,$5 FROM visible_points v JOIN local_users u "
+                "USING(user_id) "
+                "WHERE u.username=$1 AND v.site_id=$2 AND v.point_id=$3 ON CONFLICT(user_id,site_id,point_id) "
+                "DO UPDATE SET begin_us=excluded.begin_us,end_us=excluded.end_us,grant_id=excluded.grant_id "
+                "RETURNING grant_id",
+                {argv[2], site, argv[3], std::to_string(a), std::to_string(b)});
+            if (!grant.size())
+                throw std::invalid_argument("User has no access to this point");
+        }
     } else if (action == "grant-point" && argc == 4) {
         Database db;
         db.exec("BEGIN");
@@ -94,15 +123,19 @@ try {
         db.exec("INSERT INTO point_grants VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", {user.get(0), site, argv[3]});
         db.exec("COMMIT");
     } else {
-        std::fputs("Usage: bacuri-vms-core --version | serve | migrate | backup-config | restore-config | "
-                   "recovery-status | set-retention DAYS [RESERVE_PERCENT] | rebuild-archive | import-map "
-                   "REGION.mbtiles | create-user USER ROLE | "
-                   "grant-point USER "
-                   "POINT\n",
-                   stderr);
+        std::fputs(
+            "Usage: bacuri-vms-core --version | serve | migrate | backup-config | restore-config | "
+            "recovery-status | set-retention DAYS [RESERVE_PERCENT] | rebuild-archive | import-map "
+            "REGION.mbtiles | create-user USER ROLE | "
+            "grant-point USER "
+            "POINT | grant-export USER POINT START_UTC END_UTC | revoke-export USER POINT | export-public-key\n",
+            stderr);
         return 1;
     }
     return 0;
+} catch (const bacuri::vms::control::Failure& error) {
+    std::cerr << error.code << '\n';
+    return 1;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());
     return 1;

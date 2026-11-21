@@ -545,6 +545,48 @@ paths:
         '502': { $ref: '#/components/responses/CameraFailure' }
         '503': { $ref: '#/components/responses/Unavailable' }
         '504': { $ref: '#/components/responses/CameraFailure' }
+  /sites/{siteId}/points/{pointId}/exports:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+      - { $ref: '#/components/parameters/Point' }
+    post:
+      operationId: exportFragment
+      description: Export recorded frames in a half-open UTC interval of up to one hour under a separate point and interval grant. An alert limits the selection to its binding and context.
+      parameters:
+        - { $ref: '#/components/parameters/Csrf' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [interval]
+              properties:
+                interval: { $ref: '#/components/schemas/UtcInterval' }
+                alert_id: { $ref: '#/components/schemas/Id' }
+      responses:
+        '200':
+          description: Tar package containing numbered MP4 files, the source manifest and its detached Ed25519 signature.
+          content:
+            application/x-tar:
+              schema: { type: string, format: binary }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: No eligible frames or ambiguous coverage.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '413':
+          description: The export exceeds the block or media size limit.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
   /sites/{siteId}/points/{pointId}/archive:
     parameters:
       - $ref: '#/components/parameters/Site'
@@ -849,12 +891,18 @@ components:
         point_id: { type: [string, 'null'], format: uuid }
         initiator_id: { $ref: '#/components/schemas/Id' }
         initiator: { type: string }
+        export:
+          type: object
+          required: [id, interval]
+          properties:
+            id: { $ref: '#/components/schemas/Id' }
+            interval: { $ref: '#/components/schemas/UtcInterval' }
         actor_kind: { enum: [user, service] }
         delegation_id: { type: [string, 'null'], format: uuid }
         service: { type: [string, 'null'] }
         delegated_action: { enum: [claim, record_result, close, null] }
         expires_at: { type: [string, 'null'], format: date-time }
-        action: { enum: [claim, record_result, close, delegate, revoke] }
+        action: { enum: [claim, record_result, close, delegate, revoke, export] }
         outcome: { enum: [applied, denied, conflict] }
         reason: { type: string }
         owner: { type: [string, 'null'] }
@@ -1154,6 +1202,7 @@ components:
               type: array
               uniqueItems: true
               items: { $ref: '#/components/schemas/PtzCommand' }
+        can_export: { type: boolean }
         last_recorded_at: { $ref: '#/components/schemas/UtcTime' }
     ArchivePage:
       type: object
@@ -1332,6 +1381,7 @@ components:
             - media_session_closed
             - recording_gap
             - pending_catalog
+            - export_too_large
             - media_unavailable
             - rate_limited
             - authorization_unavailable

@@ -41,6 +41,16 @@ export function createServices(): Services {
         throw Error(String(response.status));
       csrf = "";
     },
+    async exportFragment(siteId, pointId, interval, alert, signal) {
+      return data(
+        await api.POST("/sites/{siteId}/points/{pointId}/exports", {
+          params: { path: { siteId, pointId }, header: auth() },
+          body: { interval, ...(alert ? { alert_id: alert } : {}) },
+          parseAs: "blob",
+          signal,
+        }),
+      );
+    },
     async alertWork(siteId, alertId, signal) {
       return data(
         await api.GET("/sites/{siteId}/alerts/{alertId}/work", {

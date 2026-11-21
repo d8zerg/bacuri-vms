@@ -78,6 +78,7 @@ export function fixture(condition = "normal"): Services {
         : [{ point_id: point, plan_id: "floor", x: 0.34, y: 0.52 }],
   };
   return {
+    exportFragment: () => Promise.reject(new HttpFailure(403, "forbidden")),
     ...alertWorkFixture(point, utc(150)),
     maps: () =>
       condition === "map-error"

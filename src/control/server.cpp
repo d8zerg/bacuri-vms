@@ -168,6 +168,8 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
         const std::string point{path.substr(0, slash)};
         if (slash != path.npos && canonical_id(point)) {
             const auto operation = path.substr(slash + 1);
+            if (operation == "exports")
+                return export_fragment(req, res, sessions, key, site, point);
             if (operation == "ptz") {
                 allow(req, res, {http::verb::post});
                 return registry.ptz(req, res, site, point);
