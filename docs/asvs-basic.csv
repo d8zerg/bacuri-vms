@@ -29,13 +29,13 @@ v5.0.0-1.5.2,2,Permitted serialized types,applicable,Inspect ONVIF XML limits an
 v5.0.0-2.1.1,1,Documented field constraints,applicable,Trace point and alert state transitions from request schema to server-side validation,7.2,contracts/v1/openapi.yaml,pending
 v5.0.0-2.1.2,2,Documented cross-field constraints,applicable,Trace point and alert state transitions from request schema to server-side validation,7.2,contracts/v1/openapi.yaml,pending
 v5.0.0-2.1.3,2,Documented operational limits,applicable,Trace point and alert state transitions from request schema to server-side validation,7.2,contracts/v1/openapi.yaml,pending
-v5.0.0-2.2.1,1,Request field validation,applicable,Trace point and alert state transitions from request schema to server-side validation,7.2,contracts/v1/openapi.yaml,pending
+v5.0.0-2.2.1,1,Request field validation,applicable,Trace point and alert state transitions from request schema to server-side validation,7.2,tests/alerts/workflow.py,tested
 v5.0.0-2.2.2,1,Server validation boundary,applicable,Trace point and alert state transitions from request schema to server-side validation,7.2,contracts/v1/openapi.yaml,pending
-v5.0.0-2.2.3,2,Cross-field invariants,applicable,Trace point and alert state transitions from request schema to server-side validation,7.2,contracts/v1/openapi.yaml,pending
-v5.0.0-2.3.1,1,Ordering of workflow transitions,applicable,Exercise concurrent transitions and retry after an interrupted operation,7.2,src/control/alerts.cpp,pending
+v5.0.0-2.2.3,2,Cross-field invariants,applicable,Trace point and alert state transitions from request schema to server-side validation,7.2,tests/alerts/workflow.py,tested
+v5.0.0-2.3.1,1,Ordering of workflow transitions,applicable,Exercise concurrent transitions and retry after an interrupted operation,7.2,tests/alerts/workflow.py,tested
 v5.0.0-2.3.2,2,Server enforcement of operation limits,applicable,Exercise concurrent transitions and retry after an interrupted operation,7.2,src/control/alerts.cpp,pending
-v5.0.0-2.3.3,2,Transaction atomicity,applicable,Exercise concurrent transitions and retry after an interrupted operation,7.2,src/control/alerts.cpp,pending
-v5.0.0-2.3.4,2,Concurrent changes to limited resources,applicable,Exercise concurrent transitions and retry after an interrupted operation,7.2,src/control/alerts.cpp,pending
+v5.0.0-2.3.3,2,Transaction atomicity,applicable,Exercise concurrent transitions and retry after an interrupted operation,7.2,tests/alerts/workflow.py,tested
+v5.0.0-2.3.4,2,Concurrent changes to limited resources,applicable,Exercise concurrent transitions and retry after an interrupted operation,7.2,tests/alerts/workflow.py,tested
 v5.0.0-2.4.1,2,Automated repeated requests,applicable,Measure request limits and availability during mixed load,8.3,docs/basic-test-profile.md,pending
 v5.0.0-3.2.1,1,Browser interpretation of response types,applicable,Inspect browser behavior and the response headers of both authenticated routes,4.2,tests/workspace/scenarios.py,pending
 v5.0.0-3.2.2,1,Text rendering of untrusted values,applicable,Inspect browser behavior and the response headers of both authenticated routes,4.2,tests/workspace/scenarios.py,pending
@@ -130,10 +130,10 @@ v5.0.0-7.6.1,2,Expiry across federation boundaries,excluded,No relying party or 
 v5.0.0-7.6.2,2,Explicit action to start a session,applicable,"Inspect server-side session state and test login, expiry and revocation",8.1,src/control/session.cpp,pending
 v5.0.0-8.1.1,1,Documented action and resource access,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,docs/adr/001-api-contracts.md,pending
 v5.0.0-8.1.2,2,Documented field visibility,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,docs/adr/001-api-contracts.md,pending
-v5.0.0-8.2.1,1,Action permissions,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,docs/adr/001-api-contracts.md,pending
-v5.0.0-8.2.2,1,Observation point permissions,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,docs/adr/001-api-contracts.md,pending
+v5.0.0-8.2.1,1,Action permissions,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,tests/alerts/workflow.py,tested
+v5.0.0-8.2.2,1,Observation point permissions,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,tests/alerts/workflow.py,tested
 v5.0.0-8.2.3,2,Read and write permissions per field,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,docs/adr/001-api-contracts.md,pending
-v5.0.0-8.3.1,1,Server-side permission checks,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,docs/adr/001-api-contracts.md,pending
+v5.0.0-8.3.1,1,Server-side permission checks,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,tests/alerts/workflow.py,tested
 v5.0.0-8.4.1,2,Tenant isolation,excluded,The Basic instance serves one local site without tenant federation,8.3,docs/architecture.md,scope-review
 v5.0.0-9.1.1,1,Signature of self-contained tokens,excluded,Basic uses opaque references checked against server state for browser and media sessions,8.3,docs/architecture.md,scope-review
 v5.0.0-9.1.2,1,Permitted signing algorithms,excluded,Basic uses opaque references checked against server state for browser and media sessions,8.3,docs/architecture.md,scope-review
@@ -224,23 +224,23 @@ v5.0.0-15.2.2,2,Availability during expensive requests,applicable,Compare resour
 v5.0.0-15.2.3,2,Unneeded production features,applicable,Inspect the contents and exposed functions of the installed packages,8.1,docs/adr/011-offline-delivery.md,pending
 v5.0.0-15.3.1,1,Response field allowlist,applicable,Compare accepted and returned fields and typed values to server handlers,7.2,contracts/v1/openapi.yaml,pending
 v5.0.0-15.3.2,2,Outbound redirects,applicable,Review outbound camera URL handling on redirect,6.2,docs/adr/012-camera-capabilities.md,pending
-v5.0.0-15.3.3,2,Allowed writable fields,applicable,Compare accepted and returned fields and typed values to server handlers,7.2,contracts/v1/openapi.yaml,pending
+v5.0.0-15.3.3,2,Allowed writable fields,applicable,Compare accepted and returned fields and typed values to server handlers,7.2,tests/alerts/workflow.py,tested
 v5.0.0-15.3.4,2,Trust in forwarded client addresses,applicable,Compare accepted and returned fields and typed values to server handlers,7.2,contracts/v1/openapi.yaml,pending
 v5.0.0-15.3.5,2,Type-safe comparison,applicable,Compare accepted and returned fields and typed values to server handlers,7.2,contracts/v1/openapi.yaml,pending
 v5.0.0-15.3.6,2,Dynamic JavaScript property keys,applicable,Inspect dynamic keys used by the browser client with API data,4.2,tests/workspace/scenarios.py,pending
 v5.0.0-15.3.7,2,Repeated and ambiguous parameters,applicable,Compare accepted and returned fields and typed values to server handlers,7.2,contracts/v1/openapi.yaml,pending
 v5.0.0-16.1.1,2,Log sources and event inventory,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,docs/basic-quality.md,pending
-v5.0.0-16.2.1,2,Event metadata for correlation,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,docs/basic-quality.md,pending
+v5.0.0-16.2.1,2,Event metadata for correlation,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,tests/alerts/workflow.py,tested
 v5.0.0-16.2.2,2,Clock alignment and time zone,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,docs/basic-quality.md,pending
 v5.0.0-16.2.3,2,Permitted log destinations,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,docs/basic-quality.md,pending
-v5.0.0-16.2.4,2,Machine-readable event records,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,docs/basic-quality.md,pending
+v5.0.0-16.2.4,2,Machine-readable event records,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,tests/alerts/workflow.py,tested
 v5.0.0-16.2.5,2,Sensitive fields in logs,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,docs/basic-quality.md,pending
 v5.0.0-16.3.1,2,Authentication outcomes,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,docs/basic-quality.md,pending
-v5.0.0-16.3.2,2,Denied access,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,docs/basic-quality.md,pending
-v5.0.0-16.3.3,2,Security-relevant actions,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,docs/basic-quality.md,pending
+v5.0.0-16.3.2,2,Denied access,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,tests/alerts/workflow.py,tested
+v5.0.0-16.3.3,2,Security-relevant actions,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,tests/alerts/workflow.py,tested
 v5.0.0-16.3.4,2,Failures in security controls,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,docs/basic-quality.md,pending
 v5.0.0-16.4.1,2,Encoding untrusted event values,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,docs/basic-quality.md,pending
-v5.0.0-16.4.2,2,Integrity and access to audit logs,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,docs/basic-quality.md,pending
+v5.0.0-16.4.2,2,Integrity and access to audit logs,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,tests/alerts/workflow.py,tested
 v5.0.0-16.4.3,2,Independent log collection,applicable,Inspect the audit inventory and correlate accepted and rejected operations,7.2,docs/basic-quality.md,pending
 v5.0.0-16.5.1,2,Public error details,applicable,Examine public error messages and verify safe access during service failure,5.1,tests/recovery/scenarios.py,pending
 v5.0.0-16.5.2,2,Unavailable downstream services,applicable,Examine public error messages and verify safe access during service failure,5.1,tests/recovery/scenarios.py,pending

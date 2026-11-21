@@ -1,3 +1,4 @@
+import { alertWorkFixture } from "./alertWorkFixture";
 import floor from "./floor.png";
 import type { MapScene } from "../src/contracts/workspace";
 import liveClip from "../../../prototype/dist/assets/yard-live.webm";
@@ -77,6 +78,7 @@ export function fixture(condition = "normal"): Services {
         : [{ point_id: point, plan_id: "floor", x: 0.34, y: 0.52 }],
   };
   return {
+    ...alertWorkFixture(point, utc(150)),
     maps: () =>
       condition === "map-error"
         ? Promise.reject(Error("503"))

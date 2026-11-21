@@ -5,7 +5,7 @@ namespace bacuri::vms::control
 namespace
 {
 constexpr std::string_view fields =
-    "d.alert_id,d.point_id,d.observed_at_utc_us,d.type,d.time_basis,d.uncertainty_us,d.position";
+    "d.alert_id,d.point_id,d.observed_at_utc_us,d.type,d.time_basis,d.uncertainty_us,d.position,a.work_state";
 Json alert(const Rows& rows, int row)
 {
     const auto time = std::stoll(rows.get(row, 2));
@@ -13,6 +13,7 @@ Json alert(const Rows& rows, int row)
                {"point_id", rows.get(row, 1)},
                {"observed_at", ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(time))},
                {"type", rows.get(row, 3)},
+               {"work_state", rows.get(row, 7)},
                {"time_basis", rows.get(row, 4)},
                {"archive_interval", alert_window(time).json()}};
     if (auto uncertainty = rows.get(row, 5); !uncertainty.empty()) {
@@ -32,7 +33,7 @@ AlertFeed::Scope AlertFeed::scope(Database& db) const
     auto who = sessions_.authenticate(db, request_, false, false);
     const auto rows = db.exec(R"sql(
         SELECT coalesce(v.revision,0),coalesce(h.position,0),
-               coalesce((SELECT min(position) FROM bacuri_events.alert_outbox WHERE site_id=r.site_id),coalesce(h.position,0)+1)
+               coalesce((SELECT min(position) FROM bacuri_events.alert_outbox WHERE site_id=r.site_id),coalesce(h.position,0)+1),coalesce(v.work_revision,0)
         FROM site_roles r LEFT JOIN bacuri_events.access_versions v USING(user_id,site_id)
         LEFT JOIN bacuri_events.feed_heads h USING(site_id) WHERE r.site_id=$1 AND r.user_id=$2
     )sql",
@@ -40,12 +41,18 @@ AlertFeed::Scope AlertFeed::scope(Database& db) const
     if (!rows.size()) {
         throw Failure{404, "not_found"};
     }
-    return {who.user, Json::array({"alerts", site_, who.user, fingerprint(key_, "session", who.cookie)}).dump(),
-            std::stoll(rows.get(0)), std::stoll(rows.get(0, 1)), std::stoll(rows.get(0, 2))};
+    return {who.user,
+            Json::array({"alerts", site_, who.user, fingerprint(key_, "session", who.cookie)}).dump(),
+            std::stoll(rows.get(0)),
+            std::stoll(rows.get(0, 1)),
+            std::stoll(rows.get(0, 2)),
+            std::stoll(rows.get(0, 3))};
 }
 std::string AlertFeed::cursor(const Scope& rights, std::int64_t position, bool pending) const
 {
-    return seal(key_, rights.context, Json::array({rights.revision, position, pending}).dump()).substr(3);
+    return seal(key_, rights.context,
+                Json::array({rights.revision, position, pending, rights.work_revision}).dump())
+        .substr(3);
 }
 void AlertFeed::authorize()
 {
@@ -58,7 +65,8 @@ Json AlertFeed::snapshot()
     Database db;
     const auto rights = scope(db);
     const auto query = "SELECT " + std::string{fields} +
-                       " FROM bacuri_events.alert_details d JOIN visible_points v USING(site_id,point_id) "
+                       " FROM bacuri_events.alert_details d JOIN bacuri_events.alerts a "
+                       "USING(site_id,position,point_id) JOIN visible_points v USING(site_id,point_id) "
                        "WHERE site_id=$1 AND user_id=$2 ORDER BY position DESC LIMIT 100";
     auto rows = db.exec(query.c_str(), {site_, rights.user});
     auto items = Json::array();
@@ -78,6 +86,7 @@ FeedBatch AlertFeed::poll(std::string_view after)
             revision_ = state.at(0).get<std::int64_t>();
             position_ = state.at(1).get<std::int64_t>();
             pending_ = state.at(2).get<bool>();
+            work_revision_ = state.size() > 3 ? state.at(3).get<std::int64_t>() : 0;
         } catch (const std::exception&) {
             return resync("cursor_invalid");
         }
@@ -93,6 +102,8 @@ FeedBatch AlertFeed::poll(std::string_view after)
     if (position_ < rights.floor - 1 || (pending_ && position_ < rights.floor)) {
         return resync("cursor_expired");
     }
+    if (work_revision_ != rights.work_revision)
+        return resync("work_changed");
     FeedBatch batch;
     if (position_ == rights.head && !pending_) {
         return batch;
@@ -100,7 +111,7 @@ FeedBatch AlertFeed::poll(std::string_view after)
     const auto query = "SELECT " + std::string{fields} + R"sql(,
         (SELECT a.alert_id FROM bacuri_events.alerts a JOIN visible_points v USING(site_id,point_id)
          WHERE a.site_id=d.site_id AND v.user_id=$2 AND a.position<d.position ORDER BY a.position DESC OFFSET 99 LIMIT 1)
-        FROM bacuri_events.alert_outbox o JOIN bacuri_events.alert_details d USING(site_id,position)
+        FROM bacuri_events.alert_outbox o JOIN bacuri_events.alert_details d USING(site_id,position) JOIN bacuri_events.alerts a USING(site_id,position,point_id)
         JOIN visible_points v USING(site_id,point_id)
         WHERE o.site_id=$1 AND v.user_id=$2 AND o.position >= $3 ORDER BY o.position LIMIT 65
     )sql";
@@ -110,7 +121,7 @@ FeedBatch AlertFeed::poll(std::string_view after)
     }
     for (int i = 0; i < std::min(rows.size(), 8); ++i) {
         const auto seq = std::stoll(rows.get(i, 6));
-        if (auto removed = rows.get(i, 7); !removed.empty() && !(pending_ && position_ == seq)) {
+        if (auto removed = rows.get(i, 8); !removed.empty() && !(pending_ && position_ == seq)) {
             batch.frames.push_back(
                 Json{{"type", "remove"}, {"cursor", cursor(rights, seq, true)}, {"alert_id", removed}}.dump());
         }

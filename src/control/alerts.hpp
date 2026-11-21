@@ -20,7 +20,7 @@ class AlertFeed
   private:
     struct Scope {
         std::string user, context;
-        std::int64_t revision, head, floor;
+        std::int64_t revision, head, floor, work_revision;
     };
     Scope scope(Database& db) const;
     std::string cursor(const Scope&, std::int64_t position, bool pending = false) const;
@@ -28,7 +28,7 @@ class AlertFeed
     const Key& key_;
     Request request_;
     std::string site_;
-    std::int64_t position_{}, revision_{}, resume_head_{};
+    std::int64_t position_{}, revision_{}, resume_head_{}, work_revision_{};
     bool subscribed_{}, pending_{};
 };
 inline constexpr std::string_view alert_protocol = "bacuri.vms.alerts.v1";

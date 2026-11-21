@@ -28,7 +28,32 @@ export type Feed = {
 };
 export type MapScene = Schema["MapScene"];
 export type Placement = Schema["PointPlacement"];
+export type AlertWork = Schema["AlertWork"];
+export type AlertCommand = Schema["AlertCommand"];
+export type AuditEntry = Schema["AuditEntry"];
+export type AuditFilter = Schema["AuditFilter"];
 export interface Services {
+  alertWork(
+    site: string,
+    alert: string,
+    signal: AbortSignal,
+  ): Promise<AlertWork>;
+  alertCommand(
+    site: string,
+    alert: string,
+    body: AlertCommand,
+    key: string,
+  ): Promise<Schema["AlertReceipt"]>;
+  audit(
+    site: string,
+    body: AuditFilter,
+    signal: AbortSignal,
+  ): Promise<Schema["AuditPage"]>;
+  delegate(
+    site: string,
+    body: Schema["IssueAlertDelegation"],
+  ): Promise<Schema["IssuedAlertDelegation"]>;
+  revokeDelegation(site: string, id: string): Promise<void>;
   maps(site: string, signal: AbortSignal): Promise<MapScene>;
   place(site: string, body: Placement): Promise<void>;
   addPlan(site: string, name: string, png: string): Promise<{ id: string }>;

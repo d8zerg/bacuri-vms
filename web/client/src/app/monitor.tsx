@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import type {
   AlertLink,
   Entry,
@@ -24,6 +24,9 @@ import {
 
 import { Button } from "../ui-kit/FormControls";
 import { cameraError } from "./CameraSelection";
+const AlertWorkPanel = lazy(() =>
+  import("./AlertWork").then((m) => ({ default: m.AlertWorkPanel })),
+);
 const ptzLabels: Record<PtzCommand, string> = {
   left: "Влево",
   right: "Вправо",
@@ -303,11 +306,17 @@ export function Monitor({
     void set(next, { replace });
   }
   const at = params.get("at");
+  const auditParams = new URLSearchParams(params);
+  auditParams.delete("alert_id");
+  auditParams.set("site", site);
   const validAt = at && Number.isFinite(Date.parse(at)) ? at : null;
   return (
     <>
       <div className="ws-title">
         <h1>Мониторинг</h1>
+        <Link className="ws-audit-link" to={"/audit?" + auditParams.toString()}>
+          Журнал тревог
+        </Link>
         <label>
           Точка наблюдения{" "}
           <select
@@ -382,6 +391,17 @@ export function Monitor({
           }}
         />
       </div>
+      {alert && point && (
+        <Suspense fallback={<p role="status">Загрузка карточки…</p>}>
+          <AlertWorkPanel
+            key={site + point.id + alert}
+            services={services}
+            site={site}
+            alert={alert}
+            point={point.id}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

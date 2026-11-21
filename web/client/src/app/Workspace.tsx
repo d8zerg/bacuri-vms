@@ -17,6 +17,9 @@ import { Button } from "../ui-kit/FormControls";
 import icons from "../../../../design/bacuri/icons/sprite.svg";
 import mark from "../../../../design/bacuri/brand/mark.svg";
 import "./workspace.css";
+const Audit = lazy(() =>
+  import("./AlertWork").then((m) => ({ default: m.AlertAudit })),
+);
 const Maps = lazy(() => import("./Maps"));
 const waiting: Feed = { items: [], status: "loading" };
 function Login({
@@ -78,6 +81,7 @@ function Site({
   userId,
   cameras,
   maps,
+  audit,
   onExpired,
 }: {
   services: Services;
@@ -86,6 +90,7 @@ function Site({
   userId: string;
   cameras: boolean;
   maps: boolean;
+  audit: boolean;
   onExpired: () => void;
 }) {
   const [points, setPoints] = useState<Point[] | null>(null),
@@ -176,6 +181,12 @@ function Site({
       />
     );
   if (!points) return <p role="status">{notice}</p>;
+  if (audit)
+    return (
+      <Suspense fallback={<p role="status">Загрузка журнала…</p>}>
+        <Audit services={services} site={site} points={points} />
+      </Suspense>
+    );
   if (maps)
     return (
       <Suspense fallback={<p role="status">Загрузка карт и планов…</p>}>
@@ -317,6 +328,7 @@ function Workspace({ services }: { services: Services }) {
             admin={site.role === "administrator"}
             cameras={cameras}
             maps={location.pathname === "/maps"}
+            audit={location.pathname === "/audit"}
             onExpired={expired}
           />
         ) : (
@@ -340,7 +352,7 @@ export function WorkspaceRouter({
         loader: ({ request }) =>
           replace("/monitor" + new URL(request.url).search),
       },
-      ...["/monitor", "/cameras", "/maps"].map((path) => ({
+      ...["/monitor", "/cameras", "/maps", "/audit"].map((path) => ({
         path,
         element: <Workspace services={services} />,
       })),

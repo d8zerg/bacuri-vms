@@ -57,4 +57,28 @@ psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migration
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0008_camera_bindings.sql
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0009_ptz_commands.sql
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0010_maps.sql
+psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" <<'SQL'
+DO $$
+DECLARE
+    site uuid := '10000000-0000-4000-8000-000000000001';
+    point uuid := gen_random_uuid();
+    device uuid := gen_random_uuid();
+    channel uuid := gen_random_uuid();
+    observation uuid := gen_random_uuid();
+BEGIN
+    INSERT INTO bacuri_inventory.observation_points VALUES (site,point,'Gate');
+    INSERT INTO bacuri_inventory.devices(site_id,device_id,name) VALUES (site,device,'Camera');
+    INSERT INTO bacuri_inventory.channels VALUES (site,channel,device,0);
+    INSERT INTO bacuri_inventory.point_bindings(site_id,point_id,binding_revision,channel_id,valid_from_utc_us)
+        VALUES (site,point,1,channel,0);
+    INSERT INTO bacuri_events.observations(site_id,source_id,observation_id,type,schema_version,point_id,
+        binding_revision,origin,observed_at_utc_us,received_at_utc_us,time_basis,attributes)
+        VALUES (site,device,observation,'motion',1,point,1,'camera',1,1,'reception','{}');
+    INSERT INTO bacuri_events.alerts(site_id,position,source_id,observation_id,point_id)
+        VALUES (site,1,device,observation,point);
+END $$;
+SQL
+psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0011_alert_work.sql
+test "$(psql -XAtq --dbname "$database" -c "SELECT count(*) FROM bacuri_events.alerts WHERE
+    work_state='new' AND work_version=0 AND owner_id IS NULL AND work_result=''")" = 1
 printf '%s\n' 'PostgreSQL and SQLite schemas and archive upgrades passed'

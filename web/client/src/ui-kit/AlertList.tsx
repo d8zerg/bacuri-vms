@@ -48,7 +48,14 @@ export function AlertList({
                 {points.find((p) => p.id === item.point_id)?.name ??
                   "Точка наблюдения"}
               </span>
-              <small>Приоритет не задан</small>
+              <small>
+                {item.work_state === "closed"
+                  ? "Закрыта"
+                  : item.work_state === "in_progress"
+                    ? "В работе"
+                    : "Новая"}{" "}
+                · Приоритет не задан
+              </small>
               <time dateTime={item.observed_at}>
                 {item.observed_at.replace("T", " ").replace("Z", " UTC")}
               </time>

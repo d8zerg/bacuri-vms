@@ -5,7 +5,7 @@ import subprocess
 import time
 import uuid
 
-from scenarios import button, c, capture, js, playback, report, snapshot, wait
+from scenarios import button, c, capture, inspect_alert, js, playback, report, snapshot, wait
 
 
 def stamp(us):
@@ -131,6 +131,12 @@ def exercise(call, device, cam, admin):
     wait(call, "document.body.innerText.includes('Кадр записи получен')", "alarm archive frame")
     difference = compare_frame(call, block, index)
     capture(call, "chrome", "onvif-motion")
+    position = js(call, "return document.querySelector('.ws-transport time').dateTime")
+    assert datetime.fromisoformat(position) == datetime.fromisoformat(instant)
+    inspect_alert(call, "chrome", item["id"], None, position)
+    status, _, card = c.http("GET", f"sites/{c.SITE}/alerts/{item['id']}/work", headers=viewer)
+    assert status == 200 and card["state"] == "closed" and card["owner"] == "viewer"
+    assert [e["action"] for e in card["history"]] == ["close", "record_result", "claim"]
     observation = c.query("SELECT observation_id FROM bacuri_events.observations WHERE origin='onvif'")
     evidence = {
         "model": cam["model"], "firmware": cam["firmware"], "video_source": "videotestsrc", "device_id": cam["id"],
@@ -138,6 +144,7 @@ def exercise(call, device, cam, admin):
         "explicit_stop_position": stopped, "timeout_seconds": 1, "lost_connection": True,
         "lost_move_reply_replayed_without_resending": True, "pullpoint_reconnected": True, "subscription_renewed": True,
         "foreign_point_denied": True, "motion_deliveries": 2, "observations": [observation], "alerts": [item["id"]],
+        "work_state": card["state"], "owner": card["owner"], "audit_events": [e["id"] for e in card["history"]],
         "block_id": block, "position": instant, "frame_index": index, "frame_mask_difference": difference,
     }
     (report / "camera-operations.json").write_text(json.dumps(evidence, indent=2) + "\n")

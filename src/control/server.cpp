@@ -1,6 +1,7 @@
 #include "control/api.hpp"
 #include "control/maps.hpp"
 #include "control/alerts.hpp"
+#include "control/alert_work.hpp"
 #include "control/observations.hpp"
 #include "control/onvif.hpp"
 #include <boost/beast/websocket/rfc6455.hpp>
@@ -35,7 +36,7 @@ namespace
 {
 bool workspace_page(std::string_view path)
 {
-    return path == "/" || path == "/maps" || path == "/monitor" || path == "/cameras";
+    return path == "/audit" || path == "/" || path == "/maps" || path == "/monitor" || path == "/cameras";
 }
 
 void workspace_file(const Request& req, Response& res, std::string_view path)
@@ -156,6 +157,10 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
             throw Failure{404, "not_found"};
         }
         return playback.alert_archive(req, res, site, std::string{path});
+    }
+    if (path.starts_with("alerts/") || path == "alert-audit/search" || path == "alert-delegations" ||
+        path.starts_with("alert-delegations/")) {
+        return alert_work(req, res, sessions, key, site, path);
     }
     if (path.starts_with("points/")) {
         path.remove_prefix(7);

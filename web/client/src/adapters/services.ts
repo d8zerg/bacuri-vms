@@ -41,6 +41,50 @@ export function createServices(): Services {
         throw Error(String(response.status));
       csrf = "";
     },
+    async alertWork(siteId, alertId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/alerts/{alertId}/work", {
+          params: { path: { siteId, alertId } },
+          signal,
+        }),
+      );
+    },
+    async alertCommand(siteId, alertId, body, key) {
+      return data(
+        await api.POST("/sites/{siteId}/alerts/{alertId}/work", {
+          params: {
+            path: { siteId, alertId },
+            header: { ...auth(), "Idempotency-Key": key },
+          },
+          body,
+        }),
+      );
+    },
+    async audit(siteId, body, signal) {
+      return data(
+        await api.POST("/sites/{siteId}/alert-audit/search", {
+          params: { path: { siteId }, header: auth() },
+          body,
+          signal,
+        }),
+      );
+    },
+    async delegate(siteId, body) {
+      return data(
+        await api.POST("/sites/{siteId}/alert-delegations", {
+          params: { path: { siteId }, header: auth() },
+          body,
+        }),
+      );
+    },
+    async revokeDelegation(siteId, delegationId) {
+      const result = await api.DELETE(
+        "/sites/{siteId}/alert-delegations/{delegationId}",
+        { params: { path: { siteId, delegationId }, header: auth() } },
+      );
+      if (!result.response.ok)
+        throw new HttpFailure(result.response.status, result.error?.code ?? "");
+    },
     async maps(siteId, signal) {
       return data(
         await api.GET("/sites/{siteId}/maps", {

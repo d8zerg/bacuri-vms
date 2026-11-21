@@ -262,3 +262,49 @@ test("Administrator uploads a plan and reopens a positioned point", async ({
   await page.getByLabel("Карта или план").selectOption("");
   await expect(page.getByText("Карта региона не установлена")).toBeVisible();
 });
+
+test("Operator closes an alert, searches its history and controls delegated work", async ({
+  page,
+}) => {
+  await open(page, "monitor");
+  await page.getByRole("button", { name: /Движение у ворот/ }).click();
+  const panel = page.locator(".ws-alert-work");
+  await panel.getByRole("button", { name: "Взять в работу" }).click();
+  await expect(panel).toContainText("Ответственный: Дежурный");
+  const note = panel.getByLabel("Результат или основание закрытия");
+  await note.fill("Запись проверена");
+  await panel.getByRole("button", { name: "Записать результат" }).click();
+  await expect(
+    panel.getByRole("button", { name: "Закрыть тревогу" }),
+  ).toBeDisabled();
+  await note.fill("Проверка завершена");
+  await panel.getByRole("button", { name: "Закрыть тревогу" }).click();
+  await expect(panel.locator(".ws-history li")).toHaveCount(3);
+  await panel.locator("summary").click();
+  await panel.getByLabel("Имя сервиса").fill("Видеоанализ");
+  await panel.getByRole("button", { name: "Выдать поручение" }).click();
+  await expect(panel.getByLabel("Токен для передачи сервису")).toHaveValue(
+    "test-credential",
+  );
+  await panel.getByRole("button", { name: "Отозвать" }).click();
+  await expect(panel.getByText("Поручение отозвано")).toBeVisible();
+  await checkAccessibility(page, ".ws-alert-work");
+  await panel
+    .getByRole("link", { name: "Открыть журнал этой тревоги" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Журнал тревог" }),
+  ).toBeVisible();
+  const query = page.getByLabel("Результат или основание");
+  await query.fill("Другое основание");
+  await page.getByRole("button", { name: "Найти" }).click();
+  await expect(page.getByText("Записи не найдены")).toBeVisible();
+  await query.fill("Запись проверена");
+  await page.getByRole("button", { name: "Найти" }).click();
+  await expect(page.locator(".ws-history li")).toHaveCount(1);
+  await checkAccessibility(page, ".ws-alert-work");
+  await page
+    .getByRole("link", { name: "Открыть тревогу", exact: true })
+    .click();
+  await expect(panel.locator("strong").first()).toHaveText("Закрыта");
+});

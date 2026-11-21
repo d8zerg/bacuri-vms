@@ -203,3 +203,7 @@ body:has(.ws-shell, .ws-login) {
   margin: 0;
   border: 0;
 }
+
+.ws-audit-link {
+  color: var(--info);
+}

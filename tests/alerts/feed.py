@@ -16,6 +16,7 @@ import registry as c
 import playback
 from browser import browser_session
 from blocked import stalled_reader
+from workflow import check as check_alert_work
 
 SOURCE = c.BIN / "bacuri-vms-observation-source"
 SITE = c.SITE
@@ -372,6 +373,7 @@ def run():
             lambda: c.http("GET", url, headers=admin)[2]["state"] == "ready", "same alert becomes playable"
         )
         print("pending catalog resolved to the recorded source-clock block", flush=True)
+        check_alert_work(c, first, other)
         sample = json.loads(subprocess.check_output([SOURCE, "sample", point, "1"], text=True))
         assert send(sample) == "REGISTRATION_STATE_COMMITTED"
         assert send(sample) == "REGISTRATION_STATE_REPLAYED"

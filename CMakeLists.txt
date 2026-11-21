@@ -95,7 +95,7 @@ target_link_libraries(bacuri-vms-media PRIVATE bacuri-vms-media-auth bacuri-vms-
 add_executable(bacuri-vms-observation-source src/control/observation_source.cpp)
 target_link_libraries(bacuri-vms-observation-source PRIVATE bacuri-vms-rpc bacuri-vms-control-support)
 add_executable(bacuri-vms-core src/core/main.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/registry.cpp src/control/onvif.cpp src/control/camera_events.cpp
-    src/control/observations.cpp src/control/alerts.cpp src/control/alert_socket.cpp
+    src/control/observations.cpp src/control/alert_work.cpp src/control/alerts.cpp src/control/alert_socket.cpp
     src/control/media_authority.cpp src/control/playback.cpp
     src/control/session.cpp src/control/server.cpp src/control/https.cpp src/control/maps.cpp src/control/map_import.cpp src/control/delivery.cpp src/control/archive_catalog.cpp)
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-volume bacuri-vms-media-auth PNG::PNG)

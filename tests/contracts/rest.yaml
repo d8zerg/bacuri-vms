@@ -214,3 +214,43 @@ place_point:
   operation: placePoint
   request: { point_id: 20000000-0000-4000-8000-000000000001, plan_id: null, x: 37.5, y: 55.7 }
   status: 204
+claim_alert:
+  operation: applyAlertCommand
+  request: { action: claim, version: 0, reason: Shift started }
+  status: 200
+  response: { event_id: &work_event 90000000-0000-4000-8000-000000000007, version: 1 }
+delegate_alert_work:
+  operation: issueAlertDelegation
+  request: { point_id: *point, service: verifier, action: record_result, ttl_seconds: 60 }
+  status: 201
+  response:
+    id: &grant 90000000-0000-4000-8000-000000000008
+    token: '0000000000000000000000000000000000000000000000000000000000000000'
+    expires_at: '2020-01-01T10:01:00Z'
+search_alert_result:
+  operation: searchAlertAudit
+  request: { query: gate }
+  status: 200
+  response:
+    items:
+      - id: *work_event
+        alert_id: 90000000-0000-4000-8000-000000000002
+        point_id: *point
+        initiator_id: 90000000-0000-4000-8000-000000000009
+        initiator: operator
+        actor_kind: service
+        service: verifier
+        delegation_id: *grant
+        delegated_action: record_result
+        expires_at: '2020-01-01T10:01:00Z'
+        action: record_result
+        from_state: in_progress
+        to_state: in_progress
+        outcome: applied
+        owner: operator
+        version: 2
+        reason: Gate inspected
+        recorded_at: '2020-01-01T10:00:30Z'
+revoke_alert_work:
+  operation: revokeAlertDelegation
+  status: 204

@@ -7,6 +7,117 @@ servers:
 security:
   - browserSession: []
 paths:
+  /sites/{siteId}/alerts/{alertId}/work:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+      - { in: path, name: alertId, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    get:
+      operationId: getAlertWork
+      description: Read current state, permitted actions, most recent history and active delegations issued by this user at the point.
+      responses:
+        '200':
+          description: Read current state, permitted actions, most recent history and active delegations issued by this user at the point.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertWork' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+    post:
+      operationId: applyAlertCommand
+      description: Apply a versioned command. Replay the original receipt for the same principal, key and input while authorized.
+      security: [{ browserSession: [] }, { alertDelegation: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+        - { in: header, name: X-CSRF-Token, description: Required for browser sessions., schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlertCommand' }
+      responses:
+        '200':
+          description: Apply a versioned command. Replay the original receipt for the same principal, key and input while authorized.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertReceipt' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+        '409':
+          description: Stale version, incompatible state or command key reuse.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /sites/{siteId}/alert-audit/search:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+    post:
+      operationId: searchAlertAudit
+      description: Find up to 50 permitted audit entries by alert and literal reason or result substring, newest first.
+      parameters:
+        - { $ref: '#/components/parameters/Csrf' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuditFilter' }
+      responses:
+        '200':
+          description: Find up to 50 permitted audit entries by alert and literal reason or result substring, newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditPage' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/alert-delegations:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+    post:
+      operationId: issueAlertDelegation
+      description: Issue a short-lived credential for one service, point and action on behalf of the current user.
+      parameters:
+        - { $ref: '#/components/parameters/Csrf' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IssueAlertDelegation' }
+      responses:
+        '201':
+          description: Issue a short-lived credential for one service, point and action on behalf of the current user.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IssuedAlertDelegation' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/alert-delegations/{delegationId}:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+      - { in: path, name: delegationId, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    delete:
+      operationId: revokeAlertDelegation
+      description: Revoke a delegation as its issuer or site administrator.
+      parameters:
+        - { $ref: '#/components/parameters/Csrf' }
+      responses:
+        '204':
+          description: Revoke a delegation as its issuer or site administrator.
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
   /sites/{siteId}/maps:
     parameters:
       - { $ref: '#/components/parameters/Site' }
@@ -621,6 +732,7 @@ paths:
 
 components:
   securitySchemes:
+    alertDelegation: { type: http, scheme: bearer }
     browserSession:
       type: apiKey
       in: cookie
@@ -710,6 +822,100 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
   schemas:
+    AlertAction: { enum: [claim, record_result, close] }
+    AlertState: { enum: [new, in_progress, closed] }
+    AlertCommand:
+      type: object
+      additionalProperties: false
+      required: [action, version, reason]
+      properties:
+        action: { $ref: '#/components/schemas/AlertAction' }
+        version: { type: integer, minimum: 0, maximum: 2147483646 }
+        reason: { type: string, minLength: 1, maxLength: 1024 }
+    AlertReceipt:
+      type: object
+      additionalProperties: false
+      required: [event_id, version]
+      properties:
+        event_id: { $ref: '#/components/schemas/Id' }
+        version: { type: integer, minimum: 0, maximum: 2147483647 }
+    AuditEntry:
+      type: object
+      additionalProperties: false
+      required: [id, alert_id, point_id, initiator_id, initiator, actor_kind, delegation_id, service, delegated_action, expires_at, action, outcome, reason, owner, from_state, to_state, version, recorded_at]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        alert_id: { type: [string, 'null'], format: uuid }
+        point_id: { type: [string, 'null'], format: uuid }
+        initiator_id: { $ref: '#/components/schemas/Id' }
+        initiator: { type: string }
+        actor_kind: { enum: [user, service] }
+        delegation_id: { type: [string, 'null'], format: uuid }
+        service: { type: [string, 'null'] }
+        delegated_action: { enum: [claim, record_result, close, null] }
+        expires_at: { type: [string, 'null'], format: date-time }
+        action: { enum: [claim, record_result, close, delegate, revoke] }
+        outcome: { enum: [applied, denied, conflict] }
+        reason: { type: string }
+        owner: { type: [string, 'null'] }
+        from_state: { enum: [new, in_progress, closed, null] }
+        to_state: { enum: [new, in_progress, closed, null] }
+        version: { type: [integer, 'null'] }
+        recorded_at: { $ref: '#/components/schemas/UtcTime' }
+    AlertWork:
+      type: object
+      additionalProperties: false
+      required: [alert_id, point_id, state, version, owner, result, actions, history, delegations]
+      properties:
+        alert_id: { $ref: '#/components/schemas/Id' }
+        point_id: { $ref: '#/components/schemas/Id' }
+        state: { $ref: '#/components/schemas/AlertState' }
+        version: { type: integer, minimum: 0, maximum: 2147483647 }
+        owner: { type: [string, 'null'] }
+        result: { type: string }
+        actions: { type: array, items: { $ref: '#/components/schemas/AlertAction' } }
+        history: { type: array, items: { $ref: '#/components/schemas/AuditEntry' } }
+        delegations: { type: array, items: { $ref: '#/components/schemas/AlertDelegation' } }
+    AlertDelegation:
+      type: object
+      additionalProperties: false
+      required: [id, service, action, expires_at]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        service: { type: string }
+        action: { $ref: '#/components/schemas/AlertAction' }
+        expires_at: { $ref: '#/components/schemas/UtcTime' }
+    IssueAlertDelegation:
+      type: object
+      additionalProperties: false
+      required: [service, action, point_id, ttl_seconds]
+      properties:
+        service: { type: string, minLength: 1, maxLength: 128 }
+        action: { $ref: '#/components/schemas/AlertAction' }
+        point_id: { $ref: '#/components/schemas/Id' }
+        ttl_seconds: { type: integer, minimum: 1, maximum: 86400 }
+    IssuedAlertDelegation:
+      type: object
+      additionalProperties: false
+      required: [id, token, expires_at]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        token: { type: string, pattern: '^[0-9a-f]{64}$' }
+        expires_at: { $ref: '#/components/schemas/UtcTime' }
+    AuditPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AuditEntry' } }
+        next_cursor: { $ref: '#/components/schemas/Id' }
+    AuditFilter:
+      type: object
+      additionalProperties: false
+      properties:
+        query: { type: string, maxLength: 256 }
+        alert_id: { $ref: '#/components/schemas/Id' }
+        before: { $ref: '#/components/schemas/Id' }
     MapScene:
       type: object
       additionalProperties: false
@@ -1053,6 +1259,7 @@ components:
           properties:
             id: { $ref: '#/components/schemas/Id' }
             point_id: { $ref: '#/components/schemas/Id' }
+            work_state: { $ref: '#/components/schemas/AlertState' }
             observed_at: { $ref: '#/components/schemas/UtcTime' }
             type: { type: string, minLength: 1, maxLength: 128 }
             archive_interval: { $ref: '#/components/schemas/UtcInterval' }
@@ -1116,6 +1323,8 @@ components:
             - invalid_credentials
             - unauthenticated
             - forbidden
+            - alert_state_conflict
+            - alert_result_required
             - not_found
             - idempotency_conflict
             - revision_conflict

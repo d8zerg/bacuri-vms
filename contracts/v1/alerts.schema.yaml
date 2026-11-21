@@ -39,4 +39,4 @@ $defs:
     required: [type, reason]
     properties:
       type: { const: resync_required }
-      reason: { enum: [cursor_expired, cursor_invalid, scope_changed, client_lag] }
+      reason: { enum: [cursor_expired, cursor_invalid, scope_changed, work_changed, client_lag] }
