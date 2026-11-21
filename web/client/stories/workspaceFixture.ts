@@ -1,3 +1,5 @@
+import floor from "./floor.png";
+import type { MapScene } from "../src/contracts/workspace";
 import liveClip from "../../../prototype/dist/assets/yard-live.webm";
 import archiveClip from "../../../prototype/dist/assets/yard.webm";
 import type {
@@ -53,7 +55,46 @@ export function fixture(condition = "normal"): Services {
   };
   let attempt = 0,
     revision = 0;
+  const scene: MapScene = {
+    region: null,
+    fonts: [],
+    symbols: "",
+    plans:
+      condition === "empty"
+        ? []
+        : [
+            {
+              id: "floor",
+              name: "Первый этаж",
+              width: 640,
+              height: 360,
+              image_url: floor,
+            },
+          ],
+    placements:
+      condition === "empty"
+        ? []
+        : [{ point_id: point, plan_id: "floor", x: 0.34, y: 0.52 }],
+  };
   return {
+    maps: () =>
+      condition === "map-error"
+        ? Promise.reject(Error("503"))
+        : Promise.resolve(structuredClone(scene)),
+    place: (_site, body) => {
+      scene.placements = [body];
+      return Promise.resolve();
+    },
+    addPlan: (_site, name) => {
+      scene.plans.push({
+        id: "new",
+        name,
+        width: 640,
+        height: 360,
+        image_url: floor,
+      });
+      return Promise.resolve({ id: "new" });
+    },
     session: () => Promise.resolve(session),
     login: () => Promise.resolve(session),
     logout: () => Promise.resolve(),

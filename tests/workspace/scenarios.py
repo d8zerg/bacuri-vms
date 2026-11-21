@@ -13,6 +13,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "alerts"))
 from feed import c, browser_session, js, motion, playback, send, snapshot
+from maps import admin_placements, link, offline_maps
 
 report = Path(os.environ["BACURI_WORKSPACE_RESULTS"])
 raw = report / "chrome"
@@ -159,18 +160,22 @@ def pending_alert(call, point, viewer):
     button(call, "К выбранной тревоге")
 
 
-def operator(browser, cam, viewer, restart):
+def operator(browser, cam, viewer, restart, plan):
     point = cam["point_id"]
     subprocess.run([c.CORE, "grant-point", "viewer", point], check=True)
     playback.fixture(cam, 0, 320, [(255, 0, 0), (0, 255, 0)])
-    with browser_session(browser, None, "/", workspace_coverage=raw) as (call, _):
+    with browser_session(browser, None, "/", workspace_coverage=raw, software_map=True) as (call, _):
         login(call, "viewer")
         wait(call, "document.querySelector('video')?.videoWidth===640", "secondary WebRTC frame")
         wait(call, "document.body.innerText.includes('Тревог пока нет')", "empty live feed")
         send(motion(point))
         alert = snapshot(viewer)["items"][-1]
-        node = wait(call, "document.getElementById('alert-'+arguments[0])", "WSS alert", alert["id"])
-        call("POST", "/element/" + node["element-6066-11e4-a52e-4f735466cecf"] + "/click", {})
+        link(call, wait, 'nav a[href^="/maps"]')
+        wait(call,"[...document.querySelectorAll('option')].some(o=>o.value===arguments[0])","visible operator plan",plan)
+        js(call,"const select=document.querySelector('main select');select.value=arguments[0];select.dispatchEvent(new Event('change',{bubbles:true}))",plan)
+        link(call, wait, "#map-point-"+point)
+        wait(call,"document.querySelector('.ws-plan img')?.naturalWidth===640","operator plan image")
+        link(call, wait, 'main a[href*="alert="]')
         wait(call, "document.body.innerText.includes('Кадр записи получен')", "archive ready")
         position = js(call, "return document.querySelector('.ws-transport time').dateTime")
         assert position == alert["observed_at"], (position, alert)
@@ -183,6 +188,12 @@ def operator(browser, cam, viewer, restart):
         assert frame == 16, (browser, frame)
         url = js(call, "return location.pathname+location.search")
         capture(call, browser, "operator")
+        link(call,wait,'nav a[href^="/maps"]')
+        wait(call,"document.activeElement?.id==='map-point-'+arguments[0]", "restored map focus", point)
+        assert js(call,"return new URLSearchParams(location.search).get('plan')")==plan
+        link(call,wait,'main a[href*="mode=archive"]')
+        wait(call, "document.body.innerText.includes('Кадр записи получен')", "restored archive frame")
+        assert js(call, "return document.querySelector('.ws-transport time').dateTime") == position
         button(call, "К выбранной тревоге")
         wait(call, "document.activeElement?.id==='alert-'+arguments[0]", "restored feed focus", alert["id"])
         params = js(call, "return Object.fromEntries(new URLSearchParams(location.search))")
@@ -318,7 +329,9 @@ def run():
         start([playback.MEDIA])
         for browser in browsers:
             cam = installer(browser, admin, restart)
-            operator(browser, cam, c.login("viewer"), restart)
+            viewer = c.login("viewer")
+            plan = admin_placements(browser, admin, viewer, cam, wait, button, field, raw)
+            operator(browser, cam, viewer, restart, plan)
         measure("integrated", admin)
     for before, after in zip(evidence[:4], evidence[4:], strict=True):
         assert before["browser"] == after["browser"] and before["route"] == after["route"]
@@ -330,4 +343,7 @@ def run():
 
 
 if __name__ == "__main__":
-    run()
+    if sys.argv[-1] == "maps":
+        offline_maps(wait, button, field, raw, capture)
+    else:
+        run()

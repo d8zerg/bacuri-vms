@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import {
   NavLink,
@@ -17,6 +17,7 @@ import { Button } from "../ui-kit/FormControls";
 import icons from "../../../../design/bacuri/icons/sprite.svg";
 import mark from "../../../../design/bacuri/brand/mark.svg";
 import "./workspace.css";
+const Maps = lazy(() => import("./Maps"));
 const waiting: Feed = { items: [], status: "loading" };
 function Login({
   services,
@@ -76,6 +77,7 @@ function Site({
   admin,
   userId,
   cameras,
+  maps,
   onExpired,
 }: {
   services: Services;
@@ -83,6 +85,7 @@ function Site({
   admin: boolean;
   userId: string;
   cameras: boolean;
+  maps: boolean;
   onExpired: () => void;
 }) {
   const [points, setPoints] = useState<Point[] | null>(null),
@@ -110,7 +113,9 @@ function Site({
           onExpired();
           return;
         }
-        setPoints(next);
+        setPoints((current) =>
+          JSON.stringify(current) === JSON.stringify(next) ? current : next,
+        );
         setFailed(false);
       } catch (err) {
         if (
@@ -171,6 +176,18 @@ function Site({
       />
     );
   if (!points) return <p role="status">{notice}</p>;
+  if (maps)
+    return (
+      <Suspense fallback={<p role="status">Загрузка карт и планов…</p>}>
+        <Maps
+          services={services}
+          site={site}
+          admin={admin}
+          points={points}
+          feed={feed}
+        />
+      </Suspense>
+    );
   if (cameras)
     return <p role="status">Недостаточно прав для подключения камеры</p>;
   return (
@@ -267,12 +284,18 @@ function Workspace({ services }: { services: Services }) {
       <nav aria-label="Рабочее место">
         <NavLink
           to={"/monitor" + query}
-          aria-current={!cameras ? "page" : false}
+          aria-current={location.pathname === "/monitor" ? "page" : false}
         >
           <svg aria-hidden="true">
             <use href={icons + "#i-monitor-play"} />
           </svg>
           Мониторинг
+        </NavLink>
+        <NavLink to={"/maps" + query}>
+          <svg aria-hidden="true">
+            <use href={icons + "#i-map"} />
+          </svg>
+          Карты и планы
         </NavLink>
         {site?.role === "administrator" && (
           <NavLink to={"/cameras" + query}>
@@ -293,6 +316,7 @@ function Workspace({ services }: { services: Services }) {
             userId={identity.user_id}
             admin={site.role === "administrator"}
             cameras={cameras}
+            maps={location.pathname === "/maps"}
             onExpired={expired}
           />
         ) : (
@@ -316,7 +340,7 @@ export function WorkspaceRouter({
         loader: ({ request }) =>
           replace("/monitor" + new URL(request.url).search),
       },
-      ...["/monitor", "/cameras"].map((path) => ({
+      ...["/monitor", "/cameras", "/maps"].map((path) => ({
         path,
         element: <Workspace services={services} />,
       })),

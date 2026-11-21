@@ -15,7 +15,7 @@ export class HttpFailure extends Error {
 }
 export function data<T>(result: {
   data?: T;
-  error?: { code: string };
+  error?: { code: string } | undefined;
   response: Response;
 }): T {
   if (!result.response.ok || result.data === undefined)

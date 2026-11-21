@@ -1,0 +1,39 @@
+- main:
+  - heading "Карты и планы" [level=1]
+  - text: Карта или план
+  - combobox "Карта или план":
+    - option "Карта региона"
+    - option "Первый этаж" [selected]
+  - heading "Первый этаж" [level=2]
+  - text: Масштаб плана
+  - combobox "Масштаб плана":
+    - option /\d+%/ [selected]
+    - option /\d+%/
+  - img "Первый этаж"
+  - button /Погрузочные ворота \d+/ [pressed]
+  - heading "Точки наблюдения" [level=2]
+  - list:
+    - listitem:
+      - button /Погрузочные ворота \d+/ [pressed]
+  - heading /Погрузочные ворота \d+/ [level=3]
+  - paragraph: /X, Y · \d+\.\d+, \d+\.\d+/
+  - link "Эфир":
+    - /url: /monitor?plan=floor&point=dock&mode=live
+  - link "Архив":
+    - /url: /monitor?plan=floor&point=dock&mode=archive
+  - link /Движение у ворот · \d+-\d+-01T14:\d+:\d+\.000Z/:
+    - /url: /monitor?plan=floor&point=dock&mode=archive&alert=event-0
+  - link /Потеря видеопотока · \d+-\d+-01T14:\d+:\d+\.000Z/:
+    - /url: /monitor?plan=floor&point=dock&mode=archive&alert=event-1
+  - link /Смещение часов камеры · \d+-\d+-01T14:\d+:\d+\.000Z/:
+    - /url: /monitor?plan=floor&point=dock&mode=archive&alert=event-2
+  - link /Поток восстановлен · \d+-\d+-01T14:\d+:\d+\.000Z/:
+    - /url: /monitor?plan=floor&point=dock&mode=archive&alert=event-3
+  - heading "Положение точки" [level=3]
+  - text: X
+  - spinbutton "X": /\d+\.\d+/
+  - text: "Y"
+  - spinbutton "Y": /\d+\.\d+/
+  - button "Сохранить положение" [disabled]
+  - group: Добавить план
+  - status

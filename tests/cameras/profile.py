@@ -89,7 +89,7 @@ def validate_asvs():
         need(all(isinstance(v, str) and v.strip() for v in row.values()), "incomplete ASVS row")
         need(row["scope"] in ("applicable", "excluded"), "invalid ASVS applicability")
         need(row["step"] in steps, "unknown implementation or review step")
-        need(row["result"] == ("pending" if row["scope"] == "applicable" else "scope-review"), "invalid ASVS baseline status")
+        need(row["result"] in (("pending", "tested") if row["scope"] == "applicable" else ("scope-review",)), "invalid ASVS evidence status")
         need(Path(row["analysis_or_test"]).is_file(), "missing evidence target")
         keys.append(f"{row['id']} {row['level']}\n")
     # SHA-256 of the sorted requirement identifiers and levels in the OWASP v5.0.0 CSV.

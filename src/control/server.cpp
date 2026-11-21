@@ -1,4 +1,5 @@
 #include "control/api.hpp"
+#include "control/maps.hpp"
 #include "control/alerts.hpp"
 #include "control/observations.hpp"
 #include "control/onvif.hpp"
@@ -34,7 +35,7 @@ namespace
 {
 bool workspace_page(std::string_view path)
 {
-    return path == "/" || path == "/monitor" || path == "/cameras";
+    return path == "/" || path == "/maps" || path == "/monitor" || path == "/cameras";
 }
 
 void workspace_file(const Request& req, Response& res, std::string_view path)
@@ -54,6 +55,8 @@ void workspace_file(const Request& req, Response& res, std::string_view path)
             mime = "text/javascript; charset=utf-8";
         } else if (name.ends_with(".css")) {
             mime = "text/css";
+        } else if (name.ends_with(".png")) {
+            mime = "image/png";
         } else if (name.ends_with(".svg")) {
             mime = "image/svg+xml";
         } else if (name.ends_with(".webm")) {
@@ -71,7 +74,8 @@ void workspace_file(const Request& req, Response& res, std::string_view path)
     }
     res.result(http::status::ok);
     res.set(http::field::content_type, mime);
-    res.set("Content-Security-Policy", "default-src 'self'; media-src 'self' blob:; object-src 'none'; "
+    res.set("Content-Security-Policy", "default-src 'self'; worker-src 'self' blob:; img-src 'self' data: blob:; "
+                                       "media-src 'self' blob:; object-src 'none'; "
                                        "frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     res.body().assign(std::istreambuf_iterator<char>{file}, {});
 }
@@ -126,6 +130,8 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     }
     const std::string site{path.substr(0, separator)};
     path.remove_prefix(separator + 1);
+    if (path == "maps" || path.starts_with("maps/"))
+        return maps(req, res, sessions, site, path, origin);
     if (path == "alerts" || path == "alerts/stream") {
         allow(req, res, {http::verb::get});
         auto feed = std::make_shared<AlertFeed>(sessions, key, req, site);

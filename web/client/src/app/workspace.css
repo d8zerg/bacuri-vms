@@ -163,6 +163,7 @@ body:has(.ws-shell, .ws-login) {
   }
   .ws-shell nav {
     flex-direction: row;
+    flex-wrap: wrap;
     padding: var(--space-1);
     border-bottom: 1px solid var(--line);
   }

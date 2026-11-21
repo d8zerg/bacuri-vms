@@ -142,6 +142,8 @@ RUN export CONAN_HOME=/opt/bacuri/conan-cache && \
 RUN --mount=from=maintenance-build,source=/sdk/xml-dev,target=/packages \
     dpkg --path-include='*' -i /packages/*.deb
 COPY --from=maintenance-build /sdk/xml-dev/provenance.json /usr/share/bacuri/maintenance/xml-dev.json
+RUN apt-get -o Acquire::Retries=2 update && apt-get install -y --no-install-recommends libpng-dev \
+    && rm -rf /var/lib/apt/lists/*
 RUN (dpkg-query -W && sha256sum /opt/bacuri/deps/*/graph.json /opt/bacuri/profiles/*) \
         > /tmp/bacuri-build-inputs && \
     sha256sum /tmp/bacuri-build-inputs > /opt/bacuri/deps/toolchain.sha256 && \

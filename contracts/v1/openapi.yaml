@@ -7,6 +7,124 @@ servers:
 security:
   - browserSession: []
 paths:
+  /sites/{siteId}/maps:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+    get:
+      operationId: getMapScene
+      description: Read the installed region, visible plans and point placements. Relative resource URLs use the site HTTPS origin.
+      responses:
+        '200':
+          description: Read the installed region, visible plans and point placements. Relative resource URLs use the site HTTPS origin.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MapScene' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/maps/plans:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+      - { $ref: '#/components/parameters/Csrf' }
+    post:
+      operationId: addFloorPlan
+      description: Import a static PNG plan as a site administrator. Maximum 4 MiB, 4096 pixels per side and 8388608 pixels in total.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlanUpload' }
+      responses:
+        '201':
+          description: Import a static PNG plan as a site administrator. Maximum 4 MiB, 4096 pixels per side and 8388608 pixels in total.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedPlan' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { description: Request body exceeds the transport limit. }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/maps/placement:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+      - { $ref: '#/components/parameters/Csrf' }
+    put:
+      operationId: placePoint
+      description: Set longitude and latitude on the region or fractional coordinates from the top left of a plan. Requires the site administrator role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PointPlacement' }
+      responses:
+        '204':
+          description: Set longitude and latitude on the region or fractional coordinates from the top left of a plan. Requires the site administrator role.
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/maps/plans/{planId}:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+      - { in: path, name: planId, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    get:
+      operationId: getFloorPlan
+      description: Read a visible plan image.
+      responses:
+        '200':
+          description: Read a visible plan image.
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/maps/{revision}/style:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+      - { in: path, name: revision, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    get:
+      operationId: getRegionStyle
+      description: Read the installed MapLibre Style Specification version 8 raster style.
+      responses:
+        '200':
+          description: Read the installed MapLibre Style Specification version 8 raster style.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/maps/{revision}/tiles/{z}/{x}/{y}.png:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+      - { in: path, name: revision, required: true, schema: { $ref: '#/components/schemas/Id' } }
+      - { in: path, name: z, required: true, schema: { type: integer, minimum: 0 } }
+      - { in: path, name: x, required: true, schema: { type: integer, minimum: 0 } }
+      - { in: path, name: y, required: true, schema: { type: integer, minimum: 0 } }
+    get:
+      operationId: getRegionTile
+      description: Read one local 256 pixel XYZ tile.
+      responses:
+        '200':
+          description: Read one local 256 pixel XYZ tile.
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
   /session:
     post:
       operationId: createSession
@@ -592,6 +710,71 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
   schemas:
+    MapScene:
+      type: object
+      additionalProperties: false
+      required: [region, plans, placements, symbols, fonts]
+      properties:
+        region: { oneOf: [{ $ref: '#/components/schemas/MapRegion' }, { type: 'null' }] }
+        plans: { type: array, items: { $ref: '#/components/schemas/FloorPlan' } }
+        placements: { type: array, items: { $ref: '#/components/schemas/PointPlacement' } }
+        symbols: { type: string }
+        fonts: { type: array, items: { type: string } }
+    MapRegion:
+      type: object
+      additionalProperties: false
+      required: [revision, name, source_time, min_zoom, max_zoom, bounds, style_url, attribution]
+      properties:
+        revision: { $ref: '#/components/schemas/Id' }
+        name: { type: string }
+        source_time: { type: string, format: date-time }
+        min_zoom: { type: integer }
+        max_zoom: { type: integer }
+        bounds: { type: array, minItems: 4, maxItems: 4, items: { type: number } }
+        style_url: { type: string }
+        attribution: { type: string }
+    FloorPlan:
+      type: object
+      additionalProperties: false
+      required: [id, name, image_url, width, height]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        name: { type: string }
+        image_url: { type: string }
+        width: { type: integer }
+        height: { type: integer }
+    PointPlacement:
+      type: object
+      additionalProperties: false
+      required: [point_id, plan_id, x, y]
+      properties:
+        point_id: { $ref: '#/components/schemas/Id' }
+        plan_id: { oneOf: [{ $ref: '#/components/schemas/Id' }, { type: 'null' }] }
+        x: { type: number }
+        y: { type: number }
+      if:
+        properties: { plan_id: { type: 'null' } }
+      then:
+        properties:
+          x: { minimum: -180, maximum: 180 }
+          y: { minimum: -85.051129, maximum: 85.051129 }
+      else:
+        properties:
+          x: { minimum: 0, maximum: 1 }
+          y: { minimum: 0, maximum: 1 }
+    PlanUpload:
+      type: object
+      additionalProperties: false
+      required: [name, png]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 128 }
+        png: { type: string, contentEncoding: base64, maxLength: 5592408 }
+    CreatedPlan:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
     Id:
       type: string
       format: uuid

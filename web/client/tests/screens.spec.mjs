@@ -202,3 +202,63 @@ for (const route of ["monitor", "installer"])
     });
     await reference.close();
   });
+
+for (const [story, state] of [
+  ["plan", "Первый этаж"],
+  ["empty-maps", "Карта региона не установлена"],
+  ["maps-unavailable", "Не удалось загрузить карты и планы"],
+]) {
+  test("Map screen " + story, async ({ page }) => {
+    await open(page, story);
+    await expect(page.locator("main")).toContainText(state);
+    if (story === "plan")
+      await expect(page.locator(".ws-plan img")).toHaveJSProperty(
+        "naturalWidth",
+        640,
+      );
+    await page.evaluate(() => document.fonts.ready);
+    await checkAccessibility(page, ".ws-shell");
+    await expect(page.locator("main")).toMatchAriaSnapshot({
+      name: story + ".aria.yml",
+    });
+    for (const width of [1440, 768, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(width);
+      await expect(page).toHaveScreenshot(story + "-" + width + ".png", {
+        fullPage: true,
+        animations: "disabled",
+      });
+    }
+  });
+}
+
+test("Administrator uploads a plan and reopens a positioned point", async ({
+  page,
+}) => {
+  await open(page, "plan");
+  const x = page.getByRole("spinbutton", { name: "X", exact: true });
+  await x.fill("0.42");
+  await page.getByRole("button", { name: "Сохранить положение" }).click();
+  await expect(page.getByText("Положение сохранено")).toBeVisible();
+  await page.getByLabel("Масштаб плана").selectOption("2");
+  await page.getByRole("link", { name: "Эфир", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Мониторинг" })).toBeVisible();
+  await page.getByRole("link", { name: "Карты и планы" }).click();
+  await expect(page.locator("#map-point-dock")).toBeFocused();
+  await expect(x).toHaveValue("0.42");
+  await expect(page.getByLabel("Масштаб плана")).toHaveValue("2");
+  await page.getByText("Добавить план", { exact: true }).click();
+  await page.getByLabel("Название плана").fill("Второй этаж");
+  await page.getByLabel("Изображение PNG").setInputFiles("stories/floor.png");
+  await page.getByRole("button", { name: "Загрузить план" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Второй этаж" }),
+  ).toBeVisible();
+  await page.locator(".ws-plan img").click({ position: { x: 75, y: 45 } });
+  await page.getByRole("button", { name: "Сохранить положение" }).click();
+  await expect(page.getByText("Положение сохранено")).toBeVisible();
+  await page.getByLabel("Карта или план").selectOption("");
+  await expect(page.getByText("Карта региона не установлена")).toBeVisible();
+});

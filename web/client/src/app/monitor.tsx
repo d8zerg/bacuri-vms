@@ -262,6 +262,17 @@ export function Monitor({
   feed: Feed;
 }) {
   const [params, set] = useSearchParams();
+  useEffect(() => {
+    if (
+      params.get("mode") !== "archive" ||
+      params.has("alert") ||
+      params.has("at")
+    )
+      return;
+    const next = new URLSearchParams(params);
+    next.set("at", new Date().toISOString());
+    void set(next, { replace: true });
+  }, [params, set]);
   const chosen = params.get("point"),
     alert = params.get("alert"),
     focus = params.get("focus");

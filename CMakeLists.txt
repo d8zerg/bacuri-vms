@@ -24,6 +24,7 @@ target_compile_options(bacuri-vms-domain PRIVATE -Wall -Wextra -Wpedantic)
 find_package(PkgConfig REQUIRED)
 find_package(Protobuf REQUIRED)
 find_package(SQLite3 REQUIRED)
+find_package(PNG REQUIRED)
 find_package(PostgreSQL REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 pkg_check_modules(GRPC REQUIRED IMPORTED_TARGET grpc++)
@@ -96,8 +97,8 @@ target_link_libraries(bacuri-vms-observation-source PRIVATE bacuri-vms-rpc bacur
 add_executable(bacuri-vms-core src/core/main.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/registry.cpp src/control/onvif.cpp src/control/camera_events.cpp
     src/control/observations.cpp src/control/alerts.cpp src/control/alert_socket.cpp
     src/control/media_authority.cpp src/control/playback.cpp
-    src/control/session.cpp src/control/server.cpp src/control/https.cpp src/control/delivery.cpp src/control/archive_catalog.cpp)
-target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-volume bacuri-vms-media-auth)
+    src/control/session.cpp src/control/server.cpp src/control/https.cpp src/control/maps.cpp src/control/map_import.cpp src/control/delivery.cpp src/control/archive_catalog.cpp)
+target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-volume bacuri-vms-media-auth PNG::PNG)
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-control-support bacuri-vms-rpc
     LibXml2::LibXml2 PostgreSQL::PostgreSQL Boost::headers OpenSSL::SSL PkgConfig::GIO nlohmann_json::nlohmann_json)
 target_compile_definitions(bacuri-vms-core PRIVATE BACURI_VMS_VERSION="${PROJECT_VERSION}")

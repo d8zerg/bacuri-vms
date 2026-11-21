@@ -12,7 +12,7 @@ import registry as control
 
 
 @contextmanager
-def browser_session(browser, credential, page, *, workspace_coverage=None):
+def browser_session(browser, credential, page, *, workspace_coverage=None, software_map=False):
     root = f"http://playback-{browser}:4444"
 
     def call(method, path, body=None):
@@ -29,10 +29,13 @@ def browser_session(browser, credential, page, *, workspace_coverage=None):
             raise AssertionError(error.read().decode()) from error
 
     control.wait_for(lambda: call("GET", "/status")["ready"], browser)
+    capabilities = {"browserName": browser, "acceptInsecureCerts": True}
+    if software_map and browser == "chrome":
+        capabilities["goog:chromeOptions"] = {"args": ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]}
     result = call(
         "POST",
         "/session",
-        {"capabilities": {"alwaysMatch": {"browserName": browser, "acceptInsecureCerts": True}}},
+        {"capabilities": {"alwaysMatch": capabilities}},
     )
     path = "/session/" + result["sessionId"]
     coverage = os.environ.get("BACURI_BROWSER_COVERAGE") if browser == "chrome" else None

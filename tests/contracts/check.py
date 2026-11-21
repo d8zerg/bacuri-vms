@@ -47,6 +47,10 @@ def check_rest(api, registry):
         try:
             if "request" in fixture:
                 payload_validator(f"{operation}/requestBody").validate(fixture["request"])
+            if status == 204:
+                resource = resolver.lookup(f"{operation}/responses/{status}").contents
+                assert "content" not in resource and "response" not in fixture
+                continue
             response = fixture["response"]
             payload_validator(f"{operation}/responses/{status}").validate(response)
             if status >= 400 and response["status"] != status:

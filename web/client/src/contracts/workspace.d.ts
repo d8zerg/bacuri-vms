@@ -26,7 +26,12 @@ export type Feed = {
   items: AlertItem[];
   status: "loading" | "online" | "reconnecting" | "denied";
 };
+export type MapScene = Schema["MapScene"];
+export type Placement = Schema["PointPlacement"];
 export interface Services {
+  maps(site: string, signal: AbortSignal): Promise<MapScene>;
+  place(site: string, body: Placement): Promise<void>;
+  addPlan(site: string, name: string, png: string): Promise<{ id: string }>;
   session(signal: AbortSignal): Promise<Session>;
   login(username: string, password: string): Promise<Session>;
   logout(): Promise<void>;

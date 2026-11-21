@@ -363,7 +363,7 @@ tasks:
         'npm run app -- --mode fixture --outDir /results/workspace-fixture && npm run app -- --outDir /results/web-client'
 
   workspace:check:
-    desc: Exercise both workspaces on HTTPS with real media, WSS and browser coverage
+    desc: Exercise offline maps, installation and monitoring on HTTPS with real media and WSS
     deps:
       - web:build
       - stand:up

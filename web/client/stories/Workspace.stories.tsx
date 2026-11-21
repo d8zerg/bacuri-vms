@@ -34,3 +34,16 @@ export const Offline: Story = {
   name: "Ошибка связи с камерой",
   args: { initial: "/cameras", condition: "offline" },
 };
+
+export const Plan: Story = {
+  name: "Поэтажный план",
+  args: { initial: "/maps?plan=floor&point=dock" },
+};
+export const EmptyMaps: Story = {
+  name: "Нет карт и планов",
+  args: { initial: "/maps", condition: "empty" },
+};
+export const MapsUnavailable: Story = {
+  name: "Карты недоступны",
+  args: { initial: "/maps", condition: "map-error" },
+};

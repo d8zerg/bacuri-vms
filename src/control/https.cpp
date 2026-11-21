@@ -75,7 +75,8 @@ net::awaitable<void> exchange(std::shared_ptr<TlsStream> connection, net::thread
     for (unsigned sequence = 1; sequence <= max_requests_per_connection; ++sequence) {
         http::request_parser<http::string_body> parser;
         parser.header_limit(8192);
-        parser.body_limit(65536);
+        constexpr unsigned plan_limit = 6 * 1024 * 1024;
+        parser.body_limit(plan_limit);
         transport.expires_after(io_timeout);
         auto [error, header_size] =
             co_await http::async_read_header(stream, buffer, parser, net::as_tuple(net::use_awaitable));
@@ -84,9 +85,15 @@ net::awaitable<void> exchange(std::shared_ptr<TlsStream> connection, net::thread
         }
 
         const auto target = std::string_view{parser.get().target()};
-        if (!error && !(target.starts_with("/api/v1/media-sessions/") && target.ends_with("/offer"))) {
-            parser.body_limit(32768);
-            if (parser.content_length().value_or(0) > 32768) {
+        if (!error) {
+            const bool plan = parser.get().method() == http::verb::post &&
+                              target.size() == std::string_view{"/api/v1/sites/"}.size() + 36 +
+                                                   std::string_view{"/maps/plans"}.size() &&
+                              target.starts_with("/api/v1/sites/") && target.ends_with("/maps/plans");
+            const bool offer = target.starts_with("/api/v1/media-sessions/") && target.ends_with("/offer");
+            const unsigned limit = plan ? plan_limit : (offer ? 65536 : 32768);
+            parser.body_limit(limit);
+            if (parser.content_length().value_or(0) > limit) {
                 error = http::error::body_limit;
             }
         }

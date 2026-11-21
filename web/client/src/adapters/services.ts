@@ -41,6 +41,29 @@ export function createServices(): Services {
         throw Error(String(response.status));
       csrf = "";
     },
+    async maps(siteId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/maps", {
+          params: { path: { siteId } },
+          signal,
+        }),
+      );
+    },
+    async place(siteId, body) {
+      const { response } = await api.PUT("/sites/{siteId}/maps/placement", {
+        params: { path: { siteId }, header: auth() },
+        body,
+      });
+      if (!response.ok) throw Error(String(response.status));
+    },
+    async addPlan(siteId, name, png) {
+      return data(
+        await api.POST("/sites/{siteId}/maps/plans", {
+          params: { path: { siteId }, header: auth() },
+          body: { name, png },
+        }),
+      );
+    },
     async points(siteId, signal) {
       return data(
         await api.GET("/sites/{siteId}/points", {

@@ -63,15 +63,15 @@ case "${2:-control}" in
             --output-junit "${BACURI_RECOVERY_REPORT%.json}.boundaries.xml"
         PYTHONDONTWRITEBYTECODE=1 python3 tests/recovery/scenarios.py "$test_dir" ;;
     archive) PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/recording.py "$test_dir" ;;
-    playback|live|alerts|workspace|commissioning)
+    playback|live|alerts|workspace|maps|commissioning)
         export BACURI_LISTEN=0.0.0.0 BACURI_ORIGIN="https://$(hostname -i | awk '{print $1}'):8443"
         if [ "$2" = commissioning ]; then
             export BACURI_CAMERA_NETWORKS="127.0.0.0/8,::1/128,$fixture_ip/32"
             export BACURI_CAMERA_CA_FILE="$BACURI_TLS_CERT"
             export BACURI_LEGACY_RTSP_ADDRESSES="$fixture_ip"
             PYTHONDONTWRITEBYTECODE=1 python3 tests/cameras/commissioning.py "$test_dir"
-        elif [ "$2" = workspace ]; then
-            PYTHONDONTWRITEBYTECODE=1 python3 tests/workspace/scenarios.py "$test_dir"
+        elif [ "$2" = workspace ] || [ "$2" = maps ]; then
+            PYTHONDONTWRITEBYTECODE=1 python3 tests/workspace/scenarios.py "$test_dir" "$2"
         elif [ "$2" = alerts ]; then
             PYTHONDONTWRITEBYTECODE=1 python3 tests/alerts/feed.py "$test_dir"
         elif [ "$2" = live ]; then

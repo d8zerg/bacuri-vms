@@ -29,7 +29,9 @@ constexpr std::array tables{"sites",
                             "configuration_audit",
                             "camera_transport_audit",
                             "configuration_progress",
-                            "recorder_delivery"};
+                            "recorder_delivery",
+                            "floor_plans",
+                            "point_placements"};
 
 std::string context(const std::string& site)
 {
@@ -100,8 +102,10 @@ void restore_configuration(std::istream& input)
     }
     encrypted.pop_back();
     auto data = Json::parse(unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site)));
-    if (!data.contains("camera_transport_audit"))
-        data["camera_transport_audit"] = Json::array();
+    for (const auto* table : {"camera_transport_audit", "floor_plans", "point_placements"}) {
+        if (!data.contains(table))
+            data[table] = Json::array();
+    }
     require_single_site(data, site);
     Database db;
     db.exec("BEGIN ISOLATION LEVEL SERIALIZABLE; SET LOCAL TIME ZONE 'UTC'");

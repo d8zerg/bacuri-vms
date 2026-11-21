@@ -66,10 +66,10 @@ v5.0.0-4.4.1,1,Encrypted event socket,applicable,Review WSS handshake origin and
 v5.0.0-4.4.2,2,Origin of WebSocket handshake,applicable,Review WSS handshake origin and binding to the browser session,4.1,src/control/alert_socket.cpp,pending
 v5.0.0-4.4.3,2,Dedicated connection credentials,excluded,The WSS handshake uses the standard browser session,8.3,docs/architecture.md,scope-review
 v5.0.0-4.4.4,2,Issuance of socket credentials,excluded,The WSS handshake uses the standard browser session,8.3,docs/architecture.md,scope-review
-v5.0.0-5.1.1,2,Permitted map formats and size limits,applicable,Inspect plan upload limits and handling of untrusted local map files,7.1,docs/basic-ui.md,pending
-v5.0.0-5.2.1,1,Upload byte limit,applicable,Inspect plan upload limits and handling of untrusted local map files,7.1,docs/basic-ui.md,pending
-v5.0.0-5.2.2,1,Actual uploaded file type,applicable,Inspect plan upload limits and handling of untrusted local map files,7.1,docs/basic-ui.md,pending
-v5.0.0-5.2.3,2,Unpacked file limits,applicable,Inspect plan upload limits and handling of untrusted local map files,7.1,docs/basic-ui.md,pending
+v5.0.0-5.1.1,2,Permitted map formats and size limits,applicable,Check authenticated plan import and PNG byte and pixel limits,7.1,tests/workspace/maps.py,tested
+v5.0.0-5.2.1,1,Upload byte limit,applicable,Check authenticated plan import and PNG byte and pixel limits,7.1,tests/workspace/maps.py,tested
+v5.0.0-5.2.2,1,Actual uploaded file type,applicable,Check authenticated plan import and PNG byte and pixel limits,7.1,tests/workspace/maps.py,tested
+v5.0.0-5.2.3,2,Unpacked file limits,applicable,Check authenticated plan import and PNG byte and pixel limits,7.1,tests/workspace/maps.py,tested
 v5.0.0-5.3.1,1,Execution permissions in storage,applicable,Inspect placement and naming of stored media and generated exports,7.4,src/archive/volume.cpp,pending
 v5.0.0-5.3.2,1,Server-generated paths,applicable,Inspect placement and naming of stored media and generated exports,7.4,src/archive/volume.cpp,pending
 v5.0.0-5.4.1,2,Client-supplied download names,applicable,Review exported file names and delivery headers for untrusted inputs,7.4,docs/basic-quality.md,pending

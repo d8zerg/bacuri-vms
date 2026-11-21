@@ -17,6 +17,16 @@ export default defineConfig(({ mode }) => ({
     emptyOutDir: true,
     assetsInlineLimit: 0,
     sourcemap: "hidden",
-    rolldownOptions: { external: ["/archive/player.js"] },
+    rolldownOptions: {
+      external: ["/archive/player.js"],
+      output: {
+        assetFileNames: (asset) =>
+          asset.names.some((name) =>
+            /^(sprite\.svg|inter-(latin|cyrillic)\.woff2)$/.test(name),
+          )
+            ? "assets/[name][extname]"
+            : "assets/[name]-[hash][extname]",
+      },
+    },
   },
 }));

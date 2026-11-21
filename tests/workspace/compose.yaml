@@ -1,0 +1,9 @@
+services:
+  rtsp-camera:
+    image: ${BACURI_WORKSPACE_CAMERA_IMAGE:?missing camera image}
+    ports: !reset []
+  playback-firefox:
+    image: ${BACURI_WORKSPACE_FIREFOX_IMAGE:?missing Firefox image}
+networks:
+  default:
+    internal: true

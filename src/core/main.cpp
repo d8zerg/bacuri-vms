@@ -1,5 +1,6 @@
 #include "control/api.hpp"
 #include "control/recovery.hpp"
+#include "control/maps.hpp"
 #include <sodium.h>
 #include <iostream>
 #include <print>
@@ -52,6 +53,8 @@ try {
         std::cout << Json{{"archive", row.size() ? row.get(0) : "available"}}.dump() << '\n';
     } else if (action == "rebuild-archive" && argc == 2) {
         rebuild_archive(std::cout);
+    } else if (action == "import-map" && argc == 3) {
+        import_map(argv[2]);
     } else if (action == "create-user" && argc == 4) {
         provision(argv[2], argv[3]);
     } else if (action == "grant-point" && argc == 4) {
@@ -70,7 +73,8 @@ try {
         db.exec("COMMIT");
     } else {
         std::fputs("Usage: bacuri-vms-core --version | serve | migrate | backup-config | restore-config | "
-                   "recovery-status | rebuild-archive | create-user USER ROLE | grant-point USER "
+                   "recovery-status | rebuild-archive | import-map REGION.mbtiles | create-user USER ROLE | "
+                   "grant-point USER "
                    "POINT\n",
                    stderr);
         return 1;
