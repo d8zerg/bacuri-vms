@@ -6,7 +6,7 @@
   "recovery": {"configuration": {"rpo_s": 300, "rto_s": 300}, "completed_archive": {"rpo_s": 0, "rto_s": 900}, "new_recording": {"rpo_s": 30, "rto_s": 60}},
   "role_minutes": {"first_recording": 5, "alarm": 2, "correct_address": 3, "explain_gap": 1, "replace": 10, "investigate": 10, "install": 30, "upgrade": 15, "restore": 30},
   "emulator": {
-    "manufacturer": "bacuri.vms", "model": "bacuri.vms ONVIF emulator", "firmware": "1.0",
+    "manufacturer": "bacuri.vms", "model": "bacuri.vms ONVIF emulator", "firmware": "1.1",
     "control": "https", "media": "rtsps", "trust": "ephemeral fixture CA", "legacy_exception": false,
     "features": ["discovery", "identity", "authentication", "profiles", "main", "sub", "ptz", "motion"]
   },

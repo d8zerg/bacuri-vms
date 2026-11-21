@@ -65,7 +65,12 @@ grpc::Status Observations::SubmitObservation(grpc::ServerContext*, const Request
     if (q->site_id() != site_ || q->source_id() != source_) {
         return {grpc::StatusCode::PERMISSION_DENIED, "Different source assignment"};
     }
-    if (!valid(*q)) {
+    return store_observation(*q, *result, 0);
+}
+
+grpc::Status store_observation(const RequestData& q, v1::RegistrationResult& result, std::int64_t camera_revision)
+{
+    if (!valid(q)) {
         return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid observation"};
     }
     bool supported = true;
@@ -75,31 +80,49 @@ grpc::Status Observations::SubmitObservation(grpc::ServerContext*, const Request
         }
         return supported;
     };
-    const auto attributes = Json::parse(q->attributes_json(), accept, false);
+    const auto attributes = Json::parse(q.attributes_json(), accept, false);
     if (!supported || !attributes.is_object()) {
         return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid attributes"};
     }
     try {
         Database db;
         db.exec("BEGIN");
-        const auto point = q->binding().point_id();
-        const auto revision = q->has_binding() ? std::to_string(q->binding().revision()) : "";
-        if (q->has_binding() &&
+        const auto point = q.binding().point_id();
+        const auto revision = q.has_binding() ? std::to_string(q.binding().revision()) : "";
+        if (q.has_binding() &&
             !db.exec("SELECT 1 FROM point_bindings WHERE site_id=$1 AND point_id=$2 AND binding_revision=$3",
-                     {site_, point, revision})
+                     {q.site_id(), point, revision})
                  .size()) {
             return {grpc::StatusCode::NOT_FOUND, "Unknown binding"};
         }
-        const auto source_time = q->has_source_time_us() ? std::to_string(q->source_time_us()) : "";
-        const auto epoch = q->clock().epoch_id();
-        const auto uncertainty = q->has_clock() ? std::to_string(q->clock().uncertainty_us()) : "";
-        const auto args = {site_,       source_, q->observation_id(), q->type(),        point, revision,
-                           source_time, epoch,   uncertainty,         attributes.dump()};
+        if (camera_revision) {
+            // Serialize acceptance with replacement and reject detached event readers.
+            if (!db.exec("SELECT 1 FROM camera_registry r JOIN configuration_progress p USING(site_id,device_id) "
+                         "WHERE r.site_id=$1 AND r.point_id=$2 AND r.device_id=$3 AND p.desired_revision=$4 FOR "
+                         "SHARE OF r,p",
+                         {q.site_id(), point, q.source_id(), std::to_string(camera_revision)})
+                     .size())
+                return {grpc::StatusCode::NOT_FOUND, "Camera configuration changed"};
+        }
+        const auto source_time = q.has_source_time_us() ? std::to_string(q.source_time_us()) : "";
+        const auto epoch = q.clock().epoch_id();
+        const auto uncertainty = q.has_clock() ? std::to_string(q.clock().uncertainty_us()) : "";
+        const auto args = {q.site_id(),
+                           q.source_id(),
+                           q.observation_id(),
+                           q.type(),
+                           point,
+                           revision,
+                           source_time,
+                           epoch,
+                           uncertainty,
+                           attributes.dump(),
+                           camera_revision ? std::string{"onvif"} : std::string{"local_source"}};
         const auto inserted = db.exec(R"sql(
             WITH stamp AS MATERIALIZED (SELECT (extract(epoch FROM clock_timestamp())*1000000)::bigint AS t)
             INSERT INTO bacuri_events.observations(site_id,source_id,observation_id,type,schema_version,point_id,binding_revision,
                 origin,observed_at_utc_us,received_at_utc_us,source_time_us,time_basis,clock_epoch_id,uncertainty_us,attributes)
-            SELECT $1,$2,$3,$4,1,nullif($5,'')::uuid,nullif($6,'')::bigint,'local_source',
+            SELECT $1,$2,$3,$4,1,nullif($5,'')::uuid,nullif($6,'')::bigint,$11,
                 CASE WHEN $8='' THEN t ELSE nullif($7,'')::bigint END,t,nullif($7,'')::bigint,
                 CASE WHEN $8='' THEN 'reception' ELSE 'source_clock' END,nullif($8,'')::uuid,nullif($9,'')::bigint,$10::jsonb FROM stamp
             ON CONFLICT(site_id,source_id,observation_id) DO NOTHING RETURNING observation_id
@@ -110,18 +133,18 @@ grpc::Status Observations::SubmitObservation(grpc::ServerContext*, const Request
             SELECT 1 FROM bacuri_events.observations WHERE site_id=$1 AND source_id=$2 AND observation_id=$3 AND type=$4
             AND schema_version=1 AND point_id IS NOT DISTINCT FROM nullif($5,'')::uuid
             AND binding_revision IS NOT DISTINCT FROM nullif($6,'')::bigint AND source_time_us IS NOT DISTINCT FROM nullif($7,'')::bigint
-            AND clock_epoch_id IS NOT DISTINCT FROM nullif($8,'')::uuid AND uncertainty_us IS NOT DISTINCT FROM nullif($9,'')::bigint
+            AND origin=$11 AND ($11='onvif' OR (clock_epoch_id IS NOT DISTINCT FROM nullif($8,'')::uuid AND uncertainty_us IS NOT DISTINCT FROM nullif($9,'')::bigint))
             AND attributes=$10::jsonb
         )sql",
                                   args)
                               .size()) {
             return {grpc::StatusCode::ALREADY_EXISTS, "Observation identity has different content"};
         }
-        if (inserted && q->type() == "motion") {
-            publish(db, *q);
+        if (inserted && q.type() == "motion") {
+            publish(db, q);
         }
         db.exec("COMMIT");
-        result->set_state(inserted ? v1::REGISTRATION_STATE_COMMITTED : v1::REGISTRATION_STATE_REPLAYED);
+        result.set_state(inserted ? v1::REGISTRATION_STATE_COMMITTED : v1::REGISTRATION_STATE_REPLAYED);
         return grpc::Status::OK;
     } catch (const std::exception&) {
         return {grpc::StatusCode::UNAVAILABLE, "Observation journal unavailable"};

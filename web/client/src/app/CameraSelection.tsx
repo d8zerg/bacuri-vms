@@ -11,6 +11,10 @@ import { Button } from "../ui-kit/FormControls";
 
 const failures: Record<string, string> = {
   camera_authentication_failed: "Камера отклонила имя или пароль.",
+  camera_ptz_busy: "Камерой управляет другой оператор.",
+  camera_ptz_unknown:
+    "Нет подтверждения камеры. Проверьте её положение в эфире.",
+  camera_ptz_unsupported: "Профиль камеры не поддерживает эту команду.",
   camera_tls_error: "Проверьте имя камеры и доверенный сертификат.",
   camera_incompatible_profiles:
     "Для подключения нужны два разных профиля H.264.",
@@ -114,6 +118,43 @@ export function CameraSelection({
     }
   }
   const previous = registered.find((c) => c.id === old);
+  const existing =
+    camera && registered.find((c) => c.endpoint_id === camera.endpoint_id);
+  async function refresh() {
+    if (!existing || !camera || active.current) return;
+    const ctl = new AbortController();
+    active.current = ctl;
+    setBusy(true);
+    try {
+      const updated = await services.refreshOnvif(
+        site,
+        existing,
+        {
+          name: existing.name,
+          main_url: main,
+          secondary_url: sub,
+          credentials: { username, password },
+          onvif_selection: camera.selection,
+        },
+        ctl.signal,
+      );
+      ctl.signal.throwIfAborted();
+      setRegistered((values) =>
+        values.map((value) => (value.id === updated.id ? updated : value)),
+      );
+      tell("Профили и возможности камеры обновлены.");
+      setCamera(undefined);
+      pass("");
+    } catch (error) {
+      if (!ctl.signal.aborted)
+        tell(cameraError(error) ?? "Не удалось обновить камеру.");
+    } finally {
+      if (!ctl.signal.aborted) {
+        active.current = null;
+        setBusy(false);
+      }
+    }
+  }
   function pick(onvif: boolean) {
     const draft: CameraDraft = {
       name: previous?.name ?? (onvif ? camera!.model : ""),
@@ -230,9 +271,11 @@ export function CameraSelection({
             <Button
               variant="primary"
               disabled={!sub || main === sub}
-              onClick={() => pick(true)}
+              onClick={() => (existing ? void refresh() : pick(true))}
             >
-              Использовать профили
+              {existing
+                ? "Обновить подключённую камеру"
+                : "Использовать профили"}
             </Button>
           </>
         )}

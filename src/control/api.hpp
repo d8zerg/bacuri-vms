@@ -49,6 +49,7 @@ class CameraRegistry
     void onvif(const Request& request, Response& response, const std::string& site, bool inspect) const;
     void issues(const Request&, Response&, const std::string& site, const std::string& device) const;
     void previous_recording(const Request&, Response&, const std::string& site, const std::string& device) const;
+    void ptz(const Request&, Response&, const std::string& site, const std::string& point) const;
     void points(const Request& request, Response& response, const std::string& site) const;
     void cameras(const Request& request, Response& response, const std::string& site, std::string device) const;
 

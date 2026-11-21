@@ -284,6 +284,38 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/points/{pointId}/ptz:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+      - $ref: '#/components/parameters/Point'
+      - $ref: '#/components/parameters/Csrf'
+      - $ref: '#/components/parameters/IdempotencyKey'
+    post:
+      operationId: controlPointPtz
+      description: Move for at most one second or stop the current camera at a visible point.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [device_id, command]
+              properties:
+                device_id: { $ref: '#/components/schemas/Id' }
+                command: { $ref: '#/components/schemas/PtzCommand' }
+      responses:
+        '204':
+          description: The device acknowledged the command.
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CameraFailure' }
+        '422': { $ref: '#/components/responses/CameraFailure' }
+        '502': { $ref: '#/components/responses/CameraFailure' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+        '504': { $ref: '#/components/responses/CameraFailure' }
   /sites/{siteId}/points/{pointId}/archive:
     parameters:
       - $ref: '#/components/parameters/Site'
@@ -713,6 +745,9 @@ components:
             - type: 'null'
         state: { type: string, enum: [applying, applied, rejected] }
         apply_failure: { type: string, enum: [invalid_configuration, incompatible_profiles, source_unreachable] }
+    PtzCommand:
+      type: string
+      enum: [left, right, up, down, stop]
     Point:
       type: object
       required: [id, name, connection, recording]
@@ -721,6 +756,15 @@ components:
         name: { type: string, minLength: 1, maxLength: 256 }
         connection: { type: string, enum: [unknown, online, offline] }
         recording: { type: string, enum: [unknown, current, delayed, stopped] }
+        ptz:
+          type: object
+          required: [device_id, commands]
+          properties:
+            device_id: { $ref: '#/components/schemas/Id' }
+            commands:
+              type: array
+              uniqueItems: true
+              items: { $ref: '#/components/schemas/PtzCommand' }
         last_recorded_at: { $ref: '#/components/schemas/UtcTime' }
     ArchivePage:
       type: object
@@ -879,6 +923,9 @@ components:
             - camera_selection_expired
             - camera_incompatible_profiles
             - camera_already_registered
+            - camera_ptz_unknown
+            - camera_ptz_busy
+            - camera_ptz_unsupported
             - camera_protocol_error
             - camera_authentication_failed
             - camera_binding_conflict

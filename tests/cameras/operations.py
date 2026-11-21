@@ -1,0 +1,144 @@
+"""Verify point-scoped controls and compare the alarm frame to the recorded H.264 block."""
+from datetime import datetime, timezone
+import json
+import subprocess
+import time
+import uuid
+
+from scenarios import button, c, capture, js, playback, report, snapshot, wait
+
+
+def stamp(us):
+    return datetime.fromtimestamp(us / 1_000_000, timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def navigate(call, user, route):
+    name, value = user["Cookie"].split("=", 1)
+    cookie = {"name": name, "value": value, "path": "/", "secure": True, "httpOnly": True, "sameSite": "Strict"}
+    call("POST", "/cookie", {"cookie": cookie})
+    call("POST", "/url", {"url": c.ORIGIN + route})
+
+
+def compare_frame(call, block, index):
+    # Decode the recorder's original block independently of the web player's manifest and seek.
+    path = playback.ROOT / "blocks" / block / "media.mp4"
+    pipeline = ["gst-launch-1.0", "-q", "filesrc", f"location={path}", "!", "qtdemux", "!", "h264parse",
+                "!", "avdec_h264", "!", "videoconvert", "!", "video/x-raw,format=GRAY8", "!", "fdsink", "fd=1"]
+    raw = subprocess.check_output(pipeline, timeout=15)
+    width, height = 1280, 720
+    # Sample native pixels across the whole picture, including the moving ball and the overlay.
+    samples = js(call, """const v=document.querySelector('video'), c=document.createElement('canvas');
+        c.width=v.videoWidth;c.height=v.videoHeight;const ctx=c.getContext('2d');ctx.drawImage(v,0,0);
+        const data=ctx.getImageData(0,0,c.width,c.height).data;const points=[];
+        for(let y=0;y<c.height;y+=4)for(let x=0;x<c.width;x+=4){
+          const i=y*c.width+x;if(data[i*4]>128)points.push(i);
+        }return [c.width,c.height,points];""")
+    assert samples[:2] == [width, height], samples[:2]
+    mask = set(samples[2])
+    assert mask
+    size = width * height
+    assert len(raw) % size == 0
+    errors = []
+    for start in range(0, len(raw), size):
+        points = {y * width + x for y in range(0, height, 4) for x in range(0, width, 4)
+                  if raw[start + y * width + x] > 126}
+        errors.append(len(points ^ mask) / len(points | mask))
+    assert errors.index(min(errors)) == index and errors[index] < 0.12, (index, errors)
+    return round(errors[index], 4)
+
+
+def exercise(call, device, cam, admin):
+    point = cam["point_id"]
+    viewer = c.login("viewer")
+    root = f"sites/{c.SITE}/points"
+
+    def move(who, direction, request_key=None):
+        headers = {**who, "Idempotency-Key": request_key or str(uuid.uuid4())}
+        command = {"device_id": cam["id"], "command": direction}
+        return c.http("POST", root + f"/{point}/ptz", command, headers)[0]
+
+    assert move(viewer, "right") == 404 and not device.feedback()[2]
+    subprocess.run([c.CORE, "grant-point", "viewer", point], check=True)
+    assert move({**viewer, "X-CSRF-Token": "invalid"}, "right") == 403
+    points = c.http("GET", root, headers=viewer)[2]
+    visible, = [row for row in points if row["id"] == point]
+    commands = visible["ptz"]["commands"]
+    assert visible["ptz"]["device_id"] == cam["id"] and set(commands) == {"left", "right", "stop"}
+    assert move(viewer, "up") == 422 and not device.feedback()[2]
+    navigate(call, viewer, "/monitor?point=" + point)
+    button(call, "Вправо")
+    c.wait_for(lambda: device.feedback()[0] > 0.04, "observed camera movement")
+    button(call, "Остановить")
+    c.wait_for(lambda: device.stops > 0 and not device.feedback()[2], "explicit stop")
+    stopped = device.feedback()[0]
+    time.sleep(0.12)
+    assert device.feedback()[0] == stopped
+    assert not js(call, "return [...document.querySelectorAll('.ws-ptz button')].some(b=>b.textContent==='Вверх')")
+
+    request_key = str(uuid.uuid4())
+    assert move(admin, "left", request_key) == 204 and device.feedback()[2]
+    deadline = device.deadline
+    assert move(admin, "left", request_key) == 204 and device.deadline == deadline
+    assert move(admin, "right", request_key) == 409 and device.deadline == deadline
+    assert move(viewer, "right") == 409 and device.deadline == deadline
+    assert move(admin, "stop") == 204
+
+    request_key = str(uuid.uuid4())
+    device.lose_move_reply = True
+    assert move(viewer, "left", request_key) == 502 and device.feedback()[2]
+    deadline = device.deadline
+    assert move(viewer, "left", request_key) == 502 and device.deadline == deadline
+    device.online = False
+    assert move(viewer, "stop") in (502, 504)
+    c.wait_for(lambda: not device.feedback()[2], "device-side timeout while offline")
+    c.wait_for(lambda: device.subscriptions > 0, "PullPoint allocated")
+    before = device.subscriptions
+    time.sleep(2.4)
+    device.initial_lease_seconds = 3
+    device.online = True
+    c.wait_for(lambda: device.subscriptions > before, "PullPoint reconnect")
+    c.wait_for(lambda: device.renewals > 0, "subscription renewal")
+
+    def recorded():
+        row = c.query("SELECT block_id,begin_utc_us FROM bacuri_archive.blocks "
+                      f"WHERE point_id='{point}' AND binding_revision=1 AND time_basis='source_clock' "
+                      "AND end_utc_us-begin_utc_us>=900000 AND uncertainty_us<200000 "
+                      "ORDER BY begin_utc_us DESC LIMIT 1")
+        return row.split("|") if row else None
+
+    block, begin = c.wait_for(recorded, "recorded camera block with RTCP clock")
+    index = 15
+    us = int(begin) + index * 40_000 + 15_000
+    instant = stamp(us)
+    device.motion(stamp(us - 3_600_000_000))
+    device.motion(instant, "unrelated-video-source")
+    device.motion(stamp(us - 2000), state="false")
+    device.motion(stamp(us - 1000), operation="Initialized")
+    device.motion(instant)
+    c.wait_for(lambda: snapshot(viewer)["items"], "ONVIF motion journal")
+    delivered = device.pulled
+    device.motion(instant)
+    c.wait_for(lambda: device.pulled > delivered, "redelivered PullPoint message")
+    last_poll = device.polls
+    c.wait_for(lambda: device.polls > last_poll, "adapter committed redelivery")
+    item, = snapshot(viewer)["items"]
+    assert item["point_id"] == point and datetime.fromisoformat(item["observed_at"]) == datetime.fromisoformat(instant), item
+    assert c.query("SELECT count(*) FROM bacuri_events.observations WHERE origin='onvif'") == "1"
+    link = c.http("GET", f"sites/{c.SITE}/alerts/{item['id']}/archive", headers=viewer)[2]
+    assert link["state"] == "ready" and link["position"] == item["observed_at"], link
+    node = wait(call, "document.getElementById('alert-'+arguments[0])", "WSS motion alert", item["id"])
+    call("POST", "/element/" + node["element-6066-11e4-a52e-4f735466cecf"] + "/click", {})
+    wait(call, "document.body.innerText.includes('Кадр записи получен')", "alarm archive frame")
+    difference = compare_frame(call, block, index)
+    capture(call, "chrome", "onvif-motion")
+    observation = c.query("SELECT observation_id FROM bacuri_events.observations WHERE origin='onvif'")
+    evidence = {
+        "model": cam["model"], "firmware": cam["firmware"], "video_source": "videotestsrc", "device_id": cam["id"],
+        "point_id": point, "binding_revision": cam["binding_revision"], "ptz": commands,
+        "explicit_stop_position": stopped, "timeout_seconds": 1, "lost_connection": True,
+        "lost_move_reply_replayed_without_resending": True, "pullpoint_reconnected": True, "subscription_renewed": True,
+        "foreign_point_denied": True, "motion_deliveries": 2, "observations": [observation], "alerts": [item["id"]],
+        "block_id": block, "position": instant, "frame_index": index, "frame_mask_difference": difference,
+    }
+    (report / "camera-operations.json").write_text(json.dumps(evidence, indent=2) + "\n")
+    navigate(call, admin, "/cameras")

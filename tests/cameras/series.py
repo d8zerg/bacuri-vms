@@ -37,6 +37,7 @@ class Camera:
             raise ValueError("missing expected motion source")
         self.services = {}
         self.encoders = {}
+        self.ptz_config = None
         self.observed = {}
 
     def request(self, service, operation, action=None, reference=()):
@@ -70,6 +71,7 @@ class Camera:
     def profiles(self):
         self.services.clear()
         self.encoders.clear()
+        self.ptz_config = None
         capabilities = node("tds:GetCapabilities")
         child(capabilities, "tds:Category", "All")
         caps = self.request(self.url, capabilities)
@@ -81,6 +83,9 @@ class Camera:
         profiles = self.request(self.services["Media"], node("trt:GetProfiles"))
         for profile in profiles.findall("trt:Profiles", NS):
             token = profile.attrib["token"]
+            ptz = profile.find("tt:PTZConfiguration", NS)
+            if token == self.tokens["main"] and ptz is not None:
+                self.ptz_config = ptz.get("token")
             configuration = profile.find("tt:VideoEncoderConfiguration", NS)
             if configuration is not None and required(configuration, "tt:Encoding") == "H264":
                 self.encoders[token] = [int(required(configuration, "tt:Resolution/tt:" + key))
@@ -145,9 +150,52 @@ class Camera:
         for _ in range(10):
             feedback = status()
             if required(feedback, "tptz:PTZStatus/tt:MoveStatus/tt:PanTilt") == "IDLE":
-                return {"pan_before": before, "pan_after": position(feedback), "stop": "IDLE"}
+                break
             time.sleep(0.1)
-        raise ValueError("stop unconfirmed")
+        else:
+            raise ValueError("stop unconfirmed")
+
+        options = node("tptz:GetConfigurationOptions")
+        child(options, "tptz:ConfigurationToken", self.ptz_config)
+        result = self.request(service, options)
+        prefix = "tptz:PTZConfigurationOptions/tt:Spaces/tt:ContinuousPanTiltVelocitySpace"
+        uri = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace"
+        supported = [space for space in result.findall(prefix, NS) if required(space, "tt:URI") == uri]
+        if not supported:
+            raise ValueError("missing generic continuous pan space")
+        limits = supported[0]
+        velocity = -0.5 if position(feedback) > 0 else 0.5
+        if not float(required(limits, "tt:XRange/tt:Min")) <= velocity <= float(required(limits, "tt:XRange/tt:Max")):
+            raise ValueError("unsupported pan velocity")
+        continuous = command("ContinuousMove")
+        child(child(continuous, "tptz:Velocity"), "tt:PanTilt", x=str(velocity), y="0", space=uri)
+        child(continuous, "tptz:Timeout", "PT1S")
+
+        def moving():
+            moved = status()
+            return required(moved, "tptz:PTZStatus/tt:MoveStatus/tt:PanTilt") == "MOVING", position(moved)
+
+        observed = {}
+        for explicit in (True, False):
+            start = position(status())
+            try:
+                self.request(service, continuous)
+                time.sleep(0.15)
+                active, pan = moving()
+                if not active or abs(pan - start) < 0.001:
+                    raise ValueError("continuous movement unconfirmed")
+                if explicit:
+                    self.request(service, stop)
+                else:
+                    time.sleep(1)
+                active, final = moving()
+                if active or abs(final - start) < 0.001:
+                    raise ValueError("continuous movement failed to stop")
+                observed["explicit_stop" if explicit else "device_timeout"] = final
+            finally:
+                self.request(service, stop)
+        return {"pan_before": before, "pan_after": position(feedback), "stop": "IDLE",
+                "continuous_pan": observed, "timeout_seconds": 1}
 
     def motion(self):
         subscribe = node("tev:CreatePullPointSubscription")

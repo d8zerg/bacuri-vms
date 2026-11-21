@@ -19,6 +19,8 @@ from soap import message_id
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "workspace"))
 from scenarios import browser_session, button, c, capture, field, js, playback, report, wait
 
+from operations import exercise
+
 SITE = f"sites/{c.SITE}"
 CAMERAS = SITE + "/cameras"
 
@@ -53,7 +55,7 @@ def configure(device, replacement=False):
     device.serial = message_id()
     device.device_path = "/soap/device-B" if replacement else "/soap/device-A"
     device.media_path = "/service/video-B" if replacement else "/service/video-A"
-    device.model = "Camera B" if replacement else "Camera A"
+    device.model = "Camera B" if replacement else "bacuri.vms ONVIF emulator"
     device.tokens = {"enc-high-47": (1280, 720), "enc-low-83": (640, 360)}
     paths = ["sub", "main"] if replacement else ["main", "sub"]
     device.stream_paths = dict(zip(device.tokens, paths, strict=True))
@@ -186,6 +188,18 @@ def run():
                 duplicate["onvif_selection"] = info["selection"]
                 expect(post(CAMERAS, dict(duplicate,onvif_selection="invalid"), admin, str(uuid.uuid4())), 400, "camera_selection_expired")
                 expect(post(CAMERAS, duplicate, admin, str(uuid.uuid4())), 409, "camera_already_registered")
+                device.tilt_range = (0, 0)
+                button(call, "Поиск ONVIF и замена камеры")
+                button(call, "Найти камеры ONVIF")
+                field(call, "camera_user", "fixture")
+                field(call, "camera_password", device.password)
+                button(call, "Получить профили")
+                button(call, "Обновить подключённую камеру")
+                wait(call,"document.body.innerText.includes('Профили и возможности камеры обновлены.')","capability refresh")
+                refreshed,=cameras(admin)
+                assert refreshed["id"]==first["id"] and refreshed["binding_revision"]==first["binding_revision"]
+                exercise(call, device, first, admin)
+                print("PTZ, PullPoint redelivery and decoded motion frame verified", flush=True)
                 c.stop(recorder)
                 configure(device, replacement=True)
                 device.services = ["Media"]
@@ -217,6 +231,8 @@ def run():
                 decode(call, 640, "second-binding")
                 second, = cameras(admin)
                 assert second["id"] != first["id"] and second["point_id"] == first["point_id"]
+                assert c.http("POST", SITE + "/points/" + second["point_id"] + "/ptz", {"device_id":first["id"],"command":"right"}, {**admin,"Idempotency-Key":str(uuid.uuid4())})[0] == 409
+                assert c.http("POST", SITE + "/points/" + second["point_id"] + "/ptz", {"device_id":second["id"],"command":"right"}, {**admin,"Idempotency-Key":str(uuid.uuid4())})[0] == 422
                 assert not second["ptz"] and not second["events"]
                 path = CAMERAS + "/" + second["id"] + "/previous-recording"
                 status, _, previous = c.http("GET", path, headers=admin)

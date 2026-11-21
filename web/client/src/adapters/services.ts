@@ -6,7 +6,7 @@ import type {
 } from "../contracts/workspace";
 import { newRecording } from "./recording";
 import { pause } from "../workflows/pause";
-import { api, data } from "./api";
+import { api, data, HttpFailure } from "./api";
 import { subscribe } from "./feed";
 import { attach, mediaFailure } from "./video";
 type Registration = {
@@ -49,6 +49,20 @@ export function createServices(): Services {
         }),
       );
     },
+    async ptz(siteId, pointId, device, command) {
+      const { response, error } = await api.POST(
+        "/sites/{siteId}/points/{pointId}/ptz",
+        {
+          params: {
+            path: { siteId, pointId },
+            header: { ...auth(), "Idempotency-Key": crypto.randomUUID() },
+          },
+          body: { device_id: device, command },
+        },
+      );
+      if (!response.ok)
+        throw new HttpFailure(response.status, error?.code ?? "");
+    },
     async discover(siteId, signal) {
       return data(
         await api.POST("/sites/{siteId}/onvif/discovery", {
@@ -62,6 +76,23 @@ export function createServices(): Services {
         await api.POST("/sites/{siteId}/onvif/profiles", {
           params: { path: { siteId }, header: auth() },
           body: { selection, username, password },
+          signal,
+        }),
+      );
+    },
+    async refreshOnvif(siteId, camera, draft, signal) {
+      const path = { siteId, cameraId: camera.id };
+      const current = await api.GET("/sites/{siteId}/cameras/{cameraId}", {
+        params: { path },
+        signal,
+      });
+      const etag = current.response.headers.get("ETag");
+      if (data(current).desired_revision !== camera.desired_revision || !etag)
+        throw new HttpFailure(409, "camera_binding_conflict");
+      return data(
+        await api.PUT("/sites/{siteId}/cameras/{cameraId}", {
+          params: { path, header: { ...auth(), "If-Match": etag } },
+          body: draft,
           signal,
         }),
       );

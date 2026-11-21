@@ -1,6 +1,7 @@
 #include "control/api.hpp"
 #include "control/alerts.hpp"
 #include "control/observations.hpp"
+#include "control/onvif.hpp"
 #include <boost/beast/websocket/rfc6455.hpp>
 #include "control/delivery.hpp"
 #include "control/archive_catalog.hpp"
@@ -156,6 +157,10 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
         const std::string point{path.substr(0, slash)};
         if (slash != path.npos && canonical_id(point)) {
             const auto operation = path.substr(slash + 1);
+            if (operation == "ptz") {
+                allow(req, res, {http::verb::post});
+                return registry.ptz(req, res, site, point);
+            }
             if (operation == "archive" || operation == "media-sessions") {
                 return playback.point(req, res, site, point, operation == "archive");
             }
@@ -243,7 +248,8 @@ void serve()
     const Playback playback{sessions, key};
     auto networks = CameraNetworks::configured();
     auto policy = Json(networks.legacy_addresses()).dump();
-    const CameraRegistry registry{sessions, key, std::move(networks)};
+    const CameraRegistry registry{sessions, key, networks};
+    std::jthread event_reader{[&](std::stop_token stop) { camera_events(stop, networks, key); }};
     std::jthread worker{[&key, policy = std::move(policy)](std::stop_token stop) { deliver(stop, key, policy); }};
     const auto handle = [&](const Request& req, const std::string& peer) {
         Response res;

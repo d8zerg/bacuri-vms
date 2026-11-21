@@ -57,6 +57,8 @@ export function fixture(condition = "normal"): Services {
     session: () => Promise.resolve(session),
     login: () => Promise.resolve(session),
     logout: () => Promise.resolve(),
+    refreshOnvif: (_site, camera) => Promise.resolve(camera),
+    ptz: () => Promise.resolve(),
     points: () =>
       Promise.resolve([
         {

@@ -71,6 +71,8 @@ void write_version(Database& db, const Key& key, const std::string& site, const 
     Json settings{{"main_url", body.at("main_url")}, {"secondary_url", body.at("secondary_url")}};
     if (body.contains("onvif"))
         settings["onvif"] = body.at("onvif");
+    if (body.contains("onvif_control"))
+        settings["onvif_control"] = body.at("onvif_control");
     db.exec("INSERT INTO configuration_versions VALUES ($1,$2,$3,$4)", {site, device, revision, settings.dump()});
     db.exec(R"sql(
         INSERT INTO configuration_progress(site_id,device_id,desired_revision,application_state)
@@ -208,6 +210,96 @@ void CameraRegistry::previous_recording(const Request& req, Response& res, const
                   {"interval", Window{std::stoll(rows.get(0, 1)), std::stoll(rows.get(0, 2))}.json()}});
 }
 
+void CameraRegistry::ptz(const Request& req, Response& res, const std::string& site,
+                         const std::string& point) const
+{
+    Database db;
+    db.exec("BEGIN");
+    auto user = sessions_.authenticate(db, req, true);
+    auto role = site_role(db, user, site);
+    auto visible =
+        role == "administrator"
+            ? db.exec("SELECT 1 FROM observation_points WHERE site_id=$1 AND point_id=$2", {site, point})
+            : db.exec("SELECT 1 FROM point_grants WHERE site_id=$1 AND point_id=$2 AND user_id=$3 FOR SHARE",
+                      {site, point, user.user});
+    if (!visible.size())
+        throw Failure{404, "not_found"};
+    auto body = object_body(req, {"device_id", "command"});
+    auto device = string_field(body, "device_id", 36);
+    auto command = string_field(body, "command", 16);
+    const std::string request_key{req["Idempotency-Key"]};
+    if (!canonical_id(device) || !canonical_id(request_key))
+        throw Failure{400, "invalid_request"};
+    auto rows = db.exec(R"sql(
+        SELECT v.settings->'onvif_control', r.secret_revision, r.sealed_credentials
+        FROM camera_registry r JOIN configuration_progress p USING(site_id,device_id)
+        JOIN configuration_versions v ON (v.site_id,v.device_id,v.revision)=(r.site_id,r.device_id,p.desired_revision)
+        WHERE r.site_id=$1 AND r.point_id=$2 AND r.device_id=$3 FOR UPDATE OF r
+    )sql",
+                        {site, point, device});
+    if (!rows.size())
+        throw Failure{409, "camera_binding_conflict"};
+    // Keep the binding locked while a separate transaction records dispatch before touching the device.
+    Database journal;
+    journal.exec("DELETE FROM ptz_commands WHERE started_at<now()-interval '24 hours'");
+    auto replay = [&] {
+        auto saved = journal.exec("SELECT device_id,point_id,command,status,failure_code FROM ptz_commands "
+                                  "WHERE site_id=$1 AND user_id=$2 AND request_key=$3",
+                                  {site, user.user, request_key});
+        if (!saved.size())
+            return false;
+        if (saved.get(0) != device || saved.get(0, 1) != point || saved.get(0, 2) != command)
+            throw Failure{409, "idempotency_conflict"};
+        if (saved.get(0, 3).empty())
+            throw Failure{502, "camera_ptz_unknown"};
+        auto status = std::stoi(saved.get(0, 3));
+        if (status != 204)
+            throw Failure{status, saved.get(0, 4)};
+        return true;
+    };
+    if (!replay()) {
+        if (rows.get(0).empty() || rows.get(0, 2).empty())
+            throw Failure{422, "camera_ptz_unsupported"};
+        auto control = Json::parse(rows.get(0));
+        const auto& allowed = control.at("directions");
+        if (std::ranges::find(allowed, Json(command)) == allowed.end())
+            throw Failure{422, "camera_ptz_unsupported"};
+        auto credentials = Json::parse(unseal(rows.get(0, 2), key_, site + "/" + device + "/" + rows.get(0, 1)));
+        auto owner = journal.exec(
+            "SELECT user_id,lease_until>clock_timestamp() FROM ptz_commands WHERE site_id=$1 AND device_id=$2 "
+            "ORDER BY started_at DESC LIMIT 1",
+            {site, device});
+        if (owner.size() && owner.get(0, 1) == "t" && owner.get(0) != user.user && role != "administrator")
+            throw Failure{409, "camera_ptz_busy"};
+        auto created =
+            journal.exec("INSERT INTO ptz_commands(site_id,user_id,request_key,device_id,point_id,command) VALUES "
+                         "($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING 1",
+                         {site, user.user, request_key, device, point, command});
+        if (created.size()) {
+            try {
+                move_onvif(networks_, control, credentials, command);
+            } catch (const Failure& e) {
+                // A missing SOAP acknowledgement leaves the outcome unknown even when the request reached the
+                // device.
+                const auto failure = (e.code == "camera_unavailable" || e.code == "camera_protocol_error")
+                                         ? Failure{e.status, "camera_ptz_unknown"}
+                                         : e;
+                journal.exec("UPDATE ptz_commands SET status=$4,failure_code=$5 WHERE site_id=$1 AND user_id=$2 "
+                             "AND request_key=$3",
+                             {site, user.user, request_key, std::to_string(failure.status), failure.code});
+                throw failure;
+            }
+            journal.exec("UPDATE ptz_commands SET status=204,lease_until=clock_timestamp()+CASE WHEN "
+                         "command='stop' THEN interval '0 seconds' "
+                         "ELSE interval '1 second' END WHERE site_id=$1 AND user_id=$2 AND request_key=$3",
+                         {site, user.user, request_key});
+        } else if (!replay())
+            throw Failure{503, "dependency_unavailable"};
+    }
+    db.exec("COMMIT");
+    res.result(http::status::no_content);
+}
+
 void CameraRegistry::points(const Request& req, Response& res, const std::string& site) const
 {
     Database db;
@@ -216,8 +308,14 @@ void CameraRegistry::points(const Request& req, Response& res, const std::string
     const auto role = site_role(db, identity, site);
     auto rows = db.exec(R"sql(
             SELECT coalesce(jsonb_agg(jsonb_build_object('id',p.point_id,'name',p.name,
-              'connection','unknown','recording','unknown') ORDER BY p.point_id),'[]')
-            FROM observation_points p WHERE site_id=$1 AND ($2='administrator' OR EXISTS
+              'connection','unknown','recording','unknown') ||
+              CASE WHEN r.sealed_credentials IS NOT NULL AND jsonb_array_length(cfg.settings->'onvif_control'->'directions')>0
+              THEN jsonb_build_object('ptz',jsonb_build_object('device_id',r.device_id,'commands',cfg.settings->'onvif_control'->'directions'))
+              ELSE '{}'::jsonb END ORDER BY p.point_id),'[]')
+            FROM observation_points p LEFT JOIN camera_registry r USING(site_id,point_id)
+            LEFT JOIN configuration_progress cp ON (cp.site_id,cp.device_id)=(r.site_id,r.device_id)
+            LEFT JOIN configuration_versions cfg ON (cfg.site_id,cfg.device_id,cfg.revision)=(r.site_id,r.device_id,cp.desired_revision)
+            WHERE p.site_id=$1 AND ($2='administrator' OR EXISTS
               (SELECT 1 FROM point_grants g WHERE g.site_id=p.site_id AND g.point_id=p.point_id AND g.user_id=$3))
         )sql",
                         {site, role, identity.user});
@@ -300,6 +398,14 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
                  {"endpoint_id", "model", "manufacturer", "firmware", "serial", "ptz", "events"})
                 onvif[field] = current.at(field);
         }
+        if (!body.contains("onvif_selection")) {
+            auto saved = db.exec("SELECT settings->'onvif_control' FROM configuration_versions WHERE site_id=$1 "
+                                 "AND device_id=$2 AND revision=$3",
+                                 {site, device, current.at("desired_revision")})
+                             .get(0);
+            if (!saved.empty())
+                body["onvif_control"] = Json::parse(saved);
+        }
         auto tag = req[http::field::if_match];
         if (tag.empty()) {
             throw Failure{428, "precondition_required"};
@@ -340,6 +446,12 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
                 auto id = fingerprint(key_, "onvif-stream", body.at(field).get_ref<const std::string&>());
                 if (std::ranges::find(ids, Json(id)) == ids.end())
                     throw Failure{400, "invalid_request"};
+            }
+            if (selected.contains("control")) {
+                auto control = selected.at("control");
+                auto id = fingerprint(key_, "onvif-stream", body.at("main_url").get_ref<const std::string&>());
+                control.update(selected.at("profiles").at(id));
+                body["onvif_control"] = std::move(control);
             }
             if (body.at("main_url") == body.at("secondary_url"))
                 throw Failure{422, "camera_incompatible_profiles"};

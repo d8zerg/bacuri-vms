@@ -6,6 +6,7 @@ import type {
   Feed,
   Interval,
   Point,
+  PtzCommand,
   Services,
   Target,
 } from "../contracts/workspace";
@@ -21,6 +22,58 @@ import {
   milliseconds,
 } from "./media";
 
+import { Button } from "../ui-kit/FormControls";
+import { cameraError } from "./CameraSelection";
+const ptzLabels: Record<PtzCommand, string> = {
+  left: "Влево",
+  right: "Вправо",
+  up: "Вверх",
+  down: "Вниз",
+  stop: "Остановить",
+};
+function PtzControls({
+  commands,
+  send,
+}: {
+  commands: PtzCommand[];
+  send: (command: PtzCommand) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [confirmed, setConfirmed] = useState("");
+  async function move(command: PtzCommand) {
+    setBusy(true);
+    setError("");
+    setConfirmed("");
+    try {
+      await send(command);
+      setConfirmed(
+        command === "stop"
+          ? "Камера подтвердила команду остановки."
+          : "Камера подтвердила движение на одну секунду.",
+      );
+    } catch (e) {
+      setError(
+        cameraError(e) ??
+          "Камера не подтвердила команду. Проверьте связь и доступ к точке.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <fieldset className="ws-ptz" disabled={busy}>
+      <legend>Поворот камеры</legend>
+      {commands.map((command) => (
+        <Button key={command} onClick={() => void move(command)}>
+          {ptzLabels[command]}
+        </Button>
+      ))}
+      {confirmed && <span role="status">{confirmed}</span>}
+      {error && <span role="alert">{error}</span>}
+    </fieldset>
+  );
+}
 type Selection = { entries: Entry[]; window: Interval; link?: AlertLink };
 function View({
   services,
@@ -179,6 +232,15 @@ function View({
             }
           : {})}
       />
+      {!archive && point.ptz && (
+        <PtzControls
+          key={point.ptz.device_id}
+          commands={point.ptz.commands}
+          send={(command) =>
+            services.ptz(site, point.id, point.ptz!.device_id, command)
+          }
+        />
+      )}
       <ArchiveTimeline
         data={data}
         positionMs={ms}

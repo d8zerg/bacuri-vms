@@ -8,7 +8,8 @@ import secrets
 import socket
 from socketserver import BaseRequestHandler, UDPServer
 import ssl
-from threading import Thread
+from threading import RLock, Thread
+from time import monotonic
 import xml.etree.ElementTree as ET
 
 from soap import NS, child, digest, envelope, message_id, node, required, tag
@@ -19,7 +20,23 @@ class Device:
         self.password = secrets.token_urlsafe(24)
         self.serial = message_id()
         self.model = "bacuri.vms ONVIF emulator"
-        self.firmware = "1.0"
+        self.firmware = "1.1"
+        self.lock = RLock()
+        self.tilt = 0.0
+        self.velocity = (0.0, 0.0)
+        self.updated = self.deadline = monotonic()
+        self.online = True
+        self.lose_move_reply = False
+        self.stops = 0
+        self.pan_range = (-1, 1)
+        self.tilt_range = (-1, 1)
+        self.subscriptions = 0
+        self.pulled = 0
+        self.polls = 0
+        self.renewals = 0
+        self.initial_lease_seconds = 60
+        self.lease_end = 0
+        self.source = "main"
         self.position = 0.0
         self.active = False
         self.notifications = []
@@ -30,6 +47,17 @@ class Device:
         self.stream_paths = {}
         self.stream_uris = {}
         self.tokens = {"main": (1280, 720), "sub": (640, 360)}
+
+    def feedback(self):
+        with self.lock:
+            now = monotonic()
+            elapsed = max(0.0, min(now, self.deadline) - self.updated)
+            self.position = max(-1, min(1, self.position + self.velocity[0] * elapsed))
+            self.tilt = max(-1, min(1, self.tilt + self.velocity[1] * elapsed))
+            self.updated = now
+            if now >= self.deadline:
+                self.velocity = (0.0, 0.0)
+            return self.position, self.tilt, any(self.velocity)
 
     def respond(self, request, path):
         body = request.find("s:Body/*", NS)
@@ -48,11 +76,15 @@ class Device:
         elif body.tag == tag("tds:GetCapabilities"):
             capabilities = child(result, "tds:Capabilities")
             for name in self.services:
-                child(child(capabilities, "tt:" + name), "tt:XAddr", self.base + (self.media_path if name == "Media" else "/" + name.lower()))
+                service = child(capabilities, "tt:" + name)
+                child(service, "tt:XAddr", self.base + (self.media_path if name == "Media" else "/" + name.lower()))
+                if name == "Events":
+                    child(service, "tt:WSPullPointSupport", "true")
         elif body.tag == tag("trt:GetProfiles"):
             for token, (width, height) in self.tokens.items():
                 profile = child(result, "trt:Profiles", token=token)
                 child(profile, "tt:Name", token)
+                child(profile, "tt:VideoSourceConfiguration", token=self.source)
                 encoder = child(profile, "tt:VideoEncoderConfiguration", token=token)
                 child(encoder, "tt:Encoding", self.codec)
                 resolution = child(encoder, "tt:Resolution")
@@ -69,44 +101,88 @@ class Device:
             child(uri, "tt:InvalidAfterConnect", "false")
             child(uri, "tt:InvalidAfterReboot", "false")
             child(uri, "tt:Timeout", "PT0S")
-        elif action in ("GetStatus", "RelativeMove", "Stop") and "PTZ" in self.services:
-            if required(body, "tptz:ProfileToken") not in self.tokens:
+        elif body.tag == tag("tptz:GetConfigurationOptions") and "PTZ" in self.services:
+            if path != "/ptz" or required(body, "tptz:ConfigurationToken") != "ptz":
+                raise ValueError("unknown PTZ configuration")
+            options = child(result, "tptz:PTZConfigurationOptions")
+            space = child(child(options, "tt:Spaces"), "tt:ContinuousPanTiltVelocitySpace")
+            child(space, "tt:URI", "http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace")
+            for name, limits in [("XRange", self.pan_range), ("YRange", self.tilt_range)]:
+                bounds = child(space, "tt:" + name)
+                for field, limit in zip(["Min", "Max"], limits, strict=True):
+                    child(bounds, "tt:" + field, str(limit))
+            timeout = child(options, "tt:PTZTimeout")
+            child(timeout, "tt:Min", "PT0.1S")
+            child(timeout, "tt:Max", "PT5S")
+        elif action in ("GetStatus", "RelativeMove", "ContinuousMove", "Stop") and "PTZ" in self.services:
+            self.feedback()
+            if path != "/ptz" or required(body, "tptz:ProfileToken") not in self.tokens:
                 raise ValueError("unknown PTZ profile")
             if action == "RelativeMove":
                 pan = body.find("tptz:Translation/tt:PanTilt", NS)
                 self.position = max(-1, min(1, self.position + float(pan.attrib["x"])))
+            elif action == "ContinuousMove":
+                velocity = body.find("tptz:Velocity/tt:PanTilt", NS)
+                if required(body, "tptz:Timeout") != "PT1S" or velocity is None:
+                    raise ValueError("unbounded movement")
+                self.velocity = (float(velocity.attrib["x"]), float(velocity.attrib["y"]))
+                self.deadline = monotonic() + 1
+            elif action == "Stop":
+                self.stops += 1
+                self.velocity = (0.0, 0.0)
             elif action == "GetStatus":
                 status = child(result, "tptz:PTZStatus")
-                child(child(status, "tt:Position"), "tt:PanTilt", x=str(self.position), y="0")
-                child(child(status, "tt:MoveStatus"), "tt:PanTilt", "IDLE")
+                child(child(status, "tt:Position"), "tt:PanTilt", x=str(self.position), y=str(self.tilt))
+                child(child(status, "tt:MoveStatus"), "tt:PanTilt", "MOVING" if any(self.velocity) else "IDLE")
                 child(status, "tt:UtcTime", utc())
         elif body.tag == tag("tev:CreatePullPointSubscription") and "Events" in self.services:
+            if path != "/events" or required(request, "s:Header/a:Action") != NS["tev"] + "/EventPortType/CreatePullPointSubscriptionRequest":
+                raise ValueError("subscription action")
+            self.subscriptions += 1
+            self.lease_end = monotonic() + self.initial_lease_seconds
             self.active = True
             self.notifications.clear()
-            child(child(result, "tev:SubscriptionReference"), "a:Address", self.base + "/pull")
+            reference = child(result, "tev:SubscriptionReference")
+            child(reference, "a:Address", self.base + "/pull")
+            params = child(reference, "a:ReferenceParameters")
+            ET.SubElement(params, "{urn:bacuri:fixture}Subscription").text = str(self.subscriptions)
             child(result, "wsnt:CurrentTime", utc())
-            child(result, "wsnt:TerminationTime", utc(60))
-        elif path == "/pull" and self.active and body.tag == tag("tev:PullMessages"):
+            child(result, "wsnt:TerminationTime", utc(self.lease_end - monotonic()))
+        elif path == "/pull" and self.active and monotonic() < self.lease_end:
+            ref = request.find("s:Header/{urn:bacuri:fixture}Subscription", NS)
+            if ref is None or ref.text != str(self.subscriptions) or ref.get(tag("a:IsReferenceParameter")) != "true":
+                raise ValueError("pull reference or action")
+            if body.tag == tag("wsnt:Unsubscribe"):
+                self.active = False
+                return result
+            if body.tag == tag("wsnt:Renew"):
+                self.renewals += 1
+                self.lease_end = monotonic() + 60
+                child(result, "wsnt:TerminationTime", utc(60))
+                return result
+            if body.tag != tag("tev:PullMessages") or required(request, "s:Header/a:Action") != NS["tev"] + "/PullPointSubscription/PullMessagesRequest":
+                raise ValueError("unknown subscription operation")
+            self.polls += 1
+            self.pulled += len(self.notifications)
             child(result, "tev:CurrentTime", utc())
-            child(result, "tev:TerminationTime", utc(60))
-            for source, instant in self.notifications:
+            child(result, "tev:TerminationTime", utc(self.lease_end - monotonic()))
+            for source, instant, state, operation in self.notifications:
                 notification = child(result, "wsnt:NotificationMessage")
                 child(notification, "wsnt:Topic", "tns1:RuleEngine/CellMotionDetector/Motion",
                       Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet",
                       **{"xmlns:tns1": "http://www.onvif.org/ver10/topics"})
-                msg = child(child(notification, "wsnt:Message"), "tt:Message", UtcTime=instant, PropertyOperation="Changed")
+                msg = child(child(notification, "wsnt:Message"), "tt:Message", UtcTime=instant, PropertyOperation=operation)
                 child(child(msg, "tt:Source"), "tt:SimpleItem", Name="VideoSourceConfigurationToken", Value=source)
-                child(child(msg, "tt:Data"), "tt:SimpleItem", Name="IsMotion", Value="true")
+                child(child(msg, "tt:Data"), "tt:SimpleItem", Name="IsMotion", Value=state)
             self.notifications.clear()
-        elif path == "/pull" and body.tag == tag("wsnt:Unsubscribe"):
-            self.active = False
         else:
             raise ValueError("unsupported operation")
         return result
 
-    def motion(self):
-        if self.active:
-            self.notifications.append(("main", utc()))
+    def motion(self, instant=None, source=None, state="true", operation="Changed"):
+        with self.lock:
+            if self.active:
+                self.notifications.append((source or self.source, instant or utc(), state, operation))
 
 
 def utc(seconds=0):
@@ -132,7 +208,15 @@ class Control(BaseHTTPRequestHandler):
             if required(token, "wsse:Username") != "fixture" or not hmac.compare_digest(expected, required(token, "wsse:Password")):
                 self.send_error(401)
                 return
-            response = device.respond(root, self.path)
+            with device.lock:
+                if not device.online:
+                    self.close_connection = True
+                    return
+                response = device.respond(root, self.path)
+                if device.lose_move_reply and response.tag == tag("tptz:ContinuousMoveResponse"):
+                    device.lose_move_reply = False
+                    self.close_connection = True
+                    return
             action = required(root, "s:Header/a:Action").removesuffix("Request") + "Response"
             output = envelope(response, [node("a:Action", action), node("a:RelatesTo", required(root, "s:Header/a:MessageID")),
                                          node("a:To", NS["a"] + "/anonymous")])

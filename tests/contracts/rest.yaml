@@ -1,3 +1,13 @@
+ptz_command:
+  operation: controlPointPtz
+  request: { device_id: 40000000-0000-4000-8000-000000000001, command: stop }
+  status: 422
+  response:
+    type: https://bacuri.invalid/problems/camera-ptz-unsupported
+    title: Unsupported camera command
+    status: 422
+    code: camera_ptz_unsupported
+    request_id: 90000000-0000-4000-8000-000000000001
 resolve_alert:
   operation: resolveAlertArchive
   status: 200

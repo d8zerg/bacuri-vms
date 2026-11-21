@@ -3,6 +3,7 @@ import type { CameraDraft, StreamCheck } from "../ui-kit/CameraConnectionForm";
 export type { CameraDraft };
 type Schema = components["schemas"];
 export type Session = Schema["BrowserSession"];
+export type PtzCommand = Schema["PtzCommand"];
 export type Point = Schema["Point"];
 export type AlertItem = Schema["Alert"];
 export type Camera = Schema["Camera"];
@@ -30,6 +31,12 @@ export interface Services {
   login(username: string, password: string): Promise<Session>;
   logout(): Promise<void>;
   points(site: string, signal: AbortSignal): Promise<Point[]>;
+  ptz(
+    site: string,
+    point: string,
+    device: string,
+    command: PtzCommand,
+  ): Promise<void>;
   discover(site: string, signal: AbortSignal): Promise<DiscoveredCamera[]>;
   inspect(
     site: string,
@@ -38,6 +45,12 @@ export interface Services {
     password: string,
     signal: AbortSignal,
   ): Promise<CameraInspection>;
+  refreshOnvif(
+    site: string,
+    camera: Camera,
+    draft: CameraDraft,
+    signal: AbortSignal,
+  ): Promise<Camera>;
   cameras(site: string, signal: AbortSignal): Promise<Camera[]>;
   previousRecording(
     site: string,
