@@ -29,7 +29,8 @@ RUN --network=none tar -xOf /tmp/xml-backports.tar.xz debian/patches/CVE-2026-66
     && mkdir -p /out/xml /out/soup \
     && cp libxml2_*.deb /out/xml/ && cp libsoup-3.0-0_*.deb libsoup-3.0-common_*.deb /out/soup/
 COPY packaging/maintenance/provenance.py /usr/local/bin/provenance.py
-RUN --network=none python3 /usr/local/bin/provenance.py \
+RUN --network=none mkdir -p /sdk/xml-dev && cp /src/libxml2-dev_*.deb /sdk/xml-dev/ \
+    && python3 /usr/local/bin/provenance.py \
     && mkdir -p /out/source && cp /src/*.dsc /src/*.tar.* /src/*.buildinfo /out/source/ \
     && cp -r /patches /out/source/
 
@@ -52,6 +53,7 @@ RUN --network=none go version -m /out/gosu /out/gitleaks > /out/go-buildinfo.txt
 
 FROM scratch AS maintained-packages
 COPY --from=maintenance-build /out/ /
+COPY --from=maintenance-build /sdk/ /
 COPY --from=go-tools /out/ /tools/
 COPY --from=go-tools /tmp/gosu.tgz /tmp/gitleaks.tgz /source/
 
@@ -136,6 +138,10 @@ RUN export CONAN_HOME=/opt/bacuri/conan-cache && \
             --lockfile=/opt/bacuri/conan.lock --build=missing -of "$generators" \
             --format=json --out-file="$generators/graph.json" || exit 1; \
     done && conan cache clean '*' --source --build --download --temp
+# Use the headers and linker name from the same build as the maintained XML runtime.
+RUN --mount=from=maintenance-build,source=/sdk/xml-dev,target=/packages \
+    dpkg --path-include='*' -i /packages/*.deb
+COPY --from=maintenance-build /sdk/xml-dev/provenance.json /usr/share/bacuri/maintenance/xml-dev.json
 RUN (dpkg-query -W && sha256sum /opt/bacuri/deps/*/graph.json /opt/bacuri/profiles/*) \
         > /tmp/bacuri-build-inputs && \
     sha256sum /tmp/bacuri-build-inputs > /opt/bacuri/deps/toolchain.sha256 && \

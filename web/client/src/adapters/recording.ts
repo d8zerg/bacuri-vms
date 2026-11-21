@@ -7,6 +7,7 @@ export async function newRecording(
   pointId: string,
   header: { "X-CSRF-Token": string },
   signal: AbortSignal,
+  binding?: string,
 ): Promise<Interval> {
   const start = new Date().toISOString();
   const deadline = AbortSignal.any([signal, AbortSignal.timeout(35000)]);
@@ -21,6 +22,7 @@ export async function newRecording(
         },
         body: {
           mode: "archive",
+          ...(binding ? { binding_revision: binding } : {}),
           interval: { start, end: new Date().toISOString() },
         },
         signal: AbortSignal.timeout(3000),

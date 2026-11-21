@@ -46,6 +46,9 @@ class CameraRegistry
         : sessions_{sessions}, key_{key}, networks_{std::move(networks)}
     {
     }
+    void onvif(const Request& request, Response& response, const std::string& site, bool inspect) const;
+    void issues(const Request&, Response&, const std::string& site, const std::string& device) const;
+    void previous_recording(const Request&, Response&, const std::string& site, const std::string& device) const;
     void points(const Request& request, Response& response, const std::string& site) const;
     void cameras(const Request& request, Response& response, const std::string& site, std::string device) const;
 

@@ -12,8 +12,8 @@ def sha(path):
         return file_digest(stream, "sha256").hexdigest()
 
 
-for group, fixes in {"xml": ["CVE-2026-6653"], "soup": ["CVE-2026-2369", "CVE-2026-102560"]}.items():
-    folder = Path("/out") / group
+for group, fixes in {"xml": ["CVE-2026-6653"], "xml-dev": ["CVE-2026-6653"], "soup": ["CVE-2026-2369", "CVE-2026-102560"]}.items():
+    folder = Path("/sdk" if group == "xml-dev" else "/out") / group
     records = {}
     for deb in sorted(folder.glob("*.deb")):
         def field(key):

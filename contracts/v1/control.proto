@@ -9,7 +9,22 @@ service RecorderControl {
   // Persist the accepted configuration before returning APPLIED.
   // A replay of the same site, node and revision returns the recorded decision.
   rpc ApplyConfiguration(ApplyConfigurationRequest) returns (ApplyConfigurationResult);
+  rpc GetCameraIssues(CameraIssueQuery) returns (CameraIssues);
   rpc ListPending(PendingQuery) returns (PendingIntervals);
+}
+
+message CameraIssueQuery {
+  string site_id = 1;
+  string device_id = 2;
+}
+enum StreamIssue {
+  STREAM_ISSUE_UNSPECIFIED = 0;
+  STREAM_ISSUE_TLS = 1;
+  STREAM_ISSUE_INCOMPATIBLE = 2;
+}
+message CameraIssues {
+  StreamIssue main = 1;
+  StreamIssue secondary = 2;
 }
 
 // Dedicated recorder socket, accessible to the delivery process.

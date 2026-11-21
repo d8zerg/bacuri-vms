@@ -70,6 +70,24 @@ std::shared_ptr<FrameQueue> Sources::preview(const std::string& point)
     return {};
 }
 
+v1::CameraIssues Sources::issues(const std::string& device) const
+{
+    v1::CameraIssues result;
+    for (const auto& [key, entry] : streams_) {
+        if (key.device != device)
+            continue;
+        const auto state = entry.stream->stats().state;
+        auto issue = state == "certificate_error"      ? v1::STREAM_ISSUE_TLS
+                     : state == "incompatible_profile" ? v1::STREAM_ISSUE_INCOMPATIBLE
+                                                       : v1::STREAM_ISSUE_UNSPECIFIED;
+        if (key.profile == Profile::main)
+            result.set_main(issue);
+        else
+            result.set_secondary(issue);
+    }
+    return result;
+}
+
 Sources::~Sources()
 {
     for (auto& [key, entry] : streams_) {
@@ -123,9 +141,9 @@ void Sources::apply(const v1::ApplyConfigurationRequest& assignment)
             info["profile"] = key.profile == Profile::main ? "main" : "secondary";
             std::fprintf(stderr, "%s\n", info.dump().c_str());
         };
-        auto stream = std::make_unique<Stream>(
-            StreamOptions{key.profile, endpoint, [this](const std::string& url) { return networks_.permits(url); },
-                          std::move(report)});
+        auto stream = std::make_unique<Stream>(StreamOptions{
+            key.profile, endpoint, [this](const std::string& url) { return networks_.stream_url(url); },
+            std::move(report)});
         std::unique_ptr<archive::Writer> writer;
         if (key.profile == Profile::main) {
             if (key.binding > 0) {

@@ -27,6 +27,7 @@ constexpr std::array tables{"sites",
                             "site_roles",
                             "point_grants",
                             "configuration_audit",
+                            "camera_transport_audit",
                             "configuration_progress",
                             "recorder_delivery"};
 
@@ -98,7 +99,9 @@ void restore_configuration(std::istream& input)
         throw std::runtime_error("Incomplete configuration backup");
     }
     encrypted.pop_back();
-    const auto data = Json::parse(unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site)));
+    auto data = Json::parse(unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site)));
+    if (!data.contains("camera_transport_audit"))
+        data["camera_transport_audit"] = Json::array();
     require_single_site(data, site);
     Database db;
     db.exec("BEGIN ISOLATION LEVEL SERIALIZABLE; SET LOCAL TIME ZONE 'UTC'");

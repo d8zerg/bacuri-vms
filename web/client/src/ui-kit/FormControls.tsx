@@ -38,6 +38,7 @@ type TextFieldProps = Pick<
   | "value"
   | "onChange"
   | "required"
+  | "readOnly"
   | "inputMode"
   | "placeholder"
 > & {

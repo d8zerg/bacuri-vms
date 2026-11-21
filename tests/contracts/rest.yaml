@@ -7,19 +7,46 @@ resolve_alert:
     archive_interval: { start: '2020-01-01T10:00:30Z', end: '2020-01-01T10:01:00Z' }
     interval: { start: '2020-01-01T10:00:44Z', end: '2020-01-01T10:00:46Z' }
     position: '2020-01-01T10:00:45Z'
+discover_cameras:
+  operation: discoverCameras
+  status: 200
+  response:
+    - endpoint_id: urn:uuid:d0000000-0000-4000-8000-000000000001
+      device_service: https://camera.invalid/onvif/device
+      selection: discovery-ticket
+inspect_camera:
+  operation: inspectCamera
+  request: { selection: discovery-ticket, username: fixture, password: example }
+  status: 200
+  response:
+    endpoint_id: urn:uuid:d0000000-0000-4000-8000-000000000001
+    manufacturer: Fixture
+    model: Test camera
+    firmware: '1'
+    serial: unit-1
+    ptz: false
+    events: true
+    selection: enrollment-ticket
+    profiles:
+      - { token: enc-12, name: High, url: 'rtsps://camera.invalid/high' }
+      - { token: enc-19, name: Low, url: 'rtsps://camera.invalid/low' }
+stream_issues:
+  operation: getCameraStreamIssues
+  status: 200
+  response: { main: certificate_error, secondary: unknown }
 register_camera:
   operation: registerCamera
   request:
     name: Loading bay
-    main_url: rtsp://camera.invalid/main
-    secondary_url: rtsp://camera.invalid/sub
+    main_url: rtsps://camera.invalid/main
+    secondary_url: rtsps://camera.invalid/sub
   status: 201
   response: &camera
     id: 40000000-0000-4000-8000-000000000001
     point_id: &point 20000000-0000-4000-8000-000000000001
     name: Loading bay
-    main_url: rtsp://camera.invalid/main
-    secondary_url: rtsp://camera.invalid/sub
+    main_url: rtsps://camera.invalid/main
+    secondary_url: rtsps://camera.invalid/sub
     has_credentials: false
     desired_revision: '2'
     applied_revision: '1'
@@ -28,8 +55,8 @@ update_camera_conflict:
   operation: updateCamera
   request:
     name: Loading bay
-    main_url: rtsp://camera.invalid/main
-    secondary_url: rtsp://camera.invalid/sub
+    main_url: rtsps://camera.invalid/main
+    secondary_url: rtsps://camera.invalid/sub
     credentials: null
   status: 412
   response:

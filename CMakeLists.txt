@@ -29,6 +29,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 pkg_check_modules(GRPC REQUIRED IMPORTED_TARGET grpc++)
 find_package(Boost 1.83 CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
+find_package(LibXml2 REQUIRED)
 pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
 pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
 find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin REQUIRED)
@@ -67,7 +68,7 @@ target_link_libraries(bacuri-vms-control-support PUBLIC bacuri-vms-domain PkgCon
 pkg_check_modules(GST REQUIRED IMPORTED_TARGET gstreamer-app-1.0>=1.24 gstreamer-rtp-1.0 gstreamer-rtsp-1.0)
 add_library(bacuri-vms-ingest STATIC src/recorder/frame_clock.cpp src/recorder/frame_queue.cpp
     src/recorder/ingest.cpp src/recorder/rtsp_session.cpp)
-target_link_libraries(bacuri-vms-ingest PUBLIC bacuri-vms-domain PRIVATE PkgConfig::GST)
+target_link_libraries(bacuri-vms-ingest PUBLIC bacuri-vms-domain PRIVATE PkgConfig::GST PkgConfig::GIO)
 target_compile_options(bacuri-vms-ingest PRIVATE -Wall -Wextra -Wpedantic)
 add_library(bacuri-vms-manifest STATIC src/archive/manifest.cpp)
 target_link_libraries(bacuri-vms-manifest PUBLIC bacuri-vms-control-support nlohmann_json::nlohmann_json)
@@ -92,13 +93,13 @@ target_link_libraries(bacuri-vms-media PRIVATE PkgConfig::WEBRTC PkgConfig::GST)
 target_link_libraries(bacuri-vms-media PRIVATE bacuri-vms-media-auth bacuri-vms-archive Boost::headers)
 add_executable(bacuri-vms-observation-source src/control/observation_source.cpp)
 target_link_libraries(bacuri-vms-observation-source PRIVATE bacuri-vms-rpc bacuri-vms-control-support)
-add_executable(bacuri-vms-core src/core/main.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/registry.cpp
+add_executable(bacuri-vms-core src/core/main.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/registry.cpp src/control/onvif.cpp
     src/control/observations.cpp src/control/alerts.cpp src/control/alert_socket.cpp
     src/control/media_authority.cpp src/control/playback.cpp
     src/control/session.cpp src/control/server.cpp src/control/https.cpp src/control/delivery.cpp src/control/archive_catalog.cpp)
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-volume bacuri-vms-media-auth)
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-control-support bacuri-vms-rpc
-    PostgreSQL::PostgreSQL Boost::headers OpenSSL::SSL PkgConfig::GIO nlohmann_json::nlohmann_json)
+    LibXml2::LibXml2 PostgreSQL::PostgreSQL Boost::headers OpenSSL::SSL PkgConfig::GIO nlohmann_json::nlohmann_json)
 target_compile_definitions(bacuri-vms-core PRIVATE BACURI_VMS_VERSION="${PROJECT_VERSION}")
 target_compile_options(bacuri-vms-core PRIVATE -Wall -Wextra -Wpedantic)
 

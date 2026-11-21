@@ -136,7 +136,13 @@ bool canonical_id(std::string_view value)
     return id && id->to_string() == value;
 }
 
-CameraNetworks::CameraNetworks(const std::string& specification)
+CameraNetworks CameraNetworks::configured()
+{
+    const char* legacy = g_getenv("BACURI_LEGACY_RTSP_ADDRESSES");
+    return CameraNetworks{setting("BACURI_CAMERA_NETWORKS"), {.addresses = legacy ? legacy : ""}};
+}
+
+CameraNetworks::CameraNetworks(const std::string& specification, LegacyRtsp exception)
 {
     std::istringstream configured{specification};
     std::string network;
@@ -147,6 +153,18 @@ CameraNetworks::CameraNetworks(const std::string& specification)
         }
         masks_.emplace_back(mask, g_object_unref);
     }
+    std::istringstream legacy{exception.addresses};
+    while (std::getline(legacy, network, ',')) {
+        std::unique_ptr<GInetAddress, decltype(&g_object_unref)> address{
+            g_inet_address_new_from_string(network.c_str()), g_object_unref};
+        if (!address)
+            throw std::invalid_argument("Expected a single legacy camera IP address");
+        std::unique_ptr<gchar, decltype(&g_free)> ip{g_inet_address_to_string(address.get()), g_free};
+        if (contains(address.get()))
+            legacy_.emplace_back(ip.get());
+    }
+    std::ranges::sort(legacy_);
+    legacy_.erase(std::unique(legacy_.begin(), legacy_.end()), legacy_.end());
     if (masks_.empty()) {
         throw std::invalid_argument("Missing camera networks");
     }
@@ -154,29 +172,56 @@ CameraNetworks::CameraNetworks(const std::string& specification)
 
 bool CameraNetworks::permits(const std::string& url) const
 {
+    return stream_url(url).has_value();
+}
+
+bool CameraNetworks::contains(GInetAddress* address) const
+{
+    return std::ranges::any_of(
+        masks_, [address](const auto& mask) { return g_inet_address_mask_matches(mask.get(), address); });
+}
+
+std::optional<std::string> CameraNetworks::stream_url(const std::string& url) const
+{
     if (url.size() > 2048 || url.find_first_of(" \t\r\n\\?#") != url.npos || url.contains('\0') ||
         !(url.starts_with("rtsp://") || url.starts_with("rtsps://"))) {
-        return false;
+        return std::nullopt;
     }
     std::unique_ptr<GUri, decltype(&g_uri_unref)> uri{g_uri_parse(url.c_str(), G_URI_FLAGS_ENCODED, nullptr),
                                                       g_uri_unref};
     if (!uri || g_uri_get_userinfo(uri.get()) || !g_uri_get_host(uri.get()) || g_uri_get_port(uri.get()) == 0) {
-        return false;
+        return std::nullopt;
     }
     std::unique_ptr<GResolver, decltype(&g_object_unref)> resolver{g_resolver_get_default(), g_object_unref};
     std::unique_ptr<GList, decltype(&g_resolver_free_addresses)> addresses{
         g_resolver_lookup_by_name(resolver.get(), g_uri_get_host(uri.get()), nullptr, nullptr),
         g_resolver_free_addresses};
     if (!addresses) {
-        return false;
+        return std::nullopt;
     }
     for (const GList* entry = addresses.get(); entry != nullptr; entry = entry->next) {
-        if (std::ranges::none_of(masks_, [entry](const auto& mask) {
-                return g_inet_address_mask_matches(mask.get(), G_INET_ADDRESS(entry->data));
-            })) {
-            return false;
-        }
+        if (!contains(G_INET_ADDRESS(entry->data)))
+            return std::nullopt;
     }
-    return true;
+    if (url.starts_with("rtsps://")) {
+        if (g_uri_get_port(uri.get()) >= 0)
+            return url;
+        std::unique_ptr<gchar, decltype(&g_free)> explicit_port{
+            g_uri_join(G_URI_FLAGS_ENCODED, "rtsps", nullptr, g_uri_get_host(uri.get()), 322,
+                       g_uri_get_path(uri.get()), nullptr, nullptr),
+            g_free};
+        return std::string{explicit_port.get()};
+    }
+    if (addresses->next)
+        return std::nullopt;
+    std::unique_ptr<gchar, decltype(&g_free)> ip{g_inet_address_to_string(G_INET_ADDRESS(addresses->data)),
+                                                 g_free};
+    if (std::ranges::find(legacy_, ip.get()) == legacy_.end())
+        return std::nullopt;
+    std::unique_ptr<gchar, decltype(&g_free)> pinned{g_uri_join(G_URI_FLAGS_ENCODED, "rtsp", nullptr, ip.get(),
+                                                                g_uri_get_port(uri.get()),
+                                                                g_uri_get_path(uri.get()), nullptr, nullptr),
+                                                     g_free};
+    return std::string{pinned.get()};
 }
 } // namespace bacuri::vms::control

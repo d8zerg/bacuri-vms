@@ -7,8 +7,8 @@ apply_configuration:
     cameras:
       - device_id: 40000000-0000-4000-8000-000000000001
         point_id: &point 20000000-0000-4000-8000-000000000001
-        main_url: rtsp://camera.invalid/main
-        secondary_url: rtsp://camera.invalid/sub
+        main_url: rtsps://camera.invalid/main
+        secondary_url: rtsps://camera.invalid/sub
         channel_id: 30000000-0000-4000-8000-000000000001
         main_profile_id: b0000000-0000-4000-8000-000000000001
         binding_revision: '1'
@@ -16,6 +16,14 @@ apply_configuration:
     requested_revision: '2'
     applied_revision: '2'
     state: APPLY_STATE_APPLIED
+camera_stream_issues:
+  rpc: RecorderControl.GetCameraIssues
+  request:
+    site_id: *site
+    device_id: 40000000-0000-4000-8000-000000000001
+  response:
+    main: STREAM_ISSUE_TLS
+    secondary: STREAM_ISSUE_UNSPECIFIED
 register_block:
   rpc: ArchiveCatalog.RegisterBlock
   request:

@@ -50,7 +50,13 @@ export async function attach(
       },
       body:
         target.mode === "archive"
-          ? { mode: "archive", interval: target.interval }
+          ? {
+              mode: "archive",
+              interval: target.interval,
+              ...(target.binding_revision
+                ? { binding_revision: target.binding_revision }
+                : {}),
+            }
           : { mode: "live" },
       signal: AbortSignal.timeout(10000),
     }),

@@ -5,6 +5,7 @@
 #include <gst/rtp/gstrtpbuffer.h>
 #include <gst/rtsp/gstrtspmessage.h>
 #include <glib.h>
+#include <gio/gio.h>
 
 #include <algorithm>
 #include <atomic>
@@ -106,8 +107,18 @@ int port(GUri* uri)
     return number >= 0 ? number : (g_strcmp0(g_uri_get_scheme(uri), "rtsps") == 0 ? 322 : 554);
 }
 
-gboolean same_origin(GstElement*, GstRTSPMessage* message, gpointer data)
+gboolean same_origin(GstElement* source, GstRTSPMessage* message, gpointer data)
 {
+    const auto original = static_cast<GUri*>(data);
+    gchar* current_location{};
+    g_object_get(source, "location", &current_location, nullptr);
+    std::unique_ptr<gchar, decltype(&g_free)> location{current_location, g_free};
+    Handle<GUri, g_uri_unref> current{location ? g_uri_parse(location.get(), G_URI_FLAGS_ENCODED, nullptr)
+                                               : nullptr};
+    if (!current || g_strcmp0(g_uri_get_host(current.get()), g_uri_get_host(original)) ||
+        g_strcmp0(g_uri_get_scheme(current.get()), g_uri_get_scheme(original)) ||
+        port(current.get()) != port(original))
+        return FALSE;
     GstRTSPMethod method{};
     const gchar* target{};
     if (gst_rtsp_message_parse_request(message, &method, &target, nullptr) != GST_RTSP_OK) {
@@ -116,11 +127,12 @@ gboolean same_origin(GstElement*, GstRTSPMessage* message, gpointer data)
     if (g_strcmp0(target, "*") == 0) {
         return TRUE;
     }
-    const auto original = static_cast<GUri*>(data);
     Handle<GUri, g_uri_unref> uri{g_uri_parse(target, G_URI_FLAGS_ENCODED, nullptr)};
     return uri && !g_uri_get_userinfo(uri.get()) && g_uri_get_host(uri.get()) &&
            g_ascii_strcasecmp(g_uri_get_host(original), g_uri_get_host(uri.get())) == 0 &&
-           g_strcmp0(g_uri_get_scheme(original), g_uri_get_scheme(uri.get())) == 0 &&
+           (g_strcmp0(g_uri_get_scheme(original), g_uri_get_scheme(uri.get())) == 0 ||
+            (g_strcmp0(g_uri_get_scheme(original), "rtsps") == 0 &&
+             g_strcmp0(g_uri_get_scheme(uri.get()), "rtsp") == 0)) &&
            port(original) == port(uri.get());
 }
 
@@ -140,6 +152,7 @@ std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const R
     PacketTimes packets;
     FrameClock clock;
     Selection selection;
+    std::atomic<bool> certificate_rejected{};
     Handle<GUri, g_uri_unref> origin{g_uri_parse(endpoint.url.c_str(), G_URI_FLAGS_ENCODED, nullptr)};
     if (!origin || !g_uri_get_host(origin.get())) {
         return "invalid_address";
@@ -164,12 +177,26 @@ std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const R
     Handle<GstPad, gst_object_unref> pad{gst_element_get_static_pad(depay.get(), "sink")};
     Handle<GstBus, gst_object_unref> bus{gst_element_get_bus(pipeline.get())};
     gst_pad_add_probe(pad.get(), GST_PAD_PROBE_TYPE_BUFFER, observe_packet, &packets, nullptr);
+    g_signal_connect(source.get(), "accept-certificate",
+                     G_CALLBACK(+[](GstElement*, GTlsConnection*, GTlsCertificate*, GTlsCertificateFlags,
+                                    gpointer data) -> gboolean {
+                         static_cast<std::atomic<bool>*>(data)->store(true);
+                         return FALSE;
+                     }),
+                     &certificate_rejected);
     g_signal_connect(source.get(), "select-stream", G_CALLBACK(select_h264), &selection);
     g_signal_connect(source.get(), "before-send", G_CALLBACK(same_origin), origin.get());
     g_object_set(source.get(), "location", endpoint.url.c_str(), "user-id", endpoint.username.c_str(), "user-pw",
                  endpoint.password.c_str(), nullptr);
+    const auto* trust = g_getenv("BACURI_CAMERA_CA_FILE");
+    if (endpoint.url.starts_with("rtsps://") && trust && *trust) {
+        Handle<GTlsDatabase, g_object_unref> ca{g_tls_file_database_new(trust, nullptr)};
+        if (!ca)
+            return "certificate_error";
+        g_object_set(source.get(), "tls-database", ca.get(), nullptr);
+    }
     if (gst_element_set_state(pipeline.get(), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
-        return "pipeline_error";
+        return certificate_rejected ? "certificate_error" : "pipeline_error";
     }
     using Steady = std::chrono::steady_clock;
     auto deadline = Steady::now() + 8s;
@@ -178,6 +205,8 @@ std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const R
             gst_app_sink_try_pull_sample(GST_APP_SINK(sink.get()), 100 * GST_MSECOND)};
         // Drain the entire bus, including normal state changes and streaming notifications.
         while (Handle<GstMessage, gst_message_unref> message{gst_bus_pop(bus.get())}) {
+            if (certificate_rejected)
+                return "certificate_error";
             if (selection.saw_other && !selection.selected &&
                 GST_MESSAGE_TYPE(message.get()) == GST_MESSAGE_ERROR) {
                 return "incompatible_profile";

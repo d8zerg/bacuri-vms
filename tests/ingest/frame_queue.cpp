@@ -111,8 +111,8 @@ TEST(FrameClock, PreservesRawTimeAndChangesEpochOnSourceClockJump)
 
 TEST(StreamPolicy, DeniedAddressReportsFailureAndShutdownCancelsBackoff)
 {
-    testing::StrictMock<testing::MockFunction<bool(const std::string&)>> allow;
-    EXPECT_CALL(allow, Call("rtsp://example.invalid/main")).WillOnce(testing::Return(false));
+    testing::StrictMock<testing::MockFunction<std::optional<std::string>(const std::string&)>> allow;
+    EXPECT_CALL(allow, Call("rtsp://example.invalid/main")).WillOnce(testing::Return(std::nullopt));
     std::promise<StreamStats> reported;
     auto result = reported.get_future();
     Stream stream{{Profile::main,

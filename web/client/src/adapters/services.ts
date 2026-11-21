@@ -49,6 +49,39 @@ export function createServices(): Services {
         }),
       );
     },
+    async discover(siteId, signal) {
+      return data(
+        await api.POST("/sites/{siteId}/onvif/discovery", {
+          params: { path: { siteId }, header: auth() },
+          signal,
+        }),
+      );
+    },
+    async inspect(siteId, selection, username, password, signal) {
+      return data(
+        await api.POST("/sites/{siteId}/onvif/profiles", {
+          params: { path: { siteId }, header: auth() },
+          body: { selection, username, password },
+          signal,
+        }),
+      );
+    },
+    async cameras(siteId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/cameras", {
+          params: { path: { siteId } },
+          signal,
+        }),
+      );
+    },
+    async previousRecording(siteId, cameraId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/cameras/{cameraId}/previous-recording", {
+          params: { path: { siteId, cameraId } },
+          signal,
+        }),
+      );
+    },
     async register(siteId, draft, signal, form) {
       const op: Registration = operations.get(form) ?? {
         key: crypto.randomUUID(),
@@ -56,16 +89,18 @@ export function createServices(): Services {
       };
       operations.set(form, op);
       if (!op.created) {
-        op.created = data(
-          await api.POST("/sites/{siteId}/cameras", {
-            params: {
-              path: { siteId },
-              header: { ...auth(), "Idempotency-Key": op.key },
-            },
-            body: op.initial,
-            signal,
-          }),
-        );
+        const response = await api.POST("/sites/{siteId}/cameras", {
+          params: {
+            path: { siteId },
+            header: { ...auth(), "Idempotency-Key": op.key },
+          },
+          body: op.initial,
+          signal,
+        });
+        // A definitive rejection permits a corrected draft on the next submission.
+        if (response.response.status >= 400 && response.response.status < 500)
+          operations.delete(form);
+        op.created = data(response);
         op.revision = op.created.desired_revision;
       }
       const path = { siteId, cameraId: op.created.id };
@@ -86,10 +121,17 @@ export function createServices(): Services {
         const etag = current.response.headers.get("ETag");
         if (!etag || cam.desired_revision !== op.revision)
           throw Error("Configuration changed");
+        const update = { ...draft };
+        delete update.replace_device_id;
+        if (
+          update.main_url === cam.main_url &&
+          update.secondary_url === cam.secondary_url
+        )
+          delete update.onvif_selection;
         cam = data(
           await api.PUT("/sites/{siteId}/cameras/{cameraId}", {
             params: { path, header: { ...auth(), "If-Match": etag } },
-            body: draft,
+            body: update,
             signal: deadline,
           }),
         );
@@ -103,7 +145,8 @@ export function createServices(): Services {
         throw Error("Configuration changed");
       return cam;
     },
-    record: (site, point, signal) => newRecording(site, point, auth(), signal),
+    record: (site, point, signal, binding) =>
+      newRecording(site, point, auth(), signal, binding),
     async checkProfiles(site, camera, signal) {
       const probe = new AbortController();
       const video = document.createElement("video");
@@ -111,7 +154,13 @@ export function createServices(): Services {
       video.playsInline = true;
       const liveSignal = AbortSignal.any([signal, probe.signal]);
       const [main, secondary] = await Promise.allSettled([
-        newRecording(site, camera.point_id, auth(), signal),
+        newRecording(
+          site,
+          camera.point_id,
+          auth(),
+          signal,
+          camera.binding_revision,
+        ),
         attach(
           video,
           site,
@@ -133,9 +182,27 @@ export function createServices(): Services {
         current.state !== "applied"
       )
         throw Error("Configuration changed");
+      const issues =
+        main.status === "rejected" || secondary.status === "rejected"
+          ? (
+              await api.GET(
+                "/sites/{siteId}/cameras/{cameraId}/stream-issues",
+                {
+                  params: { path: { siteId: site, cameraId: camera.id } },
+                  signal,
+                },
+              )
+            ).data
+          : undefined;
       return {
-        main: main.status === "fulfilled" ? "available" : "unknown",
-        secondary: secondary.status === "fulfilled" ? "available" : "unknown",
+        main:
+          main.status === "fulfilled"
+            ? "available"
+            : (issues?.main ?? "unknown"),
+        secondary:
+          secondary.status === "fulfilled"
+            ? "available"
+            : (issues?.secondary ?? "unknown"),
       };
     },
     async archive(siteId, pointId, window, signal) {

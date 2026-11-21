@@ -7,6 +7,7 @@ import type {
   Entry,
   AlertLink,
 } from "../src/contracts/workspace";
+import { HttpFailure } from "../src/adapters/api";
 import { pause } from "../src/workflows/pause";
 export const utc = (n: number) =>
   new Date(Date.UTC(2026, 0, 1, 14, 20) + n * 1000).toISOString();
@@ -65,6 +66,48 @@ export function fixture(condition = "normal"): Services {
           recording: "current",
         },
       ]),
+    discover: () =>
+      Promise.resolve([
+        {
+          endpoint_id: "test-camera",
+          device_service: "https://camera.test/onvif/device",
+          selection: "discovered-device",
+        },
+      ]),
+    cameras: () =>
+      Promise.resolve([
+        {
+          id: "previous",
+          point_id: point,
+          name: "Ворота",
+          binding_revision: "1",
+          main_url: "rtsps://previous/main",
+          secondary_url: "rtsps://previous/sub",
+          has_credentials: true,
+          desired_revision: "1",
+          applied_revision: "1",
+          state: "applied",
+        },
+      ]),
+    inspect: (_, __, username, password) =>
+      username === "viewer" && password === "demo"
+        ? Promise.resolve({
+            endpoint_id: "test-camera",
+            manufacturer: "Test",
+            model: "ONVIF fixture",
+            firmware: "1",
+            serial: "stand-A",
+            ptz: true,
+            events: false,
+            selection: "approved-device",
+            profiles: [
+              { token: "p1", name: "High", url: "rtsps://camera.test/1" },
+              { token: "p2", name: "Low", url: "rtsps://camera.test/2" },
+            ],
+          })
+        : Promise.reject(new HttpFailure(422, "camera_authentication_failed")),
+    previousRecording: () =>
+      Promise.resolve({ binding_revision: "1", interval: range(0, 4) }),
     record: async (_, __, signal) => {
       await pause(400, signal);
       return range(15, 19);
@@ -78,6 +121,7 @@ export function fixture(condition = "normal"): Services {
       return {
         ...draft,
         id: "device",
+        binding_revision: draft.replace_device_id ? "2" : "1",
         point_id: point,
         applied_revision: String(++revision),
         desired_revision: String(revision),

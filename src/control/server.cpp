@@ -166,14 +166,32 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
         allow(req, res, {http::verb::get});
         return registry.points(req, res, site);
     }
+    if (path == "onvif/discovery" || path == "onvif/profiles") {
+        allow(req, res, {http::verb::post});
+        return registry.onvif(req, res, site, path == "onvif/profiles");
+    }
     if (path == "cameras") {
         allow(req, res, {http::verb::get, http::verb::post});
         return registry.cameras(req, res, site, {});
     }
     constexpr std::string_view camera_prefix = "cameras/";
-    if (path.starts_with(camera_prefix) && canonical_id(path.substr(camera_prefix.size()))) {
-        allow(req, res, {http::verb::get, http::verb::put});
-        return registry.cameras(req, res, site, std::string{path.substr(camera_prefix.size())});
+    if (path.starts_with(camera_prefix)) {
+        const auto member = path.substr(camera_prefix.size());
+        const auto split = member.find('/');
+        const auto device = member.substr(0, split);
+        if (!canonical_id(device))
+            throw Failure{404, "not_found"};
+        if (split == member.npos) {
+            allow(req, res, {http::verb::get, http::verb::put});
+            return registry.cameras(req, res, site, std::string{device});
+        }
+        const auto resource = member.substr(split + 1);
+        if (resource == "previous-recording" || resource == "stream-issues") {
+            allow(req, res, {http::verb::get});
+            if (resource == "stream-issues")
+                return registry.issues(req, res, site, std::string{device});
+            return registry.previous_recording(req, res, site, std::string{device});
+        }
     }
     throw Failure{404, "not_found"};
 }
@@ -223,8 +241,10 @@ void serve()
     Observations observations;
     const Sessions sessions{key, origin};
     const Playback playback{sessions, key};
-    const CameraRegistry registry{sessions, key, CameraNetworks{setting("BACURI_CAMERA_NETWORKS")}};
-    std::jthread worker{[&key](std::stop_token stop) { deliver(stop, key); }};
+    auto networks = CameraNetworks::configured();
+    auto policy = Json(networks.legacy_addresses()).dump();
+    const CameraRegistry registry{sessions, key, std::move(networks)};
+    std::jthread worker{[&key, policy = std::move(policy)](std::stop_token stop) { deliver(stop, key, policy); }};
     const auto handle = [&](const Request& req, const std::string& peer) {
         Response res;
         std::unique_ptr<char, decltype(&g_free)> id{g_uuid_string_random(), g_free};

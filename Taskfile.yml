@@ -55,6 +55,7 @@ tasks:
       - task: format:check
       - task: docs:check
       - task: camera:check
+      - task: camera:commissioning
       - task: prototype:check
       - task: release:check
       - for: [gcc-debug, clang-debug, clang-asan-ubsan, clang-tsan]
@@ -406,6 +407,20 @@ tasks:
       - task: build
         vars: {PRESET: gcc-debug}
     cmd: '{{.BUILD_RUN}} python3 -B tests/cameras/check.py emulator "$(sh tools/quality-report-dir cameras)"'
+
+  camera:commissioning:
+    desc: Discover, register and replace synthetic ONVIF cameras with HTTPS browser playback
+    deps:
+      - web:build
+      - stand:up
+      - task: build
+        vars: {PRESET: gcc-debug}
+    cmds:
+      - docker compose up -d --wait playback-chrome
+      - defer: docker compose stop playback-chrome
+      - >-
+        {{.DEV_RUN}} env BACURI_WORKSPACE_RESULTS="$(sh tools/quality-report-dir commissioning)"
+        sh tests/check-control.sh gcc-debug commissioning
 
   camera:hardware:
     desc: Run the equipment series for the release bundle and every physical model and firmware

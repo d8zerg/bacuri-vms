@@ -73,19 +73,29 @@ v1::ApplyConfigurationRequest prepare(Database& db, const Key& key, const Assign
     }
     db.exec(R"sql(
         INSERT INTO recorder_attempt SELECT $1,$2,$3,coalesce(jsonb_object_agg(device_id,desired_revision),'{}')
-        FROM configuration_progress WHERE site_id=$1
+        FROM configuration_progress JOIN camera_registry USING (site_id,device_id) WHERE site_id=$1
     )sql",
             {site, generation, seal(key, "delivery/" + site + "/" + generation, snapshot.SerializeAsString())});
     db.exec("COMMIT");
     return snapshot;
 }
 
-void send_pending(v1::RecorderControl::Stub& recorder, const Key& key, const Assignment& assignment)
+void send_pending(v1::RecorderControl::Stub& recorder, const Key& key, const Assignment& assignment,
+                  std::optional<std::string>& policy)
 {
     const auto& site = assignment.site;
     Database db;
     if (db.exec("SELECT pg_try_advisory_lock(hashtextextended($1,0))", {site}).get(0) != "t") {
         return;
+    }
+    if (policy) {
+        db.exec("BEGIN");
+        bool exists = db.exec("SELECT 1 FROM sites WHERE site_id=$1 FOR UPDATE", {site}).size() > 0;
+        if (exists)
+            db.exec("SELECT record_camera_transport_policy($1,$2::jsonb)", {site, *policy});
+        db.exec("COMMIT");
+        if (exists)
+            policy.reset();
     }
     const auto snapshot = prepare(db, key, assignment);
     if (snapshot.revision() == 0) {
@@ -128,14 +138,15 @@ void send_pending(v1::RecorderControl::Stub& recorder, const Key& key, const Ass
 }
 } // namespace
 
-void deliver(std::stop_token stop, const Key& key)
+void deliver(std::stop_token stop, const Key& key, const std::string& transport_policy)
 {
+    std::optional<std::string> policy{transport_policy};
     const Assignment assignment{setting("BACURI_SITE_ID"), setting("BACURI_NODE_ID")};
     auto recorder = v1::RecorderControl::NewStub(
         grpc::CreateChannel("unix:" + setting("BACURI_SOCKET"), grpc::experimental::LocalCredentials(UDS)));
     while (!stop.stop_requested()) {
         try {
-            send_pending(*recorder, key, assignment);
+            send_pending(*recorder, key, assignment, policy);
         } catch (const std::exception&) {
             std::fputs("Recorder delivery unavailable\n", stderr);
         }

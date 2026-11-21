@@ -1,4 +1,7 @@
 #include "control/api.hpp"
+#include "control/onvif.hpp"
+#include "control/playback_time.hpp"
+#include "media/lease.hpp"
 
 namespace bacuri::vms::control
 {
@@ -34,7 +37,8 @@ std::string site_role(Database& db, const Identity& identity, const std::string&
 
 Json read_configuration(const Request& request)
 {
-    auto body = object_body(request, {"name", "main_url", "secondary_url", "point_id", "credentials"});
+    auto body = object_body(request, {"name", "main_url", "secondary_url", "point_id", "credentials",
+                                      "replace_device_id", "onvif_selection"});
     const auto name = string_field(body, "name", 256);
     if (name.find_first_not_of(" \r\t\n") == name.npos) {
         throw Failure{400, "invalid_request"};
@@ -53,6 +57,11 @@ Json read_configuration(const Request& request)
         string_field(credentials, "username", 128);
         string_field(credentials, "password", 1024, true);
     }
+    if (body.contains("replace_device_id") &&
+        (!body.contains("point_id") || !canonical_id(string_field(body, "replace_device_id", 36))))
+        throw Failure{400, "invalid_request"};
+    if (body.contains("onvif_selection"))
+        string_field(body, "onvif_selection", 24576);
     return body;
 }
 
@@ -60,6 +69,8 @@ void write_version(Database& db, const Key& key, const std::string& site, const 
                    const std::string& revision, const Json& body)
 {
     Json settings{{"main_url", body.at("main_url")}, {"secondary_url", body.at("secondary_url")}};
+    if (body.contains("onvif"))
+        settings["onvif"] = body.at("onvif");
     db.exec("INSERT INTO configuration_versions VALUES ($1,$2,$3,$4)", {site, device, revision, settings.dump()});
     db.exec(R"sql(
         INSERT INTO configuration_progress(site_id,device_id,desired_revision,application_state)
@@ -96,6 +107,13 @@ std::string register_device(Database& db, const std::string& site, const Json& b
         if (!db.exec("SELECT 1 FROM observation_points WHERE site_id=$1 AND point_id=$2", {site, point}).size()) {
             throw Failure{404, "not_found"};
         }
+        if (body.contains("replace_device_id")) {
+            if (!db.exec("DELETE FROM camera_registry WHERE site_id=$1 AND point_id=$2 AND device_id=$3 RETURNING "
+                         "device_id",
+                         {site, point, body.at("replace_device_id").get<std::string>()})
+                     .size())
+                throw Failure{409, "camera_binding_conflict"};
+        }
         if (db.exec("SELECT 1 FROM camera_registry WHERE site_id=$1 AND point_id=$2", {site, point}).size()) {
             throw Failure{400, "invalid_request"};
         }
@@ -122,6 +140,73 @@ std::string register_device(Database& db, const std::string& site, const Json& b
     return device;
 }
 } // namespace
+
+void CameraRegistry::onvif(const Request& req, Response& res, const std::string& site, bool inspect) const
+{
+    {
+        Database db;
+        db.exec("BEGIN");
+        const auto identity = sessions_.authenticate(db, req, true);
+        if (site_role(db, identity, site) != "administrator")
+            throw Failure{403, "forbidden"};
+        db.exec("COMMIT");
+    }
+    if (inspect) {
+        const auto body = object_body(req, {"selection", "username", "password"});
+        respond(res, inspect_onvif(networks_, key_, site, body));
+    } else {
+        respond(res, discover_onvif(networks_, key_, site));
+    }
+}
+
+void CameraRegistry::issues(const Request& req, Response& res, const std::string& site,
+                            const std::string& device) const
+{
+    Database db;
+    db.exec("BEGIN");
+    auto identity = sessions_.authenticate(db, req, false);
+    if (site_role(db, identity, site) != "administrator")
+        throw Failure{403, "forbidden"};
+    camera(db, site, device);
+    db.exec("COMMIT");
+    v1::CameraIssueQuery query;
+    query.set_site_id(site);
+    query.set_device_id(device);
+    auto recorder = v1::RecorderControl::NewStub(media::local_channel("BACURI_SOCKET"));
+    grpc::ClientContext rpc;
+    rpc.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds{1});
+    v1::CameraIssues result;
+    if (!recorder->GetCameraIssues(&rpc, query, &result).ok())
+        throw Failure{503, "media_unavailable"};
+    auto label = [](v1::StreamIssue issue) {
+        return issue == v1::STREAM_ISSUE_TLS            ? "certificate_error"
+               : issue == v1::STREAM_ISSUE_INCOMPATIBLE ? "incompatible"
+                                                        : "unknown";
+    };
+    respond(res, {{"main", label(result.main())}, {"secondary", label(result.secondary())}});
+}
+
+void CameraRegistry::previous_recording(const Request& req, Response& res, const std::string& site,
+                                        const std::string& device) const
+{
+    Database db;
+    db.exec("BEGIN");
+    auto identity = sessions_.authenticate(db, req, false);
+    if (site_role(db, identity, site) != "administrator")
+        throw Failure{403, "forbidden"};
+    const auto current = camera(db, site, device);
+    if (db.exec("SELECT 1 FROM archive_recovery WHERE site_id=$1", {site}).size())
+        throw Failure{503, "media_unavailable"};
+    auto rows = db.exec("SELECT binding_revision,begin_utc_us,end_utc_us FROM bacuri_archive.blocks "
+                        "WHERE site_id=$1 AND point_id=$2 AND binding_revision<$3 AND unavailable_reason IS NULL "
+                        "ORDER BY binding_revision DESC,begin_utc_us DESC LIMIT 1",
+                        {site, current.at("point_id"), current.at("binding_revision")});
+    if (!rows.size())
+        throw Failure{404, "not_found"};
+    db.exec("COMMIT");
+    respond(res, {{"binding_revision", rows.get(0)},
+                  {"interval", Window{std::stoll(rows.get(0, 1)), std::stoll(rows.get(0, 2))}.json()}});
+}
 
 void CameraRegistry::points(const Request& req, Response& res, const std::string& site) const
 {
@@ -169,10 +254,14 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
     }
     auto body = read_configuration(req);
     db.exec("SELECT site_id FROM sites WHERE site_id=$1 FOR UPDATE", {site});
+    db.exec("SELECT record_camera_transport_policy($1,$2::jsonb)",
+            {site, Json(networks_.legacy_addresses()).dump()});
     const auto request_key = std::string{req["Idempotency-Key"]};
     std::string digest;
     std::string revision = "1";
     Json result;
+    Json onvif = Json::object();
+    Json selected;
     if (create) {
         if (!canonical_id(request_key)) {
             throw Failure{400, "invalid_request"};
@@ -189,10 +278,28 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
             result = Json::parse(replay.get(0, 1));
             device = result.at("id").get<std::string>();
         } else {
+            if (body.contains("onvif_selection")) {
+                selected = read_camera_ticket(key_, site, body.at("onvif_selection"));
+                if (db.exec("SELECT 1 FROM camera_state WHERE site_id=$1 AND body->>'endpoint_id'=$2",
+                            {site, selected.at("endpoint_id")})
+                        .size())
+                    throw Failure{409, "camera_already_registered"};
+            }
             device = register_device(db, site, body);
         }
     } else {
+        if (body.contains("replace_device_id"))
+            throw Failure{400, "invalid_request"};
         auto current = camera(db, site, device);
+        if (current.contains("endpoint_id")) {
+            if (body["main_url"] != current["main_url"] || body["secondary_url"] != current["secondary_url"]) {
+                if (!body.contains("onvif_selection"))
+                    throw Failure{409, "camera_binding_conflict"};
+            }
+            for (const auto* field :
+                 {"endpoint_id", "model", "manufacturer", "firmware", "serial", "ptz", "events"})
+                onvif[field] = current.at(field);
+        }
         auto tag = req[http::field::if_match];
         if (tag.empty()) {
             throw Failure{428, "precondition_required"};
@@ -214,16 +321,45 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
     if (result.is_null()) {
         if (!networks_.permits(body.at("main_url").get_ref<const std::string&>()) ||
             !networks_.permits(body.at("secondary_url").get_ref<const std::string&>())) {
-            throw Failure{400, "invalid_request"};
+            throw Failure{400, "camera_transport_denied"};
         }
+        if (body.contains("onvif_selection")) {
+            if (!create) {
+                selected = read_camera_ticket(key_, site, body.at("onvif_selection"));
+                const auto id = selected.at("endpoint_id").get<std::string>();
+                if (!onvif.empty() && onvif["endpoint_id"] != id)
+                    throw Failure{409, "camera_binding_conflict"};
+                if (db.exec("SELECT 1 FROM camera_state WHERE site_id=$1 AND device_id<>$2 AND "
+                            "body->>'endpoint_id'=$3",
+                            {site, device, id})
+                        .size())
+                    throw Failure{409, "camera_already_registered"};
+            }
+            const auto& ids = selected.at("stream_ids");
+            for (const auto* field : {"main_url", "secondary_url"}) {
+                auto id = fingerprint(key_, "onvif-stream", body.at(field).get_ref<const std::string&>());
+                if (std::ranges::find(ids, Json(id)) == ids.end())
+                    throw Failure{400, "invalid_request"};
+            }
+            if (body.at("main_url") == body.at("secondary_url"))
+                throw Failure{422, "camera_incompatible_profiles"};
+            for (const auto* field :
+                 {"endpoint_id", "model", "manufacturer", "firmware", "serial", "ptz", "events"})
+                onvif[field] = selected.at(field);
+        }
+        if (!onvif.empty())
+            body["onvif"] = std::move(onvif);
         write_version(db, key_, site, device, revision, body);
         result = camera(db, site, device);
         db.exec(R"sql(
                 INSERT INTO configuration_audit(request_id,user_id,site_id,device_id,action,previous_revision,revision,outcome)
                 VALUES ($6,$1,$2,$3,$4,nullif($5::bigint-1,0),$5,'saved')
             )sql",
-                {identity.user, site, device, create ? "register" : "update", revision,
-                 std::string{res["X-Request-Id"]}});
+                {identity.user, site, device,
+                 body.contains("replace_device_id") ? "replace"
+                 : create                           ? "register"
+                                                    : "update",
+                 revision, std::string{res["X-Request-Id"]}});
         if (create) {
             db.exec("INSERT INTO registration_requests VALUES ($1,$2,$3,$4,$5,now()+interval '24 hours')",
                     {site, identity.user, request_key, digest, result.dump()});

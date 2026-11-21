@@ -42,6 +42,46 @@ test("Installer binds both streams and can confirm only a decoded archive frame"
   await page.getByLabel("Название", { exact: true }).fill("Другая точка");
   await expect(page.getByText("Запись подтверждена")).toHaveCount(0);
 });
+test("Administrator selects discovered profiles and replaces an existing binding", async ({
+  page,
+}) => {
+  await open(page, "installer");
+  await page
+    .getByRole("button", { name: "Поиск ONVIF и замена камеры" })
+    .click();
+  await page.getByLabel("Точка наблюдения").selectOption("previous");
+  await page.getByRole("button", { name: "Найти камеры ONVIF" }).click();
+  await expect(page.getByLabel("Обнаруженная камера")).toBeVisible();
+  await page.getByLabel("Пользователь камеры").fill("viewer");
+  await page.getByRole("button", { name: "Получить профили" }).click();
+  await expect(
+    page.getByText("Камера отклонила имя или пароль."),
+  ).toBeVisible();
+  await page.getByLabel("Пароль камеры").fill("demo");
+  await page.getByRole("button", { name: "Получить профили" }).click();
+  await expect(page.getByText(/stand-A/)).toBeVisible();
+  await page.getByLabel("Профиль эфира").selectOption("rtsps://camera.test/1");
+  await expect(
+    page.getByRole("button", { name: "Использовать профили" }),
+  ).toBeDisabled();
+  await page.getByLabel("Профиль записи").selectOption("rtsps://camera.test/2");
+  await checkAccessibility(page, ".ws-shell");
+  await page.getByRole("button", { name: "Использовать профили" }).click();
+  await expect(page.getByLabel("Основной поток", { exact: true })).toHaveValue(
+    "rtsps://camera.test/2",
+  );
+  await expect(page.getByLabel("Название", { exact: true })).toHaveValue(
+    "Ворота",
+  );
+  await page.getByRole("button", { name: "Подключить камеру" }).click();
+  await page.getByRole("button", { name: "Открыть предыдущую запись" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Предыдущая запись" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Подтвердить запись" }),
+  ).toHaveCount(0);
+});
 test("Operator opens alert, sees the gap, returns focus and handles an empty feed", async ({
   page,
 }) => {

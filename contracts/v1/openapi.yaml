@@ -80,6 +80,97 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/onvif/discovery:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+      - $ref: '#/components/parameters/Csrf'
+    post:
+      operationId: discoverCameras
+      responses:
+        '200':
+          description: Devices discovered on permitted camera interfaces.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/DiscoveredCamera' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/onvif/profiles:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+      - $ref: '#/components/parameters/Csrf'
+    post:
+      operationId: inspectCamera
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [selection, username, password]
+              properties:
+                selection: { type: string }
+                username: { type: string, minLength: 1, maxLength: 128 }
+                password: { type: string, maxLength: 1024, writeOnly: true }
+      responses:
+        '200':
+          description: Verified device identity and selectable H.264 profiles.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CameraInspection' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+        '422': { $ref: '#/components/responses/CameraFailure' }
+        '502': { $ref: '#/components/responses/CameraFailure' }
+        '504': { $ref: '#/components/responses/CameraFailure' }
+  /sites/{siteId}/cameras/{cameraId}/stream-issues:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+      - { name: cameraId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    get:
+      operationId: getCameraStreamIssues
+      responses:
+        '200':
+          description: Observed recorder diagnostics for this device.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CameraIssues' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/cameras/{cameraId}/previous-recording:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+      - { name: cameraId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    get:
+      operationId: previousRecording
+      responses:
+        '200':
+          description: Latest available block from a previous binding of this point.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BoundRecording' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
   /sites/{siteId}/cameras:
     parameters:
       - $ref: '#/components/parameters/Site'
@@ -124,8 +215,9 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/CameraFailure' }
         '409':
-          description: Idempotency key reused with a different request.
+          description: Duplicate device, stale binding or conflicting idempotency key.
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -176,6 +268,8 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CameraFailure' }
+        '422': { $ref: '#/components/responses/CameraFailure' }
         '412':
           description: Revision changed. Fetch the camera again before retrying.
           headers:
@@ -421,6 +515,11 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/CameraConfiguration' }
   responses:
+    CameraFailure:
+      description: Camera transport, authentication, or profile failure.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
     InvalidRequest:
       description: Malformed input, invalid range, configuration or query cursor.
       content:
@@ -526,6 +625,8 @@ components:
         name: { type: string, minLength: 1, maxLength: 256 }
         main_url: { $ref: '#/components/schemas/CameraStreamUrl' }
         secondary_url: { $ref: '#/components/schemas/CameraStreamUrl' }
+        replace_device_id: { description: Active device to replace at point_id on registration, $ref: '#/components/schemas/Id' }
+        onvif_selection: { type: string, maxLength: 24576, writeOnly: true }
         credentials:
           description: Omit to retain existing credentials or use null to remove them.
           writeOnly: true
@@ -537,12 +638,55 @@ components:
               properties:
                 username: { type: string, minLength: 1, maxLength: 128 }
                 password: { type: string, maxLength: 1024 }
+    DiscoveredCamera:
+      type: object
+      required: [endpoint_id, device_service, selection]
+      properties:
+        endpoint_id: { type: string }
+        device_service: { type: string, format: uri }
+        selection: { type: string }
+    CameraInspection:
+      type: object
+      required: [endpoint_id, manufacturer, model, firmware, serial, ptz, events, selection, profiles]
+      properties:
+        endpoint_id: { type: string }
+        manufacturer: { type: string }
+        model: { type: string }
+        firmware: { type: string }
+        serial: { type: string }
+        ptz: { type: boolean }
+        events: { type: boolean }
+        selection: { type: string }
+        profiles:
+          type: array
+          items:
+            type: object
+            required: [token, name, url]
+            properties:
+              token: { type: string }
+              name: { type: string }
+              url: { $ref: '#/components/schemas/CameraStreamUrl' }
+    CameraIssues:
+      type: object
+      required: [main, secondary]
+      properties:
+        main: { $ref: '#/components/schemas/StreamIssue' }
+        secondary: { $ref: '#/components/schemas/StreamIssue' }
+    StreamIssue:
+      type: string
+      enum: [unknown, certificate_error, incompatible]
+    BoundRecording:
+      type: object
+      required: [binding_revision, interval]
+      properties:
+        binding_revision: { $ref: '#/components/schemas/Revision' }
+        interval: { $ref: '#/components/schemas/UtcInterval' }
     CameraStreamUrl:
       type: string
       format: uri
       maxLength: 2048
       pattern: '^rtsps?://[^@/?#]+(/[^?#]*)?$'
-      description: RTSP URL with a host and an optional path. Use the credentials field for user information.
+      description: Use RTSPS with a trusted camera certificate. Cleartext RTSP requires an explicit IP exception in the permitted camera segment. Supply credentials separately.
     Camera:
       type: object
       additionalProperties: false
@@ -553,6 +697,14 @@ components:
         name: { type: string, minLength: 1, maxLength: 256 }
         main_url: { $ref: '#/components/schemas/CameraStreamUrl' }
         secondary_url: { $ref: '#/components/schemas/CameraStreamUrl' }
+        endpoint_id: { type: string }
+        manufacturer: { type: string }
+        model: { type: string }
+        firmware: { type: string }
+        serial: { type: string }
+        ptz: { type: boolean }
+        events: { type: boolean }
+        binding_revision: { $ref: '#/components/schemas/Revision' }
         has_credentials: { type: boolean }
         desired_revision: { $ref: '#/components/schemas/Revision' }
         applied_revision:
@@ -638,6 +790,7 @@ components:
       additionalProperties: false
       required: [mode, interval]
       properties:
+        binding_revision: { $ref: '#/components/schemas/Revision' }
         mode: { type: string, const: archive }
         interval: { $ref: '#/components/schemas/UtcInterval' }
     MediaRequest:
@@ -720,6 +873,16 @@ components:
           type: string
           enum:
             - invalid_request
+            - camera_tls_error
+            - camera_transport_denied
+            - camera_unavailable
+            - camera_selection_expired
+            - camera_incompatible_profiles
+            - camera_already_registered
+            - camera_protocol_error
+            - camera_authentication_failed
+            - camera_binding_conflict
+            - camera_discovery_unavailable
             - invalid_credentials
             - unauthenticated
             - forbidden

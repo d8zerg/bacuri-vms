@@ -18,6 +18,7 @@ class Sources
     {
     }
     ~Sources();
+    v1::CameraIssues issues(const std::string& device) const;
     void apply(const v1::ApplyConfigurationRequest& assignment);
     std::shared_ptr<FrameQueue> preview(const std::string& point);
 

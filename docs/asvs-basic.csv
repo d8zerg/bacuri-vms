@@ -15,7 +15,7 @@ v5.0.0-1.3.2,1,Dynamic code evaluation,applicable,Compare the API parser and eac
 v5.0.0-1.3.3,2,Data passed to interpreters,applicable,Compare the API parser and each output sink with the accepted input types,6.2,src/control/session.cpp,pending
 v5.0.0-1.3.4,2,SVG active content,applicable,Compare the API parser and each output sink with the accepted input types,6.2,src/control/session.cpp,pending
 v5.0.0-1.3.5,2,User expressions,excluded,No user-supplied executable templates,8.3,docs/architecture.md,scope-review
-v5.0.0-1.3.6,2,Camera connection destinations,applicable,Verify the destination policy for camera URLs and service addresses,6.2,docs/adr/012-camera-capabilities.md,pending
+v5.0.0-1.3.6,2,Camera connection destinations,applicable,Verify the destination policy for camera URLs and service addresses,6.2,tests/cameras/commissioning.py,pending
 v5.0.0-1.3.7,2,Template construction,applicable,Compare the API parser and each output sink with the accepted input types,6.2,src/control/session.cpp,pending
 v5.0.0-1.3.8,2,JNDI lookups,excluded,No Java naming or directory interfaces,8.3,docs/architecture.md,scope-review
 v5.0.0-1.3.9,2,Memcached commands,excluded,No memcached service,8.3,docs/architecture.md,scope-review
@@ -24,8 +24,8 @@ v5.0.0-1.3.11,2,Mail protocol input,excluded,No email submission or mailbox serv
 v5.0.0-1.4.1,2,Buffer boundaries,applicable,Inspect C++ buffer ownership and range checks and examine sanitizer results,8.3,tests/ingest/rtsp.cpp,pending
 v5.0.0-1.4.2,2,Arithmetic overflow,applicable,Inspect C++ buffer ownership and range checks and examine sanitizer results,8.3,tests/ingest/rtsp.cpp,pending
 v5.0.0-1.4.3,2,Object lifetimes,applicable,Inspect C++ buffer ownership and range checks and examine sanitizer results,8.3,tests/ingest/rtsp.cpp,pending
-v5.0.0-1.5.1,1,XML parser configuration,applicable,Inspect ONVIF XML limits and the allowlist of typed control messages,6.2,docs/adr/012-camera-capabilities.md,pending
-v5.0.0-1.5.2,2,Permitted serialized types,applicable,Inspect ONVIF XML limits and the allowlist of typed control messages,6.2,docs/adr/012-camera-capabilities.md,pending
+v5.0.0-1.5.1,1,XML parser configuration,applicable,Inspect ONVIF XML limits and the allowlist of typed control messages,6.2,src/control/onvif.cpp,pending
+v5.0.0-1.5.2,2,Permitted serialized types,applicable,Inspect ONVIF XML limits and the allowlist of typed control messages,6.2,src/control/onvif.cpp,pending
 v5.0.0-2.1.1,1,Documented field constraints,applicable,Trace point and alert state transitions from request schema to server-side validation,7.2,contracts/v1/openapi.yaml,pending
 v5.0.0-2.1.2,2,Documented cross-field constraints,applicable,Trace point and alert state transitions from request schema to server-side validation,7.2,contracts/v1/openapi.yaml,pending
 v5.0.0-2.1.3,2,Documented operational limits,applicable,Trace point and alert state transitions from request schema to server-side validation,7.2,contracts/v1/openapi.yaml,pending
@@ -191,7 +191,7 @@ v5.0.0-12.1.3,2,Client certificate validation,applicable,"Inspect TLS policy, tr
 v5.0.0-12.2.1,1,HTTPS downgrade prevention,applicable,Verify HTTPS listener and trust provisioning on the installed node,8.1,src/control/https.cpp,pending
 v5.0.0-12.2.2,1,Certificate chain at public listeners,applicable,Verify HTTPS listener and trust provisioning on the installed node,8.1,src/control/https.cpp,pending
 v5.0.0-12.3.1,2,Transport protection on service links,applicable,"Inspect TLS policy, trust anchors and verification at each service boundary",6.2,docs/adr/012-camera-capabilities.md,pending
-v5.0.0-12.3.2,2,Certificate and hostname validation,applicable,"Inspect TLS policy, trust anchors and verification at each service boundary",6.2,docs/adr/012-camera-capabilities.md,pending
+v5.0.0-12.3.2,2,Certificate and hostname validation,applicable,"Inspect TLS policy, trust anchors and verification at each service boundary",6.2,tests/cameras/commissioning.py,pending
 v5.0.0-12.3.3,2,Transport protection of internal HTTP,applicable,"Inspect TLS policy, trust anchors and verification at each service boundary",6.2,docs/adr/012-camera-capabilities.md,pending
 v5.0.0-12.3.4,2,Provisioning internal trust anchors,applicable,"Inspect TLS policy, trust anchors and verification at each service boundary",6.2,docs/adr/012-camera-capabilities.md,pending
 v5.0.0-13.1.1,2,Network communication inventory,applicable,"Review installed service accounts, allowed peers and deployment configuration",8.1,docs/architecture.md,pending

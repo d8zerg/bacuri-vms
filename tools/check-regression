@@ -112,6 +112,8 @@ def main():
                       for role in ("installer", "operator")],
                     *[f"recovery/{preset}{suffix}" for preset in ("gcc-debug", "clang-asan-ubsan", "gcc-coverage")
                       for suffix in (".json", ".boundaries.xml")],
+                    "commissioning/commissioning.json", "commissioning/chrome-previous-binding.png",
+                    "commissioning/chrome-second-binding.png", "commissioning/chrome-first-binding.png",
                     "cameras/emulator.json", "postgres-upgrade/result.json", "dependencies/snapshot/inputs.json", "dependencies/result.json",
                 ]
                 state["missing_evidence"] = [name for name in required if not (evidence / name).is_file()

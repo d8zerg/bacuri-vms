@@ -39,10 +39,10 @@ def equipment_complete(inventory, rows):
 
 
 @contextmanager
-def streams(cert, key):
+def streams(cert, key, binaries=BIN):
     bundle = cert.parent / "server.pem"
     bundle.write_bytes(cert.read_bytes() + key.read_bytes())
-    process = subprocess.Popen([BIN / "bacuri-vms-test-rtsp-camera", "--tls", bundle])
+    process = subprocess.Popen([binaries / "bacuri-vms-test-rtsp-camera", "--tls", bundle])
     try:
         for _ in range(50):
             need(process.poll() is None, "RTSP emulator exited")

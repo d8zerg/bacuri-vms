@@ -38,7 +38,7 @@ class Recorder final : public v1::RecorderControl::Service
   public:
     Recorder()
         : site_{setting("BACURI_SITE_ID")}, node_{setting("BACURI_NODE_ID")},
-          networks_{setting("BACURI_CAMERA_NETWORKS")}, key_{load_key(setting("BACURI_KEY_FILE"))},
+          networks_{CameraNetworks::configured()}, key_{load_key(setting("BACURI_KEY_FILE"))},
           journal_{setting("BACURI_RECORDER_DB")}
     {
         journal_.exec("CREATE TABLE IF NOT EXISTS decisions(revision INTEGER PRIMARY KEY,digest TEXT NOT NULL,"
@@ -60,6 +60,16 @@ class Recorder final : public v1::RecorderControl::Service
     {
         std::scoped_lock lock{mutex_};
         return point.site_id() == site_ ? sources_.preview(point.point_id()) : nullptr;
+    }
+
+    grpc::Status GetCameraIssues(grpc::ServerContext*, const v1::CameraIssueQuery* query,
+                                 v1::CameraIssues* result) override
+    {
+        if (query->site_id() != site_ || !canonical_id(query->device_id()))
+            return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid camera scope"};
+        std::scoped_lock lock{mutex_};
+        *result = sources_.issues(query->device_id());
+        return grpc::Status::OK;
     }
 
     grpc::Status ListPending(grpc::ServerContext*, const v1::PendingQuery* q,

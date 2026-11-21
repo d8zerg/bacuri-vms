@@ -3,6 +3,7 @@
 #include "domain/time.hpp"
 #include "archive_sql.hpp"
 #include "media/lease.hpp"
+#include <charconv>
 
 namespace bacuri::vms::control
 {
@@ -129,7 +130,7 @@ constexpr auto expires_sql = "YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"";
 
 Json create(Database& db, const Key& key, const PointAccess& access, const Request& req)
 {
-    auto body = object_body(req, {"mode", "interval"});
+    auto body = object_body(req, {"mode", "interval", "binding_revision"});
     const auto mode = string_field(body, "mode", 16);
     std::optional<Window> range;
     if (mode == "archive" && body.contains("interval")) {
@@ -141,6 +142,18 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     const auto begin = range ? std::to_string(range->start) : std::string{};
     const auto end = range ? std::to_string(range->end) : std::string{};
     Json selection{{"mode", mode}};
+    std::optional<std::int64_t> binding;
+    std::string revision;
+    if (body.contains("binding_revision")) {
+        revision = string_field(body, "binding_revision", 19);
+        std::int64_t value{};
+        auto [endptr, err] = std::from_chars(revision.data(), revision.data() + revision.size(), value);
+        if (err != std::errc{} || endptr != revision.data() + revision.size() || value <= 0 ||
+            revision.front() == '0')
+            throw Failure{400, "invalid_request"};
+        binding = value;
+        selection["binding_revision"] = revision;
+    }
     if (range) {
         selection["interval"] = range->json();
     }
@@ -151,7 +164,7 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     db.exec("UPDATE media_sessions SET request_key=NULL WHERE browser=$1 AND request_key=$2 AND expires_at<=now()",
             {access.browser, request_key});
     auto previous =
-        db.exec("SELECT id,begin_us,end_us,to_char(expires_at AT TIME ZONE 'UTC',$5),closed "
+        db.exec("SELECT id,begin_us,end_us,to_char(expires_at AT TIME ZONE 'UTC',$5),closed,binding_revision "
                 "FROM media_sessions WHERE browser=$1 AND site_id=$2 AND point_id=$3 AND request_key=$4",
                 {access.browser, access.site, access.point, request_key, expires_sql});
     auto result = [&](std::string id, std::string expires) {
@@ -161,7 +174,8 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
                     {"expires_at", std::move(expires)}};
     };
     if (previous.size()) {
-        if (previous.get(0, 4) == "t" || previous.get(0, 1) != begin || previous.get(0, 2) != end) {
+        if (previous.get(0, 4) == "t" || previous.get(0, 1) != begin || previous.get(0, 2) != end ||
+            previous.get(0, 5) != revision) {
             throw Failure{409, "idempotency_conflict"};
         }
         return result(previous.get(0), previous.get(0, 3));
@@ -172,12 +186,15 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
         throw Failure{429, "rate_limited"};
     }
     auto session =
-        db.exec("INSERT INTO media_sessions(browser,site_id,point_id,begin_us,end_us,request_key,expires_at) "
-                "SELECT token_hash,$2,$3,nullif($4,'')::bigint,nullif($5,'')::bigint,$6,least(now()+interval '5 "
+        db.exec("INSERT INTO "
+                "media_sessions(browser,site_id,point_id,begin_us,end_us,request_key,binding_revision,expires_at) "
+                "SELECT "
+                "token_hash,$2,$3,nullif($4,'')::bigint,nullif($5,'')::bigint,$6,nullif($8,'')::bigint,least(now()"
+                "+interval '5 "
                 "minutes',expires_at,last_active+interval '30 "
                 "minutes') "
                 "FROM browser_sessions WHERE token_hash=$1 RETURNING id,to_char(expires_at AT TIME ZONE 'UTC',$7)",
-                {access.browser, access.site, access.point, begin, end, request_key, expires_sql});
+                {access.browser, access.site, access.point, begin, end, request_key, expires_sql, revision});
     if (!range) {
         return result(session.get(0), session.get(0, 1));
     }
@@ -185,10 +202,11 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
         db.exec("INSERT INTO playback_parts(session_id,site_id,block_id,recording_epoch_id,owner_generation) "
                 "SELECT $1,site_id,block_id,recording_epoch_id,owner_generation FROM bacuri_archive.blocks WHERE "
                 "site_id=$2 AND point_id=$3 "
-                "AND begin_utc_us>=$4 AND end_utc_us<=$5 AND unavailable_reason IS NULL RETURNING media_id",
-                {session.get(0), access.site, access.point, begin, end});
+                "AND (nullif($6,'')::bigint IS NULL OR binding_revision=nullif($6,'')::bigint) AND "
+                "begin_utc_us>=$4 AND end_utc_us<=$5 AND unavailable_reason IS NULL RETURNING media_id",
+                {session.get(0), access.site, access.point, begin, end, revision});
     if (!parts.size()) {
-        const auto page = search(db, key, access, range->json());
+        const auto page = search(db, key, access, range->json(), binding);
         const auto& items = page.at("items");
         if (std::ranges::any_of(items, [](const Json& entry) { return entry.at("state") == "pending_catalog"; })) {
             throw Failure{409, "pending_catalog"};

@@ -27,10 +27,21 @@ bool canonical_id(std::string_view value);
 class CameraNetworks
 {
   public:
-    explicit CameraNetworks(const std::string& specification);
+    struct LegacyRtsp {
+        std::string addresses;
+    };
+    explicit CameraNetworks(const std::string& specification, LegacyRtsp legacy = {});
+    static CameraNetworks configured();
+    const std::vector<std::string>& legacy_addresses() const
+    {
+        return legacy_;
+    }
+    bool contains(GInetAddress* address) const;
+    std::optional<std::string> stream_url(const std::string& url) const;
     bool permits(const std::string& url) const;
 
   private:
+    std::vector<std::string> legacy_;
     std::vector<std::shared_ptr<GInetAddressMask>> masks_;
 };
 

@@ -8,19 +8,57 @@ import type {
 import { CameraConnectionForm } from "../ui-kit/CameraConnectionForm";
 import { useCameraConnectionCheck } from "../workflows/useCameraConnectionCheck";
 import { Button } from "../ui-kit/FormControls";
+import { CameraSelection, cameraError } from "./CameraSelection";
 import { SessionPlayer } from "./media";
 const empty = { name: "", main_url: "", secondary_url: "" };
-export function Installer({
-  services,
-  site,
-  online,
-  connectionNotice,
-}: {
+type InstallerProps = {
   services: Services;
   site: string;
   online: boolean;
   connectionNotice: string;
-}) {
+};
+export function Installer(props: InstallerProps) {
+  const [choosing, choose] = useState(false);
+  const [initial, setInitial] = useState<CameraDraft>(empty);
+  const [version, changeVersion] = useState(0);
+  useEffect(() => {
+    if (!props.online) choose(false);
+  }, [props.online]);
+  return (
+    <>
+      <div className="ws-title">
+        <h1>Подключение камеры</h1>
+        {!choosing && (
+          <Button disabled={!props.online} onClick={() => choose(true)}>
+            Поиск ONVIF и замена камеры
+          </Button>
+        )}
+      </div>
+      {choosing && (
+        <CameraSelection
+          site={props.site}
+          services={props.services}
+          onChoose={(draft) => {
+            setInitial(draft);
+            changeVersion((n) => n + 1);
+            choose(false);
+          }}
+          onCancel={() => choose(false)}
+        />
+      )}
+      <div hidden={choosing}>
+        <Connection key={version} {...props} initial={initial} />
+      </div>
+    </>
+  );
+}
+function Connection({
+  services,
+  site,
+  online,
+  connectionNotice,
+  initial,
+}: InstallerProps & { initial: CameraDraft }) {
   const [camera, setCamera] = useState<Camera | null>(null);
   const [phase, setPhase] = useState<
     | "idle"
@@ -33,6 +71,8 @@ export function Installer({
     | "interrupted"
   >("idle");
   const [target, setTarget] = useState<Target | null>(null);
+  const [history, setHistory] = useState<Target | null>(null);
+  const [historyNotice, setHistoryNotice] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [operation] = useState(() => ({}));
   const recording = useRef<AbortController | null>(null);
@@ -41,9 +81,16 @@ export function Installer({
     openBtn = useRef<HTMLButtonElement>(null),
     confirmBtn = useRef<HTMLButtonElement>(null);
   const form = useCameraConnectionCheck(
-    empty,
+    initial,
     async (draft, signal) => {
-      const applied = await services.register(site, draft, signal, operation);
+      let applied: Camera;
+      try {
+        applied = await services.register(site, draft, signal, operation);
+      } catch (error) {
+        const message = cameraError(error);
+        if (message) return { status: "error", reason: "unknown", message };
+        throw error;
+      }
       signal.throwIfAborted();
       if (
         applied.state !== "applied" ||
@@ -76,6 +123,8 @@ export function Installer({
   const reset = useCallback(() => {
     recording.current?.abort();
     recording.current = null;
+    setHistory(null);
+    setHistoryNotice("");
     setCamera(null);
     setTarget(null);
     setPhase("idle");
@@ -92,19 +141,56 @@ export function Installer({
     const ctl = new AbortController();
     recording.current = ctl;
     setTarget(null);
+    setHistory(null);
+    setHistoryNotice("");
     setPhase("recording");
     try {
-      const interval = await services.record(site, camera.point_id, ctl.signal);
+      const interval = await services.record(
+        site,
+        camera.point_id,
+        ctl.signal,
+        camera.binding_revision,
+      );
       ctl.signal.throwIfAborted();
       setTarget({
         mode: "archive",
         point: camera.point_id,
         interval,
         position: interval.start,
+        ...(camera.binding_revision
+          ? { binding_revision: camera.binding_revision }
+          : {}),
       });
       setPhase("clip");
     } catch {
       if (!ctl.signal.aborted) setPhase("error");
+    } finally {
+      if (recording.current === ctl) recording.current = null;
+    }
+  }
+  async function openPrevious() {
+    if (!camera || recording.current) return;
+    const ctl = new AbortController();
+    recording.current = ctl;
+    try {
+      const previous = await services.previousRecording(
+        site,
+        camera.id,
+        ctl.signal,
+      );
+      ctl.signal.throwIfAborted();
+      setHistory({
+        mode: "archive",
+        point: camera.point_id,
+        interval: previous.interval,
+        position: previous.interval.start,
+        binding_revision: previous.binding_revision,
+      });
+      setHistoryNotice("");
+      setAttempt((n) => n + 1);
+    } catch {
+      if (!ctl.signal.aborted)
+        setHistoryNotice("Предыдущая запись недоступна.");
     } finally {
       if (recording.current === ctl) recording.current = null;
     }
@@ -118,10 +204,12 @@ export function Installer({
     phase === "interrupted";
   return (
     <>
-      <h1>Подключение камеры</h1>
       <div className="ws-install">
         <div ref={group}>
           {!online && <p role="status">{connectionNotice}</p>}
+          {initial.replace_device_id && (
+            <p>Замена камеры точки «{initial.name}»</p>
+          )}
           <fieldset className="ws-form-fields" disabled={!online}>
             <CameraConnectionForm
               {...form}
@@ -149,6 +237,7 @@ export function Installer({
                   <Button
                     ref={openBtn}
                     onClick={() => {
+                      setHistory(null);
                       setAttempt((n) => n + 1);
                       setPhase("opening");
                     }}
@@ -156,7 +245,13 @@ export function Installer({
                     Открыть запись
                   </Button>
                 )}
-                {(phase === "frame" || phase === "confirmed") && (
+                {camera.binding_revision && camera.binding_revision !== "1" && (
+                  <Button onClick={() => void openPrevious()}>
+                    Открыть предыдущую запись
+                  </Button>
+                )}
+                {historyNotice && <p role="status">{historyNotice}</p>}
+                {!history && (phase === "frame" || phase === "confirmed") && (
                   <Button
                     ref={confirmBtn}
                     disabled={phase === "confirmed"}
@@ -173,12 +268,13 @@ export function Installer({
           key={attempt + ":" + String(playing) + ":" + (camera?.id ?? "")}
           services={services}
           site={site}
-          title="Тестовая запись"
+          title={history ? "Предыдущая запись" : "Тестовая запись"}
           mode="archive"
-          target={online && playing ? target : null}
-          onFrame={frame}
-          onFailure={interrupted}
-          {...(phase === "confirmed" ? { marker: "Запись подтверждена" } : {})}
+          target={online ? (history ?? (playing ? target : null)) : null}
+          {...(history ? {} : { onFrame: frame, onFailure: interrupted })}
+          {...(!history && phase === "confirmed"
+            ? { marker: "Запись подтверждена" }
+            : {})}
           notice={
             phase === "recording"
               ? "Ожидаем новый блок записи…"
@@ -188,7 +284,7 @@ export function Installer({
                   ? "Не удалось получить новую запись. Повторите проверку."
                   : "Запись ещё не создана"
           }
-          {...(target && playing
+          {...(!history && target && playing
             ? {
                 position: target.mode === "archive" ? target.position : "",
                 retry: () => {

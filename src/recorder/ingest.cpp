@@ -123,8 +123,11 @@ void Stream::run(std::stop_token stop)
                 next_report = Steady::now() + 2s;
             }
         };
-        auto reason = options_.permits(options_.endpoint.url) ? receive_rtsp(options_.endpoint, stop, on_frame)
-                                                              : std::string{"address_denied"};
+        std::string reason = "address_denied";
+        if (auto url = options_.stream_url(options_.endpoint.url)) {
+            const Endpoint target{*url, options_.endpoint.username, options_.endpoint.password};
+            reason = receive_rtsp(target, stop, on_frame);
+        }
         if (stop.stop_requested()) {
             break;
         }

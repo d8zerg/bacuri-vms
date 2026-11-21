@@ -11,6 +11,18 @@
       }
     }
   },
+  "xml-dev": {
+    "source_package": "libxml2",
+    "upstream_version": "2.12.7+dfsg+really2.9.14-2.1+deb13u3",
+    "version": "2.12.7+dfsg+really2.9.14-2.1+deb13u3+bacuri1",
+    "packages": ["libxml2-dev"],
+    "fixes": {
+      "CVE-2026-6653": {
+        "source": "https://ubuntu.com/security/CVE-2026-6653",
+        "sha256": "6c2b8a7b6fa470efcb1854e5c73bd7e1ae1663d8b111e27ce9232bbc1fe44f54"
+      }
+    }
+  },
   "soup": {
     "source_package": "libsoup3",
     "upstream_version": "3.6.5-3",

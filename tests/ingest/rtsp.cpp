@@ -35,7 +35,10 @@ StreamOptions fixture_stream(Profile profile, const char* path)
         throw std::invalid_argument("Missing RTSP test relay");
     }
     auto url = std::string{base} + path;
-    return {profile, Endpoint{url, {}, {}}, [url](const std::string& candidate) { return candidate == url; }, {}};
+    return {profile,
+            Endpoint{url, {}, {}},
+            [url](const std::string& candidate) { return candidate == url ? std::optional{url} : std::nullopt; },
+            {}};
 }
 
 bool switch_link(char command)

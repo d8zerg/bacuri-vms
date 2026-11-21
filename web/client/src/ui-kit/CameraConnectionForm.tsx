@@ -7,11 +7,19 @@ export type CameraDraft = Readonly<{
   name: string;
   main_url: string;
   secondary_url: string;
+  point_id?: string;
+  replace_device_id?: string;
+  onvif_selection?: string;
+  credentials?: { username: string; password: string };
 }>;
 export type StreamCheck =
-  "available" | "unreachable" | "incompatible" | "unknown";
+  | "available"
+  | "certificate_error"
+  | "unreachable"
+  | "incompatible"
+  | "unknown";
 export type CameraCheckResult =
-  | { status: "error"; reason: "disconnected" | "unknown" }
+  | { status: "error"; reason: "disconnected" | "unknown"; message?: string }
   | { status: "profiles"; main: StreamCheck; secondary: StreamCheck };
 export type CameraCheckState =
   CameraCheckResult | { status: "idle" | "checking" };
@@ -29,6 +37,7 @@ const labels = {
   unknown: "Не подтверждён",
   unreachable: "Нет связи",
   incompatible: "Несовместимый профиль",
+  certificate_error: "Проверьте имя узла и доверенный сертификат камеры",
 };
 
 function streamError(value: string) {
@@ -133,6 +142,7 @@ export function CameraConnectionForm({
           required
           inputMode="url"
           placeholder="rtsps://camera/main"
+          readOnly={!!value.onvif_selection}
           value={value.main_url}
           error={errors?.main_url}
           onChange={(event) =>
@@ -146,6 +156,7 @@ export function CameraConnectionForm({
           required
           inputMode="url"
           placeholder="rtsps://camera/sub"
+          readOnly={!!value.onvif_selection}
           value={value.secondary_url}
           error={errors?.secondary_url}
           onChange={(event) =>
@@ -170,7 +181,8 @@ export function CameraConnectionForm({
           <StatusIndicator tone="danger">
             {state.reason === "disconnected"
               ? "Связь с площадкой потеряна. Повторите проверку."
-              : "Не удалось завершить проверку. Повторите попытку."}
+              : (state.message ??
+                "Не удалось завершить проверку. Повторите попытку.")}
           </StatusIndicator>
         )}
         {state.status === "profiles" && (

@@ -20,6 +20,9 @@ for scenario in control archive playback live alerts; do
         dev sh tests/check-control.sh gcc-coverage "$scenario"
 done
 
+"${run[@]}" -e "BACURI_WORKSPACE_RESULTS=/workspace/$report/commissioning" \
+    dev sh tests/check-control.sh gcc-coverage commissioning
+
 python3 tools/check-recovery gcc-coverage
 
 "${run[@]}" quality gcovr --gcov-executable gcov-14 --filter 'src/' -j 2 \

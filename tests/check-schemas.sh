@@ -54,4 +54,5 @@ psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migration
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0005_live.sql
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0006_alerts.sql
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0007_recovery.sql
+psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0008_camera_bindings.sql
 printf '%s\n' 'PostgreSQL and SQLite schemas and archive upgrades passed'

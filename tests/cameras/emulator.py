@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hmac
 import secrets
+import socket
 from socketserver import BaseRequestHandler, UDPServer
 import ssl
 from threading import Thread
@@ -24,6 +25,10 @@ class Device:
         self.notifications = []
         self.services = ["Media", "PTZ", "Events"]
         self.codec = "H264"
+        self.device_path = "/device_service"
+        self.media_path = "/media"
+        self.stream_paths = {}
+        self.stream_uris = {}
         self.tokens = {"main": (1280, 720), "sub": (640, 360)}
 
     def respond(self, request, path):
@@ -31,6 +36,10 @@ class Device:
         if body is None:
             raise ValueError("empty body")
         action = body.tag.split("}")[-1]
+        if body.tag.startswith("{" + NS["tds"] + "}") and path != self.device_path:
+            raise ValueError("unknown device service")
+        if body.tag.startswith("{" + NS["trt"] + "}") and path != self.media_path:
+            raise ValueError("unknown media service")
         result = ET.Element(body.tag + "Response")
         if body.tag == tag("tds:GetDeviceInformation"):
             for key, value in [("Manufacturer", "bacuri.vms"), ("Model", self.model),
@@ -39,7 +48,7 @@ class Device:
         elif body.tag == tag("tds:GetCapabilities"):
             capabilities = child(result, "tds:Capabilities")
             for name in self.services:
-                child(child(capabilities, "tt:" + name), "tt:XAddr", self.base + "/" + name.lower())
+                child(child(capabilities, "tt:" + name), "tt:XAddr", self.base + (self.media_path if name == "Media" else "/" + name.lower()))
         elif body.tag == tag("trt:GetProfiles"):
             for token, (width, height) in self.tokens.items():
                 profile = child(result, "trt:Profiles", token=token)
@@ -55,7 +64,11 @@ class Device:
             token = required(body, "trt:ProfileToken")
             if token not in self.tokens:
                 raise ValueError("unknown stream")
-            child(child(result, "trt:MediaUri"), "tt:Uri", f"rtsps://localhost:8554/{token}")
+            uri = child(result, "trt:MediaUri")
+            child(uri, "tt:Uri", self.stream_uris.get(token, "rtsps://localhost:8554/" + self.stream_paths.get(token, token)))
+            child(uri, "tt:InvalidAfterConnect", "false")
+            child(uri, "tt:InvalidAfterReboot", "false")
+            child(uri, "tt:Timeout", "PT0S")
         elif action in ("GetStatus", "RelativeMove", "Stop") and "PTZ" in self.services:
             if required(body, "tptz:ProfileToken") not in self.tokens:
                 raise ValueError("unknown PTZ profile")
@@ -144,7 +157,7 @@ class Discovery(BaseRequestHandler):
         match = child(matches, "d:ProbeMatch", **{"xmlns:dn": NS["dn"]})
         child(child(match, "wa:EndpointReference"), "wa:Address", device.serial)
         child(match, "d:Types", "dn:NetworkVideoTransmitter")
-        child(match, "d:XAddrs", device.base + "/device_service")
+        child(match, "d:XAddrs", device.base + device.device_path)
         child(match, "d:MetadataVersion", "1")
         headers = [node("wa:RelatesTo", required(root, "s:Header/wa:MessageID")),
                    node("wa:Action", NS["d"] + "/ProbeMatches"), node("wa:MessageID", message_id())]
@@ -152,9 +165,13 @@ class Discovery(BaseRequestHandler):
 
 
 @contextmanager
-def serve(cert, key):
+def serve(cert, key, multicast=False):
     device = Device()
-    with ThreadingHTTPServer(("127.0.0.1", 0), Control) as http, UDPServer(("127.0.0.1", 0), Discovery) as udp:
+    bind = ("239.255.255.250", 3702) if multicast else ("127.0.0.1", 0)
+    with ThreadingHTTPServer(("127.0.0.1", 0), Control) as http, UDPServer(bind, Discovery) as udp:
+        if multicast:
+            udp.socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
+                                  socket.inet_aton(bind[0]) + socket.inet_aton("127.0.0.1"))
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(cert, key)
         http.socket = context.wrap_socket(http.socket, server_side=True)

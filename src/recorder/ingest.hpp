@@ -95,7 +95,7 @@ struct StreamStats {
 struct StreamOptions {
     Profile profile;
     Endpoint endpoint;
-    std::function<bool(const std::string&)> permits;
+    std::function<std::optional<std::string>(const std::string&)> stream_url;
     std::function<void(const StreamStats&)> report;
 };
 
