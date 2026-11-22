@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   NavLink,
@@ -35,6 +35,10 @@ function Login({
   const [notice, setNotice] = useState(message),
     [busy, setBusy] = useState(false),
     [enroll, setEnroll] = useState(false);
+  const enrollmentInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (enroll) enrollmentInput.current?.focus();
+  }, [enroll]);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (busy) return;
@@ -63,13 +67,28 @@ function Login({
         );
         return;
       }
-      setNotice("Вход не выполнен. Проверьте данные и связь с площадкой.");
+      if (error instanceof HttpFailure && error.code === "invalid_credentials")
+        setNotice("Проверьте имя пользователя и пароль.");
+      else if (error instanceof HttpFailure && error.status === 429)
+        setNotice("Слишком много попыток входа. Попробуйте позже.");
+      else if (
+        (error instanceof HttpFailure && error.code === "invalid_factor") ||
+        (error instanceof DOMException && error.name === "NotAllowedError")
+      )
+        setNotice(
+          "Ключ безопасности не подтвердил вход. Повторите попытку с подключённым ключом.",
+        );
+      else
+        setNotice(
+          "Не удалось завершить вход. Проверьте связь с площадкой и повторите попытку.",
+        );
     } finally {
       setBusy(false);
     }
   }
   return (
     <main className="ws-login ws-panel ws-pad">
+      <img className="ws-login-mark" alt="" src={mark} />
       <h1>Вход в Bacuri VMS</h1>
       <form onSubmit={(e) => void submit(e)}>
         <label>
@@ -90,6 +109,7 @@ function Login({
             Код первичной привязки
             <input
               type="password"
+              ref={enrollmentInput}
               name="enrollment"
               autoComplete="off"
               required
@@ -97,7 +117,7 @@ function Login({
           </label>
         )}
         <Button type="submit" variant="primary" disabled={busy}>
-          Войти
+          {busy ? "Выполняется вход…" : "Войти"}
         </Button>
       </form>
       <p role="status">{notice}</p>
@@ -123,6 +143,7 @@ function Site({
   audit: boolean;
   onExpired: () => void;
 }) {
+  const [params] = useSearchParams();
   const [points, setPoints] = useState<Point[] | null>(null),
     [feed, setFeed] = useState<Feed>(waiting),
     [failed, setFailed] = useState(false);
@@ -214,7 +235,12 @@ function Site({
   if (audit)
     return (
       <Suspense fallback={<p role="status">Загрузка журнала…</p>}>
-        <Audit services={services} site={site} points={points} />
+        <Audit
+          key={params.get("alert_id") ?? ""}
+          services={services}
+          site={site}
+          points={points}
+        />
       </Suspense>
     );
   if (maps)
@@ -250,25 +276,60 @@ function Workspace({ services }: { services: Services }) {
     undefined,
   );
   const [message, setMessage] = useState("");
+  const [sessionFailed, setSessionFailed] = useState(false);
+  const [sessionAttempt, setSessionAttempt] = useState(0);
   const [params, setParams] = useSearchParams();
   const location = useLocation();
-  const cameras = location.pathname.replace(/\/$/, "") === "/cameras";
+  const path = location.pathname.replace(/\/$/, "");
+  const cameras = path === "/cameras";
   useEffect(() => {
     const ctl = new AbortController();
     void services
-      .session(ctl.signal)
+      .session(AbortSignal.any([ctl.signal, AbortSignal.timeout(8000)]))
       .then((user) => {
         if (!ctl.signal.aborted) setIdentity(user);
       })
-      .catch(() => {
-        if (!ctl.signal.aborted) setIdentity(null);
+      .catch((error: unknown) => {
+        if (ctl.signal.aborted) return;
+        if (error instanceof HttpFailure && error.status === 401)
+          setIdentity(null);
+        else setSessionFailed(true);
       });
     return () => ctl.abort();
-  }, [services]);
+  }, [services, sessionAttempt]);
   const [expired] = useState(() => () => {
     setMessage("Сеанс или права изменились. Войдите снова.");
     setIdentity(null);
   });
+  const section =
+    {
+      "/maps": "Карты и планы",
+      "/audit": "Журнал тревог",
+      "/cameras": "Подключение камеры",
+    }[path] ?? "Мониторинг";
+  useEffect(() => {
+    document.title =
+      (identity ? section : identity === null ? "Вход" : "Загрузка") +
+      " | Bacuri VMS";
+  }, [section, identity]);
+  if (sessionFailed)
+    return (
+      <main className="ws-login ws-panel">
+        <h1>Площадка недоступна</h1>
+        <p role="status">
+          Не удалось проверить сеанс. Проверьте соединение с площадкой.
+        </p>
+        <Button
+          variant="primary"
+          onClick={() => {
+            setSessionFailed(false);
+            setSessionAttempt((n) => n + 1);
+          }}
+        >
+          Повторить подключение
+        </Button>
+      </main>
+    );
   if (identity === undefined)
     return (
       <main className="ws-pad" role="status">
@@ -277,7 +338,14 @@ function Workspace({ services }: { services: Services }) {
     );
   if (!identity)
     return (
-      <Login services={services} onLogin={setIdentity} message={message} />
+      <Login
+        services={services}
+        onLogin={(user) => {
+          setMessage("");
+          setIdentity(user);
+        }}
+        message={message}
+      />
     );
   const site = params.has("site")
     ? identity.site_roles.find((s) => s.site_id === params.get("site"))
@@ -285,6 +353,8 @@ function Workspace({ services }: { services: Services }) {
   const context = new URLSearchParams(params);
   if (site) context.set("site", site.site_id);
   const query = context.size ? "?" + context.toString() : "";
+  const auditQuery = new URLSearchParams(context);
+  auditQuery.delete("alert_id");
   return (
     <div className="ws-shell">
       <a className="ws-skip" href="#workspace">
@@ -295,58 +365,76 @@ function Workspace({ services }: { services: Services }) {
           <img alt="" src={mark} />
           Bacuri VMS
         </span>
-        {identity.site_roles.length > 1 && (
-          <label>
-            Площадка{" "}
-            <select
-              value={site?.site_id}
-              onChange={(e) => void setParams({ site: e.target.value })}
-            >
-              {identity.site_roles.map((s) => (
-                <option key={s.site_id}>{s.site_id}</option>
-              ))}
-            </select>
-          </label>
-        )}
-        <Button
-          onClick={() => {
-            void services
-              .logout()
-              .then(() => {
-                setMessage("");
-                setIdentity(null);
-              })
-              .catch(() => setMessage("Не удалось завершить сеанс"));
-          }}
-        >
-          Выйти
-        </Button>
-      </header>
-      <nav aria-label="Рабочее место">
-        <NavLink
-          to={"/monitor" + query}
-          aria-current={location.pathname === "/monitor" ? "page" : false}
-        >
-          <svg aria-hidden="true">
-            <use href={icons + "#i-monitor-play"} />
-          </svg>
-          Мониторинг
-        </NavLink>
-        <NavLink to={"/maps" + query}>
-          <svg aria-hidden="true">
-            <use href={icons + "#i-map"} />
-          </svg>
-          Карты и планы
-        </NavLink>
-        {site?.role === "administrator" && (
-          <NavLink to={"/cameras" + query}>
+        <nav aria-label="Рабочее место">
+          <NavLink to={"/monitor" + query}>
             <svg aria-hidden="true">
-              <use href={icons + "#i-cctv"} />
+              <use href={icons + "#i-monitor-play"} />
             </svg>
-            Камеры
+            Мониторинг
           </NavLink>
-        )}
-      </nav>
+          <NavLink
+            className="ws-audit-link"
+            to={"/audit?" + auditQuery.toString()}
+          >
+            <svg aria-hidden="true">
+              <use href={icons + "#i-bell-ring"} />
+            </svg>
+            Журнал тревог
+          </NavLink>
+          <NavLink to={"/maps" + query}>
+            <svg aria-hidden="true">
+              <use href={icons + "#i-map"} />
+            </svg>
+            Карты и планы
+          </NavLink>
+          {site?.role === "administrator" && (
+            <NavLink to={"/cameras" + query}>
+              <svg aria-hidden="true">
+                <use href={icons + "#i-cctv"} />
+              </svg>
+              Камеры
+            </NavLink>
+          )}
+        </nav>
+        <div className="ws-session">
+          {site && (
+            <span className="ws-role">
+              {site.role === "administrator" ? "Администратор" : "Оператор"}
+            </span>
+          )}
+          {identity.site_roles.length > 1 && (
+            <label>
+              Площадка{" "}
+              <select
+                value={site?.site_id ?? ""}
+                onChange={(e) => void setParams({ site: e.target.value })}
+              >
+                {!site && (
+                  <option value="" disabled>
+                    Выберите площадку
+                  </option>
+                )}
+                {identity.site_roles.map((s) => (
+                  <option key={s.site_id}>{s.site_id}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <Button
+            onClick={() => {
+              void services
+                .logout()
+                .then(() => {
+                  setMessage("");
+                  setIdentity(null);
+                })
+                .catch(() => setMessage("Не удалось завершить сеанс"));
+            }}
+          >
+            Выйти
+          </Button>
+        </div>
+      </header>
       <main id="workspace" tabIndex={-1}>
         {message && <p role="status">{message}</p>}
         {site ? (
@@ -357,12 +445,27 @@ function Workspace({ services }: { services: Services }) {
             userId={identity.user_id}
             admin={site.role === "administrator"}
             cameras={cameras}
-            maps={location.pathname === "/maps"}
-            audit={location.pathname === "/audit"}
+            maps={path === "/maps"}
+            audit={path === "/audit"}
             onExpired={expired}
           />
         ) : (
-          <p>Нет доступных площадок</p>
+          <div className="ws-panel ws-pad">
+            <h1>
+              {identity.site_roles.length
+                ? "Площадка недоступна"
+                : "Нет доступных площадок"}
+            </h1>
+            {identity.site_roles[0] && (
+              <Button
+                onClick={() =>
+                  void setParams({ site: identity.site_roles[0]!.site_id })
+                }
+              >
+                Открыть доступную площадку
+              </Button>
+            )}
+          </div>
         )}
       </main>
     </div>

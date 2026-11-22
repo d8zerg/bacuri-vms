@@ -58,6 +58,12 @@ async function play(position, autoplay = true) {
         playback = null;
     }
 }
+function showArchiveContext() {
+    const point = byId("point").selectedOptions[0]?.textContent || byId("point").value;
+    const heading = byId("archive-context");
+    heading.textContent = "Архив · " + point + " · " + byId("site").value;
+    heading.hidden = false;
+}
 async function page() {
     const params = new URLSearchParams(selection);
     if (cursor) params.set("cursor", cursor);
@@ -92,8 +98,9 @@ byId("search").onsubmit = action(async () => {
     path = "/sites/" + byId("site").value + "/points/" + byId("point").value;
     searchPath = path + "/archive";
     selection = Object.fromEntries(new FormData(byId("search")));
+    showArchiveContext();
     await page();
-    status("");
+    status(byId("coverage").childElementCount ? "" : "В выбранном интервале нет данных архива.");
 });
 const seek = byId("seek");
 const seekToInput = () => play(seek.elements.position.value);
@@ -113,6 +120,7 @@ async function openAlert() {
     if (!origin.has("alert") || origin.get("site") !== byId("site").value) return;
     const link = await json("/sites/" + byId("site").value + "/alerts/" + encodeURIComponent(origin.get("alert")) + "/archive");
     byId("point").value = link.point_id;
+    showArchiveContext();
     byId("search").elements.start.value = link.archive_interval.start;
     byId("search").elements.end.value = link.archive_interval.end;
     byId("retry-alert").hidden = link.state === "ready";

@@ -21,6 +21,18 @@ export function Installer(props: InstallerProps) {
   const [choosing, choose] = useState(false);
   const [initial, setInitial] = useState<CameraDraft>(empty);
   const [version, changeVersion] = useState(0);
+  const discovery = useRef<HTMLButtonElement>(null);
+  const manual = useRef<HTMLDivElement>(null);
+  const returnFocus = useRef<"discovery" | "form" | null>(null);
+  useEffect(() => {
+    if (choosing || !returnFocus.current) return;
+    const next =
+      returnFocus.current === "form"
+        ? manual.current?.querySelector("input")
+        : discovery.current;
+    next?.focus();
+    returnFocus.current = null;
+  }, [choosing]);
   useEffect(() => {
     if (!props.online) choose(false);
   }, [props.online]);
@@ -29,7 +41,11 @@ export function Installer(props: InstallerProps) {
       <div className="ws-title">
         <h1>Подключение камеры</h1>
         {!choosing && (
-          <Button disabled={!props.online} onClick={() => choose(true)}>
+          <Button
+            ref={discovery}
+            disabled={!props.online}
+            onClick={() => choose(true)}
+          >
             Поиск ONVIF и замена камеры
           </Button>
         )}
@@ -39,14 +55,18 @@ export function Installer(props: InstallerProps) {
           site={props.site}
           services={props.services}
           onChoose={(draft) => {
+            returnFocus.current = "form";
             setInitial(draft);
             changeVersion((n) => n + 1);
             choose(false);
           }}
-          onCancel={() => choose(false)}
+          onCancel={() => {
+            returnFocus.current = "discovery";
+            choose(false);
+          }}
         />
       )}
-      <div hidden={choosing}>
+      <div ref={manual} hidden={choosing}>
         <Connection key={version} {...props} initial={initial} />
       </div>
     </>
@@ -227,6 +247,7 @@ function Connection({
               <p>Конфигурация применена · версия {camera.applied_revision}</p>
               <div className="ws-actions">
                 <Button
+                  variant={!target ? "primary" : "secondary"}
                   ref={recordBtn}
                   aria-disabled={phase === "recording"}
                   onClick={() => void record()}
@@ -235,6 +256,7 @@ function Connection({
                 </Button>
                 {target && (
                   <Button
+                    variant={phase === "clip" ? "primary" : "secondary"}
                     ref={openBtn}
                     onClick={() => {
                       setHistory(null);
@@ -253,6 +275,7 @@ function Connection({
                 {historyNotice && <p role="status">{historyNotice}</p>}
                 {!history && (phase === "frame" || phase === "confirmed") && (
                   <Button
+                    variant="primary"
                     ref={confirmBtn}
                     disabled={phase === "confirmed"}
                     onClick={() => setPhase("confirmed")}
@@ -264,36 +287,67 @@ function Connection({
             </section>
           )}
         </div>
-        <SessionPlayer
-          key={attempt + ":" + String(playing) + ":" + (camera?.id ?? "")}
-          services={services}
-          site={site}
-          title={history ? "Предыдущая запись" : "Тестовая запись"}
-          mode="archive"
-          target={online ? (history ?? (playing ? target : null)) : null}
-          {...(history ? {} : { onFrame: frame, onFailure: interrupted })}
-          {...(!history && phase === "confirmed"
-            ? { marker: "Запись подтверждена" }
-            : {})}
-          notice={
-            phase === "recording"
-              ? "Ожидаем новый блок записи…"
-              : phase === "clip"
-                ? "Фрагмент сохранён"
-                : phase === "error"
-                  ? "Не удалось получить новую запись. Повторите проверку."
-                  : "Запись ещё не создана"
-          }
-          {...(!history && target && playing
-            ? {
-                position: target.mode === "archive" ? target.position : "",
-                retry: () => {
-                  setAttempt((n) => n + 1);
-                  setPhase("opening");
-                },
-              }
-            : {})}
-        />
+        {playing || history ? (
+          <SessionPlayer
+            key={attempt + ":" + String(playing) + ":" + (camera?.id ?? "")}
+            services={services}
+            site={site}
+            title={history ? "Предыдущая запись" : "Тестовая запись"}
+            mode="archive"
+            target={online ? (history ?? (playing ? target : null)) : null}
+            {...(history ? {} : { onFrame: frame, onFailure: interrupted })}
+            {...(!history && phase === "confirmed"
+              ? { marker: "Запись подтверждена" }
+              : {})}
+            notice={connectionNotice}
+            {...(!history && target && playing
+              ? {
+                  position: target.mode === "archive" ? target.position : "",
+                  retry: () => {
+                    setAttempt((n) => n + 1);
+                    setPhase("opening");
+                  },
+                }
+              : {})}
+          />
+        ) : (
+          <section
+            className="ws-panel ws-record-guide"
+            aria-labelledby="record-guide-heading"
+          >
+            <header className="ws-panel-head">
+              <h2 id="record-guide-heading">Проверка подключения</h2>
+            </header>
+            <ol>
+              <li aria-current={!camera ? "step" : undefined}>
+                <strong>Проверить два потока</strong>
+                <span>
+                  {camera
+                    ? "Оба потока доступны"
+                    : "Основной поток нужен для записи, дополнительный для эфира."}
+                </span>
+              </li>
+              <li aria-current={camera && !target ? "step" : undefined}>
+                <strong>Создать тестовую запись</strong>
+                <span role="status">
+                  {phase === "recording"
+                    ? "Ожидаем новый блок записи…"
+                    : phase === "error"
+                      ? "Не удалось получить новую запись. Повторите проверку."
+                      : target
+                        ? "Фрагмент сохранён"
+                        : "После подключения сохраните короткий фрагмент с камеры."}
+                </span>
+              </li>
+              <li aria-current={target ? "step" : undefined}>
+                <strong>Подтвердить кадр</strong>
+                <span>
+                  Откройте сохранённый фрагмент и проверьте изображение.
+                </span>
+              </li>
+            </ol>
+          </section>
+        )}
       </div>
     </>
   );

@@ -6,6 +6,8 @@ const meta = {
   args: {
     feed: { status: "online", items: [] },
     points: [],
+    filter: "",
+    onFilter: () => {},
     selected: null,
     listRef: null,
     onOpen: () => {},

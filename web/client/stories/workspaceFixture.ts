@@ -56,6 +56,8 @@ export function fixture(condition = "normal"): Services {
     expires_at: utc(3600),
     site_roles: [{ site_id: site, role: "administrator" }],
   };
+  let signedIn = condition !== "login";
+  let disconnected = condition === "session-offline";
   let attempt = 0,
     revision = 0;
   const footprint = {
@@ -239,9 +241,25 @@ export function fixture(condition = "normal"): Services {
       });
       return Promise.resolve({ id: "new" });
     },
-    session: () => Promise.resolve(session),
-    login: () => Promise.resolve(session),
-    logout: () => Promise.resolve(),
+    session: () => {
+      if (disconnected) {
+        disconnected = false;
+        return Promise.reject(new HttpFailure(503, "dependency_unavailable"));
+      }
+      return signedIn
+        ? Promise.resolve(session)
+        : Promise.reject(new HttpFailure(401, "unauthorized"));
+    },
+    login: (_username, _password, enrollment) => {
+      if (condition === "login" && !enrollment)
+        return Promise.reject(new HttpFailure(403, "enrollment_required"));
+      signedIn = true;
+      return Promise.resolve(session);
+    },
+    logout: () => {
+      signedIn = false;
+      return Promise.resolve();
+    },
     refreshOnvif: (_site, camera) => Promise.resolve(camera),
     ptz: () => Promise.resolve(),
     points: () =>

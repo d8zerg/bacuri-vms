@@ -365,6 +365,17 @@ test("Operator closes an alert, searches its history and controls delegated work
   await expect(panel).toContainText("Ответственный: Дежурный");
   const note = panel.getByLabel("Результат или основание закрытия");
   await note.fill("Запись проверена");
+  const archiveTime = await page
+    .locator(".ws-transport time")
+    .getAttribute("datetime");
+  await page.getByRole("button", { name: "Эфир", exact: true }).click();
+  await expect(note).toHaveValue("Запись проверена");
+  await page.getByRole("button", { name: "Архив", exact: true }).click();
+  await expect(page.locator(".ws-transport time")).toHaveAttribute(
+    "datetime",
+    archiveTime,
+  );
+  await expect(note).toHaveValue("Запись проверена");
   await panel.getByRole("button", { name: "Записать результат" }).click();
   await expect(
     panel.getByRole("button", { name: "Закрыть тревогу" }),
@@ -391,6 +402,12 @@ test("Operator closes an alert, searches its history and controls delegated work
   await query.fill("Другое основание");
   await page.getByRole("button", { name: "Найти" }).click();
   await expect(page.getByText("Записи не найдены")).toBeVisible();
+  await page.getByRole("button", { name: "Сбросить" }).click();
+  await expect(query).toHaveValue("");
+  await page.getByRole("button", { name: "Следующая страница" }).click();
+  await expect(page.locator(".ws-history li")).toHaveCount(1);
+  await page.getByRole("button", { name: "Предыдущая страница" }).click();
+  await expect(page.locator(".ws-history li")).toHaveCount(2);
   await query.fill("Запись проверена");
   await page.getByRole("button", { name: "Найти" }).click();
   await expect(page.locator(".ws-history li")).toHaveCount(1);
@@ -518,4 +535,82 @@ test("Switching building floors isolates cameras and opens their source plan", a
   await expect(
     page.getByRole("heading", { name: "Проверка привязки" }),
   ).toBeVisible();
+});
+
+test("Enrollment moves focus to the requested code and preserves the destination", async ({
+  page,
+}) => {
+  await open(page, "login");
+  await page.setViewportSize({ width: 320, height: 680 });
+  await checkAccessibility(page, ".ws-login");
+  await page.getByLabel("Имя пользователя").fill("installer");
+  await page.getByLabel("Пароль", { exact: true }).fill("example");
+  await page.getByRole("button", { name: "Войти" }).click();
+  const code = page.getByLabel("Код первичной привязки");
+  await expect(code).toBeFocused();
+  await code.fill("example");
+  await code.press("Enter");
+  await expect(page.getByRole("heading", { name: "Мониторинг" })).toBeVisible();
+});
+
+test("Operator filters the feed and returns to the same visible event on a phone", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await open(page, "monitor");
+  await page.getByRole("link", { name: "К тревогам" }).press("Enter");
+  const heading = page.getByRole("heading", { name: "Тревоги", exact: true });
+  await expect(heading).toBeFocused();
+  const filter = page.getByLabel("Состояние тревог в ленте");
+  await filter.selectOption("closed");
+  await expect(page.getByText("В этом состоянии тревог нет.")).toBeVisible();
+  await filter.selectOption("new");
+  const feed = page.getByRole("complementary", { name: "Тревоги" });
+  const times = await feed
+    .locator("time")
+    .evaluateAll((items) => items.map((item) => item.dateTime));
+  expect(times).toHaveLength(4);
+  expect(times).toEqual([...times].sort().reverse());
+  const event = feed.getByRole("button", { name: /Движение у ворот/ });
+  await event.press("Enter");
+  await expect(page.locator(".ws-player h2")).toBeFocused();
+  await page.getByRole("button", { name: "Архив", exact: true }).press("Enter");
+  await expect(
+    page.getByRole("heading", { name: "Обработка тревоги" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Эфир", exact: true }).click();
+  await expect(page.locator(".ws-player")).toContainText("Эфир подключён");
+  await expect(
+    page.getByRole("heading", { name: "Обработка тревоги" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Архив", exact: true }).click();
+  await expect(page.locator(".ws-player")).toContainText("Кадр записи получен");
+  await page
+    .getByRole("button", { name: "К выбранной тревоге" })
+    .press("Enter");
+  await expect(event).toBeFocused();
+  await expect(event).toBeInViewport();
+  await expect(filter).toHaveValue("new");
+  await expect(
+    page.getByRole("button", { name: "Повторить", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("link", { name: "Журнал тревог", exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: "Журнал тревог", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(page).toHaveTitle("Журнал тревог | Bacuri VMS");
+});
+
+test("Session lookup can recover from an outage without entering credentials again", async ({
+  page,
+}) => {
+  await open(page, "session-offline");
+  await expect(
+    page.getByRole("heading", { name: "Площадка недоступна" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Пароль")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Повторить подключение" })
+    .press("Enter");
+  await expect(page.getByRole("heading", { name: "Мониторинг" })).toBeVisible();
 });

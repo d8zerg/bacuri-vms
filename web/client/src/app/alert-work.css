@@ -52,3 +52,33 @@
 .ws-alert-work a {
   color: var(--info);
 }
+.ws-watch .ws-alert-work,
+.ws-audit {
+  margin: 0;
+}
+.ws-audit form {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  max-width: none;
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.ws-audit form label {
+  flex: 1 1 15rem;
+}
+.ws-alert-work label {
+  font-size: var(--text-control);
+  font-weight: 550;
+}
+.ws-alert-work input,
+.ws-alert-work textarea {
+  font-weight: 400;
+}
+.ws-history li {
+  gap: var(--space-1);
+}
+.ws-history time {
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}

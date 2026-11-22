@@ -10,6 +10,7 @@ import type {
   Services,
 } from "../contracts/workspace";
 import { HttpFailure } from "../adapters/api";
+import { formatUtc } from "../ui-kit/utc";
 import { Button } from "../ui-kit/FormControls";
 import "./alert-work.css";
 
@@ -42,11 +43,6 @@ const reasons: Record<string, string> = {
   alert_result_required: "Требуется результат проверки",
   idempotency_conflict: "Ключ команды уже использован с другими параметрами",
 };
-const date = new Intl.DateTimeFormat("ru-RU", {
-  dateStyle: "short",
-  timeStyle: "medium",
-  timeZone: "UTC",
-});
 type Context = { services: Services; site: string };
 
 function Entries({
@@ -82,9 +78,7 @@ function Entries({
               ? "В выдаче отказано"
               : outcomes[e.outcome]}
           </strong>
-          <time dateTime={e.recorded_at}>
-            {date.format(new Date(e.recorded_at))} UTC
-          </time>
+          <time dateTime={e.recorded_at}>{formatUtc(e.recorded_at)}</time>
           <span>
             Исполнитель ·{" "}
             {e.actor_kind === "service"
@@ -100,7 +94,7 @@ function Entries({
           {e.delegated_action && e.expires_at && (
             <span>
               Поручение · {e.service} · {actions[e.delegated_action]} · до{" "}
-              {date.format(new Date(e.expires_at))} UTC
+              {formatUtc(e.expires_at)}
             </span>
           )}
           {points && e.point_id && (
@@ -231,8 +225,7 @@ function Delegations({
       )}
       {work.delegations.map((d) => (
         <div key={d.id}>
-          {d.service} · {actions[d.action]} · до{" "}
-          {date.format(new Date(d.expires_at))} UTC{" "}
+          {d.service} · {actions[d.action]} · до {formatUtc(d.expires_at)}{" "}
           <Button disabled={busy} onClick={() => void revoke(d.id)}>
             Отозвать
           </Button>
@@ -349,6 +342,7 @@ export function AlertWorkPanel({
             {work.actions.map((action) => (
               <Button
                 key={action}
+                variant={action === "close" ? "secondary" : "primary"}
                 disabled={
                   busy || !!retry || (action !== "claim" && !note.trim())
                 }
@@ -412,6 +406,7 @@ export function AlertAudit({
   const [search, setSearch] = useState<AuditFilter>(() =>
     initial ? { alert_id: initial } : {},
   );
+  const [previous, setPrevious] = useState<AuditFilter[]>([]);
   const [page, setPage] = useState<{
       items: AuditEntry[];
       next_cursor?: string;
@@ -457,43 +452,89 @@ export function AlertAudit({
     const fields = new FormData(e.currentTarget),
       id = fields.get("alert"),
       q = fields.get("query");
+    setPrevious([]);
     setSearch({
       ...(typeof q === "string" && q.trim() ? { query: q.trim() } : {}),
       ...(typeof id === "string" && id.trim() ? { alert_id: id.trim() } : {}),
     });
   }
   return (
-    <section className="ws-panel ws-pad ws-alert-work">
-      <h1>Журнал тревог</h1>
-      <form onSubmit={submit}>
-        <label>
-          Идентификатор тревоги
-          <input name="alert" defaultValue={initial} maxLength={36} />
-        </label>
-        <label>
-          Результат или основание
-          <input name="query" maxLength={256} />
-        </label>
-        <Button type="submit">Найти</Button>
-      </form>
-      {page ? (
-        page.items.length ? (
-          <Entries items={page.items} site={site} points={points} />
-        ) : (
-          <p role="status">Записи не найдены</p>
-        )
-      ) : (
-        <p role="status">
-          {error ? "Не удалось получить записи журнала" : "Загрузка журнала…"}
-        </p>
-      )}
-      {page?.next_cursor && (
-        <Button
-          onClick={() => setSearch({ ...search, before: page.next_cursor! })}
+    <>
+      <div className="ws-title">
+        <h1>Журнал тревог</h1>
+      </div>
+      <section
+        className="ws-panel ws-pad ws-alert-work ws-audit"
+        aria-label="Поиск по журналу"
+      >
+        <form
+          onSubmit={submit}
+          onReset={(e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            form.querySelectorAll("input").forEach((input) => {
+              input.value = "";
+            });
+            setPrevious([]);
+            setSearch({});
+            form.querySelector("input")?.focus();
+          }}
         >
-          Следующая страница
-        </Button>
-      )}
-    </section>
+          <label>
+            Идентификатор тревоги
+            <input name="alert" defaultValue={initial} maxLength={36} />
+          </label>
+          <label>
+            Результат или основание
+            <input name="query" maxLength={256} />
+          </label>
+          <div className="ws-work-actions">
+            <Button type="submit" variant="primary">
+              Найти
+            </Button>
+            <Button type="reset">Сбросить</Button>
+          </div>
+        </form>
+        {page ? (
+          page.items.length ? (
+            <Entries items={page.items} site={site} points={points} />
+          ) : (
+            <p role="status">Записи не найдены</p>
+          )
+        ) : (
+          <p role="status">
+            {error ? "Не удалось получить записи журнала" : "Загрузка журнала…"}
+          </p>
+        )}
+        {(previous.length > 0 || page?.next_cursor) && (
+          <div
+            className="ws-work-actions"
+            role="group"
+            aria-label="Страницы журнала"
+          >
+            {previous.length > 0 && (
+              <Button
+                onClick={() => {
+                  setSearch(previous[previous.length - 1]!);
+                  setPrevious(previous.slice(0, -1));
+                }}
+              >
+                Предыдущая страница
+              </Button>
+            )}
+            {page?.next_cursor && (
+              <Button
+                onClick={() => {
+                  setPrevious([...previous, search]);
+                  setSearch({ ...search, before: page.next_cursor! });
+                }}
+              >
+                Следующая страница
+              </Button>
+            )}
+          </div>
+        )}
+      </section>
+    </>
   );
 }

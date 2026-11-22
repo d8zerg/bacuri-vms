@@ -94,9 +94,11 @@ def run():
             capture("denied", 390)
             fill("exportStart", interval["start"])
             fill("exportEnd", interval["end"])
-            js(call, "document.querySelector('.ws-export button').click()")
+            wait("!document.querySelector('.ws-export [role=alert]')", "previous error cleared on edit")
+            js(call, "const button=document.querySelector('.ws-export button');button.focus();button.click()")
             result = wait("document.querySelector('.ws-export a')?.href || document.querySelector('.ws-export [role=alert]')?.textContent", "export result")
             assert result.startswith("blob:"), result
+            wait("document.activeElement===document.querySelector('.ws-export a')", "download link focused")
             for width in (1440, 768, 390, 320):
                 capture("ready", width)
             js(call, "document.querySelector('.ws-export a').click()")

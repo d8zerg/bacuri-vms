@@ -1,3 +1,4 @@
+import { milliseconds, formatUtc } from "../ui-kit/utc";
 import { useEffect, useRef, useState } from "react";
 import type {
   Services,
@@ -20,10 +21,6 @@ export const reasons: Record<string, string> = {
   outside_retention: "Истёк срок хранения",
   corrupt: "Запись повреждена",
 };
-export function milliseconds(utc: string) {
-  const fraction = utc.match(/\.\d{3}(\d+)Z$/)?.[1];
-  return Date.parse(utc) + (fraction ? Number("0." + fraction) : 0);
-}
 export function timelineEntry(entry: Entry): TimelineEntry {
   const bounds = {
     startMs: milliseconds(entry.interval.start),
@@ -81,9 +78,9 @@ export function detail(entry: Entry | undefined) {
     ". " +
     (reasons[entry.reason] ?? "Нет сведений") +
     " · " +
-    entry.interval.start +
+    formatUtc(entry.interval.start) +
     " - " +
-    entry.interval.end
+    formatUtc(entry.interval.end)
   );
 }
 

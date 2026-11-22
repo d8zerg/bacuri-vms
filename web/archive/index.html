@@ -8,7 +8,12 @@
 </head>
 <body>
     <main>
-        <nav><a href="/live/">Прямой эфир</a> · <a href="/alerts/">Тревоги</a></nav>
+        <nav aria-label="Видео и тревоги">
+            <a href="/monitor">Рабочее место</a>
+            <a href="/live/">Прямой эфир</a>
+            <a href="/archive/" aria-current="page">Архив видео</a>
+            <a href="/alerts/">Тревоги</a>
+        </nav>
         <h1>Архив видео</h1>
         <form id="login" hidden>
             <label>Имя пользователя <input name="username" autocomplete="username" required></label>
@@ -23,6 +28,7 @@
             <button>Найти запись</button>
         </form>
         <p role="status" id="status"></p>
+        <h2 id="archive-context" hidden></h2>
         <button type="button" id="retry-alert" hidden>Проверить запись ещё раз</button>
         <video id="video" controls muted playsinline width="640" aria-label="Архивная запись"></video>
         <form id="seek" hidden>

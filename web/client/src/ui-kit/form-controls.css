@@ -91,3 +91,14 @@
 .bk-indicator[data-tone="danger"] {
   color: var(--danger);
 }
+.bk-button {
+  min-block-size: 2.5rem;
+}
+.bk-button:disabled,
+fieldset:disabled .bk-button,
+.bk-button[aria-disabled="true"] {
+  color: var(--muted);
+  background: var(--raised);
+  border-color: var(--line);
+  cursor: default;
+}

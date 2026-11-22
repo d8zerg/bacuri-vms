@@ -1,4 +1,5 @@
 @import "../../../../design/bacuri/tokens.css";
+
 * {
   box-sizing: border-box;
 }
@@ -10,60 +11,75 @@ body:has(.ws-shell, .ws-login) {
 }
 .ws-shell {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 12.5rem minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
 }
 .ws-bar {
-  grid-column: 1/-1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: var(--space-2) var(--space-4);
-  border-bottom: 1px solid var(--line);
+  gap: var(--space-5);
+  padding: var(--space-2) clamp(1rem, 2.6vw, 3rem);
   background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.ws-brand,
+.ws-session,
+.ws-bar nav,
+.ws-bar nav a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 .ws-brand {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  font-weight: 700;
+  font-size: 1.125rem;
+  font-weight: 720;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
 }
 .ws-brand img {
   width: 2rem;
   height: 2rem;
 }
-.ws-shell nav {
-  background: var(--surface);
-  padding: var(--space-4) var(--space-2);
-  border-right: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+.ws-session {
+  margin-inline-start: auto;
+  justify-content: end;
+  flex-wrap: wrap;
+  min-width: 0;
+  font-size: var(--text-control);
 }
-.ws-shell nav svg {
-  width: 1.25rem;
-  height: 1.25rem;
+.ws-role {
+  color: var(--muted);
+}
+.ws-bar nav {
+  gap: var(--space-1);
+  padding-inline-start: var(--space-4);
+  border-inline-start: 1px solid var(--line);
+}
+.ws-bar nav svg {
+  width: 1.125rem;
+  height: 1.125rem;
   flex: none;
 }
-.ws-shell nav a {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
+.ws-bar nav a {
+  padding: 0.62rem 0.8rem;
+  min-height: 2.5rem;
+  font-size: var(--text-control);
+  font-weight: 550;
   color: var(--muted);
   text-decoration: none;
-  padding: var(--space-2);
   border-radius: var(--space-1);
 }
-.ws-shell nav a[aria-current="page"] {
+.ws-bar nav a:hover {
+  background: var(--raised);
+  color: var(--ink);
+}
+.ws-bar nav a[aria-current="page"] {
   background: var(--selected);
   color: var(--ink);
-  box-shadow: inset 3px 0 var(--action);
+  box-shadow: inset 0 -2px var(--action);
 }
 .ws-shell main {
   min-width: 0;
-  padding: var(--space-5);
-  max-width: 110rem;
+  padding: clamp(1rem, 2.6vw, 3rem);
+  max-width: 100rem;
   width: 100%;
   margin-inline: auto;
 }
@@ -72,30 +88,41 @@ body:has(.ws-shell, .ws-login) {
   font-size: var(--text-page-title);
   margin: 0 0 var(--space-4);
   line-height: 1.18;
+  letter-spacing: -0.035em;
 }
 .ws-title {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 .ws-title h1 {
   margin: 0;
 }
 .ws-shell select,
+.ws-shell
+  :where(
+    input:not([type="range"], [type="checkbox"], [type="radio"], [type="file"]),
+    textarea
+  ),
 .ws-login input {
   max-width: 100%;
   min-width: 0;
   background: var(--surface);
   color: var(--ink);
-  padding: var(--space-1);
+  padding: 0.5rem 0.65rem;
   border: 1px solid var(--control);
   border-radius: var(--space-1);
   font: inherit;
 }
 .ws-title label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: var(--space-1) var(--space-2);
   color: var(--muted);
   font-size: var(--text-meta);
 }
@@ -106,16 +133,20 @@ body:has(.ws-shell, .ws-login) {
   align-items: start;
 }
 .ws-monitor {
-  grid-template-columns: minmax(0, 1fr) minmax(16rem, 19rem);
+  grid-template-columns: minmax(0, 2.3fr) minmax(17rem, 1fr);
 }
 .ws-install {
-  grid-template-columns: minmax(19rem, 0.9fr) minmax(0, 1fr);
+  grid-template-columns: minmax(18rem, 0.85fr) minmax(0, 1.15fr);
 }
 .ws-watch,
 .ws-install > div {
   display: grid;
   min-width: 0;
   gap: var(--space-3);
+}
+.ws-watch .ws-media {
+  max-height: 52vh;
+  width: 100%;
 }
 .ws-watch .bt-timeline,
 .ws-install .bc-camera {
@@ -127,16 +158,34 @@ body:has(.ws-shell, .ws-login) {
   outline-offset: 2px;
 }
 .ws-login {
-  margin: 10vh auto;
-  max-width: 25rem;
+  width: min(26rem, calc(100% - 2rem));
+  margin: clamp(2rem, 12vh, 8rem) auto;
+  padding: clamp(1.25rem, 4vw, 2.25rem);
+}
+.ws-login-mark {
+  display: block;
+  width: 3rem;
+  margin-bottom: var(--space-5);
 }
 .ws-login form,
 .ws-login label {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
+}
+.ws-login form {
+  gap: var(--space-4);
+}
+.ws-login label {
+  font-size: var(--text-control);
+  font-weight: 600;
 }
 .ws-login input {
   width: 100%;
+  font-size: 1rem;
+  font-weight: 400;
+}
+.ws-login p:empty {
+  margin: 0;
 }
 .ws-skip {
   position: absolute;
@@ -144,28 +193,28 @@ body:has(.ws-shell, .ws-login) {
 }
 .ws-skip:focus {
   z-index: 2;
-  left: var(--space-1);
+  left: var(--space-2);
+  padding: var(--space-2);
   background: var(--surface);
   color: var(--ink);
 }
-@media (max-width: 76rem) {
-  .ws-shell {
-    grid-template-columns: 10.5rem minmax(0, 1fr);
-  }
-  .ws-monitor {
-    grid-template-columns: minmax(0, 1fr) minmax(14rem, 16.5rem);
-  }
+.ws-feed-jump {
+  display: none;
 }
-@media (max-width: 62rem) {
-  .ws-shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto 1fr;
+@media (max-width: 65rem) {
+  .ws-bar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-2);
   }
-  .ws-shell nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-    padding: var(--space-1);
-    border-bottom: 1px solid var(--line);
+  .ws-bar nav {
+    grid-row: 2;
+    grid-column: 1/-1;
+    padding: 0;
+    border: 0;
+  }
+  .ws-session {
+    grid-area: 1/2;
   }
 }
 @media (max-width: 47rem) {
@@ -176,25 +225,53 @@ body:has(.ws-shell, .ws-login) {
   .ws-shell main {
     padding: var(--space-3);
   }
+  .ws-bar {
+    padding: var(--space-2);
+  }
+  .ws-bar nav {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 0.2rem;
+  }
+  .ws-bar nav a {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.15rem;
+    font-size: 0.75rem;
+    text-align: center;
+  }
+  .ws-session .ws-role {
+    display: none;
+  }
+  .ws-title label {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .ws-feed-jump {
+    display: inline-flex;
+    align-items: center;
+    color: var(--info);
+    min-height: 2.5rem;
+    font-size: var(--text-control);
+    text-underline-offset: 0.18em;
+  }
 }
-
-.ws-form-fields {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-width: 0;
-}
-
+.ws-form-fields,
 .ws-camera-fields {
   margin: 0;
   border: 0;
   min-width: 0;
 }
+.ws-form-fields {
+  padding: 0;
+}
 .ws-camera-footer {
   border-top: 1px solid var(--line);
   padding: var(--space-3) var(--space-4);
 }
-
 .ws-ptz {
   display: flex;
   flex-wrap: wrap;
@@ -203,7 +280,61 @@ body:has(.ws-shell, .ws-login) {
   margin: 0;
   border: 0;
 }
-
-.ws-audit-link {
-  color: var(--info);
+.ws-point-health {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+.ws-point-health span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.ws-point-health span::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+.ws-point-health [data-state="current"]::before,
+.ws-point-health [data-state="online"]::before {
+  background: var(--success);
+}
+.ws-point-health [data-state="delayed"] {
+  color: var(--warning);
+}
+.ws-point-health [data-state="offline"],
+.ws-point-health [data-state="stopped"] {
+  color: var(--danger);
+}
+.ws-record-guide ol {
+  list-style: decimal;
+  padding: 0 var(--space-4) var(--space-3) 2.8rem;
+  margin: 0;
+  color: var(--muted);
+}
+.ws-record-guide li {
+  padding: var(--space-3) 0 var(--space-3) var(--space-1);
+  border-top: 1px solid var(--line);
+}
+.ws-record-guide li::marker {
+  font: 600 var(--text-control)/1 var(--numerals);
+}
+.ws-record-guide li[aria-current="step"]::marker {
+  color: var(--action);
+}
+.ws-record-guide strong,
+.ws-record-guide span {
+  display: block;
+}
+.ws-record-guide strong {
+  color: var(--ink);
+}
+.ws-record-guide span {
+  margin-top: 0.2rem;
+  font-size: var(--text-control);
 }

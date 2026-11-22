@@ -54,8 +54,10 @@ export function CameraSelection({
     [sub, setSub] = useState("");
   const [notice, tell] = useState("");
   const [busy, setBusy] = useState(false);
+  const title = useRef<HTMLHeadingElement>(null);
   const active = useRef<AbortController | null>(null);
   useEffect(() => {
+    title.current?.focus();
     const ctl = new AbortController();
     void services
       .cameras(site, ctl.signal)
@@ -175,7 +177,9 @@ export function CameraSelection({
   return (
     <section className="bc-camera">
       <header>
-        <h2>Выбор камеры</h2>
+        <h2 tabIndex={-1} ref={title}>
+          Выбор камеры
+        </h2>
       </header>
       <fieldset className="bc-fields ws-camera-fields" disabled={busy}>
         <label className="bk-field">
@@ -268,6 +272,9 @@ export function CameraSelection({
                 </select>
               </label>
             ))}
+            {main === sub && (
+              <p role="status">Выберите разные профили для записи и эфира.</p>
+            )}
             <Button
               variant="primary"
               disabled={!sub || main === sub}

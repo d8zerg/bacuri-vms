@@ -62,3 +62,13 @@ export const LinkedFloors: Story = {
   name: "Этажи здания на геокарте",
   args: { initial: "/maps", condition: "linked-floors" },
 };
+
+export const Login: Story = {
+  name: "Вход и привязка ключа",
+  args: { condition: "login" },
+};
+
+export const SessionOffline: Story = {
+  name: "Площадка недоступна при входе",
+  args: { condition: "session-offline" },
+};

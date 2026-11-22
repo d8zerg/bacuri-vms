@@ -22,6 +22,12 @@ export default function FragmentExport({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [url, setUrl] = useState("");
+  const submit = useRef<HTMLButtonElement>(null);
+  const download = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (url && submit.current === document.activeElement)
+      download.current?.focus();
+  }, [url]);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(
@@ -75,15 +81,20 @@ export default function FragmentExport({
           void prepare();
         }}
       >
-        <fieldset disabled={busy}>
+        <p className="ws-export-hint">
+          Укажите интервал до одного часа. Время в UTC заканчивается буквой Z.
+        </p>
+        <fieldset>
           <TextField
             name="exportStart"
             label="Начало интервала (UTC)"
             value={start}
             required
+            readOnly={busy}
             onChange={(e) => {
               setStart(e.target.value);
               setUrl("");
+              setError("");
             }}
           />
           <TextField
@@ -91,18 +102,29 @@ export default function FragmentExport({
             label="Конец интервала (UTC)"
             value={end}
             required
+            readOnly={busy}
             onChange={(e) => {
               setEnd(e.target.value);
               setUrl("");
+              setError("");
             }}
           />
-          <Button type="submit">
+          <Button
+            ref={submit}
+            type="submit"
+            aria-disabled={busy}
+            variant="primary"
+          >
             {busy ? "Подготовка комплекта…" : "Подготовить комплект"}
           </Button>
         </fieldset>
         {error && <p role="alert">{error}</p>}
         {url && (
-          <a href={url} download={`bacuri-${point}-${start}.tar`}>
+          <a
+            ref={download}
+            href={url}
+            download={`bacuri-${point}-${start}.tar`}
+          >
             Сохранить комплект
           </a>
         )}

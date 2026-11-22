@@ -67,14 +67,23 @@ export function alertWorkFixture(point: string, utc: string): Methods {
       entries.unshift(entry);
       return Promise.resolve({ event_id: key, version: work.version });
     },
-    audit: (_site, filter) =>
-      Promise.resolve({
-        items: entries.filter(
-          (e) =>
-            (!filter.alert_id || filter.alert_id === e.alert_id) &&
-            e.reason.includes(filter.query ?? ""),
-        ),
-      }),
+    audit: (_site, filter) => {
+      const matching = entries.filter(
+        (entry) =>
+          (!filter.alert_id || filter.alert_id === entry.alert_id) &&
+          entry.reason.includes(filter.query ?? ""),
+      );
+      const start = filter.before
+        ? matching.findIndex((entry) => entry.id === filter.before) + 1
+        : 0;
+      const items = matching.slice(start, start + 2);
+      return Promise.resolve({
+        items,
+        ...(start + items.length < matching.length
+          ? { next_cursor: items[items.length - 1]!.id }
+          : {}),
+      });
+    },
     delegate: (_site, body) => {
       const grant = {
         id: "delegated",

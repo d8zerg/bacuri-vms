@@ -4,12 +4,12 @@
   - combobox "Карта или план":
     - option "Карта региона"
     - option "Первый этаж" [selected]
-  - heading "Первый этаж" [level=2]
-  - button "Привязать план к карте"
   - text: Масштаб плана
   - combobox "Масштаб плана":
     - option /\d+%/ [selected]
     - option /\d+%/
+  - heading "Первый этаж" [level=2]
+  - button "Привязать план к карте"
   - img "Первый этаж"
   - 'button /Погрузочные ворота \d+ · Новых тревог: 4/ [pressed]'
   - heading "Точки наблюдения" [level=2]

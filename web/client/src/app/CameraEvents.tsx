@@ -10,20 +10,10 @@ import type {
 } from "../contracts/workspace";
 import { alertName, alertStates } from "../ui-kit/alertLabels";
 import { Button } from "../ui-kit/FormControls";
-import { SessionPlayer, alertArchiveNotice, milliseconds } from "./media";
+import { SessionPlayer, alertArchiveNotice } from "./media";
+import { formatUtc, milliseconds } from "../ui-kit/utc";
 import { pause } from "../workflows/pause";
 import icons from "../../../../design/bacuri/icons/sprite.svg";
-
-const timestamp = new Intl.DateTimeFormat("ru-RU", {
-  timeZone: "UTC",
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hourCycle: "h23",
-});
 
 function EventPreview({
   services,
@@ -197,7 +187,7 @@ export function CameraEvents({
                       </span>
                     )}
                     <time dateTime={item.observed_at}>
-                      {timestamp.format(new Date(item.observed_at))} UTC
+                      {formatUtc(item.observed_at)}
                     </time>
                     <span className="ws-event-action">
                       {!open && (

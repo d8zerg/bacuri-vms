@@ -8,7 +8,12 @@
 </head>
 <body>
     <main>
-        <nav><a href="/live/">Прямой эфир</a> · <a href="/archive/">Архив видео</a></nav>
+        <nav aria-label="Видео и тревоги">
+            <a href="/monitor">Рабочее место</a>
+            <a href="/live/">Прямой эфир</a>
+            <a href="/archive/">Архив видео</a>
+            <a href="/alerts/" aria-current="page">Тревоги</a>
+        </nav>
         <h1>Тревоги</h1>
         <form id="login" hidden>
             <label>Имя пользователя <input name="username" autocomplete="username" required></label>

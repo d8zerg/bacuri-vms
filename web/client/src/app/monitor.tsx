@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import type {
   AlertLink,
   Entry,
@@ -19,15 +19,27 @@ import {
   alertArchiveNotice,
   timelineEntry,
   windowAround,
-  milliseconds,
 } from "./media";
 
+import { milliseconds } from "../ui-kit/utc";
+import { alertStates } from "../ui-kit/alertLabels";
 import { Button } from "../ui-kit/FormControls";
 import { cameraError } from "./CameraSelection";
 const FragmentExport = lazy(() => import("./FragmentExport"));
 const AlertWorkPanel = lazy(() =>
   import("./AlertWork").then((m) => ({ default: m.AlertWorkPanel })),
 );
+const connectionLabels = {
+  online: "Камера на связи",
+  offline: "Нет связи с камерой",
+  unknown: "Связь с камерой неизвестна",
+};
+const recordingLabels = {
+  current: "Запись ведётся",
+  delayed: "Запись запаздывает",
+  stopped: "Запись остановлена",
+  unknown: "Состояние записи неизвестно",
+};
 const ptzLabels: Record<PtzCommand, string> = {
   left: "Влево",
   right: "Вправо",
@@ -87,6 +99,7 @@ function View({
   at,
   archive,
   restoredWindow,
+  returnFocus,
   onMode,
   onSeek,
   onBack,
@@ -100,6 +113,7 @@ function View({
   onMode: (mode: "live" | "archive") => void;
   onSeek: (utc: number) => void;
   restoredWindow: Interval | null;
+  returnFocus: string | null;
   onBack: (position: string, window: Interval) => void;
 }) {
   const [loaded, setLoaded] = useState<Selection | null>(null),
@@ -135,6 +149,12 @@ function View({
     });
     return () => ctl.abort();
   }, [services, site, point.id, alert, anchor, attempt, restoredWindow]);
+  useEffect(() => {
+    if (!returnFocus || (!loaded && !failed)) return;
+    const row = document.getElementById("alert-" + returnFocus);
+    if (row && row === document.activeElement)
+      row.scrollIntoView({ block: "nearest" });
+  }, [returnFocus, loaded, failed]);
   const retry = () => {
     setFailed(false);
     setLoaded(null);
@@ -234,6 +254,16 @@ function View({
             }
           : {})}
       />
+      {alert && (
+        <Suspense fallback={<p role="status">Загрузка карточки…</p>}>
+          <AlertWorkPanel
+            services={services}
+            site={site}
+            alert={alert}
+            point={point.id}
+          />
+        </Suspense>
+      )}
       {archive && loaded && point.can_export && (
         <Suspense fallback={null}>
           <FragmentExport
@@ -308,12 +338,21 @@ export function Monitor({
         : null,
     [start, end],
   );
+  const restoredFocus = useRef<string | null>(null);
   useEffect(() => {
-    if (focus && !alert) {
-      document.getElementById("alert-" + focus)?.focus({ preventScroll: true });
-      if (list.current) list.current.scrollTop = offset;
+    if (alert || !focus) {
+      restoredFocus.current = null;
+      return;
     }
-  }, [alert, focus, feed.status, offset]);
+    if (restoredFocus.current === focus) return;
+    const row = document.getElementById("alert-" + focus);
+    if (!row && feed.status !== "online") return;
+    if (list.current) list.current.scrollTop = offset;
+    const destination = row ?? document.getElementById("feed-heading");
+    destination?.focus({ preventScroll: true });
+    destination?.scrollIntoView({ block: "nearest" });
+    restoredFocus.current = focus;
+  }, [alert, focus, feed.items, feed.status, offset]);
   function update(values: Record<string, string | null>, replace = false) {
     const next = new URLSearchParams(params);
     for (const [key, value] of Object.entries(values)) {
@@ -323,20 +362,34 @@ export function Monitor({
     void set(next, { replace });
   }
   const at = params.get("at");
-  const auditParams = new URLSearchParams(params);
-  auditParams.delete("alert_id");
-  auditParams.set("site", site);
+  const requestedFilter = params.get("state") ?? "";
+  const filter = Object.hasOwn(alertStates, requestedFilter)
+    ? requestedFilter
+    : "";
   const validAt = at && Number.isFinite(Date.parse(at)) ? at : null;
   return (
     <>
       <div className="ws-title">
-        <h1>Мониторинг</h1>
-        <Link className="ws-audit-link" to={"/audit?" + auditParams.toString()}>
-          Журнал тревог
-        </Link>
+        <div>
+          <h1>Мониторинг</h1>
+          {point && (
+            <div className="ws-point-health">
+              <span data-state={point.connection}>
+                {connectionLabels[point.connection]}
+              </span>
+              <span data-state={point.recording}>
+                {recordingLabels[point.recording]}
+              </span>
+            </div>
+          )}
+        </div>
+        <a className="ws-feed-jump" href="#feed-heading">
+          К тревогам
+        </a>
         <label>
           Точка наблюдения{" "}
           <select
+            disabled={!points.length}
             value={point?.id ?? ""}
             onChange={(e) =>
               update({
@@ -350,6 +403,11 @@ export function Monitor({
               })
             }
           >
+            {!point && (
+              <option value="" disabled>
+                {points.length ? "Выберите точку" : "Нет доступных точек"}
+              </option>
+            )}
             {points.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -367,17 +425,25 @@ export function Monitor({
             point={point}
             alert={alert}
             at={validAt}
-            archive={!!alert || params.get("mode") === "archive"}
-            restoredWindow={restoredWindow}
-            onMode={(mode) =>
-              update({ mode, alert: null, focus: alert ?? focus })
+            archive={
+              params.get("mode") === "archive" ||
+              (!!alert && params.get("mode") !== "live")
             }
+            restoredWindow={restoredWindow}
+            returnFocus={alert ? null : focus}
+            onMode={(mode) => update({ mode })}
             onSeek={(ms) =>
               update({ at: new Date(ms).toISOString(), mode: "archive" }, true)
             }
             onBack={(at, window) =>
               update({
                 focus: alert,
+                state:
+                  filter &&
+                  feed.items.find((item) => item.id === alert)?.work_state ===
+                    filter
+                    ? filter
+                    : null,
                 alert: null,
                 mode: "live",
                 at,
@@ -387,13 +453,21 @@ export function Monitor({
             }
           />
         ) : (
-          <p role="status">Нет доступных точек</p>
+          <p className="ws-panel ws-pad" role="status">
+            {points.length
+              ? "Эта точка недоступна. Выберите другую точку наблюдения."
+              : "Нет доступных точек"}
+          </p>
         )}
         <AlertList
           feed={feed}
           points={points}
           selected={alert ?? focus}
           listRef={list}
+          filter={filter}
+          onFilter={(state) =>
+            update({ state: state || null, focus: null, scroll: null }, true)
+          }
           onOpen={(item) => {
             update({
               point: item.point_id,
@@ -408,17 +482,6 @@ export function Monitor({
           }}
         />
       </div>
-      {alert && point && (
-        <Suspense fallback={<p role="status">Загрузка карточки…</p>}>
-          <AlertWorkPanel
-            key={site + point.id + alert}
-            services={services}
-            site={site}
-            alert={alert}
-            point={point.id}
-          />
-        </Suspense>
-      )}
     </>
   );
 }

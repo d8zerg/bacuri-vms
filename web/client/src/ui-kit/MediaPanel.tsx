@@ -1,5 +1,7 @@
 import "./media-panels.css";
 import type { Ref } from "react";
+import icons from "../../../../design/bacuri/icons/sprite.svg";
+import { formatUtc } from "./utc";
 import { Button } from "./FormControls";
 export type PlayerState = {
   kind: "loading" | "ready" | "idle" | "error";
@@ -29,6 +31,7 @@ export function MediaPanel({
   marker,
   headingRef,
 }: Props) {
+  const showRetry = retry && (state.kind === "error" || state.kind === "idle");
   return (
     <section className="ws-panel ws-player" aria-label="Видеоплеер">
       <header className="ws-panel-head">
@@ -48,7 +51,9 @@ export function MediaPanel({
               <Button
                 key={m}
                 aria-pressed={mode === m}
-                onClick={() => onMode(m)}
+                onClick={() => {
+                  if (mode !== m) onMode(m);
+                }}
               >
                 {m === "live" ? "Эфир" : "Архив"}
               </Button>
@@ -66,7 +71,22 @@ export function MediaPanel({
           aria-label={mode === "live" ? "Прямой эфир" : "Архивная запись"}
         />
         {state.kind !== "ready" && (
-          <div className="ws-overlay">{state.message}</div>
+          <div className="ws-overlay" role="status">
+            <svg aria-hidden="true">
+              <use
+                href={
+                  icons +
+                  "#i-" +
+                  (state.kind === "error"
+                    ? "unplug"
+                    : state.kind === "loading"
+                      ? "hourglass"
+                      : "archive")
+                }
+              />
+            </svg>
+            <span>{state.message}</span>
+          </div>
         )}
         {state.kind === "ready" && (
           <span className="ws-tag">
@@ -74,17 +94,19 @@ export function MediaPanel({
           </span>
         )}
       </div>
-      <div className="ws-transport">
-        <span role="status">{state.message}</span>
-        {position && (
-          <time dateTime={position}>
-            {position.replace("T", " ").replace("Z", " UTC")}
-          </time>
-        )}
-        {marker && <span>{marker}</span>}
-        {retry && <Button onClick={retry}>Повторить</Button>}
-        {back && <Button onClick={back}>К выбранной тревоге</Button>}
-      </div>
+      {(state.kind === "ready" || position || marker || showRetry || back) && (
+        <div className="ws-transport">
+          {state.kind === "ready" && (
+            <span role="status" className="bk-indicator" data-tone="success">
+              {state.message}
+            </span>
+          )}
+          {position && <time dateTime={position}>{formatUtc(position)}</time>}
+          {marker && <span>{marker}</span>}
+          {showRetry && <Button onClick={retry}>Повторить</Button>}
+          {back && <Button onClick={back}>К выбранной тревоге</Button>}
+        </div>
+      )}
     </section>
   );
 }

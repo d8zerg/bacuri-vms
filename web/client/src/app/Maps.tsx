@@ -378,42 +378,56 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
       ) : (
         <div className="ws-maps">
           <section className="ws-panel ws-pad">
-            <label>
-              Карта или план{" "}
-              <select
-                value={surface}
-                onChange={(e) => changeSurface(e.target.value)}
-              >
-                <option value="">Карта региона</option>
-                {scene.plans.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {!surface && scene.regions.length > 1 && (
+            <div className="ws-map-toolbar">
               <label>
-                Регион{" "}
+                Карта или план{" "}
                 <select
-                  value={region?.id}
-                  onChange={(e) =>
-                    update({
-                      region: e.target.value,
-                      lng: null,
-                      lat: null,
-                      z: null,
-                    })
-                  }
+                  value={surface}
+                  onChange={(e) => changeSurface(e.target.value)}
                 >
-                  {scene.regions.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
+                  <option value="">Карта региона</option>
+                  {scene.plans.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
                     </option>
                   ))}
                 </select>
               </label>
-            )}
+              {!surface && scene.regions.length > 1 && (
+                <label>
+                  Регион{" "}
+                  <select
+                    value={region?.id}
+                    onChange={(e) =>
+                      update({
+                        region: e.target.value,
+                        lng: null,
+                        lat: null,
+                        z: null,
+                      })
+                    }
+                  >
+                    {scene.regions.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {plan && (
+                <label>
+                  Масштаб плана{" "}
+                  <select
+                    value={scale}
+                    onChange={(e) => update({ scale: e.target.value })}
+                  >
+                    <option value={1}>100%</option>
+                    <option value={2}>200%</option>
+                  </select>
+                </label>
+              )}
+            </div>
             {surface ? (
               plan ? (
                 <>
@@ -434,16 +448,6 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                       )}
                     </div>
                   )}
-                  <label>
-                    Масштаб плана{" "}
-                    <select
-                      value={scale}
-                      onChange={(e) => update({ scale: e.target.value })}
-                    >
-                      <option value={1}>100%</option>
-                      <option value={2}>200%</option>
-                    </select>
-                  </label>
                   <div
                     className="ws-plan-scroll"
                     ref={scroller}
@@ -651,7 +655,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                 </li>
               ))}
             </ul>
-            {!markers.length && (
+            {!visibleMarkers.length && (
               <p>На карте или плане пока нет доступных точек</p>
             )}
             {point && (admin || marker) && (
@@ -709,7 +713,10 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                   (!floor || marker) &&
                   !marker?.source_plan_id &&
                   (plan || (!surface && region)) && (
-                    <form onSubmit={(e) => void save(e)}>
+                    <form
+                      className="ws-placement-form"
+                      onSubmit={(e) => void save(e)}
+                    >
                       <h3>Положение точки</h3>
                       {(["x", "y"] as const).map((axis) => (
                         <label key={axis}>

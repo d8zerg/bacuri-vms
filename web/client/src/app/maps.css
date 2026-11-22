@@ -311,3 +311,34 @@ button.ws-map-badge {
   overflow-y: auto;
   padding: 4px;
 }
+.ws-map-toolbar,
+.ws-placement-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: var(--space-3);
+  align-items: end;
+}
+.ws-map-toolbar {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.ws-map-toolbar label,
+.ws-placement-form label {
+  gap: var(--space-1);
+  font-size: var(--text-control);
+  color: var(--muted);
+}
+.ws-placement-form h3,
+.ws-placement-form button {
+  grid-column: 1/-1;
+}
+.ws-plan-scroll {
+  background: var(--raised);
+  border-radius: var(--space-1);
+}
+.ws-maps form a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  justify-self: start;
+}
