@@ -420,7 +420,7 @@ def main():
         site.wait()
         ledger = "bacuri_meta" if query(cmd, "SELECT to_regclass('bacuri_meta.schema_migrations') IS NOT NULL") == "t" else "bacuri_inventory"
         source_schema = int(query(cmd, f"SELECT max(version) FROM {ledger}.schema_migrations"))
-        assert source_schema in (14, 15, 16), source_schema
+        assert source_schema in (14, 15, 16, 17), source_schema
         old_id = site.enroll(cmd, code)
         a = site.login()
         s, _, camera = site.api(
@@ -451,6 +451,9 @@ def main():
         upgrade = operation("upgrade", NEW, "previous.snap")
         lock_table = "bacuri_maps.map_regions" if source_schema == 16 else "bacuri_inventory.webauthn_credentials"
         blocked_statement = "ALTER TABLE bacuri_maps.map_regions" if source_schema == 16 else "ALTER TABLE bacuri_inventory.local_users SET SCHEMA"
+        if source_schema == 17:
+            lock_table = "bacuri_maps.point_placements"
+            blocked_statement = "ALTER TABLE bacuri_maps.point_placements"
         cmd(
             f"""({PSQL} -c "SET application_name='migration_blocker'; BEGIN; LOCK {lock_table} IN ACCESS SHARE MODE; SELECT pg_sleep(180)" >/dev/null) & waiter=$!
 sleep 0.5
@@ -485,7 +488,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
         cmd(
             "test ! -f /var/lib/bacuri-maintenance/pending; systemctl is-active --quiet bacuri-core bacuri-media bacuri-recorder"
         )
-        assert query(cmd, "SELECT max(version) FROM bacuri_meta.schema_migrations") == "17"
+        assert query(cmd, "SELECT max(version) FROM bacuri_meta.schema_migrations") == "18"
         forbidden = (
             password,
             code,
@@ -613,7 +616,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
             {
                 "status": "passed",
                 "source_schema": source_schema,
-                "target_schema": 17,
+                "target_schema": 18,
                 "interrupted_migration_retried": True,
                 "rollback_schema": source_schema,
                 "independent_root": True,

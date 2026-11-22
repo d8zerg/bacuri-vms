@@ -289,7 +289,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/PointPlacement' }
+            schema: { $ref: '#/components/schemas/PointCoordinates' }
       responses:
         '204':
           description: Set longitude and latitude on the region or fractional coordinates from the top left of a plan. Requires the site administrator role.
@@ -297,6 +297,27 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/maps/calibration:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+      - { $ref: '#/components/parameters/Csrf' }
+    put:
+      operationId: calibrateCameraView
+      description: Calibrate a placed camera against a landmark on this surface. Requires the site administrator role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ViewCalibrationRequest' }
+      responses:
+        '204':
+          description: Calibrate a placed camera against a landmark on this surface. Requires the site administrator role.
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: The device or its observed position changed. }
         '503': { $ref: '#/components/responses/Unavailable' }
   /sites/{siteId}/maps/plans/{planId}:
     parameters:
@@ -1197,7 +1218,7 @@ components:
         image_url: { type: string }
         width: { type: integer }
         height: { type: integer }
-    PointPlacement:
+    PointCoordinates:
       type: object
       additionalProperties: false
       required: [point_id, plan_id, x, y]
@@ -1216,6 +1237,84 @@ components:
         properties:
           x: { minimum: 0, maximum: 1 }
           y: { minimum: 0, maximum: 1 }
+    PointPlacement:
+      type: object
+      additionalProperties: false
+      required: [point_id, plan_id, x, y]
+      properties:
+        point_id: { $ref: '#/components/schemas/Id' }
+        plan_id: { oneOf: [{ $ref: '#/components/schemas/Id' }, { type: 'null' }] }
+        x: { type: number }
+        y: { type: number }
+        camera: { $ref: '#/components/schemas/MapCamera' }
+        calibration: { $ref: '#/components/schemas/StoredViewCalibration' }
+        view: { $ref: '#/components/schemas/CameraView' }
+      if:
+        properties: { plan_id: { type: 'null' } }
+      then:
+        properties:
+          x: { minimum: -180, maximum: 180 }
+          y: { minimum: -85.051129, maximum: 85.051129 }
+      else:
+        properties:
+          x: { minimum: 0, maximum: 1 }
+          y: { minimum: 0, maximum: 1 }
+    MapCamera:
+      type: object
+      additionalProperties: false
+      required: [device_id, ptz, profile]
+      properties:
+        device_id: { $ref: '#/components/schemas/Id' }
+        ptz: { type: boolean }
+        profile: { type: string }
+        revision: { type: string }
+        fresh: { type: boolean }
+        pan: { type: number }
+        tilt: { type: number }
+        space: { type: string }
+        zoom: { type: number, minimum: 0, maximum: 1 }
+        hfov: { type: number }
+        moving: { type: boolean }
+        observed_at: { type: string, format: date-time }
+        source_time: { type: string, format: date-time }
+    CameraView:
+      type: object
+      additionalProperties: false
+      required: [state]
+      properties:
+        state: { enum: [fixed, live, stale, unknown] }
+        bearing: { type: number }
+        hfov: { type: number }
+        estimated: { type: boolean }
+        observed_at: { type: string, format: date-time }
+    StoredViewCalibration:
+      type: object
+      additionalProperties: false
+      required: [device_id, ptz, bearing, hfov]
+      properties:
+        device_id: { $ref: '#/components/schemas/Id' }
+        ptz: { type: boolean }
+        profile: { type: string }
+        bearing: { type: number, minimum: 0, maximum: 360 }
+        hfov: { type: number, minimum: 0.1, maximum: 179.9 }
+        tele_hfov: { type: number, minimum: 0.1, maximum: 179.9 }
+        reference_pan: { type: number }
+        space: { type: string }
+        degrees_per_unit: { type: number }
+    ViewCalibrationRequest:
+      type: object
+      additionalProperties: false
+      required: [point_id, plan_id, device_id, bearing, hfov]
+      properties:
+        point_id: { $ref: '#/components/schemas/Id' }
+        plan_id: { oneOf: [{ $ref: '#/components/schemas/Id' }, { type: 'null' }] }
+        device_id: { $ref: '#/components/schemas/Id' }
+        bearing: { type: number, minimum: 0, maximum: 360 }
+        hfov: { type: number, minimum: 0.1, maximum: 179.9 }
+        tele_hfov: { type: number, minimum: 0.1, maximum: 179.9 }
+        reference_pan: { type: number, minimum: -1000000000, maximum: 1000000000 }
+        space: { type: string }
+        degrees_per_unit: { type: number, minimum: -36000, maximum: 36000 }
     PlanUpload:
       type: object
       additionalProperties: false

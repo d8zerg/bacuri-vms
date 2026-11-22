@@ -473,6 +473,19 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         if (auto* address = child(child(services, schema, name), schema, "XAddr"))
             control[name] = value(address);
     }
+    if (control.contains("PTZ")) {
+        try {
+            auto reply = client.call(control.at("PTZ"), ptz, "GetServiceCapabilities");
+            auto* capabilities =
+                child(response(reply, ptz, "GetServiceCapabilitiesResponse"), ptz, "Capabilities");
+            const auto flag = attribute(capabilities, "StatusPosition");
+            if (flag == "true" || flag == "1" || flag == "false" || flag == "0")
+                control["status_position"] = flag == "true" || flag == "1";
+        } catch (const Failure&) {
+            // Older services omit capability discovery. GetStatus can still report a position.
+            control["status_position"] = nullptr;
+        }
+    }
     if (auto* supported = child(child(services, schema, "Events"), schema, "WSPullPointSupport")) {
         auto flag = value(supported);
         if (flag != "true" && flag != "1")
@@ -515,7 +528,13 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         auto* source = child(p, schema, "VideoSourceConfiguration");
         selected["source"] = attribute(source, "token");
         auto config = attribute(child(p, schema, "PTZConfiguration"), "token");
+        selected["ptz_profile"] = !config.empty();
         if (!config.empty() && control.contains("PTZ")) {
+            auto* cfg = child(p, schema, "PTZConfiguration");
+            for (auto [field, element] : {std::pair{"pan_space", "DefaultAbsolutePantTiltPositionSpace"},
+                                          std::pair{"zoom_space", "DefaultAbsoluteZoomPositionSpace"}})
+                if (auto* node = child(cfg, schema, element))
+                    selected[field] = value(node);
             if (!ptz_options.contains(config)) {
                 try {
                     ptz_options[config] = directions(client, control.at("PTZ"), config);
@@ -541,6 +560,57 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
     if (result.at("selection").get_ref<const std::string&>().size() > 24576)
         throw Failure{502, "camera_protocol_error"};
     return result;
+}
+
+Json read_ptz_position(const CameraNetworks& networks, const Json& control, const Json& credentials)
+{
+    auto client = control_client(networks, control, credentials);
+    auto doc = client.call(control.at("PTZ"), ptz, "GetStatus",
+                           "<tptz:ProfileToken>" + escape(control.at("profile").get_ref<const std::string&>()) +
+                               "</tptz:ProfileToken>");
+    auto* status = child(response(doc, ptz, "GetStatusResponse"), ptz, "PTZStatus");
+    if (!status || (child(status, schema, "Error") && child(status, schema, "Error")->children))
+        throw Failure{502, "camera_protocol_error"};
+    auto* position = child(status, schema, "Position");
+    auto* pan = child(position, schema, "PanTilt");
+    auto number = [](xmlNode* node, const char* key) -> std::optional<double> {
+        auto text = attribute(node, key);
+        if (text.empty())
+            return {};
+        char* end{};
+        double n = g_ascii_strtod(text.c_str(), &end);
+        if (*end || !std::isfinite(n))
+            throw Failure{502, "camera_protocol_error"};
+        return n;
+    };
+    auto space = attribute(pan, "space");
+    if (space.empty())
+        space = control.value("pan_space", std::string{});
+    auto x = number(pan, "x");
+    if (x && std::abs(*x) > 1e9)
+        throw Failure{502, "camera_protocol_error"};
+    if (!x || space.empty())
+        return nullptr;
+    Json sample{{"pan", *x}, {"space", space}};
+    if (auto tilt = number(pan, "y"))
+        sample["tilt"] = *tilt;
+    if (auto* motion = child(child(status, schema, "MoveStatus"), schema, "PanTilt"))
+        sample["moving"] = value(motion) == "MOVING";
+    if (auto fov = number(child(status, schema, "FieldOfView"), "hfov"); fov && *fov > 0 && *fov < 180)
+        sample["hfov"] = *fov;
+    auto* zoom = child(position, schema, "Zoom");
+    auto zspace = attribute(zoom, "space");
+    if (zspace.empty())
+        zspace = control.value("zoom_space", std::string{});
+    if (auto z = number(zoom, "x");
+        z && *z >= 0 && *z <= 1 && zspace == "http://www.onvif.org/ver10/tptz/ZoomSpaces/PositionGenericSpace")
+        sample["zoom"] = *z;
+    const auto stamp = value(child(status, schema, "UtcTime"));
+    Timestamp parsed;
+    if (!ProtoTime::FromString(stamp, &parsed))
+        throw Failure{502, "camera_protocol_error"};
+    sample["source_time"] = ProtoTime::ToString(parsed);
+    return sample;
 }
 
 void move_onvif(const CameraNetworks& networks, const Json& control, const Json& credentials,

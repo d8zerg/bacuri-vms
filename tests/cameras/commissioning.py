@@ -234,6 +234,9 @@ def run():
                 assert c.http("POST", SITE + "/points/" + second["point_id"] + "/ptz", {"device_id":first["id"],"command":"right"}, {**admin,"Idempotency-Key":str(uuid.uuid4())})[0] == 409
                 assert c.http("POST", SITE + "/points/" + second["point_id"] + "/ptz", {"device_id":second["id"],"command":"right"}, {**admin,"Idempotency-Key":str(uuid.uuid4())})[0] == 422
                 assert not second["ptz"] and not second["events"]
+                scene = c.http("GET", SITE+"/maps",headers=admin)[2]
+                placed = next(p for p in scene["placements"] if p["point_id"]==second["point_id"])
+                assert placed["view"]["state"]=="unknown" and "calibration" not in placed
                 path = CAMERAS + "/" + second["id"] + "/previous-recording"
                 status, _, previous = c.http("GET", path, headers=admin)
                 assert status == 200 and previous["binding_revision"] == "1"

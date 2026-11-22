@@ -1,3 +1,4 @@
+#include "control/inventory/telemetry.hpp"
 #include "control/inventory/registry.hpp"
 #include "control/inventory/operations.hpp"
 #include "control/recordings/operations.hpp"
@@ -284,6 +285,7 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
             "($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING 1",
             {site, user.user, request_key, device, point, command});
         if (created.size()) {
+            inventory::refresh_position(journal, site, device);
             try {
                 move_onvif(networks_, control, credentials, command);
             } catch (const Failure& e) {

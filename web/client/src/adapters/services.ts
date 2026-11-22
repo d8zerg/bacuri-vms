@@ -121,6 +121,13 @@ export function createServices(): Services {
         }),
       );
     },
+    async calibrate(siteId, body) {
+      const { response } = await api.PUT("/sites/{siteId}/maps/calibration", {
+        params: { path: { siteId }, header: auth() },
+        body,
+      });
+      if (!response.ok) throw Error(String(response.status));
+    },
     async place(siteId, body) {
       const { response } = await api.PUT("/sites/{siteId}/maps/placement", {
         params: { path: { siteId }, header: auth() },

@@ -2,6 +2,8 @@
 #include "control/access/operations.hpp"
 #include "control/maps.hpp"
 #include "control/maps/packages.hpp"
+#include "control/inventory/telemetry.hpp"
+#include "control/maps/orientation.hpp"
 #include <sodium.h>
 #include <charconv>
 
@@ -57,15 +59,28 @@ Json scene(Database& db, const std::string& site, const std::string& user, bool 
                                    {"height", std::stoi(plans.get(i, 3))},
                                    {"image_url", base + "plans/" + plans.get(i)}});
     auto markers =
-        db.exec("SELECT point_id,plan_id,x,y FROM bacuri_maps.point_placements "
+        db.exec("SELECT point_id,plan_id,x,y,calibration FROM bacuri_maps.point_placements "
                 "WHERE site_id=$1 AND ($3::boolean OR point_id=ANY($2::uuid[])) ORDER BY point_id,plan_id",
                 {site, points, admin ? "true" : "false"});
-    for (int i = 0; i < markers.size(); ++i)
-        result["placements"].push_back(
-            {{"point_id", markers.get(i)},
-             {"plan_id", markers.get(i, 1).empty() ? Json(nullptr) : Json(markers.get(i, 1))},
-             {"x", std::stod(markers.get(i, 2))},
-             {"y", std::stod(markers.get(i, 3))}});
+    auto cameras = inventory::camera_orientations(db, site, markers.column(0));
+    for (int i = 0; i < markers.size(); ++i) {
+        const auto point = markers.get(i);
+        Json marker{{"point_id", point},
+                    {"plan_id", markers.get(i, 1).empty() ? Json(nullptr) : Json(markers.get(i, 1))},
+                    {"x", std::stod(markers.get(i, 2))},
+                    {"y", std::stod(markers.get(i, 3))}};
+        const Json cfg = markers.get(i, 4).empty() ? Json(nullptr) : Json::parse(markers.get(i, 4));
+        if (cameras.contains(point)) {
+            const auto& camera = cameras.at(point);
+            marker["view"] = maps_view::sector(cfg, camera);
+            if (admin) {
+                marker["camera"] = camera;
+                if (!cfg.is_null() && cfg.at("device_id") == camera.at("device_id"))
+                    marker["calibration"] = cfg;
+            }
+        }
+        result["placements"].push_back(std::move(marker));
+    }
     return result;
 }
 void png(Response& res, const Rows& rows)
@@ -176,7 +191,8 @@ void place(Database& db, const Request& req, const std::string& site)
         found(db.exec("SELECT FROM bacuri_maps.floor_plans WHERE site_id=$1 AND plan_id=$2 FOR KEY SHARE",
                       {site, plan})
                   .size());
-    db.exec("INSERT INTO bacuri_maps.point_placements VALUES ($1,$2,nullif($3,'')::uuid,$4,$5) ON CONFLICT "
+    db.exec("INSERT INTO bacuri_maps.point_placements (site_id,point_id,plan_id,x,y) VALUES "
+            "($1,$2,nullif($3,'')::uuid,$4,$5) ON CONFLICT "
             "(site_id,point_id,plan_id) DO UPDATE SET x=excluded.x,y=excluded.y",
             {site, point, plan, body["x"].dump(), body["y"].dump()});
 }
@@ -199,8 +215,9 @@ void maps(const Request& req, Response& res, const Sessions& sessions, const std
         db.exec("COMMIT");
         return;
     }
-    const bool upload = path == "maps/plans", placement = path == "maps/placement", write = upload || placement;
-    allow(req, res, {upload ? http::verb::post : placement ? http::verb::put : http::verb::get});
+    const bool upload = path == "maps/plans", placement = path == "maps/placement",
+               calibration = path == "maps/calibration", write = upload || placement || calibration;
+    allow(req, res, {upload ? http::verb::post : (placement || calibration) ? http::verb::put : http::verb::get});
     Database db;
     db.exec(write ? "BEGIN" : "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const auto identity = sessions.authenticate(db, req, write, write);
@@ -210,7 +227,10 @@ void maps(const Request& req, Response& res, const Sessions& sessions, const std
         throw Failure{403, "forbidden"};
     if (upload)
         respond(res, add_plan(db, req, site), 201);
-    else if (placement) {
+    else if (calibration) {
+        maps_view::calibrate(db, req, site);
+        res.result(http::status::no_content);
+    } else if (placement) {
         place(db, req, site);
         res.result(http::status::no_content);
     } else if (path == "maps")

@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 OBJECTS = {
     "inventory": """sites observation_points devices channels stream_profiles point_bindings configuration_versions
         configuration_progress camera_registry recorder_delivery recorder_attempt registration_requests configuration_audit
-        camera_configuration_state camera_state camera_transport_audit record_camera_transport_policy ptz_commands""",
+        camera_configuration_state camera_state camera_transport_audit record_camera_transport_policy ptz_commands ptz_telemetry""",
     "access": """local_users site_roles point_grants browser_sessions login_attempts export_grants webauthn_credentials
         webauthn_enrollment webauthn_challenges credential_audit invalidate_role_sessions audit_credential_binding""",
     "recordings": """blocks gaps retired_through timeline_intervals retained_blocks archive_retention archive_recovery
@@ -45,7 +45,7 @@ PUBLIC = set("""
     api.hpp http.hpp support.hpp playback_time.hpp database.hpp recovery.hpp configuration_snapshot.hpp
     archive_catalog.hpp maps.hpp alerts.hpp alert_work.hpp observations.hpp delivery.hpp media_authority.hpp
     playback.hpp export.hpp access/enrollment.hpp inventory/camera_events.hpp access/session.hpp inventory/registry.hpp
-    access/operations.hpp inventory/operations.hpp events/operations.hpp recordings/operations.hpp media_sessions/operations.hpp
+    access/operations.hpp inventory/operations.hpp inventory/telemetry.hpp events/operations.hpp recordings/operations.hpp media_sessions/operations.hpp
     access/configuration.hpp inventory/configuration.hpp recordings/configuration.hpp maps/configuration.hpp
     access/restore.hpp inventory/restore.hpp
 """.split())

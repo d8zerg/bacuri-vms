@@ -1,4 +1,6 @@
 """Verify point-scoped controls and compare the alarm frame to the recorded H.264 block."""
+from pathlib import Path
+import base64
 from datetime import datetime, timezone
 import json
 import subprocess
@@ -45,6 +47,53 @@ def compare_frame(call, block, index):
         errors.append(len(points ^ mask) / len(points | mask))
     assert errors.index(min(errors)) == index and errors[index] < 0.12, (index, errors)
     return round(errors[index], 4)
+
+
+def map_orientation(call, device, cam, admin, viewer, move):
+    base = f"sites/{c.SITE}/maps"
+    point = cam["point_id"]
+    png = base64.b64encode(Path("web/client/stories/floor.png").read_bytes()).decode()
+    code, _, plan = c.http("POST", base + "/plans", {"name":"Orientation", "png":png}, admin)
+    assert code == 201, plan
+    placement = {"point_id":point,"plan_id":plan["id"],"x":0.5,"y":0.5}
+    assert c.http("PUT", base + "/placement", placement, admin)[0] == 204
+
+    def marker(who=admin):
+        return next(p for p in c.http("GET", base, headers=who)[2]["placements"] if p["plan_id"] == plan["id"])
+    sample = c.wait_for(lambda: (p if (p:=marker()["camera"]).get("fresh") and not p.get("moving") else None), "absolute PTZ reading")
+    ref = sample["pan"]
+    config = {"point_id":point, "plan_id":plan["id"], "device_id":cam["id"], "bearing":350,"hfov":80,
+              "tele_hfov":20,"space":sample["space"],"reference_pan":ref,"degrees_per_unit":180}
+    assert c.http("PUT", base+"/calibration", config, viewer)[0] == 403
+    assert c.http("PUT", base+"/calibration", {**config,"reference_pan":ref+1}, admin)[0] == 409
+    assert c.http("PUT", base+"/calibration", config, admin)[0] == 204
+    assert marker(viewer)["view"]["bearing"] == 350 and "camera" not in marker(viewer)
+    navigate(call, viewer, "/maps?plan="+plan["id"]+"&point="+point)
+    wait(call, "document.querySelector('.ws-sector')?.dataset.state==='live'", "calibrated live sector")
+    assert move(admin,"right")==204
+    c.wait_for(lambda: device.feedback()[0]>ref+0.03, "local move")
+    assert move(admin,"stop")==204
+    final=device.feedback()[0]
+    c.wait_for(lambda: abs(marker()["view"]["bearing"]-(350+180*(final-ref))%360)<0.1, "confirmed stop position")
+    with device.lock:
+        device.position=0.5
+        device.hfov=27
+    expected=(350+180*(0.5-ref))%360
+    c.wait_for(lambda: abs(marker()["view"]["bearing"]-expected)<0.01 and marker()["view"]["hfov"]==27, "external PTZ and optical zoom")
+    with device.lock:
+        device.hfov=None
+        device.zoom=0.5
+    c.wait_for(lambda: marker()["view"].get("estimated") and marker()["view"]["hfov"]==50, "calibrated zoom fallback")
+    device.online=False
+    wait(call, "document.querySelector('.ws-sector')?.dataset.state==='stale'", "stale direction on loss")
+    assert marker()["view"].get("observed_at")
+    device.report_position=False
+    device.online=True
+    c.wait_for(lambda: marker()["view"]["state"]=="unknown", "device omitted position")
+    wait(call, "!document.querySelector('.ws-sector') && document.body.innerText.includes('Текущее направление неизвестно')","hidden unsupported sector")
+    device.report_position=True
+    device.hfov=64.0
+    print("PTZ map calibration, command, external motion, zoom, stale and unknown states verified",flush=True)
 
 
 def exercise(call, device, cam, admin):
@@ -148,4 +197,5 @@ def exercise(call, device, cam, admin):
         "block_id": block, "position": instant, "frame_index": index, "frame_mask_difference": difference,
     }
     (report / "camera-operations.json").write_text(json.dumps(evidence, indent=2) + "\n")
+    map_orientation(call,device,cam,admin,viewer,move)
     navigate(call, admin, "/cameras")

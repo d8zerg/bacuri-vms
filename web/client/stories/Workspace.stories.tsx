@@ -52,3 +52,8 @@ export const MapManagement: Story = {
   name: "Установка и обновление карт",
   args: { initial: "/maps?plan=floor", condition: "map-management" },
 };
+
+export const PtzPlan: Story = {
+  name: "Калибровка PTZ на плане",
+  args: { initial: "/maps?plan=floor&point=dock", condition: "ptz-plan" },
+};

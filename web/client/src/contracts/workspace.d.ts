@@ -84,7 +84,11 @@ export interface Services {
   ): Promise<void>;
   pauseMapDownload(site: string, id: string, paused: boolean): Promise<void>;
   queueMapRegions(site: string, body: Schema["MapSelection"]): Promise<void>;
-  place(site: string, body: Placement): Promise<void>;
+  calibrate(
+    site: string,
+    body: Schema["ViewCalibrationRequest"],
+  ): Promise<void>;
+  place(site: string, body: Schema["PointCoordinates"]): Promise<void>;
   addPlan(site: string, name: string, png: string): Promise<{ id: string }>;
   session(signal: AbortSignal): Promise<Session>;
   login(

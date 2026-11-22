@@ -11,6 +11,12 @@ import type { FormEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { Services, MapScene, Point, Feed } from "../contracts/workspace";
 import { Button } from "../ui-kit/FormControls";
+import { CameraMarker, viewLabel } from "./CameraMarker";
+import {
+  ViewCalibration,
+  landmarkBearing,
+  type Landmark,
+} from "./ViewCalibration";
 import { MapPackages } from "./MapPackages";
 import "./maps.css";
 const RegionMap = lazy(() => import("./RegionMap"));
@@ -30,6 +36,8 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
     [version, refresh] = useState(0),
     [busy, lock] = useState(false);
   const [draft, setDraft] = useState<{ x: string; y: string } | null>(null);
+  const [aim, setAim] = useState(false);
+  const [landmark, setLandmark] = useState<Landmark | null>(null);
   const selected = params.get("point") ?? "",
     surface = params.get("plan") ?? "";
   const focus = useRef(false);
@@ -117,6 +125,8 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
   function choose(id: string) {
     focus.current = false;
     setDraft(null);
+    setAim(false);
+    setLandmark(null);
     tell("");
     update(
       id === selected
@@ -134,10 +144,23 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
   }
   function changeSurface(id: string) {
     setDraft(null);
+    setAim(false);
+    setLandmark(null);
     tell("");
     update({ plan: id || null, sx: null, sy: null, scale: null });
   }
   function pick(x: number, y: number) {
+    if (admin && aim && marker) {
+      const bearing = landmarkBearing(marker, x, y, plan);
+      if (bearing === null) {
+        tell("Выберите ориентир в стороне от камеры");
+        return;
+      }
+      setLandmark({ bearing, camera: marker.camera });
+      setAim(false);
+      tell("");
+      return;
+    }
     if (admin && point) {
       setDraft({ x: fixed(x), y: fixed(y) });
       tell("");
@@ -327,19 +350,19 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                         }}
                       />
                       {markers.map((m) => (
-                        <button
-                          type="button"
+                        <CameraMarker
                           key={m.point_id}
-                          className="ws-pin"
+                          marker={m}
+                          name={
+                            points.find((p) => p.id === m.point_id)?.name ?? ""
+                          }
+                          selected={selected === m.point_id}
+                          choose={() => choose(m.point_id)}
                           style={{
                             left: m.x * 100 + "%",
                             top: m.y * 100 + "%",
                           }}
-                          aria-pressed={selected === m.point_id}
-                          onClick={() => choose(m.point_id)}
-                        >
-                          {points.find((p) => p.id === m.point_id)?.name}
-                        </button>
+                        />
                       ))}
                     </div>
                   </div>
@@ -422,6 +445,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                     {fixed(marker.y)}
                   </p>
                 )}
+                {marker && <p>{viewLabel(marker.view)}</p>}
                 <div className="ws-map-actions">
                   <Link to={target("live")}>Эфир</Link>
                   <Link to={target("archive")}>Архив</Link>
@@ -433,6 +457,25 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                       {a.type} · {a.observed_at}
                     </Link>
                   ))}
+                {admin && marker?.camera && (
+                  <ViewCalibration
+                    key={
+                      selected + "/" + surface + "/" + marker.camera.device_id
+                    }
+                    marker={marker}
+                    site={site}
+                    services={services}
+                    landmark={landmark}
+                    aim={aim}
+                    setAim={setAim}
+                    live={target("live")}
+                    onSaved={() => {
+                      setAim(false);
+                      setLandmark(null);
+                      refresh((v) => v + 1);
+                    }}
+                  />
+                )}
                 {admin && (plan || (!surface && region)) && (
                   <form onSubmit={(e) => void save(e)}>
                     <h3>Положение точки</h3>

@@ -77,8 +77,38 @@ export function fixture(condition = "normal"): Services {
     placements:
       condition === "empty"
         ? []
-        : [{ point_id: point, plan_id: "floor", x: 0.34, y: 0.52 }],
+        : [
+            {
+              point_id: point,
+              plan_id: "floor",
+              x: 0.34,
+              y: 0.52,
+              camera: { device_id: "camera", ptz: false, profile: "" },
+              view: { state: "fixed", bearing: 55, hfov: 65 },
+              calibration: {
+                device_id: "camera",
+                ptz: false,
+                bearing: 55,
+                hfov: 65,
+              },
+            },
+          ],
   };
+  if (condition === "ptz-plan") {
+    const placed = scene.placements[0]!;
+    placed.camera = {
+      device_id: "camera",
+      profile: "main",
+      ptz: true,
+      fresh: true,
+      pan: 0.15,
+      zoom: 0,
+      space: "generic",
+      hfov: 80,
+    };
+    placed.view = { state: "unknown" };
+    delete placed.calibration;
+  }
   return {
     exportFragment: () => Promise.reject(new HttpFailure(403, "forbidden")),
     ...alertWorkFixture(point, utc(150)),
@@ -86,8 +116,26 @@ export function fixture(condition = "normal"): Services {
       condition === "map-error"
         ? Promise.reject(Error("503"))
         : Promise.resolve(structuredClone(scene)),
+    calibrate: (_site, b) => {
+      const row = scene.placements.find(
+        (p) => p.point_id === b.point_id && p.plan_id === b.plan_id,
+      );
+      if (!row) return Promise.reject(Error("404"));
+      row.view = {
+        state: row.camera?.ptz ? "live" : "fixed",
+        bearing: b.bearing,
+        hfov: b.hfov,
+      };
+      row.calibration = {
+        device_id: b.device_id,
+        ptz: false,
+        bearing: b.bearing,
+        hfov: b.hfov,
+      };
+      return Promise.resolve();
+    },
     place: (_site, body) => {
-      scene.placements = [body];
+      scene.placements = [{ ...scene.placements[0], ...body }];
       return Promise.resolve();
     },
     ...mapPackageFixture(scene, condition === "map-management"),

@@ -108,7 +108,12 @@ def admin_placements(browser, admin, viewer, cam, wait, button, field, raw):
             )
         button(call, "Сохранить положение")
         wait(call, "document.body.innerText.includes('Положение сохранено')", "saved geographic position")
-        js(call, "document.querySelector('summary').click()")
+        if "id" in cam:
+            calibration = {"point_id": point, "plan_id": None, "device_id": cam["id"], "bearing": 75, "hfov": 68}
+            assert c.http("PUT", BASE + "/calibration", {**calibration, "hfov": 0}, admin)[0] == 400
+            assert c.http("PUT", BASE + "/calibration", calibration, admin)[0] == 204
+            wait(call, "document.querySelector('.maplibregl-marker .ws-sector')?.dataset.state==='fixed'", "geographic camera sector")
+        js(call, "[...document.querySelectorAll('summary')].find(s=>s.textContent==='Добавить план').click()")
         field(call, "name", "План " + browser)
         payload = io.BytesIO()
         with zipfile.ZipFile(payload, "w") as archive:
@@ -125,6 +130,10 @@ def admin_placements(browser, admin, viewer, cam, wait, button, field, raw):
         click(call, image)
         button(call, "Сохранить положение")
         wait(call, "document.body.innerText.includes('Положение сохранено')", "saved floor position")
+        if "id" in cam:
+            plan_id = next(p["id"] for p in c.http("GET", BASE, headers=admin)[2]["plans"] if p["name"] == "План " + browser)
+            assert c.http("PUT", BASE + "/calibration", {**calibration,"plan_id":plan_id,"bearing":20},admin)[0] == 204
+            wait(call,"document.querySelector('.ws-plan .ws-sector')?.dataset.state==='fixed'","fixed camera sector on plan")
         external = js(
             call,
             "return performance.getEntriesByType('resource').filter(e=>/^https?:/.test(e.name)&&new URL(e.name).origin!==location.origin).map(e=>e.name)",
@@ -133,7 +142,7 @@ def admin_placements(browser, admin, viewer, cam, wait, button, field, raw):
     before = c.http("GET", BASE, headers=admin)[2]
     plan = next(p for p in before["plans"] if p["name"] == "План " + browser)
     assert any(p["plan_id"] == plan["id"] and p["point_id"] == point for p in before["placements"])
-    assert placement in before["placements"]
+    assert any(all(row.get(k) == v for k, v in placement.items()) for row in before["placements"])
     denied = c.http("GET", BASE, headers=viewer)[2]
     assert all(p["point_id"] != point for p in denied["placements"]) and plan not in denied["plans"]
     assert c.http("GET", BASE + "/plans/" + plan["id"], headers=viewer)[0] == 404
@@ -161,7 +170,7 @@ def verify_restore():
         queries = (
             "SELECT site_id,url FROM bacuri_maps.map_catalog_settings ORDER BY site_id",
             "SELECT plan_id,name,width,height,md5(image) FROM bacuri_maps.floor_plans ORDER BY plan_id",
-            "SELECT site_id,point_id,plan_id,x,y FROM bacuri_maps.point_placements ORDER BY point_id,plan_id",
+            "SELECT site_id,point_id,plan_id,x,y,calibration FROM bacuri_maps.point_placements ORDER BY point_id,plan_id",
         )
         for query in queries:
             actual = subprocess.check_output(
@@ -182,11 +191,12 @@ def offline_maps(wait, button, field, raw, capture):
             c.wait_for(lambda: c.http("GET", "session")[0] == 401, "offline workspace")
             admin, viewer = c.login("installer"), c.login("viewer")
             for browser in ("chrome", "firefox"):
-                point = str(uuid4())
-                c.query(
-                    f"INSERT INTO bacuri_inventory.observation_points VALUES ('{c.SITE}','{point}','Offline {browser}')"
-                )
-                plan = admin_placements(browser, admin, viewer, {"point_id": point}, wait, button, field, raw)
+                host = os.environ["BACURI_TEST_CAMERA_HOST"]
+                body = {"name": "Offline " + browser, "main_url": f"rtsp://{host}:8554/main", "secondary_url": f"rtsp://{host}:8554/sub"}
+                code, _, cam = c.http("POST", f"sites/{c.SITE}/cameras", body, {**admin, "Idempotency-Key": str(uuid4())})
+                assert code == 201, cam
+                point = cam["point_id"]
+                plan = admin_placements(browser, admin, viewer, cam, wait, button, field, raw)
                 subprocess.run([c.CORE, "grant-point", "viewer", point], check=True)
                 with browser_session(
                     browser, viewer, "/maps?point=" + point, workspace_coverage=raw, software_map=True

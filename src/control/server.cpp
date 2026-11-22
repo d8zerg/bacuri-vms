@@ -1,3 +1,4 @@
+#include "control/inventory/telemetry.hpp"
 #include "control/inventory/registry.hpp"
 #include "control/export.hpp"
 #include "control/api.hpp"
@@ -268,6 +269,8 @@ void serve()
     auto networks = CameraNetworks::configured();
     auto policy = Json(networks.legacy_addresses()).dump();
     const CameraRegistry registry{sessions, key, networks};
+    auto monitor_position = [&](std::stop_token stop) { inventory::track_positions(stop, networks, key); };
+    std::jthread position_reader{monitor_position}, second_position_reader{monitor_position};
     std::jthread map_worker{map_packages::work};
     std::jthread event_reader{[&](std::stop_token stop) { camera_events(stop, networks, key); }};
     std::jthread worker{[&key, policy = std::move(policy)](std::stop_token stop) { deliver(stop, key, policy); }};

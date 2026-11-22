@@ -37,6 +37,9 @@ class Device:
         self.initial_lease_seconds = 60
         self.lease_end = 0
         self.source = "main"
+        self.report_position = True
+        self.hfov = 64.0
+        self.zoom = 0.0
         self.position = 0.0
         self.active = False
         self.notifications = []
@@ -101,6 +104,8 @@ class Device:
             child(uri, "tt:InvalidAfterConnect", "false")
             child(uri, "tt:InvalidAfterReboot", "false")
             child(uri, "tt:Timeout", "PT0S")
+        elif body.tag == tag("tptz:GetServiceCapabilities") and "PTZ" in self.services:
+            child(result, "tptz:Capabilities", StatusPosition="true", MoveStatus="true")
         elif body.tag == tag("tptz:GetConfigurationOptions") and "PTZ" in self.services:
             if path != "/ptz" or required(body, "tptz:ConfigurationToken") != "ptz":
                 raise ValueError("unknown PTZ configuration")
@@ -132,9 +137,16 @@ class Device:
                 self.velocity = (0.0, 0.0)
             elif action == "GetStatus":
                 status = child(result, "tptz:PTZStatus")
-                child(child(status, "tt:Position"), "tt:PanTilt", x=str(self.position), y=str(self.tilt))
+                if self.report_position:
+                    position = child(status, "tt:Position")
+                    child(position, "tt:PanTilt", x=str(self.position), y=str(self.tilt),
+                          space="http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace")
+                    child(position, "tt:Zoom", x=str(self.zoom),
+                          space="http://www.onvif.org/ver10/tptz/ZoomSpaces/PositionGenericSpace")
                 child(child(status, "tt:MoveStatus"), "tt:PanTilt", "MOVING" if any(self.velocity) else "IDLE")
                 child(status, "tt:UtcTime", utc())
+                if self.hfov is not None:
+                    child(status, "tt:FieldOfView", hfov=str(self.hfov), vfov="40")
         elif body.tag == tag("tev:CreatePullPointSubscription") and "Events" in self.services:
             if path != "/events" or required(request, "s:Header/a:Action") != NS["tev"] + "/EventPortType/CreatePullPointSubscriptionRequest":
                 raise ValueError("subscription action")

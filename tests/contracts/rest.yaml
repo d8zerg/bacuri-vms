@@ -214,6 +214,15 @@ place_point:
   operation: placePoint
   request: { point_id: 20000000-0000-4000-8000-000000000001, plan_id: null, x: 37.5, y: 55.7 }
   status: 204
+calibrate_camera_view:
+  operation: calibrateCameraView
+  request:
+    point_id: 20000000-0000-4000-8000-000000000001
+    plan_id: null
+    device_id: 40000000-0000-4000-8000-000000000001
+    bearing: 75
+    hfov: 68
+  status: 204
 claim_alert:
   operation: applyAlertCommand
   request: { action: claim, version: 0, reason: Shift started }

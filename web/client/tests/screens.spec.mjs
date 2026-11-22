@@ -243,6 +243,47 @@ for (const [story, state] of [
   });
 }
 
+test("Administrator calibrates the camera sector on a non-square floor plan", async ({
+  page,
+}) => {
+  await open(page, "plan");
+  await page.getByText("Настроить сектор обзора", { exact: true }).click();
+  await page.getByRole("button", { name: "Указать ориентир на карте" }).click();
+  const plan = page.locator(".ws-plan img"),
+    box = await plan.boundingBox();
+  await plan.click({ position: { x: box.width * 0.65, y: box.height * 0.52 } });
+  await expect(page.getByLabel("Направление от верха плана, °")).toHaveValue(
+    /^(89|90)/,
+  );
+  await page.getByLabel("Горизонтальный угол обзора, °").fill("45");
+  await page.getByRole("button", { name: "Сохранить направление" }).click();
+  await expect(page.getByText("Направление сохранено")).toBeVisible();
+  await expect(page.locator(".ws-pin")).toHaveAttribute(
+    "title",
+    /угол обзора 45°/,
+  );
+  await checkAccessibility(page, ".ws-shell");
+});
+
+test("Administrator calibrates a PTZ camera reporting normalized positions", async ({
+  page,
+}) => {
+  await open(page, "ptz-plan");
+  await page.getByText("Настроить сектор обзора", { exact: true }).click();
+  await expect(page.getByText(/Показание pan/)).toContainText("0.15");
+  await page.getByLabel("Направление от верха плана, °").fill("210");
+  await page
+    .getByLabel("Градусов поворота по часовой стрелке на единицу pan")
+    .fill("-180");
+  await page.getByLabel("Угол обзора при максимальном зуме, °").fill("15");
+  await page.getByRole("button", { name: "Сохранить направление" }).click();
+  await expect(page.locator(".ws-sector")).toHaveAttribute(
+    "data-state",
+    "live",
+  );
+  await checkAccessibility(page, ".ws-shell");
+});
+
 test("Administrator uploads a plan and reopens a positioned point", async ({
   page,
 }) => {

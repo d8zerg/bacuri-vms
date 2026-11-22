@@ -1,3 +1,5 @@
+import { createPortal } from "react-dom";
+import { CameraMarker } from "./CameraMarker";
 import { useEffect, useRef, useState } from "react";
 import { Map as LibreMap, Marker, NavigationControl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -14,6 +16,38 @@ type Props = {
   pick: (x: number, y: number) => void;
   move: (view: View) => void;
 };
+function RegionPin({
+  map,
+  marker,
+  point,
+  chosen,
+  select,
+}: {
+  map: LibreMap;
+  marker: Placement;
+  point: Point;
+  chosen: boolean;
+  select: (id: string) => void;
+}) {
+  const [el] = useState(() => document.createElement("div"));
+  useEffect(() => {
+    const pin = new Marker({ element: el })
+      .setLngLat([marker.x, marker.y])
+      .addTo(map);
+    return () => {
+      pin.remove();
+    };
+  }, [map, el, marker.x, marker.y]);
+  return createPortal(
+    <CameraMarker
+      marker={marker}
+      name={point.name}
+      selected={chosen}
+      choose={() => select(point.id)}
+    />,
+    el,
+  );
+}
 export default function RegionMap(props: Props) {
   const host = useRef<HTMLDivElement>(null),
     latest = useRef(props);
@@ -62,6 +96,15 @@ export default function RegionMap(props: Props) {
     instance.addControl(new NavigationControl({ showCompass: false }));
     instance.on("load", () => setFailed(false));
     instance.on("error", () => setFailed(true));
+    instance.on("pitch", () =>
+      el.style.setProperty(
+        "--map-tilt",
+        String(Math.cos((instance.getPitch() * Math.PI) / 180)),
+      ),
+    );
+    instance.on("rotate", () =>
+      el.style.setProperty("--map-bearing", instance.getBearing() + "deg"),
+    );
     instance.on("click", (event) =>
       latest.current.pick(event.lngLat.lng, event.lngLat.lat),
     );
@@ -72,29 +115,6 @@ export default function RegionMap(props: Props) {
     setMap(instance);
     return () => instance.remove();
   }, [style]);
-  useEffect(() => {
-    if (!map) return;
-    const pins: Marker[] = [];
-    for (const marker of props.markers) {
-      const point = props.points.find((p) => p.id === marker.point_id);
-      if (!point) continue;
-      const el = document.createElement("button");
-      el.type = "button";
-      el.className = "ws-pin";
-      el.textContent = point.name;
-      el.setAttribute("aria-pressed", String(props.chosen === point.id));
-      el.onclick = (e) => {
-        e.stopPropagation();
-        latest.current.select(point.id);
-      };
-      pins.push(
-        new Marker({ element: el }).setLngLat([marker.x, marker.y]).addTo(map),
-      );
-    }
-    return () => {
-      for (const pin of pins) pin.remove();
-    };
-  }, [map, props.markers, props.points, props.chosen]);
   return (
     <>
       <div
@@ -103,6 +123,22 @@ export default function RegionMap(props: Props) {
         role="region"
         aria-label="Карта региона"
       />
+      {map &&
+        props.markers.map((marker) => {
+          const point = props.points.find((p) => p.id === marker.point_id);
+          return (
+            point && (
+              <RegionPin
+                key={point.id}
+                map={map}
+                marker={marker}
+                point={point}
+                chosen={props.chosen === point.id}
+                select={props.select}
+              />
+            )
+          );
+        })}
       {failed && (
         <p role="status">
           Не удалось отобразить карту региона. Координаты точек доступны в
