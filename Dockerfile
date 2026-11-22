@@ -1,3 +1,5 @@
+ARG POSTGRES_VERSION=17.12
+ARG GUEST_BASE=debian-base
 FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS debian-base
 ARG DEBIAN_SNAPSHOT=20261119T030000Z
 RUN sed -i \
@@ -66,7 +68,7 @@ RUN wget -q -O /tmp/brotli-libs.apk \
 USER 101
 RUN --network=none nginx -t
 
-FROM postgres:17.12-trixie@sha256:b60e90042aa6b8dbecd58e224b3e36114dbf8ad754465264c2476ad58a86e45c AS postgres
+FROM postgres:${POSTGRES_VERSION}-trixie@sha256:b60e90042aa6b8dbecd58e224b3e36114dbf8ad754465264c2476ad58a86e45c AS postgres
 RUN --mount=from=maintenance-build,source=/out/xml,target=/debs dpkg --path-include='*' -i /debs/*.deb
 COPY --from=maintenance-build /out/xml/provenance.json /usr/share/bacuri/maintenance/xml.json
 COPY --from=go-tools /out/gosu /usr/local/bin/gosu
@@ -165,10 +167,77 @@ RUN mkdir -p /packages/partial && touch /tmp/empty-status && apt-get update && \
     cp /patched/*/*.deb /packages/ && rm -rf /packages/partial /packages/lock
 
 FROM dev AS offline-packager
+ARG POSTGRES_VERSION
+ENV BACURI_POSTGRES_VERSION=$POSTGRES_VERSION
 RUN apt-get update && apt-get install -y --no-install-recommends gnupg apt-utils dpkg-dev && rm -rf /var/lib/apt/lists/*
 COPY --from=offline-dependencies /packages /opt/bacuri/offline-packages
 
-FROM debian-base AS install-guest
+FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS bookworm-base
+ARG DEBIAN_SNAPSHOT=20261119T030000Z
+RUN sed -i \
+        -e "s|http://deb.debian.org/debian-security$|http://snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT}/|" \
+        -e "s|http://deb.debian.org/debian$|http://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}/|" \
+        -e '/^Signed-By:/a Check-Valid-Until: no' \
+        /etc/apt/sources.list.d/debian.sources
+
+FROM dev AS release-headers
+RUN conan --version > /opt/bacuri/deps/gcc-release/conan-version
+
+FROM scratch AS bookworm-postgres
+ARG POSTGRES_VERSION
+ADD --checksum=sha256:42ba3411f795e018135efd46389d2078bc38cb73ee0508a8f4c433efdc95ad48 \
+    https://apt-archive.postgresql.org/pub/repos/apt/pool/main/p/postgresql-common/postgresql-client-common_278.pgdg120+1_all.deb /server/postgresql-client-common.deb
+ADD --checksum=sha256:59b425c37fa584e2f597f84b02ba03a06a1509a6a91c6960768fc072bc4d2574 \
+    https://apt-archive.postgresql.org/pub/repos/apt/pool/main/p/postgresql-common/postgresql-common_278.pgdg120+1_all.deb /server/postgresql-common.deb
+ADD --checksum=sha256:e53a71de0240a4df0dd40f34fad45b969f9903465eb8251187dc9f3b82256cf2 \
+    https://apt-archive.postgresql.org/pub/repos/apt/pool/main/p/postgresql-common/postgresql-common-dev_278.pgdg120+1_all.deb /server/postgresql-common-dev.deb
+ADD --checksum=sha256:2c7dfd9484f0c1896e344441b94d457e34cf987d50d167e20865b8a302d05032 \
+    https://apt-archive.postgresql.org/pub/repos/apt/pool/17/p/postgresql-17/libpq-dev_${POSTGRES_VERSION}-1.pgdg12+1_amd64.deb /sdk/libpq-dev.deb
+ADD --checksum=sha256:b2ad4b9e6f830af89726d1870af7acb0982a114697a1e23a8e818e172d8077f8 \
+    https://apt-archive.postgresql.org/pub/repos/apt/pool/17/p/postgresql-17/libpq5_${POSTGRES_VERSION}-1.pgdg12+1_amd64.deb /lib/libpq5.deb
+ADD --checksum=sha256:40b74e0b676bab321b3d41acf7d5bed9a34ade59ac640b3e24c2fa87905e2ffd \
+    https://apt-archive.postgresql.org/pub/repos/apt/pool/main/p/postgresql-17/postgresql-17_${POSTGRES_VERSION}-1.pgdg12+1_amd64.deb /server/postgresql-17.deb
+ADD --checksum=sha256:6c572106b1caedd8e8357ac932f52860f8f6dcec186579a56431ea964437ae32 \
+    https://apt-archive.postgresql.org/pub/repos/apt/pool/main/p/postgresql-17/postgresql-client-17_${POSTGRES_VERSION}-1.pgdg12+1_amd64.deb /server/postgresql-client-17.deb
+
+FROM bookworm-base AS bookworm-builder
+RUN --mount=from=bookworm-postgres,source=/sdk,target=/pg-sdk \
+    --mount=from=bookworm-postgres,source=/lib,target=/pg-lib \
+    apt-get update && apt-get install -y --no-install-recommends /pg-lib/*.deb /pg-sdk/*.deb \
+    cmake ninja-build g++ pkg-config libgrpc++-dev libprotobuf-dev protobuf-compiler-grpc \
+    libsqlite3-dev libpng-dev libarchive-dev libcurl4-openssl-dev libssl-dev libxml2-dev \
+    libfido2-dev libsodium-dev libgstrtspserver-1.0-dev && rm -rf /var/lib/apt/lists/*
+COPY packaging/maintenance/webrtc-sdk /usr/local/bin/webrtc-sdk
+RUN apt-get update && sh /usr/local/bin/webrtc-sdk && rm -rf /var/lib/apt/lists/*
+# Both release dependencies are header-only. All system libraries come from Bookworm.
+COPY --from=release-headers /opt/bacuri/deps/gcc-release /opt/bacuri/deps/gcc-release
+COPY --from=release-headers /opt/bacuri/conan-cache /opt/bacuri/conan-cache
+WORKDIR /workspace
+RUN (dpkg-query -W && sha256sum /opt/bacuri/deps/gcc-release/graph.json) | sha256sum > /opt/bacuri/deps/toolchain.sha256
+
+FROM bookworm-builder AS bookworm-media-test
+RUN --mount=from=bookworm-postgres,source=/server,target=/pg-server \
+    apt-get update && apt-get install -y --no-install-recommends openssl gstreamer1.0-tools gstreamer1.0-nice \
+        gstreamer1.0-plugins-ugly gstreamer1.0-libav /pg-server/postgresql-client-common.deb \
+        /pg-server/postgresql-client-17.deb && rm -rf /var/lib/apt/lists/*
+ENV XDG_CACHE_HOME=/tmp/bacuri-vms-cache
+
+FROM bookworm-base AS bookworm-offline-dependencies
+COPY packaging/debian/runtime-packages /tmp/runtime-packages
+RUN --mount=from=bookworm-postgres,source=/server,target=/pg-server \
+    --mount=from=bookworm-postgres,source=/lib,target=/pg-lib \
+    sed -i 's/t64$//' /tmp/runtime-packages && mkdir -p /packages/partial && touch /tmp/empty-status && apt-get update && \
+    apt-get --download-only --no-install-recommends -y -o Dir::State::status=/tmp/empty-status \
+        -o Dir::Cache::archives=/packages install $(cat /tmp/runtime-packages) /pg-server/*.deb /pg-lib/*.deb && \
+    install -m 0644 -t /packages /pg-server/*.deb /pg-lib/*.deb && rm -rf /packages/partial /packages/lock
+
+FROM bookworm-builder AS bookworm-offline-packager
+ARG POSTGRES_VERSION
+ENV BACURI_POSTGRES_VERSION=$POSTGRES_VERSION
+RUN apt-get update && apt-get install -y --no-install-recommends gnupg apt-utils dpkg-dev && rm -rf /var/lib/apt/lists/*
+COPY --from=bookworm-offline-dependencies /packages /opt/bacuri/offline-packages
+
+FROM ${GUEST_BASE} AS install-guest
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends systemd-sysv linux-image-cloud-amd64 \
     initramfs-tools busybox iproute2 openssl gpgv e2fsprogs && rm -rf /var/lib/apt/lists/* && \

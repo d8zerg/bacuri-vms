@@ -9,7 +9,6 @@
 #include "control/maps.hpp"
 #include <sodium.h>
 #include <iostream>
-#include <print>
 #include <charconv>
 
 namespace
@@ -45,7 +44,7 @@ int main(int argc, char* argv[])
 try {
     using namespace bacuri::vms::control;
     if (argc == 2 && std::string_view{argv[1]} == "--version") {
-        std::println("bacuri.vms {}", BACURI_VMS_VERSION);
+        std::cout << "bacuri.vms " << BACURI_VMS_VERSION << '\n';
         return 0;
     }
     if (sodium_init() < 0) {

@@ -1,0 +1,6 @@
+---
+InheritParentConfig: false
+Checks: '-*,clang-analyzer-*,bugprone-*'
+WarningsAsErrors: '*'
+HeaderFilterRegex: '(^|.*/)src/'
+FormatStyle: file

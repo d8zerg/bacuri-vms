@@ -85,7 +85,7 @@ size_t header_callback(char* data, size_t size, size_t count, void* ctx)
     if (line.starts_with("HTTP/"))
         reply.content_range.clear();
     constexpr std::string_view key = "Content-Range:";
-    if (line.size() > key.size() && g_ascii_strncasecmp(line.data(), key.data(), key.size()) == 0) {
+    if (line.size() > key.size() && g_ascii_strncasecmp(data, key.data(), key.size()) == 0) {
         line.remove_prefix(key.size());
         while (line.starts_with(' '))
             line.remove_prefix(1);

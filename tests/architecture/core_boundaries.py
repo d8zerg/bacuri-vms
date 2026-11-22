@@ -15,7 +15,7 @@ OBJECTS = {
         camera_configuration_state camera_state camera_transport_audit record_camera_transport_policy ptz_commands ptz_telemetry""",
     "access": """local_users site_roles point_grants browser_sessions login_attempts export_grants webauthn_credentials
         webauthn_enrollment webauthn_challenges credential_audit invalidate_role_sessions audit_credential_binding""",
-    "recordings": """blocks gaps retired_through timeline_intervals retained_blocks archive_retention archive_recovery
+    "recordings": """blocks gaps retired_through catalog_intervals timeline_intervals retained_blocks archive_retention archive_recovery
         retention_now_us retention_cutoff advance_cutoff playback_parts""",
     "media_sessions": "media_sessions",
     "events": """observations feed_heads alerts alert_outbox alert_details access_versions touch_alert_scope

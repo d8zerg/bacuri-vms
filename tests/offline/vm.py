@@ -260,6 +260,8 @@ def exercise(line, send):
         verified_packages=len(packages),
         verified_assets=len(assets) + len(legacy),
         package_version=sbom["package_version"],
+        debian_target=sbom["debian_target"],
+        postgresql_version=sbom["postgresql_version"],
         signed_manifest_sha256=hashlib.sha256((report / "bundle/SHA256SUMS").read_bytes()).hexdigest(),
     )
     (report / "installed.json").write_text(

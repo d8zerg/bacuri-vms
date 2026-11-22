@@ -6,11 +6,14 @@ namespace bacuri::vms::control::maps_geo
 struct Coordinates {
     double lng, lat;
 };
+struct PlanPosition {
+    double x, y;
+};
 class PlanTransform
 {
   public:
     PlanTransform(const Json& definition, int width, int height);
-    Coordinates project(double x, double y) const;
+    Coordinates project(PlanPosition position) const;
     double heading() const;
     Json footprint() const;
 

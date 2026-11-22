@@ -6,7 +6,7 @@ namespace bacuri::vms::control
 namespace
 {
 constexpr std::string_view fields =
-    "d.alert_id,d.point_id,d.observed_at_utc_us,d.type,d.time_basis,d.uncertainty_us,d.position,a.work_state";
+    "d.alert_id,d.point_id,d.observed_at_utc_us,d.type,d.time_basis,d.uncertainty_us,d.position,d.work_state";
 Json alert(const Rows& rows, int row)
 {
     const auto time = std::stoll(rows.get(row, 2));
@@ -66,8 +66,7 @@ Json AlertFeed::snapshot()
     const auto rights = scope(db);
     const auto query =
         "SELECT " + std::string{fields} +
-        " FROM bacuri_events.alert_details d JOIN bacuri_events.alerts a "
-        "USING(site_id,position,point_id) "
+        " FROM bacuri_events.alert_details d "
         "WHERE site_id=$1 AND ($3::boolean OR point_id=ANY($2::uuid[])) ORDER BY position DESC LIMIT 100";
     auto rows =
         db.exec(query.c_str(),
@@ -115,7 +114,7 @@ FeedBatch AlertFeed::poll(std::string_view after)
     const auto query = "SELECT " + std::string{fields} + R"sql(,
         (SELECT a.alert_id FROM bacuri_events.alerts a
          WHERE a.site_id=d.site_id AND ($4::boolean OR a.point_id=ANY($2::uuid[])) AND a.position<d.position ORDER BY a.position DESC OFFSET 99 LIMIT 1)
-        FROM bacuri_events.alert_outbox o JOIN bacuri_events.alert_details d USING(site_id,position) JOIN bacuri_events.alerts a USING(site_id,position,point_id)
+        FROM bacuri_events.alert_outbox o JOIN bacuri_events.alert_details d USING(site_id,position)
         WHERE o.site_id=$1 AND ($4::boolean OR d.point_id=ANY($2::uuid[])) AND o.position >= $3 ORDER BY o.position LIMIT 65
     )sql";
     auto rows =

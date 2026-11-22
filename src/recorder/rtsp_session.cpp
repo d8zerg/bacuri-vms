@@ -164,7 +164,7 @@ std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const R
                          "! application/x-rtp,media=video,encoding-name=H264 "
                          "! rtph264depay name=depay request-keyframe=true wait-for-keyframe=true "
                          "! h264parse config-interval=-1 ! video/x-h264,stream-format=byte-stream,alignment=au "
-                         "! appsink name=frames sync=false max-buffers=4 max-bytes=8388608 wait-on-eos=false "
+                         "! appsink name=frames sync=false max-buffers=1 wait-on-eos=false "
                          "enable-last-sample=false",
                          &error)};
     Handle<GError, g_error_free> failure{error};
@@ -173,6 +173,12 @@ std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const R
     }
     Handle<GstElement, gst_object_unref> source{gst_bin_get_by_name(GST_BIN(pipeline.get()), "source")};
     Handle<GstElement, gst_object_unref> sink{gst_bin_get_by_name(GST_BIN(pipeline.get()), "frames")};
+    // GStreamer 1.22 limits appsink by buffer count. A single access unit is checked against the byte budget
+    // below.
+    if (g_object_class_find_property(G_OBJECT_GET_CLASS(sink.get()), "max-bytes")) {
+        g_object_set(sink.get(), "max-bytes", static_cast<guint64>(limits(Profile::main).bytes), "max-buffers", 4U,
+                     nullptr);
+    }
     Handle<GstElement, gst_object_unref> depay{gst_bin_get_by_name(GST_BIN(pipeline.get()), "depay")};
     Handle<GstPad, gst_object_unref> pad{gst_element_get_static_pad(depay.get(), "sink")};
     Handle<GstBus, gst_object_unref> bus{gst_element_get_bus(pipeline.get())};

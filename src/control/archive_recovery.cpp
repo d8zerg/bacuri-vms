@@ -4,7 +4,6 @@
 #include "control/database.hpp"
 #include "control/support.hpp"
 
-#include <format>
 #include <ostream>
 #include <thread>
 
@@ -35,18 +34,16 @@ void rebuild_archive(std::ostream& output)
 }
 void rebuild_archive(Database& db, std::ostream& output, StorageLayout layout)
 {
-    const auto fence =
-        layout == StorageLayout::legacy ? "bacuri_inventory.archive_recovery" : "bacuri_archive.archive_recovery";
+    const bool legacy = layout == StorageLayout::legacy;
     const archive::Owner owner{setting("BACURI_SITE_ID"), setting("BACURI_NODE_ID")};
     const archive::fs::path root{setting("BACURI_ARCHIVE_DIR")};
     if (db.exec("SELECT pg_try_advisory_lock(hashtextextended($1,1))", {owner.site}).get(0) != "t") {
         throw std::runtime_error("Another site recovery is in progress");
     }
     db.exec("BEGIN");
-    db.exec(std::format("INSERT INTO {} VALUES($1,'verifying') ON CONFLICT(site_id) DO UPDATE SET "
-                        "reason=excluded.reason",
-                        fence)
-                .c_str(),
+    const std::string insert =
+        legacy ? "INSERT INTO bacuri_inventory.archive_recovery" : "INSERT INTO bacuri_archive.archive_recovery";
+    db.exec((insert + " VALUES($1,'verifying') ON CONFLICT(site_id) DO UPDATE SET reason=excluded.reason").c_str(),
             {owner.site});
     const bool closed = media_sessions::close_archive_sessions(db, owner.site, layout);
     db.exec("COMMIT");
@@ -56,7 +53,9 @@ void rebuild_archive(Database& db, std::ostream& output, StorageLayout layout)
     const bool journal = archive::fs::is_regular_file(archive::fs::symlink_status(root / "journal.db"));
     if (!archive::fs::is_directory(archive::fs::symlink_status(root / "blocks")) ||
         (!journal && archive::fs::is_empty(root / "blocks"))) {
-        db.exec(std::format("UPDATE {} SET reason='volume_unavailable' WHERE site_id=$1", fence).c_str(),
+        db.exec(legacy
+                    ? "UPDATE bacuri_inventory.archive_recovery SET reason='volume_unavailable' WHERE site_id=$1"
+                    : "UPDATE bacuri_archive.archive_recovery SET reason='volume_unavailable' WHERE site_id=$1",
                 {owner.site});
         throw std::runtime_error("Archive volume unavailable or uninitialized");
     }
@@ -124,7 +123,9 @@ void rebuild_archive(Database& db, std::ostream& output, StorageLayout layout)
                           {owner.site, owner.node});
     // A failed PostgreSQL commit keeps the fence. Its retry scans the entire inventory again.
     volume.confirm_inventory();
-    db.exec(std::format("DELETE FROM {} WHERE site_id=$1", fence).c_str(), {owner.site});
+    db.exec(legacy ? "DELETE FROM bacuri_inventory.archive_recovery WHERE site_id=$1"
+                   : "DELETE FROM bacuri_archive.archive_recovery WHERE site_id=$1",
+            {owner.site});
     db.exec("COMMIT");
     output << Json{{"verified", verified},
                    {"corrupt", corrupt},

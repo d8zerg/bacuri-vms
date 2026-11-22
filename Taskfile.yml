@@ -2,6 +2,9 @@ version: '3'
 
 vars:
   PRESET: gcc-debug
+  SUITE: trixie
+  KIT_COMPOSE: 'docker compose {{if eq .SUITE "bookworm"}}-f compose.yaml -f compose.bookworm.yaml{{end}}'
+  KIT_RUN: '{{.KIT_COMPOSE}} run --rm --no-deps --user "$(id -u):$(id -g)" -T'
   COMPOSE_RUN: 'docker compose run --rm --no-deps --user "$(id -u):$(id -g)"'
   DEV_RUN: '{{.COMPOSE_RUN}} -T dev'
   BUILD_RUN: '{{.COMPOSE_RUN}} -T builder'
@@ -38,8 +41,7 @@ tasks:
       {{.BUILD_RUN}} run-clang-tidy-19 -p build/clang-debug
       -clang-tidy-binary=/usr/bin/clang-tidy-19 -quiet -j 2
       -clang-apply-replacements-binary=/usr/bin/clang-apply-replacements-19
-      -header-filter='^/workspace/src/'
-      -checks='-*,clang-analyzer-*,bugprone-*' -warnings-as-errors='*'
+      -config-file=/workspace/.clang-tidy
       '^/workspace/(src|tests)/'
 
   check:
@@ -66,6 +68,7 @@ tasks:
       - task: stand:check
       - task: stand:check-postgres-upgrade
       - task: schema:check
+      - task: postgres:performance
       - for: [gcc-debug, clang-asan-ubsan]
         task: control:check
         vars: {PRESET: '{{.ITEM}}'}
@@ -92,7 +95,10 @@ tasks:
         vars: {PRESET: '{{.ITEM}}'}
       - task: retention:check
       - task: export:check
-      - task: install:check
+      - task: media:check:bookworm
+      - for: [bookworm, trixie]
+        task: install:check
+        vars: {SUITE: '{{.ITEM}}'}
       - task: coverage:check
 
   packages:build:
@@ -232,6 +238,13 @@ tasks:
     cmds:
       - docker compose build postgres
       - sh tools/check-storage
+
+  postgres:performance:
+    desc: Compare PostgreSQL index and archive query plans on a populated disposable database
+    deps: [dev:image]
+    cmds:
+      - docker compose up -d --wait postgres
+      - '{{.DEV_RUN}} python3 tests/schema/query-plans.py'
 
   schema:check:
     desc: Verify the manifest, database migrations and PostgreSQL module ownership on a disposable database
@@ -389,20 +402,45 @@ tasks:
         BACURI_UI_RESULTS="$PWD/build" {{.COMPOSE_RUN}} -T ui-kit-check sh -ec
         'npm run app -- --mode fixture --outDir /results/workspace-fixture && npm run app -- --outDir /results/web-client && node --version > /results/web-build-node && npm --version > /results/web-build-npm'
 
-  install:check:
-    desc: Install the signed offline installation kit on Debian, reboot and verify WebAuthn and access rights
-    deps:
-      - web:build
+  release:build:bookworm:
+    desc: Build native Debian 12 binaries using Bookworm libraries
+    cmds:
+      - docker compose -f compose.yaml -f compose.bookworm.yaml build bookworm-builder
+      - >-
+        docker compose -f compose.yaml -f compose.bookworm.yaml run --rm --no-deps -T --user "$(id -u):$(id -g)"
+        bookworm-builder sh tools/build-preset bookworm-release
+
+  media:check:bookworm:
+    desc: Verify native Bookworm recording, browser WebRTC playback and the alert feed
+    deps: [release:build:bookworm, stand:up]
+    cmds:
+      - docker compose -f compose.yaml -f compose.bookworm.yaml build bookworm-media-test
+      - docker compose up -d --wait playback-chrome playback-firefox
+      - defer: docker compose stop playback-chrome playback-firefox
+      - for: [live, alerts]
+        cmd: >-
+          docker compose -f compose.yaml -f compose.bookworm.yaml run --rm --no-deps -T --user "$(id -u):$(id -g)"
+          bookworm-media-test sh tests/check-control.sh bookworm-release {{.ITEM}}
+
+  release:build:trixie:
+    cmds:
       - task: build
         vars: {PRESET: gcc-release}
+
+  install:check:
+    desc: Install the signed offline kit on the selected Debian release and verify reboot, WebAuthn and access rights
+    requires: {vars: [{name: SUITE, enum: [bookworm, trixie]}]}
+    deps:
+      - web:build
+      - task: 'release:build:{{.SUITE}}'
     cmds:
-      - docker compose build offline-packager install-vm
+      - '{{.KIT_COMPOSE}} build offline-packager install-vm'
       - |
         set -eu
-        report=$(sh tools/quality-report-dir offline-install)
+        report=$(sh tools/quality-report-dir offline-install-{{.SUITE}})
         echo "Offline installation results: $report"
-        {{.COMPOSE_RUN}} -T offline-packager python3 tools/offline-package.py "$report" --qualification
-        bash tools/check-offline-install "$report"
+        {{.KIT_RUN}} offline-packager python3 tools/offline-package.py "$report" --qualification
+        bash tools/check-offline-install "$report" "$({{.KIT_COMPOSE}} config --images install-vm)"
 
   maintenance:check:
     desc: Qualify upgrade, interrupted migration, rollback and recovery with a signed predecessor
@@ -422,16 +460,15 @@ tasks:
 
   release:package:
     desc: Assemble the offline release with the supplied GnuPG home and signing fingerprint
-    requires: {vars: [SIGNING_HOME, SIGNER, OUTPUT]}
+    requires: {vars: [SIGNING_HOME, SIGNER, OUTPUT, {name: SUITE, enum: [bookworm, trixie]}]}
     deps:
       - web:build
-      - task: build
-        vars: {PRESET: gcc-release}
+      - task: 'release:build:{{.SUITE}}'
     cmds:
-      - docker compose build offline-packager
+      - '{{.KIT_COMPOSE}} build offline-packager'
       - mkdir -p {{.OUTPUT | shellQuote}}
       - >-
-        {{.COMPOSE_RUN}} -T -v "$(realpath {{.SIGNING_HOME | shellQuote}}):/signing" -e GNUPGHOME=/signing
+        {{.KIT_RUN}} -v "$(realpath {{.SIGNING_HOME | shellQuote}}):/signing" -e GNUPGHOME=/signing
         -v "$(realpath {{.OUTPUT | shellQuote}}):/release" offline-packager python3 tools/offline-package.py /release --signer {{.SIGNER | shellQuote}}
 
   workspace:check:

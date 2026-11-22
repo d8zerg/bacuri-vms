@@ -22,16 +22,18 @@ task check
 
 | Команда | Действие |
 | --- | --- |
-| `task release:package SIGNING_HOME=... SIGNER=... OUTPUT=...` | Собрать автономный комплект с Debian-пакетом `bacuri-vms` и подписать его ключом поставщика. [Сборка комплекта](docs/test-profile.md#автономная-установка-и-доступ) |
-| `task install:check` | Установить подписанный комплект на чистую Debian 13 в KVM, перезагрузить узел и проверить WebAuthn и права на точки. На хосте требуется `/dev/kvm`. [Автономная установка](docs/install.md) |
-| `task maintenance:check PREVIOUS=/путь/к/отчёту` | Проверить переход со схемы 14 на 15, повтор миграции, откат и восстановление на отдельном узле с сохранным архивом. Нужен каталог подписанного комплекта 0.1.0 с `bundle/` и `release-key.gpg`. [Обслуживание узла](docs/maintenance.md) |
+| `task release:package SUITE=bookworm SIGNING_HOME=... SIGNER=... OUTPUT=...` | Собрать автономный комплект с Debian-пакетом `bacuri-vms` и подписать его ключом поставщика. Для Debian 13 укажите `SUITE=trixie`. [Сборка комплекта](docs/test-profile.md#автономная-установка-и-доступ) |
+| `task install:check SUITE=bookworm` или `SUITE=trixie` | Установить подписанный комплект на чистую Debian 12 или 13 в KVM, перезагрузить узел и проверить WebAuthn и права на точки. На хосте требуется `/dev/kvm`. [Автономная установка](docs/install.md) |
+| `task maintenance:check PREVIOUS=/путь/к/отчёту` | Проверить переход с предыдущей схемы на 20, повтор миграции, откат и восстановление на отдельном узле с сохранным архивом. Нужен каталог подписанного предыдущего комплекта с `bundle/` и `release-key.gpg`. [Обслуживание узла](docs/maintenance.md) |
 | `task build` | Собрать C++ цели с пресетом `gcc-debug` |
 | `task build PRESET=clang-debug` | Собрать с указанным пресетом CMake |
 | `task release:check` | Собрать оптимизированные службы, запустить `bacuri-vms-core --version` |
 | `task build:repro` | Побайтно сравнить исполняемые файлы Release с чистой сборкой в отдельном каталоге того же образа |
 | `task deps:lock` | Пересчитать общий Conan lockfile по всем профилям после изменения зависимостей |
 | `task test` | Собрать и запустить CTest. Поддерживает `PRESET` |
-| `task lint` | Запустить clang-tidy |
+| `task lint` | Проверить C++ по правилам из [.clang-tidy](.clang-tidy) |
+| `task media:check:bookworm` | Проверить запись RTSP, WebRTC и работу с тревогами на системных библиотеках Debian 12 |
+| `task postgres:performance` | Сравнить результаты и планы запросов к очереди карт, размещениям камер и архиву до и после миграции. [Методика и измерения](docs/postgresql-performance.md) |
 | `task format:check` | Проверить формат C++ по `.clang-format`. Расхождение останавливает проверку |
 | `task secrets:check` | Запустить Gitleaks на полной истории Git, индексе и рабочих файлах, включая новые файлы вне правил игнорирования |
 | `task coverage:check` | Выполнить CTest и интеграционные сценарии. Для C++, JavaScript рабочих маршрутов и TypeScript UI Kit требуется не менее 75% строк в каждом отчёте |

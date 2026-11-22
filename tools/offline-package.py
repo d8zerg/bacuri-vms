@@ -4,6 +4,8 @@ import argparse
 import hashlib
 import json
 import os
+import platform
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -28,14 +30,14 @@ def write_json(path, obj):
     path.write_text(json.dumps(obj, indent=2, sort_keys=True) + "\n")
 
 
-def make_package(work, repo, version, runtime, headers):
+def make_package(work, repo, version, runtime, headers, binaries):
     pkg = work / "package"
     share = pkg / "usr/share/bacuri-vms"
     for binary in ("core", "media", "recorder", "observation-source", "verify-export"):
         file = "bacuri-vms-" + binary
-        copy(Path("build/gcc-release") / file, pkg / "usr/lib/bacuri-vms" / file)
-    copy("build/gcc-release/bacuri-vms", pkg / "usr/sbin/bacuri-vms")
-    copy("build/gcc-release/bacuri-maintain", pkg / "usr/sbin/bacuri-maintain")
+        copy(binaries / file, pkg / "usr/lib/bacuri-vms" / file)
+    copy(binaries / "bacuri-vms", pkg / "usr/sbin/bacuri-vms")
+    copy(binaries / "bacuri-maintain", pkg / "usr/sbin/bacuri-maintain")
     for unit in ("bacuri-diagnostics.timer","bacuri-diagnostics.service","bacuri-metrics.socket","bacuri-metrics@.service"):
         copy(Path("packaging/debian")/unit,pkg/"usr/lib/systemd/system"/unit)
     for name in ("core", "recorder", "media"):
@@ -89,7 +91,11 @@ def main():
     files = Path("/opt/bacuri/offline-packages")
     for file in files.glob("*.deb"):
         copy(file, repo / file.name)
-    cache = Path("build/gcc-release/CMakeCache.txt").read_text().splitlines()
+    release = platform.freedesktop_os_release()
+    suite = release["VERSION_CODENAME"]
+    binaries = Path("build") / {"trixie": "gcc-release", "bookworm": "bookworm-release"}[suite]
+    target = ":".join((release["ID"], release["VERSION_ID"], output("dpkg", "--print-architecture")))
+    cache = (binaries / "CMakeCache.txt").read_text().splitlines()
     version = next(x.split("=", 1)[1] for x in cache if x.startswith("CMAKE_PROJECT_VERSION:")) + "-1"
     if args.qualification:
         version += "~qualification"
@@ -131,16 +137,22 @@ def main():
             return dict(name=name, version=ver, architecture=arch, file=file.name, sha256=digest(file))
 
         packages = [package_info(file) for file in sorted(repo.glob("*.deb"))]
+        pg_version = os.environ["BACURI_POSTGRES_VERSION"]
+        pg_major = pg_version.split(".")[0]
+        pg_packages = {p["name"]: p["version"].rsplit("-", 1)[0] for p in packages
+                       if re.fullmatch(r"postgresql-(?:client-)?\d+|libpq5", p["name"])}
+        if pg_packages != dict.fromkeys((f"postgresql-{pg_major}", f"postgresql-client-{pg_major}", "libpq5"), pg_version):
+            raise ValueError(f"Expected PostgreSQL {pg_version} server, client and libpq, found {pg_packages}")
         graph = json.loads(Path("/opt/bacuri/deps/gcc-release/graph.json").read_text())["graph"]["nodes"]
         headers = [n for n in graph.values() if n.get("name") in ("boost", "nlohmann_json")]
-        product = make_package(work, repo, version, packages, headers)
+        product = make_package(work, repo, version, packages, headers, binaries)
         packages.append(package_info(product))
-        copy("build/gcc-release/bacuri-install", kit / "bacuri-install")
-        copy("build/gcc-release/bacuri-maintain", kit / "bacuri-maintain")
+        copy(binaries / "bacuri-install", kit / "bacuri-install")
+        copy(binaries / "bacuri-maintain", kit / "bacuri-maintain")
         copy("docs/maintenance.md", kit / "MAINTENANCE.md")
         copy("LICENSE", kit / "LICENSE")
         copy("docs/install.md", kit / "INSTALL.md")
-        (kit / "VERSION").write_text(version + "\n")
+        (kit / "VERSION").write_text(f"{version}\n{target}\n")
         static = Path("build/web-client")
         assets = {
             str(p.relative_to(static)): digest(p)
@@ -165,6 +177,8 @@ def main():
             kit / "sbom.json",
             {
                 "package_version": version,
+                "debian_target": target,
+                "postgresql_version": pg_version,
                 "debian_packages": packages,
                 "web_assets": assets,
                 "legacy_web_assets": {
@@ -183,10 +197,11 @@ def main():
                 "api_build_graph": {k: v["version"] for k, v in json.loads(Path("tools/api-client/package-lock.json").read_text())["packages"].items() if k},
                 "packager_debian": output("dpkg-query", "-W").splitlines(),
                 "frontend_build_graph": [p for p in npm if lock[p["path"]].get("dev")],
-                "conan": output("conan", "--version"),
+                "conan": (Path("/opt/bacuri/deps/gcc-release/conan-version").read_text().strip()
+                          if suite == "bookworm" else output("conan", "--version")),
                 "node": Path("build/web-build-node").read_text().strip(),
                 "npm": Path("build/web-build-npm").read_text().strip(),
-                "compiler": output("g++-14", "-dumpfullversion"),
+                "compiler": output("g++-12" if suite == "bookworm" else "g++-14", "-dumpfullversion"),
                 "cmake": output("cmake", "--version").splitlines()[0],
             },
         )

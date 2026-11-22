@@ -1,0 +1,18 @@
+services:
+  bookworm-builder:
+    profiles: ["tools"]
+    build: {context: ., target: bookworm-builder}
+    network_mode: none
+    volumes:
+      - .:/workspace
+  bookworm-media-test:
+    extends: {file: compose.yaml, service: dev}
+    image: ${COMPOSE_PROJECT_NAME}-bookworm-media-test
+    build: {target: bookworm-media-test}
+  offline-packager:
+    image: ${COMPOSE_PROJECT_NAME}-bookworm-offline-packager
+    build: {target: bookworm-offline-packager}
+  install-vm:
+    image: ${COMPOSE_PROJECT_NAME}-bookworm-install-vm
+    build:
+      args: {GUEST_BASE: bookworm-base}

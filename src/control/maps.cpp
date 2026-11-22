@@ -124,7 +124,7 @@ Json scene(Database& db, const std::string& site, const std::string& user, bool 
         }
         if (markers.get(i, 5) == "t") {
             const auto& transform = transforms.at(markers.get(i, 1));
-            const auto pos = transform.project(marker.at("x"), marker.at("y"));
+            const auto pos = transform.project({marker.at("x"), marker.at("y")});
             Json projected{{"point_id", point},
                            {"plan_id", nullptr},
                            {"source_plan_id", markers.get(i, 1)},

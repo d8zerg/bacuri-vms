@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bacuri-vms VERSION 0.1.5 LANGUAGES CXX)
+project(bacuri-vms VERSION 0.1.6 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -70,7 +70,7 @@ target_link_libraries(bacuri-vms-rpc PUBLIC protobuf::libprotobuf PkgConfig::GRP
 
 add_library(bacuri-vms-control-support STATIC src/control/support.cpp)
 target_link_libraries(bacuri-vms-control-support PUBLIC bacuri-vms-domain PkgConfig::SODIUM PkgConfig::GIO)
-pkg_check_modules(GST REQUIRED IMPORTED_TARGET gstreamer-app-1.0>=1.24 gstreamer-rtp-1.0 gstreamer-rtsp-1.0)
+pkg_check_modules(GST REQUIRED IMPORTED_TARGET gstreamer-app-1.0>=1.22 gstreamer-rtp-1.0 gstreamer-rtsp-1.0)
 add_library(bacuri-vms-ingest STATIC src/recorder/frame_clock.cpp src/recorder/frame_queue.cpp
     src/recorder/ingest.cpp src/recorder/rtsp_session.cpp)
 target_link_libraries(bacuri-vms-ingest PUBLIC bacuri-vms-domain PRIVATE PkgConfig::GST PkgConfig::GIO)
@@ -95,7 +95,7 @@ target_link_libraries(bacuri-vms-recorder PRIVATE bacuri-vms-ingest nlohmann_jso
 target_link_libraries(bacuri-vms-recorder PRIVATE bacuri-vms-control-support bacuri-vms-rpc SQLite::SQLite3 Boost::headers)
 add_library(bacuri-vms-media-auth STATIC src/media/lease.cpp)
 target_link_libraries(bacuri-vms-media-auth PUBLIC bacuri-vms-control-support bacuri-vms-rpc)
-pkg_check_modules(WEBRTC REQUIRED IMPORTED_TARGET gstreamer-webrtc-1.0>=1.24 gstreamer-sdp-1.0)
+pkg_check_modules(WEBRTC REQUIRED IMPORTED_TARGET gstreamer-webrtc-1.0>=1.22 gstreamer-sdp-1.0)
 add_executable(bacuri-vms-media src/media/main.cpp src/media/live.cpp src/media/webrtc.cpp)
 target_compile_definitions(bacuri-vms-media PRIVATE GST_USE_UNSTABLE_API)
 target_link_libraries(bacuri-vms-media PRIVATE PkgConfig::WEBRTC PkgConfig::GST)

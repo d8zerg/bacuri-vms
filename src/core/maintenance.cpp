@@ -55,6 +55,8 @@ int schema_for(std::string v)
         return 18;
     if (v == "0.1.5-1")
         return 19;
+    if (v == "0.1.6-1")
+        return 20;
     throw std::runtime_error("Unsupported Bacuri VMS package version");
 }
 const char* version_query(int schema)
@@ -269,11 +271,10 @@ void load_snapshot(const Temp& tmp, const Json& info)
     reset += inventory::reset_recorder;
     if (info.at("schema") >= 15)
         reset += access::audit_restore;
-    args.insert(args.end(), {"--single-transaction", "-c",
-                             "DROP SCHEMA IF EXISTS "
-                             "bacuri_events,bacuri_inventory,bacuri_archive,bacuri_access,bacuri_maps,bacuri_"
-                             "media_sessions,bacuri_meta CASCADE; SET ROLE \"bacuri-core\";",
-                             "-f", "-", "-c", reset});
+    constexpr auto drop_schemas =
+        "DROP SCHEMA IF EXISTS bacuri_events,bacuri_inventory,bacuri_archive,bacuri_access,"
+        "bacuri_maps,bacuri_media_sessions,bacuri_meta CASCADE; SET ROLE \"bacuri-core\";";
+    args.insert(args.end(), {"--single-transaction", "-c", drop_schemas, "-f", "-", "-c", reset});
     run(args, {.input = tmp.dir / "database.sql"});
     restore_files(tmp, info);
     ensure(info.at("site") == read(config / "site-id") && info.at("node") == read(config / "node-id"),
@@ -297,7 +298,7 @@ void operate(const std::string& action, char** v)
     ensure(fs::is_directory(file.parent_path()), "Snapshot directory does not exist");
     validate_recovery_key(key);
     if (action == "upgrade") {
-        ensure(target == 19, "Unsupported upgrade target");
+        ensure(target == 20, "Unsupported upgrade target");
         if (!resumed || !fs::exists(file)) {
             const auto current = installed_package().version;
             const int source = schema_for(current);

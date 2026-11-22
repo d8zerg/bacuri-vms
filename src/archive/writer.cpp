@@ -62,7 +62,8 @@ void mux(const fs::path& path, const Frames& frames, const std::vector<SampleTim
     GError* error{};
     std::unique_ptr<GstElement, StopPipeline> pipeline{
         gst_parse_launch("appsrc name=input format=time caps=video/x-h264,stream-format=byte-stream,alignment=au "
-                         "! h264parse ! h264timestamper ! mp4mux fragment-duration=500 trak-timescale=90000 "
+                         "! h264parse ! video/x-h264,stream-format=avc,alignment=au ! h264timestamper "
+                         "! mp4mux fragment-duration=500 trak-timescale=90000 "
                          "! filesink name=output sync=false",
                          &error)};
     std::unique_ptr<GError, decltype(&g_error_free)> failure{error, g_error_free};

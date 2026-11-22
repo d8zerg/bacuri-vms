@@ -19,8 +19,9 @@ Package installed_package()
         std::istringstream fields{line};
         Package row;
         std::string status;
-        if (fields >> row.name >> status >> row.version && std::ranges::contains(package_names, row.name) &&
-            status != "config-files" && status != "not-installed") {
+        if (fields >> row.name >> status >> row.version &&
+            std::ranges::find(package_names, row.name) != package_names.end() && status != "config-files" &&
+            status != "not-installed") {
             ensure(installed.name.empty(), "Multiple Bacuri VMS packages installed");
             installed = row;
         }
@@ -47,6 +48,13 @@ Bundle::Bundle(const SignedKit& source)
     std::istringstream stream{read(kit / "VERSION")};
     stream >> version;
     ensure(!version.empty(), "Missing package version");
+    std::string target;
+    if (!(stream >> target))
+        target = "debian:13:amd64"; // Earlier signed kits used the Trixie package set.
+    const auto host =
+        capture({"/bin/sh", "-ec",
+                 ". /etc/os-release; printf '%s:%s:' \"$ID\" \"$VERSION_ID\"; dpkg --print-architecture"});
+    ensure(target == host, "Installation bundle targets a different Debian release or architecture");
     for (const auto* name : package_names) {
         const auto filename = std::string{name} + "_" + version + "_amd64.deb";
         if (fs::is_regular_file(kit / "repository" / filename)) {

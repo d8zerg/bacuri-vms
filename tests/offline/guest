@@ -20,11 +20,17 @@ if [ ! -f /root/first-boot ]; then
     test "$before" = "$(sha256sum /var/lib/dpkg/status)"
     test ! -e /etc/bacuri-vms
     rm -rf /tmp/bad
+    . /etc/os-release
+    test "$(sed -n '2p' "$kit/VERSION")" = "$ID:$VERSION_ID:$(dpkg --print-architecture)"
     "$kit/bacuri-install" "$keyring" "$kit"
     openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -noenc -days 2 -subj /CN=bacuri.test \
         -addext subjectAltName=DNS:bacuri.test -keyout /root/tls.key -out /root/tls.crt
     openssl rand -hex 24 >/root/password
     "$admin" setup bacuri.test installer /root/tls.crt /root/tls.key 10.0.2.0/24 </root/password >/root/setup-output
+    pg_version=$(sed -n 's/.*"postgresql_version": "\([0-9.]*\)".*/\1/p' "$kit/sbom.json")
+    test -n "$pg_version"
+    test "$(runuser -u postgres -- psql -XAtqc 'SHOW server_version' | cut -d' ' -f1)" = "$pg_version"
+    test "$(psql --version | cut -d' ' -f3)" = "$pg_version"
     "$admin" admin create-user viewer operator </root/password
     site=$(cat /etc/bacuri-vms/site-id)
     runuser -u postgres -- psql -X -v ON_ERROR_STOP=1 -d bacuri_vms -c "INSERT INTO bacuri_inventory.observation_points VALUES('$site','$point','Offline verification point')"

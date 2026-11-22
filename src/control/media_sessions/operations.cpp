@@ -1,6 +1,5 @@
 #include "control/database.hpp"
 #include "control/recovery.hpp"
-#include <format>
 #include "control/media_sessions/operations.hpp"
 
 namespace bacuri::vms::control::media_sessions
@@ -21,12 +20,12 @@ void close_export(Database& db, const std::string& session)
 }
 bool close_archive_sessions(Database& db, const std::string& site, StorageLayout layout)
 {
-    const auto sessions = layout == StorageLayout::legacy ? "bacuri_inventory.media_sessions"
-                                                          : "bacuri_media_sessions.media_sessions";
+    const std::string sessions = layout == StorageLayout::legacy ? "bacuri_inventory.media_sessions"
+                                                                 : "bacuri_media_sessions.media_sessions";
     return db
-        .exec(std::format("UPDATE {} SET closed=true WHERE site_id=$1 AND begin_us IS NOT NULL AND NOT closed AND "
-                          "expires_at>now() RETURNING 1",
-                          sessions)
+        .exec(("UPDATE " + sessions +
+               " SET closed=true WHERE site_id=$1 AND begin_us IS NOT NULL AND NOT closed AND "
+               "expires_at>now() RETURNING 1")
                   .c_str(),
               {site})
         .size();

@@ -15,7 +15,10 @@ namespace
 
 std::string etag(const Key& key, const Json& camera)
 {
-    return "\"" + fingerprint(key, "camera-etag", camera.dump()) + "\"";
+    std::string tag{"\""};
+    tag += fingerprint(key, "camera-etag", camera.dump());
+    tag += '"';
+    return tag;
 }
 
 Json camera(Database& db, const std::string& site, const std::string& device)

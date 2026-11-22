@@ -2,7 +2,7 @@
 set -euo pipefail
 report=$1
 export BACURI_INSTALL_REPORT=$(realpath "$report")
-export BACURI_INSTALL_VM_IMAGE=$(docker compose config --images install-vm)
+export BACURI_INSTALL_VM_IMAGE=${2:-$(docker compose config --images install-vm)}
 project=(docker compose -p "bacuri-install-$(cat /proc/sys/kernel/random/uuid)" -f compose.yaml -f tests/offline/compose.yaml)
 trap '"${project[@]}" --profile tools --profile playback-test down --volumes' EXIT
 "${project[@]}" up -d --no-build --wait playback-chrome

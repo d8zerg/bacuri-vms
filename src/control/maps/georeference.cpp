@@ -74,11 +74,11 @@ PlanTransform::PlanTransform(const Json& d, int width, int height) : width_(widt
     // A single local image must fit on one longitude branch and within the Mercator latitude range.
     for (double x : {0., 1.})
         for (double y : {0., 1.})
-            (void)project(x, y);
+            (void)project({x, y});
 }
-Coordinates PlanTransform::project(double x, double y) const
+Coordinates PlanTransform::project(PlanPosition position) const
 {
-    const double u = (x - x_) * width_, v = (y_ - y) * height_;
+    const double u = (position.x - x_) * width_, v = (y_ - position.y) * height_;
     const double delta = (right_east_ * u + up_east_ * v) / radius / radians;
     const double lat = std::atan(std::sinh(mercator_y_ + (-up_east_ * u + right_east_ * v) / radius)) / radians;
     require(std::abs(delta) < 180 && std::abs(lat) <= latitude_limit);
@@ -92,10 +92,10 @@ Json PlanTransform::footprint() const
 {
     Json corners = Json::array();
     for (auto [x, y] : {std::pair{0., 0.}, {1., 0.}, {1., 1.}, {0., 1.}}) {
-        auto [lng, lat] = project(x, y);
+        auto [lng, lat] = project({x, y});
         corners.push_back({longitude_ + std::remainder(lng - longitude_, 360.0), lat});
     }
-    const auto center = project(.5, .5);
+    const auto center = project({.5, .5});
     return {{"corners", corners},
             {"bearing", heading()},
             {"center", {center.lng, center.lat}},
@@ -145,14 +145,14 @@ Json georeference(Database& db, const Request& req, const std::string& site, boo
                          rows.get(i, 6), rows.get(i, 7)});
         if (!transform)
             continue;
-        auto projected = transform->project(std::stod(rows.get(i, 1)), std::stod(rows.get(i, 2)));
+        auto projected = transform->project({std::stod(rows.get(i, 1)), std::stod(rows.get(i, 2))});
         Json camera{{"point_id", point}, {"projected", {projected.lng, projected.lat}}};
         if (!rows.get(i, 5).empty()) {
             Coordinates existing{std::stod(rows.get(i, 5)), std::stod(rows.get(i, 6))};
             if (!rows.get(i, 4).empty()) {
                 PlanTransform other(Json::parse(rows.get(i, 7)), std::stoi(rows.get(i, 8)),
                                     std::stoi(rows.get(i, 9)));
-                existing = other.project(existing.lng, existing.lat);
+                existing = other.project({existing.lng, existing.lat});
                 camera["existing_plan_id"] = rows.get(i, 4);
             }
             camera["existing"] = {existing.lng, existing.lat};

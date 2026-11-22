@@ -36,6 +36,18 @@
       }
     },
     {
+      "name": "bookworm-release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/bookworm-release",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "/usr/bin/g++-12",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "/opt/bacuri/deps/gcc-release",
+        "CMAKE_COMPILE_WARNING_AS_ERROR": true,
+        "BUILD_TESTING": false
+      }
+    },
+    {
       "name": "gcc-debug",
       "inherits": "dev-base",
       "environment": { "BACURI_CONAN_GENERATORS": "/opt/bacuri/deps/gcc-debug" }
@@ -68,6 +80,7 @@
     }
   ],
   "buildPresets": [
+    { "name": "bookworm-release", "configurePreset": "bookworm-release" },
     { "name": "gcc-release", "configurePreset": "gcc-release" },
     { "name": "gcc-debug", "configurePreset": "gcc-debug" },
     { "name": "gcc-coverage", "configurePreset": "gcc-coverage" },
