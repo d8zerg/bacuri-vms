@@ -6,24 +6,24 @@ v5.0.0-1.2.2,1,URL components and permitted schemes,applicable,Compare the API p
 v5.0.0-1.2.3,1,JavaScript and JSON strings,applicable,Compare the API parser and each output sink with the accepted input types,6.2,src/control/session.cpp,pending
 v5.0.0-1.2.4,1,Bound SQL parameters,applicable,Review binding of data parameters in PostgreSQL queries,7.2,src/control/database.cpp,pending
 v5.0.0-1.2.5,1,Process arguments,applicable,Compare the API parser and each output sink with the accepted input types,6.2,src/control/session.cpp,pending
-v5.0.0-1.2.6,2,Directory queries,excluded,No LDAP directory or authentication backend,8.3,docs/architecture.md,scope-review
-v5.0.0-1.2.7,2,XPath expressions,excluded,No dynamically assembled XPath expressions in the protocol adapters,8.3,docs/architecture.md,scope-review
-v5.0.0-1.2.8,2,TeX processor settings,excluded,No LaTeX processor,8.3,docs/architecture.md,scope-review
+v5.0.0-1.2.6,2,Directory queries,excluded,No LDAP directory or authentication backend,12.1,docs/architecture.md,scope-review
+v5.0.0-1.2.7,2,XPath expressions,excluded,No dynamically assembled XPath expressions in the protocol adapters,12.1,docs/architecture.md,scope-review
+v5.0.0-1.2.8,2,TeX processor settings,excluded,No LaTeX processor,12.1,docs/architecture.md,scope-review
 v5.0.0-1.2.9,2,Literal input in regular expressions,applicable,Compare the API parser and each output sink with the accepted input types,6.2,src/control/session.cpp,pending
-v5.0.0-1.3.1,1,Rich-text input,excluded,No rich HTML authoring interface,8.3,docs/architecture.md,scope-review
+v5.0.0-1.3.1,1,Rich-text input,excluded,No rich HTML authoring interface,12.1,docs/architecture.md,scope-review
 v5.0.0-1.3.2,1,Dynamic code evaluation,applicable,Compare the API parser and each output sink with the accepted input types,6.2,src/control/session.cpp,pending
 v5.0.0-1.3.3,2,Data passed to interpreters,applicable,Compare the API parser and each output sink with the accepted input types,6.2,src/control/session.cpp,pending
 v5.0.0-1.3.4,2,SVG active content,applicable,Compare the API parser and each output sink with the accepted input types,6.2,src/control/session.cpp,pending
-v5.0.0-1.3.5,2,User expressions,excluded,No user-supplied executable templates,8.3,docs/architecture.md,scope-review
+v5.0.0-1.3.5,2,User expressions,excluded,No user-supplied executable templates,12.1,docs/architecture.md,scope-review
 v5.0.0-1.3.6,2,Camera connection destinations,applicable,Verify the destination policy for camera URLs and service addresses,6.2,tests/cameras/commissioning.py,pending
 v5.0.0-1.3.7,2,Template construction,applicable,Compare the API parser and each output sink with the accepted input types,6.2,src/control/session.cpp,pending
-v5.0.0-1.3.8,2,JNDI lookups,excluded,No Java naming or directory interfaces,8.3,docs/architecture.md,scope-review
-v5.0.0-1.3.9,2,Memcached commands,excluded,No memcached service,8.3,docs/architecture.md,scope-review
+v5.0.0-1.3.8,2,JNDI lookups,excluded,No Java naming or directory interfaces,12.1,docs/architecture.md,scope-review
+v5.0.0-1.3.9,2,Memcached commands,excluded,No memcached service,12.1,docs/architecture.md,scope-review
 v5.0.0-1.3.10,2,Format string arguments,applicable,Compare the API parser and each output sink with the accepted input types,6.2,src/control/session.cpp,pending
-v5.0.0-1.3.11,2,Mail protocol input,excluded,No email submission or mailbox service,8.3,docs/architecture.md,scope-review
-v5.0.0-1.4.1,2,Buffer boundaries,applicable,Inspect C++ buffer ownership and range checks and examine sanitizer results,8.3,tests/ingest/rtsp.cpp,pending
-v5.0.0-1.4.2,2,Arithmetic overflow,applicable,Inspect C++ buffer ownership and range checks and examine sanitizer results,8.3,tests/ingest/rtsp.cpp,pending
-v5.0.0-1.4.3,2,Object lifetimes,applicable,Inspect C++ buffer ownership and range checks and examine sanitizer results,8.3,tests/ingest/rtsp.cpp,pending
+v5.0.0-1.3.11,2,Mail protocol input,excluded,No email submission or mailbox service,12.1,docs/architecture.md,scope-review
+v5.0.0-1.4.1,2,Buffer boundaries,applicable,Inspect C++ buffer ownership and range checks and examine sanitizer results,12.1,tests/ingest/rtsp.cpp,pending
+v5.0.0-1.4.2,2,Arithmetic overflow,applicable,Inspect C++ buffer ownership and range checks and examine sanitizer results,12.1,tests/ingest/rtsp.cpp,pending
+v5.0.0-1.4.3,2,Object lifetimes,applicable,Inspect C++ buffer ownership and range checks and examine sanitizer results,12.1,tests/ingest/rtsp.cpp,pending
 v5.0.0-1.5.1,1,XML parser configuration,applicable,Inspect ONVIF XML limits and the allowlist of typed control messages,6.2,src/control/onvif.cpp,pending
 v5.0.0-1.5.2,2,Permitted serialized types,applicable,Inspect ONVIF XML limits and the allowlist of typed control messages,6.2,src/control/onvif.cpp,pending
 v5.0.0-2.1.1,1,Documented field constraints,applicable,Trace point and alert state transitions from request schema to server-side validation,7.2,contracts/v1/openapi.yaml,pending
@@ -36,7 +36,7 @@ v5.0.0-2.3.1,1,Ordering of workflow transitions,applicable,Exercise concurrent t
 v5.0.0-2.3.2,2,Server enforcement of operation limits,applicable,Exercise concurrent transitions and retry after an interrupted operation,7.2,src/control/alerts.cpp,pending
 v5.0.0-2.3.3,2,Transaction atomicity,applicable,Exercise concurrent transitions and retry after an interrupted operation,7.2,tests/alerts/workflow.py,tested
 v5.0.0-2.3.4,2,Concurrent changes to limited resources,applicable,Exercise concurrent transitions and retry after an interrupted operation,7.2,tests/alerts/workflow.py,tested
-v5.0.0-2.4.1,2,Automated repeated requests,applicable,Measure request limits and availability during mixed load,8.3,docs/test-profile.md,pending
+v5.0.0-2.4.1,2,Automated repeated requests,applicable,Measure request limits and availability during mixed load,12.1,docs/test-profile.md,pending
 v5.0.0-3.2.1,1,Browser interpretation of response types,applicable,Inspect browser behavior and the response headers of both authenticated routes,4.2,tests/workspace/scenarios.py,pending
 v5.0.0-3.2.2,1,Text rendering of untrusted values,applicable,Inspect browser behavior and the response headers of both authenticated routes,4.2,tests/workspace/scenarios.py,pending
 v5.0.0-3.3.1,1,Secure cookie attributes,applicable,Inspect Set-Cookie on login and renewal in the HTTPS client,4.2,src/control/session.cpp,pending
@@ -60,12 +60,12 @@ v5.0.0-4.1.1,1,Response content type,applicable,Inspect the production listener 
 v5.0.0-4.1.2,2,Redirects at the HTTP listener,applicable,Inspect the production listener and HTTP parser configuration,8.1,src/control/https.cpp,pending
 v5.0.0-4.1.3,2,Trust in intermediary headers,applicable,Inspect the production listener and HTTP parser configuration,8.1,src/control/https.cpp,pending
 v5.0.0-4.2.1,2,HTTP message boundaries,applicable,Inspect the production listener and HTTP parser configuration,8.1,src/control/https.cpp,pending
-v5.0.0-4.3.1,2,GraphQL query limits,excluded,"The local deployment exposes REST, WSS and typed gRPC interfaces without GraphQL",8.3,docs/architecture.md,scope-review
-v5.0.0-4.3.2,2,GraphQL schema introspection,excluded,"The local deployment exposes REST, WSS and typed gRPC interfaces without GraphQL",8.3,docs/architecture.md,scope-review
+v5.0.0-4.3.1,2,GraphQL query limits,excluded,"The local deployment exposes REST, WSS and typed gRPC interfaces without GraphQL",12.1,docs/architecture.md,scope-review
+v5.0.0-4.3.2,2,GraphQL schema introspection,excluded,"The local deployment exposes REST, WSS and typed gRPC interfaces without GraphQL",12.1,docs/architecture.md,scope-review
 v5.0.0-4.4.1,1,Encrypted event socket,applicable,Review WSS handshake origin and binding to the browser session,4.1,src/control/alert_socket.cpp,pending
 v5.0.0-4.4.2,2,Origin of WebSocket handshake,applicable,Review WSS handshake origin and binding to the browser session,4.1,src/control/alert_socket.cpp,pending
-v5.0.0-4.4.3,2,Dedicated connection credentials,excluded,The WSS handshake uses the standard browser session,8.3,docs/architecture.md,scope-review
-v5.0.0-4.4.4,2,Issuance of socket credentials,excluded,The WSS handshake uses the standard browser session,8.3,docs/architecture.md,scope-review
+v5.0.0-4.4.3,2,Dedicated connection credentials,excluded,The WSS handshake uses the standard browser session,12.1,docs/architecture.md,scope-review
+v5.0.0-4.4.4,2,Issuance of socket credentials,excluded,The WSS handshake uses the standard browser session,12.1,docs/architecture.md,scope-review
 v5.0.0-5.1.1,2,Permitted map formats and size limits,applicable,Check authenticated plan import and PNG byte and pixel limits,7.1,tests/workspace/maps.py,tested
 v5.0.0-5.2.1,1,Upload byte limit,applicable,Check authenticated plan import and PNG byte and pixel limits,7.1,tests/workspace/maps.py,tested
 v5.0.0-5.2.2,1,Actual uploaded file type,applicable,Check authenticated plan import and PNG byte and pixel limits,7.1,tests/workspace/maps.py,tested
@@ -103,16 +103,16 @@ v5.0.0-6.5.2,2,Storage of low-entropy secrets,applicable,Inspect offline recover
 v5.0.0-6.5.3,2,Random generation of one-time credentials,applicable,Inspect offline recovery and any issued single-use recovery secrets against this requirement,8.1,docs/adr/001-api-contracts.md,pending
 v5.0.0-6.5.4,2,Recovery code entropy,applicable,Inspect offline recovery and any issued single-use recovery secrets against this requirement,8.1,docs/adr/001-api-contracts.md,pending
 v5.0.0-6.5.5,2,One-time credential lifetime,applicable,Inspect offline recovery and any issued single-use recovery secrets against this requirement,8.1,docs/adr/001-api-contracts.md,pending
-v5.0.0-6.6.1,2,Telephone factor delivery,excluded,No out-of-band factor transport in the password plus WebAuthn profile,8.3,docs/architecture.md,scope-review
-v5.0.0-6.6.2,2,Binding the code to the original login,excluded,No out-of-band factor transport in the password plus WebAuthn profile,8.3,docs/architecture.md,scope-review
-v5.0.0-6.6.3,2,Attempt limits for out-of-band verification,excluded,No out-of-band factor transport in the password plus WebAuthn profile,8.3,docs/architecture.md,scope-review
-v5.0.0-6.8.1,2,Identity across providers,excluded,The local deployment uses a local identity store without a federated IdP,8.3,docs/architecture.md,scope-review
-v5.0.0-6.8.2,2,Assertion signature,excluded,The local deployment uses a local identity store without a federated IdP,8.3,docs/architecture.md,scope-review
-v5.0.0-6.8.3,2,Assertion replay,excluded,The local deployment uses a local identity store without a federated IdP,8.3,docs/architecture.md,scope-review
-v5.0.0-6.8.4,2,Required assurance at the IdP,excluded,The local deployment uses a local identity store without a federated IdP,8.3,docs/architecture.md,scope-review
+v5.0.0-6.6.1,2,Telephone factor delivery,excluded,No out-of-band factor transport in the password plus WebAuthn profile,12.1,docs/architecture.md,scope-review
+v5.0.0-6.6.2,2,Binding the code to the original login,excluded,No out-of-band factor transport in the password plus WebAuthn profile,12.1,docs/architecture.md,scope-review
+v5.0.0-6.6.3,2,Attempt limits for out-of-band verification,excluded,No out-of-band factor transport in the password plus WebAuthn profile,12.1,docs/architecture.md,scope-review
+v5.0.0-6.8.1,2,Identity across providers,excluded,The local deployment uses a local identity store without a federated IdP,12.1,docs/architecture.md,scope-review
+v5.0.0-6.8.2,2,Assertion signature,excluded,The local deployment uses a local identity store without a federated IdP,12.1,docs/architecture.md,scope-review
+v5.0.0-6.8.3,2,Assertion replay,excluded,The local deployment uses a local identity store without a federated IdP,12.1,docs/architecture.md,scope-review
+v5.0.0-6.8.4,2,Required assurance at the IdP,excluded,The local deployment uses a local identity store without a federated IdP,12.1,docs/architecture.md,scope-review
 v5.0.0-7.1.1,2,Session time limits,applicable,"Inspect server-side session state and test login, expiry and revocation",8.1,src/control/session.cpp,pending
 v5.0.0-7.1.2,2,Concurrent session policy,applicable,"Inspect server-side session state and test login, expiry and revocation",8.1,src/control/session.cpp,pending
-v5.0.0-7.1.3,2,Documented federation session boundaries,excluded,No federated session manager in the local deployment,8.3,docs/architecture.md,scope-review
+v5.0.0-7.1.3,2,Documented federation session boundaries,excluded,No federated session manager in the local deployment,12.1,docs/architecture.md,scope-review
 v5.0.0-7.2.1,1,Server validation of session state,applicable,"Inspect server-side session state and test login, expiry and revocation",8.1,src/control/session.cpp,pending
 v5.0.0-7.2.2,1,Token creation,applicable,"Inspect server-side session state and test login, expiry and revocation",8.1,src/control/session.cpp,pending
 v5.0.0-7.2.3,1,Unpredictability of reference tokens,applicable,"Inspect server-side session state and test login, expiry and revocation",8.1,src/control/session.cpp,pending
@@ -126,7 +126,7 @@ v5.0.0-7.4.4,2,Logout on protected routes,applicable,Exercise session terminatio
 v5.0.0-7.4.5,2,Administrative session termination,applicable,Exercise session termination and check subsequent access on both workspaces,8.1,tests/workspace/scenarios.py,pending
 v5.0.0-7.5.1,2,Reauthentication for account changes,applicable,"Inspect server-side session state and test login, expiry and revocation",8.1,src/control/session.cpp,pending
 v5.0.0-7.5.2,2,User session list and termination,applicable,"Inspect server-side session state and test login, expiry and revocation",8.1,src/control/session.cpp,pending
-v5.0.0-7.6.1,2,Expiry across federation boundaries,excluded,No relying party or federated IdP session,8.3,docs/architecture.md,scope-review
+v5.0.0-7.6.1,2,Expiry across federation boundaries,excluded,No relying party or federated IdP session,12.1,docs/architecture.md,scope-review
 v5.0.0-7.6.2,2,Explicit action to start a session,applicable,"Inspect server-side session state and test login, expiry and revocation",8.1,src/control/session.cpp,pending
 v5.0.0-8.1.1,1,Documented action and resource access,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,docs/adr/001-api-contracts.md,pending
 v5.0.0-8.1.2,2,Documented field visibility,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,docs/adr/001-api-contracts.md,pending
@@ -134,43 +134,43 @@ v5.0.0-8.2.1,1,Action permissions,applicable,"Exercise point, role and delegated
 v5.0.0-8.2.2,1,Observation point permissions,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,tests/alerts/workflow.py,tested
 v5.0.0-8.2.3,2,Read and write permissions per field,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,docs/adr/001-api-contracts.md,pending
 v5.0.0-8.3.1,1,Server-side permission checks,applicable,"Exercise point, role and delegated permissions on server reads and writes",7.2,tests/alerts/workflow.py,tested
-v5.0.0-8.4.1,2,Tenant isolation,excluded,The qualified instance serves one local site without tenant federation,8.3,docs/architecture.md,scope-review
-v5.0.0-9.1.1,1,Signature of self-contained tokens,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,8.3,docs/architecture.md,scope-review
-v5.0.0-9.1.2,1,Permitted signing algorithms,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,8.3,docs/architecture.md,scope-review
-v5.0.0-9.1.3,1,Trusted verification keys,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,8.3,docs/architecture.md,scope-review
-v5.0.0-9.2.1,1,Token time bounds,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,8.3,docs/architecture.md,scope-review
-v5.0.0-9.2.2,2,Token purpose,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,8.3,docs/architecture.md,scope-review
-v5.0.0-9.2.3,2,Token audience,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,8.3,docs/architecture.md,scope-review
-v5.0.0-9.2.4,2,Issuer and audience isolation,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,8.3,docs/architecture.md,scope-review
-v5.0.0-10.1.1,2,Generic OAuth and OIDC Security,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.1.2,2,Generic OAuth and OIDC Security,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.2.1,2,OAuth Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.2.2,2,OAuth Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.3.1,2,OAuth Resource Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.3.2,2,OAuth Resource Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.3.3,2,OAuth Resource Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.3.4,2,OAuth Resource Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.4.1,1,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.4.2,1,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.4.3,1,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.4.4,1,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.4.5,1,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.4.6,2,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.4.7,2,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.4.8,2,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.4.9,2,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.4.10,2,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.4.11,2,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.5.1,2,OIDC Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.5.2,2,OIDC Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.5.3,2,OIDC Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.5.4,2,OIDC Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.5.5,2,OIDC Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.6.1,2,OpenID Provider,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.6.2,2,OpenID Provider,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.7.1,2,Consent Management,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.7.2,2,Consent Management,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
-v5.0.0-10.7.3,2,Consent Management,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",8.3,docs/architecture.md,scope-review
+v5.0.0-8.4.1,2,Tenant isolation,excluded,The qualified instance serves one local site without tenant federation,12.1,docs/architecture.md,scope-review
+v5.0.0-9.1.1,1,Signature of self-contained tokens,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,12.1,docs/architecture.md,scope-review
+v5.0.0-9.1.2,1,Permitted signing algorithms,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,12.1,docs/architecture.md,scope-review
+v5.0.0-9.1.3,1,Trusted verification keys,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,12.1,docs/architecture.md,scope-review
+v5.0.0-9.2.1,1,Token time bounds,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,12.1,docs/architecture.md,scope-review
+v5.0.0-9.2.2,2,Token purpose,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,12.1,docs/architecture.md,scope-review
+v5.0.0-9.2.3,2,Token audience,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,12.1,docs/architecture.md,scope-review
+v5.0.0-9.2.4,2,Issuer and audience isolation,excluded,The local deployment uses opaque references checked against server state for browser and media sessions,12.1,docs/architecture.md,scope-review
+v5.0.0-10.1.1,2,Generic OAuth and OIDC Security,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.1.2,2,Generic OAuth and OIDC Security,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.2.1,2,OAuth Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.2.2,2,OAuth Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.3.1,2,OAuth Resource Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.3.2,2,OAuth Resource Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.3.3,2,OAuth Resource Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.3.4,2,OAuth Resource Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.4.1,1,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.4.2,1,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.4.3,1,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.4.4,1,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.4.5,1,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.4.6,2,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.4.7,2,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.4.8,2,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.4.9,2,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.4.10,2,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.4.11,2,OAuth Authorization Server,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.5.1,2,OIDC Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.5.2,2,OIDC Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.5.3,2,OIDC Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.5.4,2,OIDC Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.5.5,2,OIDC Client,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.6.1,2,OpenID Provider,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.6.2,2,OpenID Provider,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.7.1,2,Consent Management,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.7.2,2,Consent Management,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
+v5.0.0-10.7.3,2,Consent Management,excluded,"The local deployment has no OAuth client, resource server, authorization server or OIDC provider",12.1,docs/architecture.md,scope-review
 v5.0.0-11.1.1,2,Lifecycle of platform keys,applicable,"Inventory key material and inspect crypto primitives, parameters and rotation",8.1,src/control/support.cpp,pending
 v5.0.0-11.1.2,2,Inventory of keys and algorithms,applicable,"Inventory key material and inspect crypto primitives, parameters and rotation",8.1,src/control/support.cpp,pending
 v5.0.0-11.2.1,2,Cryptographic library selection,applicable,"Inventory key material and inspect crypto primitives, parameters and rotation",8.1,src/control/support.cpp,pending
@@ -218,9 +218,9 @@ v5.0.0-14.3.2,2,Browser caching restrictions,applicable,"Inspect browser storage
 v5.0.0-14.3.3,2,Sensitive browser storage,applicable,"Inspect browser storage, caches and DOM after logout and access revocation",4.2,tests/workspace/scenarios.py,pending
 v5.0.0-15.1.1,1,Remediation deadlines,applicable,"Review dependency inventory, remediation decisions and the installed bill of materials",5.3,tools/lifecycle/policy.py,pending
 v5.0.0-15.1.2,2,Inventory of shipped libraries,applicable,"Review dependency inventory, remediation decisions and the installed bill of materials",5.3,tools/lifecycle/policy.py,pending
-v5.0.0-15.1.3,2,Documented limits on expensive operations,applicable,Review budgets for expensive archive requests and media sessions,8.3,docs/test-profile.md,pending
+v5.0.0-15.1.3,2,Documented limits on expensive operations,applicable,Review budgets for expensive archive requests and media sessions,12.1,docs/test-profile.md,pending
 v5.0.0-15.2.1,1,Overdue dependency fixes,applicable,"Review dependency inventory, remediation decisions and the installed bill of materials",5.3,tools/lifecycle/policy.py,pending
-v5.0.0-15.2.2,2,Availability during expensive requests,applicable,Compare resource use and service availability with mixed-load limits,8.3,docs/test-profile.md,pending
+v5.0.0-15.2.2,2,Availability during expensive requests,applicable,Compare resource use and service availability with mixed-load limits,12.1,docs/test-profile.md,pending
 v5.0.0-15.2.3,2,Unneeded production features,applicable,Inspect the contents and exposed functions of the installed packages,8.1,docs/adr/011-offline-delivery.md,pending
 v5.0.0-15.3.1,1,Response field allowlist,applicable,Compare accepted and returned fields and typed values to server handlers,7.2,contracts/v1/openapi.yaml,pending
 v5.0.0-15.3.2,2,Outbound redirects,applicable,Review outbound camera URL handling on redirect,6.2,docs/adr/012-camera-capabilities.md,pending
@@ -245,7 +245,7 @@ v5.0.0-16.4.3,2,Independent log collection,applicable,Inspect the audit inventor
 v5.0.0-16.5.1,2,Public error details,applicable,Examine public error messages and verify safe access during service failure,5.1,tests/recovery/scenarios.py,pending
 v5.0.0-16.5.2,2,Unavailable downstream services,applicable,Examine public error messages and verify safe access during service failure,5.1,tests/recovery/scenarios.py,pending
 v5.0.0-16.5.3,2,Safe state after exceptions,applicable,Examine public error messages and verify safe access during service failure,5.1,tests/recovery/scenarios.py,pending
-v5.0.0-17.1.1,2,TURN relay destinations,excluded,The local LAN profile uses direct ICE without a TURN relay,8.3,docs/architecture.md,scope-review
+v5.0.0-17.1.1,2,TURN relay destinations,excluded,The local LAN profile uses direct ICE without a TURN relay,12.1,docs/architecture.md,scope-review
 v5.0.0-17.2.1,2,Protection of DTLS private keys,applicable,Inspect WebRTC peer configuration and DTLS-SRTP behavior in live media tests,3.3,src/media/webrtc.cpp,pending
 v5.0.0-17.2.2,2,Permitted DTLS suites,applicable,Inspect WebRTC peer configuration and DTLS-SRTP behavior in live media tests,3.3,src/media/webrtc.cpp,pending
 v5.0.0-17.2.3,2,SRTP authentication,applicable,Inspect WebRTC peer configuration and DTLS-SRTP behavior in live media tests,3.3,src/media/webrtc.cpp,pending
