@@ -38,10 +38,6 @@ std::string sql(const std::string& query)
     args.insert(args.end(), {"-c", query});
     return capture(args);
 }
-std::string installed()
-{
-    return capture({"/usr/bin/dpkg-query", "-W", "-f=${Version}", "bacuri-vms-basic"});
-}
 int schema_for(std::string v)
 {
     if (v.ends_with("~qualification"))
@@ -50,7 +46,7 @@ int schema_for(std::string v)
         return 14;
     if (v == "0.1.1-1")
         return 15;
-    throw std::runtime_error("Unsupported Basic package version");
+    throw std::runtime_error("Unsupported Bacuri VMS package version");
 }
 void sync_path(const fs::path& file)
 {
@@ -289,8 +285,8 @@ void operate(const std::string& action, char** v)
     validate_recovery_key(key);
     if (action == "upgrade") {
         ensure(target == 15, "Unsupported upgrade target");
-        auto current = installed();
         if (!resumed || !fs::exists(file)) {
+            const auto current = installed_package().version;
             ensure(schema_for(current) == 14 && sql(schema_query) == "14" && !fs::exists(file),
                    "Expected installed predecessor and unused backup path");
             auto info = identity(current);
@@ -307,7 +303,8 @@ void operate(const std::string& action, char** v)
             fence(op);
         }
         bundle.install();
-        run({"/usr/sbin/bacuri-basic", "admin", "migrate"});
+        run({bundle.package == "bacuri-vms" ? "/usr/sbin/bacuri-vms" : "/usr/sbin/bacuri-basic", "admin",
+             "migrate"});
         ensure(sql(schema_query) == "15", "Migration did not complete");
     } else {
         Temp tmp;
@@ -317,7 +314,7 @@ void operate(const std::string& action, char** v)
             ensure(info.at("site") == read(config / "site-id") && info.at("node") == read(config / "node-id") &&
                        (action == "rollback" || resumed),
                    "Restore requires a clean installation or the same site and node");
-            ensure(schema_for(installed()) >= target || resumed, "Unsupported rollback source");
+            ensure(resumed || schema_for(installed_package().version) >= target, "Unsupported rollback source");
         } else {
             ensure(action == "restore", "Rollback requires an existing installation");
             run({"/usr/bin/systemctl", "start", "postgresql.service"});
@@ -386,7 +383,7 @@ int command(int argc, char** v)
     }
     if (action == "reconcile" && argc == 2) {
         ensure(fs::exists(pending), "Reconciliation requires stopped services");
-        reconcile(identity(installed()));
+        reconcile(identity(installed_package().version));
         return 0;
     }
     int lock = open("/run/lock/bacuri-maintenance", O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
@@ -394,7 +391,7 @@ int command(int argc, char** v)
     fs::create_directories(state);
     if (action == "backup" && argc == 4) {
         ensure(!fs::exists(pending), "Maintenance pending");
-        backup(fs::absolute(v[2]), identity(installed()), v[3]);
+        backup(fs::absolute(v[2]), identity(installed_package().version), v[3]);
     } else if ((action == "upgrade" || action == "rollback" || action == "restore") && argc == 6)
         operate(action, v);
     else

@@ -74,11 +74,11 @@ def check():
                     raise ValueError(f"{path}:{number}: unresolved link {raw}")
                 count += 1
 
-    plan = docs / "devplan-basic.md"
+    plan = docs / "devplan.md"
     steps = Counter(re.findall(r"^#### Шаг (\d+\.\d+)\.", plan.read_text(), re.M))
     if not steps or max(steps.values()) != 1:
         raise ValueError(f"{plan}: missing or duplicate step identifiers")
-    profile = docs / "basic-test-profile.md"
+    profile = docs / "test-profile.md"
     scenarios = table(profile, "Матрица сценариев", ["Сценарий", "Входы", "Условие прохождения", "Шаг"])
     decisions = table(profile, "Реестр проектных решений", ["Решение", "Проверяемое свойство", "Шаги проверки"])
     for number, cells in scenarios + decisions:

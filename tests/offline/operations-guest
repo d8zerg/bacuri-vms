@@ -7,11 +7,11 @@ printf 'READY\n' >&3
 # The private serial socket belongs exclusively to the qualification controller.
 while IFS= read -r encoded <&3; do
     if [[ $encoded == POWER_OFF ]]; then systemctl --no-block poweroff; exit; fi
-    printf '%s' "$encoded" | base64 -d > /run/basic-test-command
+    printf '%s' "$encoded" | base64 -d > /run/offline-test-command
     rc=0
-    bash -euo pipefail /run/basic-test-command >/run/basic-test-output 2>/run/basic-test-errors || rc=$?
+    bash -euo pipefail /run/offline-test-command >/run/offline-test-output 2>/run/offline-test-errors || rc=$?
     printf '%s ' "$rc" >&3
-    base64 -w0 /run/basic-test-output >&3
+    base64 -w0 /run/offline-test-output >&3
     printf '\n' >&3
-    if [[ $rc != 0 ]]; then tail -c 1600 /run/basic-test-errors >/dev/ttyS0; fi
+    if [[ $rc != 0 ]]; then tail -c 1600 /run/offline-test-errors >/dev/ttyS0; fi
 done

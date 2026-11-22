@@ -67,17 +67,17 @@ services:
       PGPASSWORD: bacuri-stand
     command: ["bash"]
 
-  basic-packager:
+  offline-packager:
     environment: {CONAN_HOME: /tmp/bacuri-package-conan}
     profiles: ["tools"]
-    build: {context: ., target: basic-packager}
+    build: {context: ., target: offline-packager}
     network_mode: none
     volumes:
       - .:/workspace
 
-  basic-vm:
+  install-vm:
     profiles: ["tools"]
-    build: {context: ., target: basic-vm}
+    build: {context: ., target: install-vm}
     devices: ["/dev/kvm:/dev/kvm"]
     volumes:
       - .:/workspace:ro

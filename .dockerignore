@@ -20,7 +20,7 @@
 !contracts/v1/control.proto
 
 !packaging/
-!packaging/basic/
-!packaging/basic/runtime-packages
+!packaging/debian/
+!packaging/debian/runtime-packages
 !packaging/maintenance/
 !packaging/maintenance/*

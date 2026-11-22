@@ -21,12 +21,16 @@ std::string capture(Args args, bool optional = false);
 void ensure(bool ok, const char* message);
 std::string read(const fs::path& file);
 void put(const fs::path& file, const std::string& value);
+struct Package {
+    std::string name, version;
+};
+Package installed_package();
 struct SignedKit {
     fs::path keyring, directory;
 };
 struct Bundle {
     Temp stage;
-    std::string version;
+    std::string package, version;
     explicit Bundle(const SignedKit& source);
     void install(bool downgrade = false) const;
 };

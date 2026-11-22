@@ -1,12 +1,12 @@
 services:
-  basic-vm:
-    image: ${BACURI_BASIC_VM_IMAGE:?missing VM image}
+  install-vm:
+    image: ${BACURI_INSTALL_VM_IMAGE:?missing VM image}
     volumes:
-      - ${BACURI_BASIC_REPORT:?missing results}:/report
+      - ${BACURI_INSTALL_REPORT:?missing results}:/report
     networks:
       default:
         aliases: [bacuri.test]
-    command: ["python3", "tests/basic/vm.py"]
+    command: ["python3", "tests/offline/vm.py"]
   playback-chrome:
     environment:
       SE_NODE_MAX_SESSIONS: "1"

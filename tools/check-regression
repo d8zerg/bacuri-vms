@@ -115,8 +115,8 @@ def main():
                     "commissioning/camera-operations.json", "commissioning/chrome-onvif-motion.png",
                     "commissioning/commissioning.json", "commissioning/chrome-previous-binding.png",
                     "commissioning/chrome-second-binding.png", "commissioning/chrome-first-binding.png",
-                    "basic-install/installation.json", "basic-install/installed.json", "basic-install/build-tools.json",
-                    "basic-install/bundle/sbom.json", "basic-install/bundle/SHA256SUMS.sig",
+                    "offline-install/installation.json", "offline-install/installed.json", "offline-install/build-tools.json",
+                    "offline-install/bundle/sbom.json", "offline-install/bundle/SHA256SUMS.sig",
                     "cameras/emulator.json", "postgres-upgrade/result.json", "dependencies/snapshot/inputs.json", "dependencies/result.json",
                 ]
                 state["missing_evidence"] = [name for name in required if not (evidence / name).is_file()

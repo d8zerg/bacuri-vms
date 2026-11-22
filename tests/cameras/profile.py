@@ -8,8 +8,8 @@ from pathlib import Path
 
 from series import FEATURES
 
-PROFILE = Path("tests/cameras/basic.json")
-MATRIX = Path("docs/asvs-basic.csv")
+PROFILE = Path("tests/cameras/qualification.json")
+MATRIX = Path("docs/asvs.csv")
 
 
 def need(condition, message):
@@ -78,7 +78,7 @@ def validate(p):
 
 
 def validate_asvs():
-    plan = Path("docs/devplan-basic.md").read_text()
+    plan = Path("docs/devplan.md").read_text()
     steps = set(re.findall(r"^#### Шаг (\d+\.\d+)\.", plan, re.M))
     with MATRIX.open() as file:
         reader = csv.DictReader(file)

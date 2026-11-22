@@ -34,40 +34,41 @@ def make_package(work, repo, version, runtime, headers):
     for binary in ("core", "media", "recorder", "observation-source", "verify-export"):
         file = "bacuri-vms-" + binary
         copy(Path("build/gcc-release") / file, pkg / "usr/lib/bacuri-vms" / file)
-    copy("build/gcc-release/bacuri-basic", pkg / "usr/sbin/bacuri-basic")
+    copy("build/gcc-release/bacuri-vms", pkg / "usr/sbin/bacuri-vms")
     copy("build/gcc-release/bacuri-maintain", pkg / "usr/sbin/bacuri-maintain")
     for unit in ("bacuri-diagnostics.timer","bacuri-diagnostics.service","bacuri-metrics.socket","bacuri-metrics@.service"):
-        copy(Path("packaging/basic")/unit,pkg/"usr/lib/systemd/system"/unit)
+        copy(Path("packaging/debian")/unit,pkg/"usr/lib/systemd/system"/unit)
     for name in ("core", "recorder", "media"):
         unit = f"bacuri-{name}.service"
-        copy(Path("packaging/basic") / unit, pkg / "usr/lib/systemd/system" / unit)
-    copy("packaging/basic/bacuri-vms.conf", pkg / "usr/lib/sysusers.d/bacuri-vms.conf")
-    copy("packaging/basic/runtime.conf", pkg / "usr/lib/tmpfiles.d/bacuri-vms.conf")
-    copy("packaging/basic/bootstrap.sql", share / "bootstrap.sql")
+        copy(Path("packaging/debian") / unit, pkg / "usr/lib/systemd/system" / unit)
+    copy("packaging/debian/bacuri-vms.conf", pkg / "usr/lib/sysusers.d/bacuri-vms.conf")
+    copy("packaging/debian/runtime.conf", pkg / "usr/lib/tmpfiles.d/bacuri-vms.conf")
+    copy("packaging/debian/bootstrap.sql", share / "bootstrap.sql")
     shutil.copytree("storage/postgresql/migrations", share / "storage/postgresql/migrations")
     shutil.copytree("web", share / "web", ignore=shutil.ignore_patterns("client"))
     shutil.copytree("build/web-client", share / "build/web-client", ignore=shutil.ignore_patterns("*.map"))
-    copy("LICENSE", pkg / "usr/share/doc/bacuri-vms-basic/copyright")
+    copy("LICENSE", pkg / "usr/share/doc/bacuri-vms/copyright")
     for node in headers:
-        shutil.copytree(Path(node["package_folder"]) / "licenses", pkg / "usr/share/doc/bacuri-vms-basic" / node["name"])
+        shutil.copytree(Path(node["package_folder"]) / "licenses", pkg / "usr/share/doc/bacuri-vms" / node["name"])
     for license_file in Path("design/bacuri/assets").rglob("*"):
         if license_file.is_file() and (
             "license" in license_file.name.lower() or "ofl" in license_file.name.lower()
         ):
-            copy(license_file, pkg / "usr/share/doc/bacuri-vms-basic/fonts" / license_file.name)
+            copy(license_file, pkg / "usr/share/doc/bacuri-vms/fonts" / license_file.name)
     depends = [f"{p['name']} (= {p['version']})" for p in runtime]
     control = pkg / "DEBIAN"
     control.mkdir()
     (control / "control").write_text(
-        f"Package: bacuri-vms-basic\nVersion: {version}\nArchitecture: amd64\n"
-        "Maintainer: Bacuri VMS <packages@localhost>\nDescription: Bacuri VMS Basic local video management services\n"
+        f"Package: bacuri-vms\nVersion: {version}\nArchitecture: amd64\n"
+        "Conflicts: bacuri-vms-basic\nReplaces: bacuri-vms-basic\n"
+        "Maintainer: Bacuri VMS <packages@localhost>\nDescription: Bacuri VMS local video management services\n"
         + "Depends: "
         + ",\n ".join(depends)
         + "\n"
     )
-    copy("packaging/basic/postinst", control / "postinst")
+    copy("packaging/debian/postinst", control / "postinst")
     (control / "postinst").chmod(0o755)
-    product = repo / f"bacuri-vms-basic_{version}_amd64.deb"
+    product = repo / f"bacuri-vms_{version}_amd64.deb"
     subprocess.run(["dpkg-deb", "--root-owner-group", "-Zxz", "--build", pkg, product], check=True)
     return product
 
@@ -136,9 +137,9 @@ def main():
         packages.append(package_info(product))
         copy("build/gcc-release/bacuri-install", kit / "bacuri-install")
         copy("build/gcc-release/bacuri-maintain", kit / "bacuri-maintain")
-        copy("docs/basic-maintenance.md", kit / "MAINTENANCE.md")
+        copy("docs/maintenance.md", kit / "MAINTENANCE.md")
         copy("LICENSE", kit / "LICENSE")
-        copy("docs/basic-install.md", kit / "INSTALL.md")
+        copy("docs/install.md", kit / "INSTALL.md")
         (kit / "VERSION").write_text(version + "\n")
         static = Path("build/web-client")
         assets = {

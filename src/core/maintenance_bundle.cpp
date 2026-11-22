@@ -1,8 +1,32 @@
 #include "maintenance.hpp"
+#include <algorithm>
+#include <array>
 #include <sstream>
 #include <unistd.h>
 namespace bacuri::vms::maintenance
 {
+namespace
+{
+constexpr std::array package_names{"bacuri-vms", "bacuri-vms-basic"};
+}
+Package installed_package()
+{
+    std::istringstream rows{capture(
+        {"/usr/bin/dpkg-query", "-W", "-f=${Package} ${db:Status-Status} ${Version}\n", "bacuri-vms*"}, true)};
+    Package installed;
+    std::string line;
+    while (std::getline(rows, line)) {
+        std::istringstream fields{line};
+        Package row;
+        std::string status;
+        if (fields >> row.name >> status >> row.version && std::ranges::contains(package_names, row.name) &&
+            status != "config-files" && status != "not-installed") {
+            ensure(installed.name.empty(), "Multiple Bacuri VMS packages installed");
+            installed = row;
+        }
+    }
+    return installed;
+}
 Bundle::Bundle(const SignedKit& source)
 {
     auto input = fs::canonical(source.directory), kit = stage.dir / "kit";
@@ -23,6 +47,14 @@ Bundle::Bundle(const SignedKit& source)
     std::istringstream stream{read(kit / "VERSION")};
     stream >> version;
     ensure(!version.empty(), "Missing package version");
+    for (const auto* name : package_names) {
+        const auto filename = std::string{name} + "_" + version + "_amd64.deb";
+        if (fs::is_regular_file(kit / "repository" / filename)) {
+            ensure(package.empty(), "Multiple product packages in signed kit");
+            package = name;
+        }
+    }
+    ensure(!package.empty(), "Missing product package in signed kit");
 }
 void Bundle::install(bool downgrade) const
 {
@@ -56,8 +88,17 @@ void Bundle::install(bool downgrade) const
     run(update);
     if (downgrade)
         apt.push_back("--allow-downgrades");
-    apt.insert(apt.end(),
-               {"--no-install-recommends", "--no-remove", "-y", "install", "bacuri-vms-basic=" + version});
+    const auto current = installed_package();
+    if (current.name.empty() || current.name == package) {
+        apt.push_back("--no-remove");
+    } else {
+        // During a rename APT may remove only the previous package in the same transaction.
+        apt.insert(apt.end(), {"-o", "DPkg::Tools::Options::/usr/bin/awk::Version=2", "-o",
+                               "DPkg::Pre-Install-Pkgs::=/usr/bin/awk 'NR == 1 && $0 != \"VERSION 2\" {exit 1} "
+                               "$5 == \"**REMOVE**\" && $1 != \"" +
+                                   current.name + "\" {exit 1}'"});
+    }
+    apt.insert(apt.end(), {"--no-install-recommends", "-y", "install", package + "=" + version});
     setenv("DEBIAN_FRONTEND", "noninteractive", 1);
     run(apt);
 }

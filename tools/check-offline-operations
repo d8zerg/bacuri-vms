@@ -2,12 +2,12 @@
 set -euo pipefail
 report=$(realpath "$1")
 previous=$(realpath "$2")
-export BACURI_BASIC_REPORT="$report"
-export BACURI_BASIC_VM_IMAGE=$(docker compose config --images basic-vm)
+export BACURI_INSTALL_REPORT="$report"
+export BACURI_INSTALL_VM_IMAGE=$(docker compose config --images install-vm)
 test -f "$previous/bundle/SHA256SUMS.sig"
 docker compose run --rm --no-deps -T --entrypoint cat rtsp-camera /usr/local/bin/bacuri-vms-test-rtsp-camera >"$report/test-camera"
 docker compose run --rm --no-deps -T builder cat /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstpango.so >"$report/test-overlay.so"
-project=(docker compose -p "bacuri-operations-$(cat /proc/sys/kernel/random/uuid)" -f compose.yaml -f tests/basic/compose.yaml)
+project=(docker compose -p "bacuri-operations-$(cat /proc/sys/kernel/random/uuid)" -f compose.yaml -f tests/offline/compose.yaml)
 trap '"${project[@]}" --profile tools --profile playback-test down --volumes' EXIT
 "${project[@]}" up -d --no-build --wait playback-chrome
-"${project[@]}" run --rm --no-deps --use-aliases -v "$previous:/previous:ro" -T basic-vm python3 -B tests/basic/operations.py
+"${project[@]}" run --rm --no-deps --use-aliases -v "$previous:/previous:ro" -T install-vm python3 -B tests/offline/operations.py

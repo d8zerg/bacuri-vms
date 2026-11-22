@@ -41,16 +41,16 @@ def configure_guest(proof, trusted):
         "[Match]\nName=en* eth*\n[Network]\nAddress=10.0.2.15/24\nGateway=10.0.2.2\nLinkLocalAddressing=no\nIPv6AcceptRA=no\n"
     )
     shutil.copyfile(trusted, guest / "etc/bacuri-test-key.gpg")
-    shutil.copyfile(proof, guest / "usr/local/sbin/basic-test")
-    unit = guest / "etc/systemd/system/basic-proof.service"
+    shutil.copyfile(proof, guest / "usr/local/sbin/offline-test")
+    unit = guest / "etc/systemd/system/offline-proof.service"
     unit.write_text(
-        "[Unit]\nDescription=Offline installation test console\nAfter=network.target local-fs.target bacuri-core.service bacuri-media.service bacuri-recorder.service\n[Service]\nType=simple\nExecStart=/bin/bash /usr/local/sbin/basic-test\nStandardOutput=journal+console\nStandardError=journal+console\n[Install]\nWantedBy=multi-user.target\n"
+        "[Unit]\nDescription=Offline installation test console\nAfter=network.target local-fs.target bacuri-core.service bacuri-media.service bacuri-recorder.service\n[Service]\nType=simple\nExecStart=/bin/bash /usr/local/sbin/offline-test\nStandardOutput=journal+console\nStandardError=journal+console\n[Install]\nWantedBy=multi-user.target\n"
     )
     (unit.parent / "multi-user.target.wants" / unit.name).symlink_to("../" + unit.name)
 
 
 def seed_guest():
-    configure_guest("tests/basic/guest", report / "release-key.gpg")
+    configure_guest("tests/offline/guest", report / "release-key.gpg")
     root = ext4("bacuri-root", 6144, guest)
     archive = ext4("bacuri-archive", 256)
     bundle = report / "bundle"

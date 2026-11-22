@@ -21,11 +21,11 @@ OLD = "/mnt/bundle/old"
 MAINT = NEW + "/bacuri-maintain"
 KEY = "/safe/recovery.key"
 PSQL = "runuser -u postgres -- psql -XqAt -v ON_ERROR_STOP=1 -d bacuri_vms"
-LIMITS = json.loads(Path("tests/cameras/basic.json").read_text())["recovery"]
+LIMITS = json.loads(Path("tests/cameras/qualification.json").read_text())["recovery"]
 
 
 def disks():
-    configure_guest("tests/basic/operations-guest", report / "release-key.gpg")
+    configure_guest("tests/offline/operations-guest", report / "release-key.gpg")
     (guest / "safe").mkdir()
     with (guest / "etc/fstab").open("a") as f:
         f.write("LABEL=bacuri-safe /safe ext4 defaults 0 2\n")
@@ -405,10 +405,12 @@ def main():
         cmd(
             "openssl rand 32 >/safe/recovery.key; openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -noenc -days 2 -subj /CN=bacuri.test -addext subjectAltName=DNS:bacuri.test -keyout /root/tls.key -out /root/tls.crt"
         )
+        old_admin = cmd("command -v bacuri-vms || command -v bacuri-basic")
+        cmd(f"{NEW}/bacuri-install /etc/bacuri-test-key.gpg {NEW}", fails=True)
         code = cmd(
-            f"printf '%s\\n' '{password}' | bacuri-basic setup bacuri.test installer /root/tls.crt /root/tls.key 10.0.2.0/24 | tail -2 | grep -E '^[a-f0-9]{{64}}$'"
+            f"printf '%s\\n' '{password}' | {old_admin} setup bacuri.test installer /root/tls.crt /root/tls.key 10.0.2.0/24 | tail -2 | grep -E '^[a-f0-9]{{64}}$'"
         )
-        cmd(f"printf '%s\\n' '{password}' | bacuri-basic admin create-user viewer operator")
+        cmd(f"printf '%s\\n' '{password}' | {old_admin} admin create-user viewer operator")
         cmd(
             "for f in /etc/bacuri-vms/{core,recorder}.env; do echo BACURI_LEGACY_RTSP_ADDRESSES=10.0.2.15 >> $f; done; systemctl restart bacuri-core bacuri-recorder; systemctl enable --now test-camera"
         )
@@ -429,7 +431,7 @@ def main():
         )
         assert s == 201, (s, camera)
         site.point = camera["point_id"]
-        cmd(f"bacuri-basic admin grant-point viewer {site.point}")
+        cmd(f"{old_admin} admin grant-point viewer {site.point}")
         old = latest(cmd)
         viewer = site.viewer()
         pixels = site.frame(old, viewer)
@@ -469,6 +471,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
         assert site.frame(old, viewer) == pixels
         new = latest(cmd, old["end_utc_us"])
         site.frame(new, viewer)
+        assert cmd("dpkg-query -S /usr/sbin/bacuri-vms") == "bacuri-vms: /usr/sbin/bacuri-vms"
         print("Upgrade resumed; checking live faults", flush=True)
         cmd("head -c -1 /safe/previous.snap > /safe/truncated.snap")
         cmd(operation("rollback", OLD, "truncated.snap"), fails=True)
@@ -532,12 +535,12 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
         site.frame(rollback_frame, viewer)
         cmd(operation("upgrade", NEW, "second.snap"))
         site.wait()
-        restored_id = site.enroll(cmd, cmd("bacuri-basic admin enroll-admin installer"))
+        restored_id = site.enroll(cmd, cmd("bacuri-vms admin enroll-admin installer"))
         a = site.login()
         site.assert_lost(old_id)
         backup_started = time.time()
         cmd(f"{MAINT} backup /safe/current.snap {KEY}")
-        replacement = cmd("bacuri-basic admin recover-admin installer")
+        replacement = cmd("bacuri-vms admin recover-admin installer")
         assert site.api("GET", "session", headers=a)[0] == 401
         replacement_id = site.enroll(cmd, replacement)
         a2 = site.login()
@@ -579,7 +582,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
         rto = time.time() - outage
         gap = max(0, (fresh["begin_utc_us"] - last["end_utc_us"]) / 1e6)
         assert known <= {m["block_id"] for m in blocks(cmd)}
-        site.enroll(cmd, cmd("bacuri-basic admin enroll-admin installer"))
+        site.enroll(cmd, cmd("bacuri-vms admin enroll-admin installer"))
         site.login()
         site.assert_lost(restored_id)
         site.assert_lost(replacement_id)

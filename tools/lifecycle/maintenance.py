@@ -5,7 +5,7 @@ from hashlib import file_digest
 import subprocess
 
 TARGETS = {"conan": ("xml", "soup"), "dev": ("xml", "xml-dev", "soup"), "quality": ("xml", "xml-dev", "soup"),
-           "basic-packager": ("xml", "xml-dev", "soup"), "rtsp-camera": ("xml", "xml-dev", "soup"), "postgres": ("xml",)}
+           "offline-packager": ("xml", "xml-dev", "soup"), "rtsp-camera": ("xml", "xml-dev", "soup"), "postgres": ("xml",)}
 ONNX = "CVE-2026-28500"
 ONNX_SOURCE = "https://github.com/onnx/onnx/security/advisories/GHSA-hqmj-h5c6-369m"
 
@@ -73,10 +73,10 @@ def original_packages(root, policies):
     (metadata / "status").write_text("\n".join(records))
 
 
-def verified_fixes(target, policies, proof):
+def verified_fixes(target, policies, proof, groups=None):
     fixes = {}
     errors = []
-    for group in TARGETS[target]:
+    for group in (TARGETS[target] if groups is None else groups):
         rule = policies[group]
         expected = {issue: detail["sha256"] for issue, detail in rule["fixes"].items()}
         for name in rule["packages"]:

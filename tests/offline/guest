@@ -7,14 +7,14 @@ trap 'n=$LINENO; journalctl -b -u bacuri-core -u bacuri-recorder -u bacuri-media
 kit=/mnt/bundle
 keyring=/etc/bacuri-test-key.gpg
 point=10000000-0000-4000-8000-000000000042
-admin=/usr/sbin/bacuri-basic
+admin=/usr/sbin/bacuri-vms
 if [ ! -f /root/first-boot ]; then
-    test "$(dpkg-query -W -f='${db:Status-Status}' bacuri-vms-basic 2>/dev/null || true)" != installed
+    test "$(dpkg-query -W -f='${db:Status-Status}' bacuri-vms 2>/dev/null || true)" != installed
     gpgv --keyring "$keyring" "$kit/bacuri-install.sig" "$kit/bacuri-install"
     before=$(sha256sum /var/lib/dpkg/status)
     mkdir /tmp/bad
     cp -a "$kit"/. /tmp/bad/
-    bad=$(find /tmp/bad/repository -name 'bacuri-vms-basic_*.deb')
+    bad=$(find /tmp/bad/repository -name 'bacuri-vms_*.deb')
     printf 'corrupt' >> "$bad"
     if "$kit/bacuri-install" "$keyring" /tmp/bad; then exit 1; fi
     test "$before" = "$(sha256sum /var/lib/dpkg/status)"

@@ -101,14 +101,14 @@ target_link_libraries(bacuri-vms-media PRIVATE bacuri-vms-media-auth bacuri-vms-
 add_executable(bacuri-vms-observation-source src/control/observation_source.cpp)
 target_link_libraries(bacuri-vms-observation-source PRIVATE bacuri-vms-rpc bacuri-vms-control-support)
 add_library(bacuri-maintenance-common STATIC src/core/maintenance_process.cpp src/core/maintenance_bundle.cpp)
-add_executable(bacuri-install src/core/basic_install.cpp)
+add_executable(bacuri-install src/core/install.cpp)
 target_link_libraries(bacuri-install PRIVATE bacuri-maintenance-common)
 target_link_options(bacuri-install PRIVATE -static)
 add_executable(bacuri-maintain src/core/maintenance.cpp src/core/maintenance_crypto.cpp src/core/maintenance_diagnostics.cpp
     src/control/database.cpp src/control/archive_recovery.cpp)
 target_link_libraries(bacuri-maintain PRIVATE bacuri-maintenance-common bacuri-vms-volume PostgreSQL::PostgreSQL)
-add_executable(bacuri-basic src/core/basic_setup.cpp)
-target_link_libraries(bacuri-basic PRIVATE bacuri-vms-control-support OpenSSL::Crypto)
+add_executable(bacuri-vms src/core/site_admin.cpp)
+target_link_libraries(bacuri-vms PRIVATE bacuri-vms-control-support OpenSSL::Crypto)
 add_executable(bacuri-vms-core src/core/main.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/registry.cpp src/control/onvif.cpp src/control/camera_events.cpp
     src/control/observations.cpp src/control/alert_work.cpp src/control/alerts.cpp src/control/alert_socket.cpp
     src/archive/clip.cpp src/control/export.cpp src/control/media_authority.cpp src/control/playback.cpp

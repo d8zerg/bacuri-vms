@@ -93,7 +93,7 @@ tasks:
         vars: {PRESET: '{{.ITEM}}'}
       - task: retention:check
       - task: export:check
-      - task: basic:check
+      - task: install:check
       - task: coverage:check
 
   packages:build:
@@ -111,7 +111,7 @@ tasks:
   deps:check:
     desc: Check maintenance evidence and vendor advisories for the actual dependency inventory
     cmds:
-      - docker compose build dev conan quality api-types ui-kit-check ui-kit-catalog prototype-check playback-firefox rtsp-camera postgres basic-packager basic-vm
+      - docker compose build dev conan quality api-types ui-kit-check ui-kit-catalog prototype-check playback-firefox rtsp-camera postgres offline-packager install-vm
       - docker compose pull --policy missing playback-chrome
       - python3 tools/lifecycle/scan.py
 
@@ -390,22 +390,22 @@ tasks:
         BACURI_UI_RESULTS="$PWD/build" {{.COMPOSE_RUN}} -T ui-kit-check sh -ec
         'npm run app -- --mode fixture --outDir /results/workspace-fixture && npm run app -- --outDir /results/web-client && node --version > /results/web-build-node && npm --version > /results/web-build-npm'
 
-  basic:check:
-    desc: Install the signed offline Basic kit on Debian, reboot and verify WebAuthn and access rights
+  install:check:
+    desc: Install the signed offline installation kit on Debian, reboot and verify WebAuthn and access rights
     deps:
       - web:build
       - task: build
         vars: {PRESET: gcc-release}
     cmds:
-      - docker compose build basic-packager basic-vm
+      - docker compose build offline-packager install-vm
       - |
         set -eu
-        report=$(sh tools/quality-report-dir basic-install)
+        report=$(sh tools/quality-report-dir offline-install)
         echo "Offline installation results: $report"
-        {{.COMPOSE_RUN}} -T basic-packager python3 tools/basic-package.py "$report" --qualification
-        bash tools/check-basic-install "$report"
+        {{.COMPOSE_RUN}} -T offline-packager python3 tools/offline-package.py "$report" --qualification
+        bash tools/check-offline-install "$report"
 
-  basic:operations:
+  maintenance:check:
     desc: Qualify upgrade, interrupted migration, rollback and recovery with a signed predecessor
     requires: {vars: [PREVIOUS]}
     deps:
@@ -413,27 +413,27 @@ tasks:
       - task: build
         vars: {PRESET: gcc-release}
     cmds:
-      - docker compose build basic-packager basic-vm rtsp-camera
+      - docker compose build offline-packager install-vm rtsp-camera
       - |
         set -eu
-        report=$(sh tools/quality-report-dir basic-operations)
+        report=$(sh tools/quality-report-dir offline-operations)
         echo "Upgrade and recovery results: $report"
-        {{.COMPOSE_RUN}} -T basic-packager python3 tools/basic-package.py "$report" --qualification
-        bash tools/check-basic-operations "$report" {{.PREVIOUS | shellQuote}}
+        {{.COMPOSE_RUN}} -T offline-packager python3 tools/offline-package.py "$report" --qualification
+        bash tools/check-offline-operations "$report" {{.PREVIOUS | shellQuote}}
 
-  basic:package:
-    desc: Assemble the offline Basic release with the supplied GnuPG home and signing fingerprint
+  release:package:
+    desc: Assemble the offline release with the supplied GnuPG home and signing fingerprint
     requires: {vars: [SIGNING_HOME, SIGNER, OUTPUT]}
     deps:
       - web:build
       - task: build
         vars: {PRESET: gcc-release}
     cmds:
-      - docker compose build basic-packager
+      - docker compose build offline-packager
       - mkdir -p {{.OUTPUT | shellQuote}}
       - >-
         {{.COMPOSE_RUN}} -T -v "$(realpath {{.SIGNING_HOME | shellQuote}}):/signing" -e GNUPGHOME=/signing
-        -v "$(realpath {{.OUTPUT | shellQuote}}):/release" basic-packager python3 tools/basic-package.py /release --signer {{.SIGNER | shellQuote}}
+        -v "$(realpath {{.OUTPUT | shellQuote}}):/release" offline-packager python3 tools/offline-package.py /release --signer {{.SIGNER | shellQuote}}
 
   workspace:check:
     desc: Exercise offline maps, installation and monitoring on HTTPS with real media and WSS
@@ -475,7 +475,7 @@ tasks:
     cmd: docker compose -f prototype/compose.yaml up --build --wait --wait-timeout 25
 
   camera:check:
-    desc: Validate the Basic profile and ASVS matrix and run the ONVIF equipment series on the emulator
+    desc: Validate the equipment profile and ASVS matrix and run the ONVIF equipment series on the emulator
     deps:
       - task: build
         vars: {PRESET: gcc-debug}

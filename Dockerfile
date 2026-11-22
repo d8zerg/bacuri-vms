@@ -155,8 +155,8 @@ RUN apt-get -o Acquire::Retries=3 update \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=go-tools /out/gitleaks /usr/local/bin/gitleaks
 
-FROM debian-base AS basic-dependencies
-COPY packaging/basic/runtime-packages /tmp/runtime-packages
+FROM debian-base AS offline-dependencies
+COPY packaging/debian/runtime-packages /tmp/runtime-packages
 COPY --from=maintenance-build /out/xml/ /patched/xml/
 COPY --from=maintenance-build /out/soup/ /patched/soup/
 RUN mkdir -p /packages/partial && touch /tmp/empty-status && apt-get update && \
@@ -164,20 +164,20 @@ RUN mkdir -p /packages/partial && touch /tmp/empty-status && apt-get update && \
         -o Dir::Cache::archives=/packages install $(cat /tmp/runtime-packages) /patched/*/*.deb && \
     cp /patched/*/*.deb /packages/ && rm -rf /packages/partial /packages/lock
 
-FROM dev AS basic-packager
+FROM dev AS offline-packager
 RUN apt-get update && apt-get install -y --no-install-recommends gnupg apt-utils dpkg-dev && rm -rf /var/lib/apt/lists/*
-COPY --from=basic-dependencies /packages /opt/bacuri/offline-packages
+COPY --from=offline-dependencies /packages /opt/bacuri/offline-packages
 
-FROM debian-base AS basic-guest
+FROM debian-base AS install-guest
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends systemd-sysv linux-image-cloud-amd64 \
     initramfs-tools busybox iproute2 openssl gpgv e2fsprogs && rm -rf /var/lib/apt/lists/* && \
     rm -f /usr/sbin/policy-rc.d /etc/machine-id && touch /etc/machine-id && \
     systemctl enable systemd-networkd.service
 
-FROM debian-base AS basic-vm
+FROM debian-base AS install-vm
 RUN apt-get update && apt-get install -y --no-install-recommends qemu-system-x86 e2fsprogs python3 && rm -rf /var/lib/apt/lists/*
-COPY --from=basic-guest / /guest/
+COPY --from=install-guest / /guest/
 WORKDIR /workspace
 
 FROM dev AS rtsp-camera

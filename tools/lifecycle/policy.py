@@ -10,7 +10,7 @@ import maintenance
 
 
 IMAGES = {"conan": "build", "ui-kit-catalog": "test", "scanner": "test", "dev": "build", "quality": "test", "postgres": "product", "rtsp-camera": "test",
-          "basic-packager": "build", "basic-vm": "test", "api-types": "build", "ui-kit-check": "build", "prototype-check": "test",
+          "offline-packager": "build", "install-vm": "test", "api-types": "build", "ui-kit-check": "build", "prototype-check": "test",
           "playback-chrome": "test", "playback-firefox": "test"}
 LOCKS = {"conan.lock", "tests/prototype/package-lock.json", "tools/api-client/package-lock.json",
          "web/client/package-lock.json"}
@@ -22,7 +22,7 @@ DISTROS = {"alpine": "https://security.alpinelinux.org/", "debian": "https://sec
 
 EXTRA_EVIDENCE = {"backport-reference", "host", "vendor", "maintenance-policy", "conan-gcc-debug", "conan-gcc-release", "conan-clang-debug",
                   "installed-api-types", "installed-ui-kit-check", "installed-prototype-check"}
-BUNDLERS = {"basic-packager": "https://www.debian.org/security/", "basic-vm": "https://www.debian.org/security/",
+BUNDLERS = {"offline-packager": "https://www.debian.org/security/", "install-vm": "https://www.debian.org/security/",
             "conan": "https://www.debian.org/security/",
             "ui-kit-catalog": "https://github.com/nginx/docker-nginx-unprivileged",
             "scanner": "https://github.com/aquasecurity/trivy/security", "dev": "https://www.debian.org/security/", "quality": "https://github.com/gitleaks/gitleaks/security",
@@ -96,9 +96,16 @@ def package_hashes(folder):
     return {str(path.relative_to(packages)): digest(path) for path in files}
 
 
+def recorded_targets(targets, manifest):
+    previous_names = {"offline-packager": "basic-packager", "install-vm": "basic-vm"}
+    if manifest["sha256"].keys() >= set(previous_names.values()):
+        return {previous_names.get(name, name): value for name, value in targets.items()}
+    return targets
+
+
 def checked_inputs(folder):
     manifest = json.loads((folder / "inputs.json").read_text())
-    required = {"feeds", "support", "observations", "locks"} | set(IMAGES) | EXTRA_EVIDENCE
+    required = {"feeds", "support", "observations", "locks"} | set(recorded_targets(IMAGES, manifest)) | EXTRA_EVIDENCE
     if set(manifest["sha256"]) != required:
         raise ValueError("Incomplete dependency snapshot")
     for name, expected in manifest["sha256"].items():
@@ -138,14 +145,14 @@ def package_version(target, group, pkg, observed, support):
     return None
 
 
-def reconcile_backports(items, vendor, policies, reference, observed):
+def reconcile_backports(items, vendor, policies, reference, observed, targets):
     groups = [g for g in vendor["Results"] if g.get("Type") == "debian"]
     expected = {name for policy in policies.values() for name in policy["packages"]}
     if len(groups) != 1 or {p["Name"] for p in groups[0]["Packages"]} != expected:
         raise ValueError("Incomplete original Debian inventory for locally maintained packages")
     indexed = {(item["target"], item["name"], item["version"]): item for item in items}
     fixes, failures = {}, []
-    for target, scope in maintenance.TARGETS.items():
+    for target, scope in targets.items():
         proof = observed["maintenance"][target]
         for group in scope:
             for name in policies[group]["packages"]:
@@ -153,7 +160,7 @@ def reconcile_backports(items, vendor, policies, reference, observed):
                 expected = reference[group][name]
                 if any(installed.get(k) != expected.get(k) for k in ("files", "patches", "deb_sha256", "version")):
                     raise ValueError(f"Reference and installation disagree: {target}/{name}")
-        proofs, errors = maintenance.verified_fixes(target, policies, proof)
+        proofs, errors = maintenance.verified_fixes(target, policies, proof, scope)
         fixes.update(proofs)
         failures.extend(errors)
         for group in scope:
@@ -177,6 +184,7 @@ def reconcile_backports(items, vendor, policies, reference, observed):
 def report(folder):
     manifest = checked_inputs(folder)
     today = date.fromisoformat(manifest["evaluated_on"])
+    bundlers = recorded_targets(BUNDLERS, manifest)
 
     def read(name):
         return json.loads((folder / (name + ".json")).read_text())
@@ -210,7 +218,7 @@ def report(folder):
                     receipt = support["tools"].get(group["Target"], {})
                     origin, revision = receipt.get("source"), receipt.get("revision")
                 elif target != "locks" and group.get("Class") != "os-pkgs":
-                    origin, revision = BUNDLERS[target], observed["images"][target]["id"]
+                    origin, revision = bundlers[target], observed["images"][target]["id"]
                 issue = "ended_support" if unsupported else None
                 if not version:
                     version, issue = "unversioned", "missing_version"
@@ -242,7 +250,7 @@ def report(folder):
     if {g["Target"] for g in locks["Results"] if g.get("Packages")} != LOCKS:
         raise ValueError("Missing or unreviewed dependency lock")
     packages(locks, "locks", "product")
-    for target, role in IMAGES.items():
+    for target, role in recorded_targets(IMAGES, manifest).items():
         scan = read(target)
         meta = scan["Metadata"]
         distro = meta["OS"]
@@ -279,7 +287,7 @@ def report(folder):
         append("orchestration", name, version, "test", receipt.get("source"), receipt.get("revision"),
                None if receipt.get("version") == version and receipt.get("channel") else "missing_support", [])
     fixes, issues = reconcile_backports(items, read("vendor"), read("maintenance-policy"),
-                                       read("backport-reference"), observed)
+                                       read("backport-reference"), observed, recorded_targets(maintenance.TARGETS, manifest))
     failures.extend(issues)
     failures += evaluate(items, feeds["exceptions"], observed["proofs"], today, fixes)
     return {"as_of": today.isoformat(), "input_sha256": manifest["sha256"], "components": items,

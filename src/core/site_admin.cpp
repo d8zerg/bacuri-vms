@@ -214,8 +214,8 @@ void setup(char** v)
     run({"/usr/bin/systemctl", "start", "postgresql.service"});
     run({"/usr/sbin/runuser", "-u", "postgres", "--", "/usr/bin/psql", "-X", "-v", "ON_ERROR_STOP=1", "-d",
          "postgres", "-f", "/usr/share/bacuri-vms/bootstrap.sql"});
-    run({"/usr/sbin/bacuri-basic", "admin", "migrate"});
-    run({"/usr/sbin/bacuri-basic", "admin", "initial-admin", user});
+    run({"/usr/sbin/bacuri-vms", "admin", "migrate"});
+    run({"/usr/sbin/bacuri-vms", "admin", "initial-admin", user});
     run({"/usr/bin/systemctl", "enable", "--now", "bacuri-core.service", "bacuri-recorder.service",
          "bacuri-media.service", "bacuri-diagnostics.timer", "bacuri-metrics.socket"});
 }
@@ -228,7 +228,7 @@ try {
     else if (argc >= 3 && std::string_view(argv[1]) == "admin")
         admin({argv + 2, argv + argc});
     else
-        throw std::invalid_argument("Usage: bacuri-basic setup DNS_NAME ADMIN CERT_CHAIN PRIVATE_KEY CAMERA_CIDRS "
+        throw std::invalid_argument("Usage: bacuri-vms setup DNS_NAME ADMIN CERT_CHAIN PRIVATE_KEY CAMERA_CIDRS "
                                     "| admin COMMAND [ARG...]");
     return 0;
 } catch (const std::exception& e) {
