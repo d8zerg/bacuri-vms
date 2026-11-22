@@ -117,7 +117,7 @@ def installer(browser, admin, restart):
         return cam
 
 
-def pending_alert(call, point, viewer):
+def pending_alert(call, point, viewer, on_map):
     with subprocess.Popen(
         ["psql", "-XAtq", "-v", "ON_ERROR_STOP=1"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
     ) as lock:
@@ -138,8 +138,12 @@ def pending_alert(call, point, viewer):
             begin, end = c.wait_for(pending, "new local archive block")
             send(motion(point, (begin + end) // 2 - playback.ORIGIN_US))
             item = snapshot(viewer)["items"][-1]
-            wait(call, "document.getElementById('alert-'+arguments[0])", "pending alert", item["id"])
-            js(call, "document.getElementById('alert-'+arguments[0]).click()", item["id"])
+            if on_map:
+                link(call, wait, 'nav a[href^="/maps"]')
+                link(call, wait, "#map-alert-" + item["id"])
+            else:
+                wait(call, "document.getElementById('alert-'+arguments[0])", "pending alert", item["id"])
+                js(call, "document.getElementById('alert-'+arguments[0]).click()", item["id"])
             wait(
                 call,
                 "document.querySelector('.ws-overlay')?.innerText.includes('добавляется в каталог')",
@@ -154,9 +158,11 @@ def pending_alert(call, point, viewer):
         == "ready",
         "catalog published",
     )
-    button(call, "Повторить")
+    if not on_map:
+        button(call, "Повторить")
     wait(call, "document.body.innerText.includes('Кадр записи получен')", "pending archive recovery")
-    button(call, "К выбранной тревоге")
+    if not on_map:
+        button(call, "К выбранной тревоге")
 
 
 def inspect_alert(call, browser, alert, plan, position):
@@ -185,6 +191,15 @@ def inspect_alert(call, browser, alert, plan, position):
     assert js(call, "return new URLSearchParams(location.search).get('plan')") == plan
 
 
+def archive_frame_pattern(call):
+    return js(
+        call,
+        """const v=document.querySelector('video'),c=document.createElement('canvas');
+        c.width=v.videoWidth;c.height=v.videoHeight;const ctx=c.getContext('2d');ctx.drawImage(v,0,0);
+        let n=0;for(let i=0;i<5;i++)if(ctx.getImageData((i+.5)*c.width/5,40,1,1).data[0]>128)n|=1<<i;return n""",
+    )
+
+
 def operator(browser, cam, viewer, restart, plan):
     point = cam["point_id"]
     subprocess.run([c.CORE, "grant-point", "viewer", point], check=True)
@@ -200,24 +215,26 @@ def operator(browser, cam, viewer, restart, plan):
         js(call,"const select=document.querySelector('main select');select.value=arguments[0];select.dispatchEvent(new Event('change',{bubbles:true}))",plan)
         link(call, wait, "#map-point-"+point)
         wait(call,"document.querySelector('.ws-plan img')?.naturalWidth===640","operator plan image")
-        link(call, wait, 'main a[href*="alert="]')
-        wait(call, "document.body.innerText.includes('Кадр записи получен')", "archive ready")
+        wait(call, "document.querySelector('.ws-plan .ws-pin-alert')?.textContent==='1'", "new alarm on the plan")
+        link(call, wait, "#map-alert-" + alert["id"])
+        wait(call, "document.querySelector('.ws-event-preview .ws-transport')?.innerText.includes('Кадр записи получен')", "archive frame on the plan")
+        assert js(call, "return location.pathname") == "/maps" and archive_frame_pattern(call) == 16
+        send(motion(point, 1500000))
+        wait(call, "document.querySelectorAll('.ws-event-row').length===2", "incoming alarm during review")
+        assert js(call, "return document.querySelector('.ws-event-row[aria-expanded=true]').id") == "map-alert-" + alert["id"]
+        link(call, wait, '.ws-event-preview a[href*="alert="]')
+        wait(call, "document.querySelector('.ws-watch .ws-transport')?.innerText.includes('Кадр записи получен')", "archive ready")
         position = js(call, "return document.querySelector('.ws-transport time').dateTime")
         assert position == alert["observed_at"], (position, alert)
-        frame = js(
-            call,
-            """const v=document.querySelector('video'),c=document.createElement('canvas');
-            c.width=v.videoWidth;c.height=v.videoHeight;const ctx=c.getContext('2d');ctx.drawImage(v,0,0);
-            let n=0;for(let i=0;i<5;i++)if(ctx.getImageData((i+.5)*c.width/5,40,1,1).data[0]>128)n|=1<<i;return n""",
-        )
+        frame = archive_frame_pattern(call)
         assert frame == 16, (browser, frame)
         url = js(call, "return location.pathname+location.search")
         capture(call, browser, "operator")
         link(call,wait,'nav a[href^="/maps"]')
-        wait(call,"document.activeElement?.id==='map-point-'+arguments[0]", "restored map focus", point)
+        wait(call,"document.activeElement?.id==='map-alert-'+arguments[0]", "restored event focus", alert["id"])
         assert js(call,"return new URLSearchParams(location.search).get('plan')")==plan
         link(call,wait,'main a[href*="mode=archive"]')
-        wait(call, "document.body.innerText.includes('Кадр записи получен')", "restored archive frame")
+        wait(call, "document.querySelector('.ws-watch .ws-transport')?.innerText.includes('Кадр записи получен')", "restored archive frame")
         assert js(call, "return document.querySelector('.ws-transport time').dateTime") == position
         inspect_alert(call, browser, alert["id"], plan, position)
         button(call, "К выбранной тревоге")
@@ -242,7 +259,7 @@ def operator(browser, cam, viewer, restart, plan):
             "gap reason",
         )
         assert not js(call, "return document.querySelector('video').videoWidth")
-        pending_alert(call, point, viewer)
+        pending_alert(call, point, viewer, on_map=browser == "firefox")
     with browser_session(browser, viewer, url, workspace_coverage=raw) as (call, _):
         wait(call, "document.body.innerText.includes('Кадр записи получен')", "direct archive link")
         call("POST", "/refresh", {})

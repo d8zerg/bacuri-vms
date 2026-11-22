@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import type { Services, Target, Entry, Interval } from "../contracts/workspace";
+import type {
+  Services,
+  Target,
+  Entry,
+  Interval,
+  AlertLink,
+} from "../contracts/workspace";
 import { MediaPanel } from "../ui-kit/MediaPanel";
 import type { PlayerState } from "../ui-kit/MediaPanel";
 import type { ComponentProps } from "react";
@@ -51,6 +57,21 @@ export function windowAround(at: number): Interval {
     end: new Date(at + 180000).toISOString(),
   };
 }
+export function alertArchiveNotice(link: AlertLink) {
+  switch (link.state) {
+    case "ready":
+      return "Запись доступна";
+    case "uncertain_time":
+      return "Нельзя точно сопоставить время тревоги с записью";
+    case "pending_catalog":
+      return "Запись добавляется в каталог";
+    case "gap":
+      return "Пропуск записи. " + (reasons[link.reason] ?? "Нет сведений");
+    case "unavailable":
+      return "Запись недоступна. " + (reasons[link.reason] ?? "Нет сведений");
+  }
+}
+
 export function detail(entry: Entry | undefined) {
   if (!entry) return "Нет сведений о записи";
   if (entry.state === "pending_catalog") return "Запись добавляется в каталог";

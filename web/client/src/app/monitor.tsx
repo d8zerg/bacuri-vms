@@ -16,7 +16,7 @@ import type { TimelineData } from "../ui-kit/ArchiveTimeline";
 import {
   SessionPlayer,
   detail,
-  reasons,
+  alertArchiveNotice,
   timelineEntry,
   windowAround,
   milliseconds,
@@ -190,17 +190,15 @@ function View({
     : loaded
       ? detail(entry)
       : "Загрузка архива…";
-  if (link && !at && link.state !== "ready") {
-    if (link.state === "uncertain_time")
-      notice = "Нельзя точно сопоставить время тревоги с записью";
-    else if (link.state === "pending_catalog")
-      notice = "Запись добавляется в каталог";
-    else if (entry?.state !== "gap")
-      notice =
-        (link.state === "gap" ? "Пропуск записи. " : "Запись недоступна. ") +
-        (("reason" in link ? reasons[link.reason] : undefined) ??
-          "Нет сведений");
-  }
+  if (
+    link &&
+    !at &&
+    link.state !== "ready" &&
+    (entry?.state !== "gap" ||
+      link.state === "uncertain_time" ||
+      link.state === "pending_catalog")
+  )
+    notice = alertArchiveNotice(link);
   const data: TimelineData = failed
     ? { status: "error", message: "Проверьте соединение с площадкой." }
     : !loaded

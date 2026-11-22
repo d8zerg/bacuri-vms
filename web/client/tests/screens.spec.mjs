@@ -243,6 +243,48 @@ for (const [story, state] of [
   });
 }
 
+test("Review an event on the plan, compare live video, then resume the same event", async ({
+  page,
+}) => {
+  await open(page, "plan");
+  const panel = page.getByRole("region", { name: "События камеры" });
+  await expect(panel.getByRole("button", { name: /Проверить/ })).toHaveCount(3);
+  await expect(panel.locator("video")).toHaveCount(0);
+  await panel
+    .getByRole("button", { name: /Потеря видеопотока/ })
+    .press("Enter");
+  await expect(panel.locator(".ws-overlay")).toContainText(
+    "Пропуск записи. Нет связи с камерой",
+  );
+  await expect(panel.locator("video")).toBeHidden();
+  await panel.getByRole("button", { name: "Эфир", exact: true }).click();
+  await expect(panel.getByText("Эфир подключён")).toBeVisible();
+  await panel.getByRole("button", { name: "Архив", exact: true }).click();
+  await expect(panel.locator("video")).toBeHidden();
+  await panel.getByRole("button", { name: /Показать ещё/ }).click();
+  await panel.getByRole("button", { name: /Движение у ворот/ }).press("Enter");
+  await expect(panel.getByText("Кадр записи получен")).toBeVisible();
+  await expect(panel.locator("video")).toHaveCount(1);
+  await checkAccessibility(page, ".ws-shell");
+  await page.getByLabel("Масштаб плана").selectOption("2");
+  await panel
+    .getByRole("link", { name: "Открыть тревогу в мониторинге" })
+    .click();
+  await expect(page.locator(".ws-alert-work")).toBeVisible();
+  await page.getByRole("link", { name: "Карты и планы" }).click();
+  const row = panel.getByRole("button", { name: /Движение у ворот/ });
+  await expect(row).toBeFocused();
+  await expect(row).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByLabel("Масштаб плана")).toHaveValue("2");
+  await row.press("Enter");
+  await expect(panel.locator("video")).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator(".ws-plan .ws-pin").click();
+  await expect(
+    page.getByRole("heading", { name: "Погрузочные ворота 02" }),
+  ).toBeFocused();
+});
+
 test("Administrator calibrates the camera sector on a non-square floor plan", async ({
   page,
 }) => {
@@ -449,7 +491,7 @@ test("Switching building floors isolates cameras and opens their source plan", a
   const floors = page.getByLabel("План на геокарте");
   await expect(floors).toHaveValue("");
   if (info.project.name.startsWith("chromium")) {
-    await page.getByRole("button", { name: "Корпус", exact: true }).click();
+    await page.getByRole("button", { name: /Корпус · Новых тревог/ }).click();
     await expect(page.locator(".maplibregl-marker .ws-sector")).toHaveCount(1);
   } else await floors.selectOption("floor");
   await expect(floors).toHaveValue("floor");

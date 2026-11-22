@@ -99,6 +99,7 @@ type Props = {
   labels?: MapLabel[];
   region: NonNullable<MapScene["region"]>;
   markers: Placement[];
+  newAlerts?: ReadonlyMap<string, number>;
   points: Point[];
   chosen: string;
   view: View | null;
@@ -111,12 +112,14 @@ function RegionPin({
   marker,
   point,
   chosen,
+  newAlerts,
   select,
 }: {
   map: LibreMap;
   marker: Placement;
   point: Point;
   chosen: boolean;
+  newAlerts: number;
   select: (id: string) => void;
 }) {
   const [el] = useState(() => document.createElement("div"));
@@ -133,6 +136,7 @@ function RegionPin({
       marker={marker}
       name={point.name}
       selected={chosen}
+      newAlerts={newAlerts}
       choose={() => select(point.id)}
     />,
     el,
@@ -241,6 +245,7 @@ export default function RegionMap(props: Props) {
                 marker={marker}
                 point={point}
                 chosen={props.chosen === point.id}
+                newAlerts={props.newAlerts?.get(point.id) ?? 0}
                 select={props.select}
               />
             )

@@ -28,10 +28,18 @@ type Props = {
   marker: Placement;
   name: string;
   selected: boolean;
+  newAlerts?: number;
   choose: () => void;
   style?: CSSProperties;
 };
-export function CameraMarker({ marker, name, selected, choose, style }: Props) {
+export function CameraMarker({
+  marker,
+  name,
+  selected,
+  choose,
+  style,
+  newAlerts = 0,
+}: Props) {
   const view = marker.view;
   const half = ((view?.hfov ?? 0) * Math.PI) / 360;
   const x = 52 * Math.sin(half),
@@ -41,8 +49,12 @@ export function CameraMarker({ marker, name, selected, choose, style }: Props) {
       type="button"
       className="ws-pin"
       style={style}
-      aria-label={name}
-      title={name + " · " + viewLabel(view)}
+      aria-label={newAlerts ? name + " · Новых тревог: " + newAlerts : name}
+      title={[
+        name,
+        viewLabel(view),
+        ...(newAlerts ? ["Новых тревог: " + newAlerts] : []),
+      ].join(" · ")}
       aria-pressed={selected}
       onClick={(e) => {
         e.stopPropagation();
@@ -68,6 +80,11 @@ export function CameraMarker({ marker, name, selected, choose, style }: Props) {
       <svg className="ws-camera-icon" aria-hidden="true" viewBox="0 0 24 24">
         <use href={icons + "#i-cctv"} />
       </svg>
+      {newAlerts > 0 && (
+        <span className="ws-pin-alert" aria-hidden="true">
+          {newAlerts}
+        </span>
+      )}
       <span className="ws-pin-name">{name}</span>
     </button>
   );

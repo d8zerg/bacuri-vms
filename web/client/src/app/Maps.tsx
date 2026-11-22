@@ -11,6 +11,7 @@ import type { FormEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { Services, MapScene, Point, Feed } from "../contracts/workspace";
 import { Button } from "../ui-kit/FormControls";
+import { CameraEvents } from "./CameraEvents";
 import { CameraMarker, viewLabel } from "./CameraMarker";
 import {
   ViewCalibration,
@@ -45,6 +46,8 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
   const selected = params.get("point") ?? "",
     surface = params.get("plan") ?? "";
   const focus = useRef(false);
+  const focusCameraTitle = useRef(false);
+  const cameraTitle = useRef<HTMLHeadingElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const current = useRef(params);
   useEffect(() => {
@@ -108,6 +111,24 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
       ) ?? [],
     [scene, surface, points],
   );
+  const newAlerts = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (feed.status === "online")
+      for (const item of feed.items) {
+        if (item.work_state === "new")
+          counts.set(item.point_id, (counts.get(item.point_id) ?? 0) + 1);
+      }
+    return counts;
+  }, [feed.items, feed.status]);
+  const floorAlerts = new Map<string, number>();
+  for (const marker of scene?.placements ?? []) {
+    if (marker.source_plan_id && newAlerts.has(marker.point_id))
+      floorAlerts.set(
+        marker.source_plan_id,
+        (floorAlerts.get(marker.source_plan_id) ?? 0) +
+          newAlerts.get(marker.point_id)!,
+      );
+  }
   const floors = scene?.plans.filter((p) => p.footprint) ?? [];
   const floor = floors.find((p) => p.id === params.get("floor"));
   const buildings = new Map<string, typeof floors>();
@@ -147,6 +168,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
     );
     update({
       plan: null,
+      review: null,
       floor: id || null,
       region: next?.id ?? region?.id ?? null,
       point: keepPoint ? selected || null : null,
@@ -159,9 +181,14 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
   const scale = Number(params.get("scale")) === 2 ? 2 : 1;
   useEffect(() => {
     if (!scene || focus.current) return;
-    const el = document.getElementById("map-point-" + selected);
+    const review = current.current.get("review");
+    const el = focusCameraTitle.current
+      ? cameraTitle.current
+      : (review && document.getElementById("map-alert-" + review)) ||
+        document.getElementById("map-point-" + selected);
     if (el) {
-      el.focus({ preventScroll: true });
+      el.focus({ preventScroll: !focusCameraTitle.current });
+      focusCameraTitle.current = false;
       focus.current = true;
     }
     if (scroller.current)
@@ -182,6 +209,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
         : {
             point: id,
             alert: null,
+            review: null,
             focus: null,
             at: null,
             from: null,
@@ -190,13 +218,28 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
           },
     );
   }
+  function chooseFromMarker(id: string) {
+    choose(id);
+    if (!window.matchMedia("(max-width: 56rem)").matches) return;
+    if (id === selected) {
+      cameraTitle.current?.focus();
+      focus.current = true;
+    } else focusCameraTitle.current = true;
+  }
   function changeSurface(id: string) {
     setDraft(null);
     setAim(false);
     setLandmark(null);
     tell("");
     setEditingPlan("");
-    update({ floor: null, plan: id || null, sx: null, sy: null, scale: null });
+    update({
+      floor: null,
+      review: null,
+      plan: id || null,
+      sx: null,
+      sy: null,
+      scale: null,
+    });
   }
   function pick(x: number, y: number) {
     if (admin && aim && marker) {
@@ -220,9 +263,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
     next.set("point", selected);
     next.set("mode", mode);
     if (alert) {
-      if (next.get("alert") !== alert) {
-        for (const key of ["at", "from", "to", "focus"]) next.delete(key);
-      }
+      for (const key of ["at", "from", "to", "focus"]) next.delete(key);
       next.set("alert", alert);
     } else if (mode === "live") {
       const currentAlert = feed.items.find((a) => a.id === next.get("alert"));
@@ -437,11 +478,12 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                         <CameraMarker
                           key={m.point_id}
                           marker={m}
+                          newAlerts={newAlerts.get(m.point_id) ?? 0}
                           name={
                             points.find((p) => p.id === m.point_id)?.name ?? ""
                           }
                           selected={selected === m.point_id}
-                          choose={() => choose(m.point_id)}
+                          choose={() => chooseFromMarker(m.point_id)}
                           style={{
                             left: m.x * 100 + "%",
                             top: m.y * 100 + "%",
@@ -512,6 +554,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                     key={region.revision + "/" + (floor?.id ?? "")}
                     region={region}
                     markers={geographyMarkers}
+                    newAlerts={newAlerts}
                     overlay={
                       floor?.footprint
                         ? {
@@ -526,11 +569,19 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                       floor
                         ? []
                         : [...buildings].map(([name, levels]) => {
-                            const first = levels[0]!;
+                            const first =
+                              levels.find((p) => floorAlerts.has(p.id)) ??
+                              levels[0]!;
+                            const count = levels.reduce(
+                              (sum, p) => sum + (floorAlerts.get(p.id) ?? 0),
+                              0,
+                            );
                             const [lng, lat] = first.footprint!.center;
                             return {
                               id: name,
-                              text: name,
+                              text: count
+                                ? name + " · Новых тревог: " + count
+                                : name,
                               lng: lng!,
                               lat: lat!,
                               activate: () => selectFloor(first.id),
@@ -540,7 +591,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                     points={points}
                     chosen={selected}
                     view={view}
-                    select={choose}
+                    select={chooseFromMarker}
                     pick={pick}
                     move={(v) =>
                       update(
@@ -590,6 +641,12 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                     onClick={() => choose(p.id)}
                   >
                     {p.name}
+                    {newAlerts.has(p.id) && (
+                      <span className="ws-point-alert">
+                        {" "}
+                        · Новых тревог: {newAlerts.get(p.id)}
+                      </span>
+                    )}
                   </Button>
                 </li>
               ))}
@@ -599,7 +656,9 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
             )}
             {point && (admin || marker) && (
               <>
-                <h3>{point.name}</h3>
+                <h3 tabIndex={-1} ref={cameraTitle}>
+                  {point.name}
+                </h3>
                 {marker && (
                   <p>
                     {plan ? "X, Y" : "Долгота, широта"} · {fixed(marker.x)},{" "}
@@ -611,13 +670,16 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                   <Link to={target("live")}>Эфир</Link>
                   <Link to={target("archive")}>Архив</Link>
                 </div>
-                {feed.items
-                  .filter((a) => a.point_id === selected)
-                  .map((a) => (
-                    <Link key={a.id} to={target("archive", a.id)}>
-                      {a.type} · {a.observed_at}
-                    </Link>
-                  ))}
+                <CameraEvents
+                  key={point.id}
+                  services={services}
+                  site={site}
+                  point={point}
+                  feed={feed}
+                  review={params.get("review")}
+                  onReview={(id) => update({ review: id }, true)}
+                  monitor={(id) => target("archive", id)}
+                />
                 {marker?.source_plan_id && (
                   <Button onClick={() => changeSurface(marker.source_plan_id!)}>
                     Открыть план ·{" "}

@@ -37,6 +37,7 @@ const rows: Entry[] = [
 const alerts: AlertItem[] = [82, 132, 236, 301].map((n, i) => ({
   id: "event-" + i,
   point_id: point,
+  work_state: "new",
   observed_at: utc(n),
   type: [
     "Движение у ворот",

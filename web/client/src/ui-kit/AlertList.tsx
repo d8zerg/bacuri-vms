@@ -1,9 +1,8 @@
 import "./media-panels.css";
 import type { Ref } from "react";
 import type { AlertItem, Feed, Point } from "../contracts/workspace";
-export function alertName(type: string) {
-  return type === "motion" ? "Движение" : type;
-}
+import { alertName, alertStates } from "./alertLabels";
+export { alertName } from "./alertLabels";
 export function AlertList({
   feed,
   points,
@@ -49,11 +48,9 @@ export function AlertList({
                   "Точка наблюдения"}
               </span>
               <small>
-                {item.work_state === "closed"
-                  ? "Закрыта"
-                  : item.work_state === "in_progress"
-                    ? "В работе"
-                    : "Новая"}{" "}
+                {item.work_state
+                  ? alertStates[item.work_state]
+                  : "Состояние не указано"}{" "}
                 · Приоритет не задан
               </small>
               <time dateTime={item.observed_at}>

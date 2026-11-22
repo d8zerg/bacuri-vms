@@ -13,11 +13,7 @@ import { HttpFailure } from "../adapters/api";
 import { Button } from "../ui-kit/FormControls";
 import "./alert-work.css";
 
-const states = {
-  new: "Новая",
-  in_progress: "В работе",
-  closed: "Закрыта",
-} as const;
+import { alertStates as states } from "../ui-kit/alertLabels";
 const actions = {
   claim: "Взять в работу",
   record_result: "Записать результат",

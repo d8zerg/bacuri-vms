@@ -5,30 +5,47 @@
     - option "Карта региона"
     - option "Первый этаж" [selected]
   - heading "Первый этаж" [level=2]
+  - button "Привязать план к карте"
   - text: Масштаб плана
   - combobox "Масштаб плана":
     - option /\d+%/ [selected]
     - option /\d+%/
   - img "Первый этаж"
-  - button /Погрузочные ворота \d+/ [pressed]
+  - 'button /Погрузочные ворота \d+ · Новых тревог: 4/ [pressed]'
   - heading "Точки наблюдения" [level=2]
   - list:
     - listitem:
-      - button /Погрузочные ворота \d+/ [pressed]
+      - 'button /Погрузочные ворота \d+ · Новых тревог: 4/ [pressed]'
   - heading /Погрузочные ворота \d+/ [level=3]
   - paragraph: /X, Y · \d+\.\d+, \d+\.\d+/
+  - paragraph: /Заданное направление \d+° · угол обзора \d+°/
   - link "Эфир":
     - /url: /monitor?plan=floor&point=dock&mode=live
   - link "Архив":
     - /url: /monitor?plan=floor&point=dock&mode=archive
-  - link /Движение у ворот · \d+-\d+-01T14:\d+:\d+\.000Z/:
-    - /url: /monitor?plan=floor&point=dock&mode=archive&alert=event-0
-  - link /Потеря видеопотока · \d+-\d+-01T14:\d+:\d+\.000Z/:
-    - /url: /monitor?plan=floor&point=dock&mode=archive&alert=event-1
-  - link /Смещение часов камеры · \d+-\d+-01T14:\d+:\d+\.000Z/:
-    - /url: /monitor?plan=floor&point=dock&mode=archive&alert=event-2
-  - link /Поток восстановлен · \d+-\d+-01T14:\d+:\d+\.000Z/:
-    - /url: /monitor?plan=floor&point=dock&mode=archive&alert=event-3
+  - region "События камеры":
+    - heading "События камеры" [level=3]
+    - list:
+      - listitem:
+        - button /Поток восстановлен Новая 1 янв\. \d+ г\., \d+:\d+:\d+ UTC Проверить/:
+          - strong: Поток восстановлен
+          - text: ""
+          - time: /1 янв\. \d+ г\., \d+:\d+:\d+ UTC/
+          - text: ""
+      - listitem:
+        - button /Смещение часов камеры Новая 1 янв\. \d+ г\., \d+:\d+:\d+ UTC Проверить/:
+          - strong: Смещение часов камеры
+          - text: ""
+          - time: /1 янв\. \d+ г\., \d+:\d+:\d+ UTC/
+          - text: ""
+      - listitem:
+        - button /Потеря видеопотока Новая 1 янв\. \d+ г\., \d+:\d+:\d+ UTC Проверить/:
+          - strong: Потеря видеопотока
+          - text: ""
+          - time: /1 янв\. \d+ г\., \d+:\d+:\d+ UTC/
+          - text: ""
+    - button "Показать ещё (1)"
+  - group: Настроить сектор обзора
   - heading "Положение точки" [level=3]
   - text: X
   - spinbutton "X": /\d+\.\d+/
@@ -36,4 +53,8 @@
   - spinbutton "Y": /\d+\.\d+/
   - button "Сохранить положение" [disabled]
   - group: Добавить план
+  - region "Управление регионами":
+    - heading "Региональные карты" [level=3]
+    - button "Установить регионы"
+    - button "Обновить установленные" [disabled]
   - status
