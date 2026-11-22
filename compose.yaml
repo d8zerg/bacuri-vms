@@ -123,7 +123,6 @@ services:
     shm_size: 1gb
     volumes:
       - ./tests/workspace/screens:/screen-references:${BACURI_WORKSPACE_SCREEN_MODE:-ro}
-      - ./prototype/dist:/workspace/prototype/dist:ro
       - ./build/contracts:/workspace/build/contracts:ro
       - ./design/bacuri:/workspace/design/bacuri:ro
       - ${BACURI_UI_RESULTS:-./build/ui-kit}:/results
@@ -143,17 +142,6 @@ services:
       interval: 2s
       timeout: 3s
       retries: 10
-
-  prototype-check:
-    profiles: ["tools"]
-    build: ./tests/prototype
-    network_mode: none
-    shm_size: 1gb
-    volumes:
-      - ./prototype/dist:/usr/share/nginx/html:ro
-      - ./design/bacuri:/usr/share/design/bacuri:ro
-      - ./tests/prototype/screens:/opt/prototype-tests/screens:${BACURI_PROTOTYPE_SCREEN_MODE:-ro}
-      - ${BACURI_PROTOTYPE_RESULTS:-./build/prototype-results}:/results
 
   playback-firefox:
     profiles: ["playback-test"]

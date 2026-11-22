@@ -44,6 +44,8 @@ def collect():
     paths = subprocess.check_output(["git", "ls-files", "--cached", "--others", "--exclude-standard",
                                      ":(glob)**/package-lock.json"], text=True).splitlines()
     for lock in map(Path, paths):
+        if not lock.is_file():
+            continue
         for path, item in json.loads(lock.read_text())["packages"].items():
             if path:
                 packages.add((item.get("name") or path.split("node_modules/")[-1], item["version"]))

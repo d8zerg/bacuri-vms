@@ -30,7 +30,7 @@ class ReplayTest(unittest.TestCase):
 
             def run(expected):
                 names = set(policy.IMAGES) | policy.EXTRA_EVIDENCE | {"support", "observations", "feeds", "locks"}
-                write("inputs", {"evaluated_on": date.today().isoformat(),
+                write("inputs", {"version": policy.SNAPSHOT_VERSION, "evaluated_on": date.today().isoformat(),
                                  "package_sha256": policy.package_hashes(root),
                                  "vendor_sha256": {n: policy.digest(root / n) for n in policy.VENDOR_FILES},
                                  "sha256": {n: policy.digest(root / (n + ".json")) for n in names}})

@@ -10,7 +10,7 @@
     "check": "tsc --noEmit && eslint src stories --max-warnings 0 && prettier --check src stories tests .storybook *.mjs *.json",
     "build": "vite build --configLoader native",
     "catalog": "storybook build --disable-telemetry --output-dir /results/storybook",
-    "test": "playwright test",
+    "test": "node tests/render-brand.mjs && playwright test",
     "app": "vite build --configLoader native --config app.vite.config.mjs"
   },
   "dependencies": {

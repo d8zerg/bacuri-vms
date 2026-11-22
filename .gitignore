@@ -1,7 +1,10 @@
-# CMake, Ninja and CTest
+# Local builds, packages and quality reports
 /[Bb]uild/
 /[Bb]uild-*/
 /cmake-build-*/
+/.task/
+
+# CMake, Ninja and CTest
 /CMakeUserPresets.json
 CMakeFiles/
 CMakeCache.txt
@@ -15,40 +18,49 @@ build.ninja
 .ninja_deps
 .ninja_log
 
-# Local Docker Compose settings
+# Native compiler and coverage output
+*.d
+*.o
+*.obj
+*.dwo
+*.pch
+*.gch
+*.a
+*.so
+*.so.*
+*.gcda
+*.gcno
+*.profraw
+*.profdata
+
+# Web dependencies, builds and browser test output
+node_modules/
+/web/client/dist/
+/web/client/storybook-static/
+/web/client/playwright-report/
+/web/client/test-results/
+/web/client/coverage/
+*.tsbuildinfo
+
+# Local Compose configuration
 /.env
 /.env.*
 !/.env.example
 /compose.override.yaml
 /compose.override.yml
 
-# Compiler and linker outputs
-*.d
-*.dwo
-*.slo
-*.lo
-*.o
-*.obj
-*.gch
-*.pch
-*.ilk
-*.pdb
-*.so
-*.dylib
-*.dll
-*.so.*
-*.lai
-*.la
-*.a
-*.lib
-*.exe
-*.out
-*.app
-
-# Logs, editor backups and caches
+# Python tooling
 __pycache__/
-*.tmp
-*.log
-*.bak
-*.swp
+*.pyc
+/.venv/
+.pytest_cache/
+
+# Local editor state, caches and temporary files
+/.idea/
+/.vscode/ipch/
 .cache/
+*.swp
+*.tmp
+*.bak
+*.log
+*~

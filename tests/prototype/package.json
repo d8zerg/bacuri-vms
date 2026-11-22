@@ -1,8 +1,0 @@
-{
-  "name": "bacuri-vms-prototype-tests",
-  "private": true,
-  "dependencies": {
-    "axe-core": "4.11.1",
-    "playwright": "1.64.0"
-  }
-}

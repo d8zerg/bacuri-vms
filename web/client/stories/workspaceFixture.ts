@@ -1,8 +1,8 @@
 import { alertWorkFixture } from "./alertWorkFixture";
 import floor from "./floor.png";
 import type { MapScene } from "../src/contracts/workspace";
-import liveClip from "../../../prototype/dist/assets/yard-live.webm";
-import archiveClip from "../../../prototype/dist/assets/yard.webm";
+import liveClip from "./yard-live.webm";
+import archiveClip from "./yard.webm";
 import type {
   Services,
   Session,

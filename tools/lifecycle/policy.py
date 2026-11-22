@@ -9,25 +9,26 @@ from pathlib import Path
 import maintenance
 
 
-IMAGES = {"conan": "build", "ui-kit-catalog": "test", "scanner": "test", "dev": "build", "quality": "test", "postgres": "product", "rtsp-camera": "test",
-          "offline-packager": "build", "install-vm": "test", "api-types": "build", "ui-kit-check": "build", "prototype-check": "test",
-          "playback-chrome": "test", "playback-firefox": "test"}
-LOCKS = {"conan.lock", "tests/prototype/package-lock.json", "tools/api-client/package-lock.json",
-         "web/client/package-lock.json"}
+SNAPSHOT_VERSION = 2
+SERVICE_IMAGES = {"conan": "build", "ui-kit-catalog": "test", "scanner": "test", "dev": "build", "quality": "test", "postgres": "product", "rtsp-camera": "test",
+                  "offline-packager": "build", "install-vm": "test", "api-types": "build", "ui-kit-check": "build"}
+PLAYBACK_IMAGES = {"playback-chrome": "test", "playback-firefox": "test"}
+IMAGES = SERVICE_IMAGES | PLAYBACK_IMAGES
+LOCKS = {"conan.lock", "tools/api-client/package-lock.json", "web/client/package-lock.json"}
 RUNTIMES = {"postgres": "postgres", "playback-chrome": "chrome", "playback-firefox": "firefox",
-            "api-types": "node", "prototype-check": "node", "ui-kit-check": "node"}
+            "api-types": "node", "ui-kit-check": "node"}
 DISTROS = {"alpine": "https://security.alpinelinux.org/", "debian": "https://security-tracker.debian.org/tracker/",
            "ubuntu": "https://ubuntu.com/security/notices"}
 
 
 EXTRA_EVIDENCE = {"backport-reference", "host", "vendor", "maintenance-policy", "conan-gcc-debug", "conan-gcc-release", "conan-clang-debug",
-                  "installed-api-types", "installed-ui-kit-check", "installed-prototype-check"}
+                  "installed-api-types", "installed-ui-kit-check"}
 BUNDLERS = {"offline-packager": "https://www.debian.org/security/", "install-vm": "https://www.debian.org/security/",
             "conan": "https://www.debian.org/security/",
             "ui-kit-catalog": "https://github.com/nginx/docker-nginx-unprivileged",
             "scanner": "https://github.com/aquasecurity/trivy/security", "dev": "https://www.debian.org/security/", "quality": "https://github.com/gitleaks/gitleaks/security",
             "rtsp-camera": "https://www.debian.org/security/", "api-types": "https://github.com/nodejs/docker-node",
-            "ui-kit-check": "https://github.com/microsoft/playwright", "prototype-check": "https://github.com/microsoft/playwright",
+            "ui-kit-check": "https://github.com/microsoft/playwright",
             "playback-chrome": "https://github.com/SeleniumHQ/docker-selenium",
             "playback-firefox": "https://github.com/SeleniumHQ/docker-selenium",
             "postgres": "https://github.com/docker-library/postgres"}
@@ -98,14 +99,19 @@ def package_hashes(folder):
 
 def recorded_targets(targets, manifest):
     previous_names = {"offline-packager": "basic-packager", "install-vm": "basic-vm"}
-    if manifest["sha256"].keys() >= set(previous_names.values()):
+    if manifest.get("version", 1) == 1 and manifest["sha256"].keys() >= set(previous_names.values()):
         return {previous_names.get(name, name): value for name, value in targets.items()}
     return targets
 
 
 def checked_inputs(folder):
     manifest = json.loads((folder / "inputs.json").read_text())
+    version = manifest.get("version", 1)
+    if version not in (1, SNAPSHOT_VERSION):
+        raise ValueError("Unknown dependency snapshot version")
     required = {"feeds", "support", "observations", "locks"} | set(recorded_targets(IMAGES, manifest)) | EXTRA_EVIDENCE
+    if version == 1:
+        required.update({"prototype-check", "installed-prototype-check"})
     if set(manifest["sha256"]) != required:
         raise ValueError("Incomplete dependency snapshot")
     for name, expected in manifest["sha256"].items():
@@ -184,7 +190,14 @@ def reconcile_backports(items, vendor, policies, reference, observed, targets):
 def report(folder):
     manifest = checked_inputs(folder)
     today = date.fromisoformat(manifest["evaluated_on"])
-    bundlers = recorded_targets(BUNDLERS, manifest)
+    images, locks_expected, runtimes, bundlers = IMAGES, LOCKS, RUNTIMES, BUNDLERS
+    if manifest.get("version", 1) == 1:
+        # Preserve the inventory and component order of archived reports.
+        images = SERVICE_IMAGES | {"prototype-check": "test"} | PLAYBACK_IMAGES
+        locks_expected = LOCKS | {"tests/prototype/package-lock.json"}
+        runtimes = RUNTIMES | {"prototype-check": "node"}
+        bundlers = BUNDLERS | {"prototype-check": BUNDLERS["ui-kit-check"]}
+    bundlers = recorded_targets(bundlers, manifest)
 
     def read(name):
         return json.loads((folder / (name + ".json")).read_text())
@@ -247,10 +260,10 @@ def report(folder):
                        None, advisories)
 
     locks = read("locks")
-    if {g["Target"] for g in locks["Results"] if g.get("Packages")} != LOCKS:
+    if {g["Target"] for g in locks["Results"] if g.get("Packages")} != locks_expected:
         raise ValueError("Missing or unreviewed dependency lock")
     packages(locks, "locks", "product")
-    for target, role in recorded_targets(IMAGES, manifest).items():
+    for target, role in recorded_targets(images, manifest).items():
         scan = read(target)
         meta = scan["Metadata"]
         distro = meta["OS"]
@@ -262,8 +275,8 @@ def report(folder):
         if not source:
             failures.append({"reason": "missing_distribution_support", "target": target})
         packages(scan, target, role, source, distro.get("EOSL", False))
-        if target in RUNTIMES:
-            name = RUNTIMES[target]
+        if target in runtimes:
+            name = runtimes[target]
             value = observed["versions"][target]
             record = support["runtimes"][name]
             if name == "node":

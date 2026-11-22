@@ -14,7 +14,7 @@ import tempfile
 sys.dont_write_bytecode = True
 
 import maintenance
-from policy import EXTRA_EVIDENCE, IMAGES, LOCKS, RUNTIMES, VENDOR_FILES, digest, package_hashes
+from policy import EXTRA_EVIDENCE, IMAGES, LOCKS, RUNTIMES, SNAPSHOT_VERSION, VENDOR_FILES, digest, package_hashes
 
 
 HERE = Path(__file__).resolve().parent
@@ -77,11 +77,6 @@ def compose_targets():
         if not representative:
             raise ValueError(f"Missing dependency scan for Compose service: {name}")
         aliases[name] = representative
-    prototype = json.loads(output("docker", "compose", "-f", "prototype/compose.yaml", "config",
-                                  "--format", "json"))["services"]["prototype"]
-    if prototype["build"] != services["ui-kit-catalog"]["build"]:
-        raise ValueError("Prototype static server differs from the reviewed image")
-    aliases["prototype/prototype"] = "ui-kit-catalog"
     return selected, aliases
 
 
@@ -135,7 +130,6 @@ def capture(report, offline_from):
     for target, directory, lock in (
         ("api-types", "/opt/bacuri-api-tools", "tools/api-client/package-lock.json"),
         ("ui-kit-check", "/workspace/web/client", "web/client/package-lock.json"),
-        ("prototype-check", "/opt/prototype-tests", "tests/prototype/package-lock.json"),
     ):
         write(snapshot / f"installed-{target}.json", npm_tree(selected[target]["Id"], directory, lock))
     for target, name in RUNTIMES.items():
@@ -172,8 +166,9 @@ def capture(report, offline_from):
         observed["java_database"] = json.loads((work / "java-db/metadata.json").read_text())
         # Only inputs used by the source build enter this scan. Local and generated locks are excluded.
         locks = work / "source"
-        paths = set(output("git", "ls-files", "--cached", "--others", "--exclude-standard",
-                           "conan.lock", ":(glob)**/package-lock.json").splitlines())
+        candidates = output("git", "ls-files", "--cached", "--others", "--exclude-standard",
+                            "conan.lock", ":(glob)**/package-lock.json").splitlines()
+        paths = {path for path in candidates if Path(path).is_file()}
         if paths != LOCKS:
             raise ValueError(f"Unreviewed or missing dependency manifests: {paths ^ LOCKS}")
         for path in paths:
@@ -218,7 +213,7 @@ def capture(report, offline_from):
             observed["proofs"][check] = {"exit_code": code, "sha256": digest(script)}
     write(snapshot / "observations.json", observed)
     names = {"feeds", "support", "locks", "observations"} | set(IMAGES) | EXTRA_EVIDENCE
-    write(snapshot / "inputs.json", {"evaluated_on": datetime.now(timezone.utc).date().isoformat(),
+    write(snapshot / "inputs.json", {"version": SNAPSHOT_VERSION, "evaluated_on": datetime.now(timezone.utc).date().isoformat(),
                                      "package_sha256": package_hashes(snapshot),
                                      "vendor_sha256": {f: digest(snapshot / f) for f in VENDOR_FILES},
                                      "sha256": {n: digest(snapshot / (n + ".json")) for n in sorted(names)}})

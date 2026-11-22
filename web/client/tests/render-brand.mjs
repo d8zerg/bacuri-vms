@@ -4,12 +4,16 @@ import { join } from "node:path";
 import { chromium } from "playwright";
 
 const write = process.argv[2] === "--write";
-const directory = write ? process.argv[3] : "/usr/share/design/bacuri/brand";
+const directory = write ? process.argv[3] : "/workspace/design/bacuri/brand";
 
 async function output(name, bytes) {
   const path = join(directory, name);
   if (write) await writeFile(path, bytes);
-  else assert.ok(bytes.equals(await readFile(path)), name + " differs from the SVG artwork");
+  else
+    assert.ok(
+      bytes.equals(await readFile(path)),
+      name + " differs from the SVG artwork",
+    );
 }
 
 function ico(frames) {
@@ -51,4 +55,6 @@ try {
 } finally {
   await browser.close();
 }
-console.log(write ? "Brand exports regenerated." : "Brand exports match the SVG artwork.");
+console.log(
+  write ? "Brand exports regenerated." : "Brand exports match the SVG artwork.",
+);

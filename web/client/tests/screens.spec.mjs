@@ -134,15 +134,20 @@ for (const route of ["monitor", "installer"])
     if (route === "monitor")
       await expect(page.getByText("Эфир подключён")).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
-    const reference = await page.context().newPage();
-    await reference.goto("http://127.0.0.1:6007/");
-    if (route === "installer") await reference.locator("#show-install").click();
-    const referenceSelectors = [
-      route === "monitor" ? "#monitor-heading" : "#install-screen h1",
-      route === "monitor" ? ".monitor-panel" : ".install-grid .panel",
-      '.nav-item[aria-current="page"]',
-      route === "monitor" ? ".monitor-grid" : ".install-grid",
-    ];
+    const colors =
+      info.project.use.colorScheme === "dark"
+        ? {
+            ink: "rgb(212, 212, 212)",
+            canvas: "rgb(30, 30, 30)",
+            panel: "rgb(37, 37, 38)",
+            selected: "rgb(55, 52, 40)",
+          }
+        : {
+            ink: "rgb(32, 32, 32)",
+            canvas: "rgb(247, 244, 237)",
+            panel: "rgb(255, 253, 248)",
+            selected: "rgb(238, 233, 218)",
+          };
     const appearanceReport = [];
     const a11y = await checkAccessibility(page, ".ws-shell");
     await info.attach("axe-result", {
@@ -155,21 +160,26 @@ for (const route of ["monitor", "installer"])
     });
     for (const width of [1440, 768, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
-      await reference.setViewportSize({ width, height: 900 });
-      const expected = await appearance(reference, referenceSelectors);
       const actual = await appearance(page, [
         "main h1",
         ".ws-panel",
         'nav [aria-current="page"]',
         route === "monitor" ? ".ws-monitor" : ".ws-install",
       ]);
-      expect(actual).toEqual(expected);
-      appearanceReport.push({ width, actual, expected });
+      expect(actual).toMatchObject({
+        ...colors,
+        font: "Inter, system-ui, -apple-system, sans-serif",
+        columns: width >= 768 ? 2 : 1,
+      });
+      expect(parseFloat(actual.titleSize)).toBeCloseTo(
+        width === 1440 ? 36 : 26.4,
+        1,
+      );
+      appearanceReport.push({ width, ...actual });
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth),
       ).toBeLessThanOrEqual(width);
       if (route === "monitor") {
-        await page.bringToFront();
         await page.locator("video").evaluate(async (video) => {
           video.pause();
           if (video.currentTime !== 1) {
@@ -196,11 +206,10 @@ for (const route of ["monitor", "installer"])
       await page.screenshot({ ...capture, path: shot });
       await info.attach(filename, { path: shot, contentType: "image/png" });
     }
-    await info.attach("prototype-comparison", {
+    await info.attach("workspace-appearance", {
       body: JSON.stringify(appearanceReport),
       contentType: "application/json",
     });
-    await reference.close();
   });
 
 for (const [story, state] of [
