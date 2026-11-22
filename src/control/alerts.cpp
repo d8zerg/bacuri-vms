@@ -1,3 +1,4 @@
+#include "control/access/operations.hpp"
 #include "control/alerts.hpp"
 #include "control/playback_time.hpp"
 namespace bacuri::vms::control
@@ -31,22 +32,21 @@ AlertFeed::Scope AlertFeed::scope(Database& db) const
     db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     db.exec("SET LOCAL statement_timeout='1s'");
     auto who = sessions_.authenticate(db, request_, false, false);
+    const bool admin = access::site_role(db, site_, who.user, access::RoleLock::read) == "administrator";
     const auto rows = db.exec(R"sql(
         SELECT coalesce(v.revision,0),coalesce(h.position,0),
                coalesce((SELECT min(position) FROM bacuri_events.alert_outbox WHERE site_id=r.site_id),coalesce(h.position,0)+1),coalesce(v.work_revision,0)
-        FROM site_roles r LEFT JOIN bacuri_events.access_versions v USING(user_id,site_id)
+        FROM (SELECT $1::uuid AS site_id,$2::uuid AS user_id) r LEFT JOIN bacuri_events.access_versions v USING(user_id,site_id)
         LEFT JOIN bacuri_events.feed_heads h USING(site_id) WHERE r.site_id=$1 AND r.user_id=$2
     )sql",
                               {site_, who.user});
-    if (!rows.size()) {
-        throw Failure{404, "not_found"};
-    }
     return {who.user,
             Json::array({"alerts", site_, who.user, fingerprint(key_, "session", who.cookie)}).dump(),
             std::stoll(rows.get(0)),
             std::stoll(rows.get(0, 1)),
             std::stoll(rows.get(0, 2)),
-            std::stoll(rows.get(0, 3))};
+            std::stoll(rows.get(0, 3)),
+            admin};
 }
 std::string AlertFeed::cursor(const Scope& rights, std::int64_t position, bool pending) const
 {
@@ -64,11 +64,15 @@ Json AlertFeed::snapshot()
 {
     Database db;
     const auto rights = scope(db);
-    const auto query = "SELECT " + std::string{fields} +
-                       " FROM bacuri_events.alert_details d JOIN bacuri_events.alerts a "
-                       "USING(site_id,position,point_id) JOIN visible_points v USING(site_id,point_id) "
-                       "WHERE site_id=$1 AND user_id=$2 ORDER BY position DESC LIMIT 100";
-    auto rows = db.exec(query.c_str(), {site_, rights.user});
+    const auto query =
+        "SELECT " + std::string{fields} +
+        " FROM bacuri_events.alert_details d JOIN bacuri_events.alerts a "
+        "USING(site_id,position,point_id) "
+        "WHERE site_id=$1 AND ($3::boolean OR point_id=ANY($2::uuid[])) ORDER BY position DESC LIMIT 100";
+    auto rows =
+        db.exec(query.c_str(),
+                {site_, rights.admin ? "{}" : array_parameter(access::granted_point_ids(db, site_, rights.user)),
+                 rights.admin ? "true" : "false"});
     auto items = Json::array();
     for (int row = rows.size(); row > 0; --row) {
         items.push_back(alert(rows, row - 1));
@@ -109,13 +113,15 @@ FeedBatch AlertFeed::poll(std::string_view after)
         return batch;
     }
     const auto query = "SELECT " + std::string{fields} + R"sql(,
-        (SELECT a.alert_id FROM bacuri_events.alerts a JOIN visible_points v USING(site_id,point_id)
-         WHERE a.site_id=d.site_id AND v.user_id=$2 AND a.position<d.position ORDER BY a.position DESC OFFSET 99 LIMIT 1)
+        (SELECT a.alert_id FROM bacuri_events.alerts a
+         WHERE a.site_id=d.site_id AND ($4::boolean OR a.point_id=ANY($2::uuid[])) AND a.position<d.position ORDER BY a.position DESC OFFSET 99 LIMIT 1)
         FROM bacuri_events.alert_outbox o JOIN bacuri_events.alert_details d USING(site_id,position) JOIN bacuri_events.alerts a USING(site_id,position,point_id)
-        JOIN visible_points v USING(site_id,point_id)
-        WHERE o.site_id=$1 AND v.user_id=$2 AND o.position >= $3 ORDER BY o.position LIMIT 65
+        WHERE o.site_id=$1 AND ($4::boolean OR d.point_id=ANY($2::uuid[])) AND o.position >= $3 ORDER BY o.position LIMIT 65
     )sql";
-    auto rows = db.exec(query.c_str(), {site_, rights.user, std::to_string(position_ + (pending_ ? 0 : 1))});
+    auto rows =
+        db.exec(query.c_str(),
+                {site_, rights.admin ? "{}" : array_parameter(access::granted_point_ids(db, site_, rights.user)),
+                 std::to_string(position_ + (pending_ ? 0 : 1)), rights.admin ? "true" : "false"});
     if (position_ >= resume_head_ && rows.size() > 64) {
         return resync("client_lag");
     }

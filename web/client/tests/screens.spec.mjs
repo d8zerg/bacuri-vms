@@ -317,3 +317,44 @@ test("Operator closes an alert, searches its history and controls delegated work
     .click();
   await expect(panel.locator("strong").first()).toHaveText("Закрыта");
 });
+
+test("Administrator selects online regions, pauses a download and updates installed coverage from a file", async ({
+  page,
+}) => {
+  await open(page, "map-management");
+  const area = page.getByRole("region", { name: "Управление регионами" });
+  await area.getByRole("button", { name: "Установить регионы" }).click();
+  const catalog = area.getByLabel("HTTPS-каталог");
+  await catalog.fill("https://maps.test/unavailable.json");
+  await area.getByRole("button", { name: "Показать каталог" }).click();
+  await expect(area.getByRole("status")).toContainText("Каталог недоступен");
+  await catalog.fill("https://maps.test/catalog.json");
+  await area.getByRole("button", { name: "Показать каталог" }).click();
+  const south = area.getByRole("checkbox", { name: /Юг/ });
+  await south.check();
+  await expect(area.getByRole("checkbox", { name: /Север/ })).toHaveCount(0);
+  await area.getByRole("button", { name: "Установить выбранные" }).click();
+  await expect(
+    area.getByRole("list", { name: "Состояние регионов" }),
+  ).toContainText("Ожидание связи");
+  await area.getByRole("button", { name: "Приостановить загрузку" }).click();
+  await expect(area.getByText(/На паузе/)).toBeVisible();
+  await area.getByRole("button", { name: "Продолжить загрузку" }).click();
+  await expect(area.getByText(/Скачивание/)).toBeVisible();
+  await area.getByRole("button", { name: "Обновить установленные" }).click();
+  await area.getByLabel("Обновить из файла").setInputFiles({
+    name: "regions.zip",
+    mimeType: "application/zip",
+    buffer: Buffer.alloc(1200000),
+  });
+  await expect(
+    area.getByText(/За новыми границами останутся камеры: 1/),
+  ).toBeVisible();
+  await expect(area.getByRole("checkbox", { name: /Юг/ })).toHaveCount(0);
+  await area.getByRole("checkbox", { name: "Выбрать все" }).check();
+  await checkAccessibility(page, ".ws-map-packages");
+  await area.getByRole("button", { name: "Обновить выбранные" }).click();
+  await expect(area.getByText(/Север · Установлен/)).toBeVisible();
+  await area.getByRole("button", { name: "Закрыть" }).click();
+  await expect(catalog).toHaveCount(0);
+});

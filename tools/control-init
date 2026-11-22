@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 umask 077
+install -d -o 11001 -g 11010 -m 0700 /var/lib/bacuri-core/maps
 install -d -o 11001 -g 11010 -m 0700 /identity/core
 install -d -o 11002 -g 11010 -m 0700 /identity/recorder /recorder-data
 install -d -o 11002 -g 11010 -m 2750 /ipc

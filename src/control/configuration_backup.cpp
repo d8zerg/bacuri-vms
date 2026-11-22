@@ -1,3 +1,10 @@
+#include "control/inventory/restore.hpp"
+#include "control/access/restore.hpp"
+#include "control/recordings/operations.hpp"
+#include "control/recordings/configuration.hpp"
+#include "control/maps/configuration.hpp"
+#include "control/access/configuration.hpp"
+#include "control/inventory/configuration.hpp"
 #include "control/recovery.hpp"
 #include "control/database.hpp"
 #include "control/support.hpp"
@@ -13,29 +20,15 @@ namespace bacuri::vms::control
 namespace
 {
 using Json = nlohmann::json;
-// Table order follows inventory foreign keys. Session tokens and delivery attempts are transient.
-constexpr std::array tables{"sites",
-                            "local_users",
-                            "credential_audit",
-                            "observation_points",
-                            "devices",
-                            "channels",
-                            "stream_profiles",
-                            "point_bindings",
-                            "configuration_versions",
-                            "camera_registry",
-                            "registration_requests",
-                            "site_roles",
-                            "point_grants",
-                            "export_grants",
-                            "configuration_audit",
-                            "camera_transport_audit",
-                            "configuration_progress",
-                            "recorder_delivery",
-                            "floor_plans",
-                            "point_placements",
-                            "archive_retention"};
-
+void visit_configuration(ConfigurationSnapshot& snapshot)
+{
+    inventory::site_configuration(snapshot);
+    access::account_configuration(snapshot);
+    inventory::camera_configuration(snapshot);
+    access::permission_configuration(snapshot);
+    maps::plan_configuration(snapshot);
+    recordings::retention_configuration(snapshot);
+}
 std::string context(const std::string& site)
 {
     return "configuration-backup/v1/" + site + "/" + setting("BACURI_NODE_ID");
@@ -43,21 +36,9 @@ std::string context(const std::string& site)
 
 Json snapshot(Database& db)
 {
-    Json result = Json::object();
-    for (const std::string_view name : tables) {
-        // On a new recorder the desired configuration must be applied and acknowledged again.
-        std::string source{name};
-        if (name == "configuration_progress") {
-            source = "(SELECT site_id,device_id,desired_revision,NULL::bigint AS applied_revision,"
-                     "'pending' AS application_state,NULL::text AS failure_code FROM configuration_progress)";
-        } else if (name == "recorder_delivery") {
-            source = "(SELECT site_id,desired_revision,0::bigint AS decided_revision FROM recorder_delivery)";
-        }
-        const auto query =
-            "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)),'[]') FROM " + source + " t";
-        result[name] = Json::parse(db.exec(query.c_str()).get(0));
-    }
-    return result;
+    ConfigurationSnapshot archive{db};
+    visit_configuration(archive);
+    return std::move(archive.contents);
 }
 
 void require_single_site(const Json& data, const std::string& site)
@@ -107,7 +88,7 @@ void restore_configuration(std::istream& input)
     auto data = Json::parse(unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site)));
     data.erase("webauthn_credentials");
     for (const auto* table : {"credential_audit", "camera_transport_audit", "floor_plans", "point_placements",
-                              "archive_retention", "export_grants"}) {
+                              "archive_retention", "export_grants", "map_catalog_settings"}) {
         if (!data.contains(table))
             data[table] = Json::array();
     }
@@ -123,23 +104,15 @@ void restore_configuration(std::istream& input)
             throw std::runtime_error("Restore requires a clean database or an identical inventory");
         }
     } else {
-        for (const std::string name : tables) {
-            const auto query =
-                "INSERT INTO " + name + " SELECT * FROM jsonb_populate_recordset(NULL::" + name + ",$1::jsonb)";
-            db.exec(query.c_str(), {data.at(name).dump()});
-        }
+        ConfigurationSnapshot archive{db, data};
+        visit_configuration(archive);
     }
-    db.exec("INSERT INTO archive_recovery VALUES($1,'awaiting_verification') ON CONFLICT(site_id) "
-            "DO UPDATE SET reason=excluded.reason",
-            {site});
+    recordings::await_verification(db, site);
     // A repeated restore may target an intact database and a replacement recorder.
-    db.exec(
-        "DELETE FROM recorder_attempt; UPDATE recorder_delivery SET decided_revision=0; "
-        "UPDATE configuration_progress SET applied_revision=NULL,application_state='pending',failure_code=NULL; "
-        "INSERT INTO credential_audit(user_id,action) SELECT DISTINCT user_id,'restore_reset' FROM site_roles "
-        "WHERE role='administrator'; "
-        "DELETE FROM webauthn_credentials; DELETE FROM webauthn_challenges; DELETE FROM webauthn_enrollment; "
-        "DELETE FROM browser_sessions");
+    db.exec(inventory::reset_recorder);
+    db.exec(access::restore_search_path);
+    db.exec(access::audit_restore);
+    db.exec(access::reset_sessions);
     db.exec("COMMIT");
 }
 } // namespace bacuri::vms::control

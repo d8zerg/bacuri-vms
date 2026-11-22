@@ -1,8 +1,10 @@
+#include "control/media_sessions/operations.hpp"
 #include "control/recovery.hpp"
 #include "archive/volume.hpp"
 #include "control/database.hpp"
 #include "control/support.hpp"
 
+#include <format>
 #include <ostream>
 #include <thread>
 
@@ -29,30 +31,33 @@ void mark_unavailable(Database& db, const archive::Owner& owner, const Json& m, 
 void rebuild_archive(std::ostream& output)
 {
     Database db;
-    rebuild_archive(db, output);
+    rebuild_archive(db, output, StorageLayout::module_schemas);
 }
-void rebuild_archive(Database& db, std::ostream& output)
+void rebuild_archive(Database& db, std::ostream& output, StorageLayout layout)
 {
+    const auto fence =
+        layout == StorageLayout::legacy ? "bacuri_inventory.archive_recovery" : "bacuri_archive.archive_recovery";
     const archive::Owner owner{setting("BACURI_SITE_ID"), setting("BACURI_NODE_ID")};
     const archive::fs::path root{setting("BACURI_ARCHIVE_DIR")};
     if (db.exec("SELECT pg_try_advisory_lock(hashtextextended($1,1))", {owner.site}).get(0) != "t") {
         throw std::runtime_error("Another site recovery is in progress");
     }
     db.exec("BEGIN");
-    db.exec("INSERT INTO archive_recovery VALUES($1,'verifying') ON CONFLICT(site_id) DO UPDATE SET "
-            "reason=excluded.reason",
+    db.exec(std::format("INSERT INTO {} VALUES($1,'verifying') ON CONFLICT(site_id) DO UPDATE SET "
+                        "reason=excluded.reason",
+                        fence)
+                .c_str(),
             {owner.site});
-    auto sessions = db.exec("UPDATE media_sessions SET closed=true WHERE site_id=$1 AND begin_us IS NOT NULL "
-                            "AND NOT closed AND expires_at>now() RETURNING 1",
-                            {owner.site});
+    const bool closed = media_sessions::close_archive_sessions(db, owner.site, layout);
     db.exec("COMMIT");
-    if (sessions.size()) {
+    if (closed) {
         std::this_thread::sleep_for(std::chrono::seconds{5});
     }
     const bool journal = archive::fs::is_regular_file(archive::fs::symlink_status(root / "journal.db"));
     if (!archive::fs::is_directory(archive::fs::symlink_status(root / "blocks")) ||
         (!journal && archive::fs::is_empty(root / "blocks"))) {
-        db.exec("UPDATE archive_recovery SET reason='volume_unavailable' WHERE site_id=$1", {owner.site});
+        db.exec(std::format("UPDATE {} SET reason='volume_unavailable' WHERE site_id=$1", fence).c_str(),
+                {owner.site});
         throw std::runtime_error("Archive volume unavailable or uninitialized");
     }
     db.exec("BEGIN");
@@ -119,7 +124,7 @@ void rebuild_archive(Database& db, std::ostream& output)
                           {owner.site, owner.node});
     // A failed PostgreSQL commit keeps the fence. Its retry scans the entire inventory again.
     volume.confirm_inventory();
-    db.exec("DELETE FROM archive_recovery WHERE site_id=$1", {owner.site});
+    db.exec(std::format("DELETE FROM {} WHERE site_id=$1", fence).c_str(), {owner.site});
     db.exec("COMMIT");
     output << Json{{"verified", verified},
                    {"corrupt", corrupt},

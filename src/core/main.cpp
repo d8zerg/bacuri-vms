@@ -1,5 +1,8 @@
+#include "control/inventory/operations.hpp"
+#include "control/access/operations.hpp"
+#include "control/recordings/operations.hpp"
 #include "control/api.hpp"
-#include "control/webauthn.hpp"
+#include "control/access/enrollment.hpp"
 #include "control/playback_time.hpp"
 #include "archive/evidence.hpp"
 #include "control/recovery.hpp"
@@ -30,28 +33,10 @@ void provision(const std::string& username, const std::string& role, bool initia
         throw std::invalid_argument("Invalid account parameters");
     }
     Database db;
+    const auto site = setting("BACURI_SITE_ID");
     db.exec("BEGIN");
-    auto site = setting("BACURI_SITE_ID");
-    db.exec("INSERT INTO sites VALUES ($1,'Local site','UTC') ON CONFLICT DO NOTHING", {site});
-    if (initial) {
-        db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,1))", {site});
-        auto existing = db.exec("SELECT username FROM site_roles JOIN local_users USING(user_id) WHERE site_id=$1 "
-                                "AND role='administrator'",
-                                {site});
-        if (existing.size()) {
-            auto same = db.exec("SELECT FROM site_roles JOIN local_users USING(user_id) WHERE site_id=$1 AND "
-                                "username=$2 AND role='administrator'",
-                                {site, username});
-            if (!same.size())
-                throw std::invalid_argument("Site already has an administrator");
-            db.exec("COMMIT");
-            return;
-        }
-    }
-    auto user = db.exec("INSERT INTO local_users(username,password_hash) VALUES ($1,$2) RETURNING user_id",
-                        {username, password_hash(password)})
-                    .get(0);
-    db.exec("INSERT INTO site_roles VALUES ($1,$2,$3)", {user, site, role});
+    inventory::ensure_site(db, site);
+    access::provision_user(db, site, {.username = username, .role = role}, password, initial);
     db.exec("COMMIT");
 }
 } // namespace
@@ -77,20 +62,13 @@ try {
         restore_configuration(std::cin);
     } else if (action == "recovery-status" && argc == 2) {
         Database db;
-        auto row = db.exec("SELECT reason FROM archive_recovery WHERE site_id=$1", {setting("BACURI_SITE_ID")});
-        std::cout << Json{{"archive", row.size() ? row.get(0) : "available"}}.dump() << '\n';
+        auto status = recordings::recovery_status(db, setting("BACURI_SITE_ID"));
+        std::cout << Json{{"archive", status}}.dump() << '\n';
     } else if (action == "set-retention" && (argc == 3 || argc == 4)) {
         const auto days = integer(argv[2], 36500), reserve = argc == 4 ? integer(argv[3], 90) : 20;
         Database db;
         const auto site = setting("BACURI_SITE_ID");
-        db.exec("BEGIN");
-        db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,1))", {site});
-        db.exec("SELECT bacuri_archive.advance_cutoff($1)", {site});
-        db.exec("INSERT INTO archive_retention(site_id,days,reserve_percent) VALUES($1,$2,$3) "
-                "ON CONFLICT(site_id) DO UPDATE SET days=excluded.days,reserve_percent=excluded.reserve_percent",
-                {site, std::to_string(days), std::to_string(reserve)});
-        db.exec("SELECT bacuri_archive.advance_cutoff($1)", {site});
-        db.exec("COMMIT");
+        recordings::set_retention(db, site, days, reserve);
     } else if (action == "rebuild-archive" && argc == 2) {
         rebuild_archive(std::cout);
     } else if (action == "import-map" && argc == 3) {
@@ -98,9 +76,7 @@ try {
     } else if (action == "initial-admin" && argc == 3) {
         provision(argv[2], "administrator", true);
         Database db;
-        if (!db.exec("SELECT FROM webauthn_credentials JOIN local_users USING(user_id) WHERE username=$1",
-                     {argv[2]})
-                 .size())
+        if (!access::has_authenticator(db, argv[2]))
             std::cout << enrollment_code(argv[2]) << '\n';
     } else if (action == "create-user" && argc == 4) {
         provision(argv[2], argv[3]);
@@ -113,23 +89,14 @@ try {
         Database db;
         const auto site = setting("BACURI_SITE_ID");
         if (action == "revoke-export") {
-            db.exec("DELETE FROM export_grants g USING local_users u WHERE u.username=$1 AND g.user_id=u.user_id "
-                    "AND g.site_id=$2 AND g.point_id=$3",
-                    {argv[2], site, argv[3]});
+            access::revoke_export(db, {.site = site, .username = argv[2], .point = argv[3]});
         } else {
             const auto a = parse_utc(argv[4]), b = parse_utc(argv[5]);
-            if (b <= a)
-                throw std::invalid_argument("Invalid export interval");
-            auto grant = db.exec(
-                "INSERT INTO export_grants(user_id,site_id,point_id,begin_us,end_us) "
-                "SELECT v.user_id,v.site_id,v.point_id,$4,$5 FROM visible_points v JOIN local_users u "
-                "USING(user_id) "
-                "WHERE u.username=$1 AND v.site_id=$2 AND v.point_id=$3 ON CONFLICT(user_id,site_id,point_id) "
-                "DO UPDATE SET begin_us=excluded.begin_us,end_us=excluded.end_us,grant_id=excluded.grant_id "
-                "RETURNING grant_id",
-                {argv[2], site, argv[3], std::to_string(a), std::to_string(b)});
-            if (!grant.size())
+            db.exec("BEGIN");
+            if (!inventory::lock_point(db, site, argv[3]))
                 throw std::invalid_argument("User has no access to this point");
+            access::grant_export(db, {.site = site, .username = argv[2], .point = argv[3]}, a, b);
+            db.exec("COMMIT");
         }
     } else if (action == "recover-admin" && argc == 3) {
         std::cout << enrollment_code(argv[2], Enrollment::recovery) << '\n';
@@ -137,23 +104,10 @@ try {
         std::cout << enrollment_code(argv[2]) << '\n';
     } else if (action == "revoke-point" && argc == 4) {
         Database db;
-        db.exec("DELETE FROM point_grants g USING local_users u WHERE g.user_id=u.user_id AND u.username=$1 AND "
-                "g.site_id=$2 AND g.point_id=$3",
-                {argv[2], setting("BACURI_SITE_ID"), argv[3]});
+        access::revoke_point(db, {.site = setting("BACURI_SITE_ID"), .username = argv[2], .point = argv[3]});
     } else if (action == "grant-point" && argc == 4) {
         Database db;
-        db.exec("BEGIN");
-        const auto site = setting("BACURI_SITE_ID");
-        auto user = db.exec(R"sql(
-            SELECT u.user_id FROM local_users u JOIN site_roles r USING(user_id)
-            WHERE u.username=$1 AND r.site_id=$2 AND r.role='operator' FOR SHARE
-        )sql",
-                            {argv[2], site});
-        if (!user.size()) {
-            throw std::runtime_error("Operator account not found on this site");
-        }
-        db.exec("INSERT INTO point_grants VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", {user.get(0), site, argv[3]});
-        db.exec("COMMIT");
+        access::grant_point(db, {.site = setting("BACURI_SITE_ID"), .username = argv[2], .point = argv[3]});
     } else {
         std::fputs(
             "Usage: bacuri-vms-core --version | serve | migrate | backup-config | restore-config | "

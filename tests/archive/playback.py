@@ -306,8 +306,8 @@ def run():
         assert status == 201, session
         assert create(interval(0, 1))[2] == session and create(interval(0, 2))[0] == 409
         base = "media-sessions/" + session["id"]
-        activity_query = ("SELECT last_active FROM bacuri_inventory.browser_sessions b "
-                          "JOIN bacuri_inventory.media_sessions m ON b.token_hash=m.browser "
+        activity_query = ("SELECT last_active FROM bacuri_access.browser_sessions b "
+                          "JOIN bacuri_media_sessions.media_sessions m ON b.token_hash=m.browser "
                           f"WHERE m.id='{session['id']}'")
         last_active = control.query(activity_query)
         manifest = control.http("GET", base + "/manifest", headers=admin)[2]
@@ -321,7 +321,7 @@ def run():
         assert control.http("DELETE", base, headers=viewer)[0] == 204
         second = create(interval(1, 2), {**headers, "Idempotency-Key": str(uuid.uuid4())})[2]
         assert binary("media-sessions/" + second["id"] + "/parts/" + one["media_id"], admin)[0] == 404
-        control.query(f"UPDATE bacuri_inventory.media_sessions SET expires_at=now() WHERE id='{second['id']}'")
+        control.query(f"UPDATE bacuri_media_sessions.media_sessions SET expires_at=now() WHERE id='{second['id']}'")
         assert control.http("GET", "media-sessions/" + second["id"] + "/manifest", headers=admin)[0] == 410
         control.stop(core)
         control.stop(media)
@@ -343,7 +343,7 @@ def run():
         slow_reader(
             stream + "/parts/" + part,
             viewer,
-            lambda: control.query(f"DELETE FROM bacuri_inventory.point_grants WHERE point_id='{point}'"),
+            lambda: control.query(f"DELETE FROM bacuri_access.point_grants WHERE point_id='{point}'"),
         )
         assert binary(stream + "/parts/" + part, viewer)[0] == 404
         assert control.http("DELETE", base, headers=admin)[0] == 204

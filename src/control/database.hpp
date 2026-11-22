@@ -18,10 +18,13 @@ class Rows
         return PQntuples(result_.get());
     }
     std::string get(int row, int column = 0) const;
+    std::vector<std::string> column(int index = 0) const;
 
   private:
     std::unique_ptr<PGresult, decltype(&PQclear)> result_;
 };
+
+std::string array_parameter(const std::vector<std::string>& elements);
 
 class Database
 {
@@ -34,5 +37,8 @@ class Database
 };
 
 // Closing the connection rolls back a transaction that did not reach COMMIT.
+inline constexpr char schema_version_query[] = "SELECT max(version) FROM bacuri_meta.schema_migrations";
+inline constexpr char legacy_schema_version_query[] =
+    "SELECT max(version) FROM bacuri_inventory.schema_migrations";
 void migrate();
 } // namespace bacuri::vms::control

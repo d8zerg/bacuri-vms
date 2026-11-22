@@ -15,51 +15,10 @@ struct Failure {
     Json fields = Json::object();
 };
 
-struct Identity {
-    std::string user;
-    std::string cookie;
-};
-
 Json object_body(const Request& request, std::initializer_list<std::string_view> fields);
 std::string string_field(const Json& object, std::string_view field, std::size_t limit, bool allow_empty = false);
+void allow(const Request&, Response&, std::initializer_list<http::verb>);
 void respond(Response& response, const Json& body, int status = 200);
-
-class Sessions
-{
-  public:
-    Sessions(Key key, std::string origin);
-    void handle(const Request& request, Response& response, const std::string& peer) const;
-    void factor(const Request&, Response&) const;
-    Identity authenticate(Database& db, const Request& request, bool mutation, bool activity = true) const;
-
-  private:
-    void issue(Database&, const Request&, Response&, const std::string& user) const;
-    void login(const Request& request, Response& response, const std::string& peer) const;
-    void logout(const Request& request, Response& response) const;
-    Key key_;
-    std::string origin_;
-    std::string dummy_hash_;
-};
-
-class CameraRegistry
-{
-  public:
-    CameraRegistry(const Sessions& sessions, const Key& key, CameraNetworks networks)
-        : sessions_{sessions}, key_{key}, networks_{std::move(networks)}
-    {
-    }
-    void onvif(const Request& request, Response& response, const std::string& site, bool inspect) const;
-    void issues(const Request&, Response&, const std::string& site, const std::string& device) const;
-    void previous_recording(const Request&, Response&, const std::string& site, const std::string& device) const;
-    void ptz(const Request&, Response&, const std::string& site, const std::string& point) const;
-    void points(const Request& request, Response& response, const std::string& site) const;
-    void cameras(const Request& request, Response& response, const std::string& site, std::string device) const;
-
-  private:
-    const Sessions& sessions_;
-    const Key& key_;
-    CameraNetworks networks_;
-};
 
 void serve();
 } // namespace bacuri::vms::control

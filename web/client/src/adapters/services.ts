@@ -128,6 +128,67 @@ export function createServices(): Services {
       });
       if (!response.ok) throw Error(String(response.status));
     },
+    async mapManagement(siteId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/maps/management", {
+          params: { path: { siteId } },
+          signal,
+        }),
+      );
+    },
+    async mapSource(siteId, body) {
+      return data(
+        await api.POST("/sites/{siteId}/maps/sources", {
+          params: { path: { siteId }, header: auth() },
+          body,
+        }),
+      );
+    },
+    async inspectMapSource(siteId, sourceId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/maps/sources/{sourceId}", {
+          params: { path: { siteId, sourceId } },
+          signal,
+        }),
+      );
+    },
+    async uploadMapChunk(site, id, offset, chunk, signal) {
+      const response = await fetch(
+        `/api/v1/sites/${site}/maps/sources/${id}/chunks`,
+        {
+          method: "PUT",
+          credentials: "same-origin",
+          headers: {
+            ...auth(),
+            "Content-Type": "application/octet-stream",
+            "X-Upload-Offset": String(offset),
+          },
+          body: chunk,
+          signal,
+        },
+      );
+      if (!response.ok)
+        throw new HttpFailure(response.status, "map_upload_failed");
+    },
+    async pauseMapDownload(siteId, jobId, paused) {
+      const { response } = await api.PUT(
+        "/sites/{siteId}/maps/jobs/{jobId}/download",
+        {
+          params: { path: { siteId, jobId }, header: auth() },
+          body: { paused },
+        },
+      );
+      if (!response.ok)
+        throw new HttpFailure(response.status, "download_unavailable");
+    },
+    async queueMapRegions(siteId, body) {
+      const { response } = await api.POST("/sites/{siteId}/maps/jobs", {
+        params: { path: { siteId }, header: auth() },
+        body,
+      });
+      if (!response.ok)
+        throw new HttpFailure(response.status, "map_selection_failed");
+    },
     async addPlan(siteId, name, png) {
       return data(
         await api.POST("/sites/{siteId}/maps/plans", {

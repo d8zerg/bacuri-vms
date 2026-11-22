@@ -1,3 +1,4 @@
+#include "control/inventory/operations.hpp"
 #include "control/observations.hpp"
 #include "control/playback_time.hpp"
 #include <grpcpp/grpcpp.h>
@@ -89,19 +90,13 @@ grpc::Status store_observation(const RequestData& q, v1::RegistrationResult& res
         db.exec("BEGIN");
         const auto point = q.binding().point_id();
         const auto revision = q.has_binding() ? std::to_string(q.binding().revision()) : "";
-        if (q.has_binding() &&
-            !db.exec("SELECT 1 FROM point_bindings WHERE site_id=$1 AND point_id=$2 AND binding_revision=$3",
-                     {q.site_id(), point, revision})
-                 .size()) {
+        if (q.has_binding() && !inventory::has_binding(db, q.site_id(), point, revision)) {
             return {grpc::StatusCode::NOT_FOUND, "Unknown binding"};
         }
         if (camera_revision) {
             // Serialize acceptance with replacement and reject detached event readers.
-            if (!db.exec("SELECT 1 FROM camera_registry r JOIN configuration_progress p USING(site_id,device_id) "
-                         "WHERE r.site_id=$1 AND r.point_id=$2 AND r.device_id=$3 AND p.desired_revision=$4 FOR "
-                         "SHARE OF r,p",
-                         {q.site_id(), point, q.source_id(), std::to_string(camera_revision)})
-                     .size())
+            if (!inventory::lock_camera_revision(db, q.site_id(), point, q.source_id(),
+                                                 std::to_string(camera_revision)))
                 return {grpc::StatusCode::NOT_FOUND, "Camera configuration changed"};
         }
         const auto source_time = q.has_source_time_us() ? std::to_string(q.source_time_us()) : "";

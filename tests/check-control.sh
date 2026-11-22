@@ -50,6 +50,7 @@ mkdir -p "$BACURI_ARCHIVE_DIR/blocks"
 export BACURI_LISTEN=127.0.0.1 BACURI_PORT=8443 BACURI_ORIGIN=https://localhost:8443
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -noenc -days 1 -subj /CN=localhost \
     -addext 'subjectAltName=DNS:localhost' -keyout "$BACURI_TLS_KEY" -out "$BACURI_TLS_CERT" 2>/dev/null
+export BACURI_MAP_DIRECTORY="$test_dir/map-packages"
 export BACURI_EXPORT_KEY_FILE="$test_dir/export.key"
 openssl rand -hex 32 > "$BACURI_EXPORT_KEY_FILE"
 openssl rand -hex 32 > "$BACURI_KEY_FILE"

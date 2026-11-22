@@ -1,7 +1,10 @@
+#include "control/inventory/operations.hpp"
+#include "control/events/operations.hpp"
+#include "control/access/operations.hpp"
+#include "control/recordings/operations.hpp"
 #include "control/playback.hpp"
 #include "control/playback_time.hpp"
 #include "domain/time.hpp"
-#include "archive_sql.hpp"
 #include "media/lease.hpp"
 #include <charconv>
 #include <fstream>
@@ -46,17 +49,10 @@ struct PointAccess {
     std::string site, point, browser, role;
 };
 
-void require_archive(Database& db, const std::string& site)
-{
-    if (db.exec("SELECT 1 FROM archive_recovery WHERE site_id=$1", {site}).size()) {
-        throw Failure{503, "media_unavailable"};
-    }
-}
-
 Json search(Database& db, const Key& key, const PointAccess& access, Json params,
             std::optional<std::int64_t> binding = {})
 {
-    require_archive(db, access.site);
+    recordings::require_available(db, access.site);
     const auto cursor = params.value("cursor", std::string{});
     const bool continued = params.erase("cursor") != 0;
     const auto bounds = window(params);
@@ -86,8 +82,7 @@ Json search(Database& db, const Key& key, const PointAccess& access, Json params
     q.mutable_point()->set_point_id(access.point);
     q.set_begin_us(position);
     q.set_end_us(bounds.end);
-    q.set_retention_cutoff_us(
-        std::stoll(db.exec("SELECT bacuri_archive.retention_cutoff($1)", {access.site}).get(0)));
+    q.set_retention_cutoff_us(recordings::retention_cutoff(db, access.site));
     if (binding) {
         q.set_binding_revision(*binding);
     }
@@ -103,20 +98,22 @@ Json search(Database& db, const Key& key, const PointAccess& access, Json params
             local.push_back({{"a", interval.begin_us()}, {"b", interval.end_us()}});
         }
     }
-    auto rows = db.exec(archive::sql::search,
-                        {access.site, access.point, std::to_string(position), std::to_string(horizon),
-                         local.dump(), binding ? std::to_string(*binding) : ""});
+    auto rows =
+        recordings::coverage(db, access.site, access.point, std::to_string(position), std::to_string(horizon),
+                             local.dump(), binding ? std::to_string(*binding) : "");
     auto items = Json::array();
-    for (int i = 0; i < std::min(1000, rows.size()); ++i) {
-        Window span{std::stoll(rows.get(i)), std::stoll(rows.get(i, 1))};
-        Json entry{{"interval", span.json()}, {"state", rows.get(i, 2)}};
-        if (auto basis = rows.get(i, 3); !basis.empty()) {
+    for (const auto& row : rows) {
+        if (items.size() == 1000)
+            break;
+        Window span{row.begin, row.end};
+        Json entry{{"interval", span.json()}, {"state", row.state}};
+        if (auto basis = row.time_basis; !basis.empty()) {
             entry["time_basis"] = basis;
         }
-        if (auto uncertainty = rows.get(i, 4); !uncertainty.empty()) {
+        if (auto uncertainty = row.uncertainty; !uncertainty.empty()) {
             entry["uncertainty_us"] = uncertainty;
         }
-        if (auto reason = rows.get(i, 5); !reason.empty()) {
+        if (auto reason = row.reason; !reason.empty()) {
             entry["reason"] = reason;
         }
         items.push_back(std::move(entry));
@@ -137,7 +134,7 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     const auto mode = string_field(body, "mode", 16);
     std::optional<Window> range;
     if (mode == "archive" && body.contains("interval")) {
-        require_archive(db, access.site);
+        recordings::require_available(db, access.site);
         range = window(body.at("interval"));
     } else if (mode != "live" || body.size() != 1) {
         throw Failure{400, "invalid_request"};
@@ -164,11 +161,13 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     if (req.count("Idempotency-Key") != 1 || !canonical_id(request_key)) {
         throw Failure{400, "invalid_request"};
     }
-    db.exec("UPDATE media_sessions SET request_key=NULL WHERE browser=$1 AND request_key=$2 AND expires_at<=now()",
+    db.exec("UPDATE bacuri_media_sessions.media_sessions SET request_key=NULL WHERE browser=$1 AND request_key=$2 "
+            "AND expires_at<=now()",
             {access.browser, request_key});
     auto previous =
         db.exec("SELECT id,begin_us,end_us,to_char(expires_at AT TIME ZONE 'UTC',$5),closed,binding_revision "
-                "FROM media_sessions WHERE browser=$1 AND site_id=$2 AND point_id=$3 AND request_key=$4",
+                "FROM bacuri_media_sessions.media_sessions WHERE browser=$1 AND site_id=$2 AND point_id=$3 AND "
+                "request_key=$4",
                 {access.browser, access.site, access.point, request_key, expires_sql});
     auto result = [&](std::string id, std::string expires) {
         return Json{{"id", std::move(id)},
@@ -183,32 +182,27 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
         }
         return result(previous.get(0), previous.get(0, 3));
     }
-    if (db.exec("SELECT count(*)>=16 FROM media_sessions WHERE browser=$1 AND NOT closed AND expires_at>now()",
+    if (db.exec("SELECT count(*)>=16 FROM bacuri_media_sessions.media_sessions WHERE browser=$1 AND NOT closed "
+                "AND expires_at>now()",
                 {access.browser})
             .get(0) == "t") {
         throw Failure{429, "rate_limited"};
     }
     auto session =
         db.exec("INSERT INTO "
-                "media_sessions(browser,site_id,point_id,begin_us,end_us,request_key,binding_revision,expires_at) "
-                "SELECT "
-                "token_hash,$2,$3,nullif($4,'')::bigint,nullif($5,'')::bigint,$6,nullif($8,'')::bigint,least(now()"
-                "+interval '5 "
-                "minutes',expires_at,last_active+interval '30 "
-                "minutes') "
-                "FROM browser_sessions WHERE token_hash=$1 RETURNING id,to_char(expires_at AT TIME ZONE 'UTC',$7)",
-                {access.browser, access.site, access.point, begin, end, request_key, expires_sql, revision});
+                "bacuri_media_sessions.media_sessions(browser,site_id,point_id,begin_us,end_us,request_key,"
+                "binding_revision,expires_at) "
+                "VALUES ($1,$2,$3,nullif($4,'')::bigint,nullif($5,'')::bigint,$6,nullif($8,'')::bigint,"
+                "least(now()+interval '5 minutes',$9::timestamptz)) RETURNING id,to_char(expires_at AT TIME ZONE "
+                "'UTC',$7)",
+                {access.browser, access.site, access.point, begin, end, request_key, expires_sql, revision,
+                 access::browser_expiry(db, access.browser)});
     if (!range) {
         return result(session.get(0), session.get(0, 1));
     }
-    auto parts = db.exec(
-        "INSERT INTO playback_parts(session_id,site_id,block_id,recording_epoch_id,owner_generation) "
-        "SELECT $1,site_id,block_id,recording_epoch_id,owner_generation FROM bacuri_archive.retained_blocks WHERE "
-        "site_id=$2 AND point_id=$3 "
-        "AND (nullif($6,'')::bigint IS NULL OR binding_revision=nullif($6,'')::bigint) AND "
-        "begin_utc_us>=$4 AND end_utc_us<=$5 AND unavailable_reason IS NULL RETURNING media_id",
-        {session.get(0), access.site, access.point, begin, end, revision});
-    if (!parts.size()) {
+    const bool bound =
+        recordings::bind_playback_parts(db, session.get(0), access.site, access.point, begin, end, revision);
+    if (!bound) {
         const auto page = search(db, key, access, range->json(), binding);
         const auto& items = page.at("items");
         if (std::ranges::any_of(items, [](const Json& entry) { return entry.at("state") == "pending_catalog"; })) {
@@ -316,12 +310,10 @@ void Playback::point(const Request& req, Response& res, const std::string& site,
     Database db;
     db.exec("BEGIN");
     auto who = sessions_.authenticate(db, req, !searching);
-    auto role = db.exec("SELECT role FROM visible_points WHERE user_id=$1 AND site_id=$2 AND point_id=$3",
-                        {who.user, site, point});
-    if (!role.size()) {
+    if (!inventory::point_exists(db, site, point))
         throw Failure{404, "not_found"};
-    }
-    PointAccess access{site, point, fingerprint(key_, "session", who.cookie), role.get(0)};
+    PointAccess access{site, point, fingerprint(key_, "session", who.cookie),
+                       access::role_for_existing_point(db, site, point, who.user)};
     if (searching) {
         respond(res, search(db, key_, access, query_parameters(std::string_view{req.target()})));
     } else {
@@ -339,21 +331,27 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
     auto who = sessions_.authenticate(db, req, closing || offer, closing || offer);
     auto browser = fingerprint(key_, "session", who.cookie);
     if (closing) {
-        db.exec("UPDATE media_sessions SET closed=true WHERE id=$1 AND browser=$2", {id, browser});
+        db.exec("UPDATE bacuri_media_sessions.media_sessions SET closed=true WHERE id=$1 AND browser=$2",
+                {id, browser});
         res.result(http::status::no_content);
         return;
     }
+    db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     auto session =
-        db.exec("SELECT site_id,point_id,begin_us,end_us,closed OR valid_until<=clock_timestamp(),id,browser "
-                "FROM media_rights WHERE id=$1 AND browser=$2",
+        db.exec("SELECT site_id,point_id,begin_us,end_us,closed OR expires_at<=clock_timestamp(),id,browser FROM "
+                "bacuri_media_sessions.media_sessions WHERE id=$1 AND browser=$2",
                 {id, browser});
-    if (!session.size()) {
+    if (!session.size())
         throw Failure{404, "not_found"};
-    }
-    if (session.get(0, 4) == "t") {
-        throw Failure{410, "media_session_closed"};
-    }
+    const auto expiry = access::browser_point_expiry(db, browser, session.get(0), session.get(0, 1));
+    if (!expiry)
+        throw Failure{404, "not_found"};
     const bool live = session.get(0, 2).empty();
+    if (!live && recordings::recovery_status(db, session.get(0)) != "available")
+        throw Failure{404, "not_found"};
+    if (session.get(0, 4) == "t" || db.exec("SELECT $1::timestamptz<=clock_timestamp()", {*expiry}).get(0) == "t")
+        throw Failure{410, "media_session_closed"};
+    db.exec("COMMIT");
     if (live != offer) {
         throw Failure{404, "not_found"};
     }
@@ -362,7 +360,8 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
             req.body().size() > 65536 || req.body().contains('\0')) {
             throw Failure{400, "invalid_request"};
         }
-        if (db.exec("SELECT live_negotiated FROM media_sessions WHERE id=$1", {id}).get(0) == "t") {
+        if (db.exec("SELECT live_negotiated FROM bacuri_media_sessions.media_sessions WHERE id=$1", {id}).get(0) ==
+            "t") {
             throw Failure{409, "idempotency_conflict"};
         }
         auto stub = v1::LiveDelivery::NewStub(media::local_channel("BACURI_MEDIA_SOCKET"));
@@ -385,7 +384,8 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
         default:
             throw Failure{503, "media_unavailable"};
         }
-        if (!db.exec("UPDATE media_sessions SET live_negotiated=true WHERE id=$1 AND NOT live_negotiated AND NOT "
+        if (!db.exec("UPDATE bacuri_media_sessions.media_sessions SET live_negotiated=true WHERE id=$1 AND NOT "
+                     "live_negotiated AND NOT "
                      "closed AND expires_at>clock_timestamp() RETURNING id",
                      {id})
                  .size()) {
@@ -398,16 +398,12 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
     }
     if (operation == "manifest") {
         media::Lease lease{scope(session, Window{std::stoll(session.get(0, 2)), std::stoll(session.get(0, 3))})};
-        auto rows = db.exec("SELECT init_id,media_id,begin_utc_us,end_utc_us FROM playback_parts JOIN "
-                            "bacuri_archive.retained_blocks "
-                            "USING(site_id,block_id,recording_epoch_id,owner_generation) WHERE session_id=$1 AND "
-                            "unavailable_reason IS NULL "
-                            "ORDER BY begin_utc_us,end_utc_us,media_id",
-                            {id});
+        auto rows = recordings::playback_manifest(db, id);
         auto parts = Json::array();
-        for (int i = 0; i < rows.size(); ++i) {
-            Window span{std::stoll(rows.get(i, 2)), std::stoll(rows.get(i, 3))};
-            parts.push_back({{"init_id", rows.get(i)}, {"media_id", rows.get(i, 1)}, {"interval", span.json()}});
+        for (const auto& row : rows) {
+            parts.push_back({{"init_id", row.initialization},
+                             {"media_id", row.media},
+                             {"interval", Window{row.begin, row.end}.json()}});
         }
         lease.deadline();
         respond(res, {{"mime_type", "video/mp4"}, {"parts", std::move(parts)}});
@@ -416,20 +412,15 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
     if (!operation.starts_with("parts/") || !canonical_id(operation.substr(6))) {
         throw Failure{404, "not_found"};
     }
-    auto part = db.exec(
-        "SELECT block_id,manifest#>>'{media,sha256}',init_id=$2,begin_utc_us,end_utc_us FROM playback_parts "
-        "JOIN bacuri_archive.retained_blocks USING(site_id,block_id,recording_epoch_id,owner_generation) WHERE "
-        "session_id=$1 "
-        "AND (init_id=$2 OR media_id=$2) AND unavailable_reason IS NULL",
-        {id, std::string{operation.substr(6)}});
-    if (!part.size()) {
+    auto part = recordings::playback_part(db, id, std::string{operation.substr(6)});
+    if (!part) {
         throw Failure{404, "not_found"};
     }
     v1::ReadPartRequest q;
-    *q.mutable_scope() = scope(session, Window{std::stoll(part.get(0, 3)), std::stoll(part.get(0, 4))});
-    q.set_block_id(part.get(0));
-    q.set_sha256(part.get(0, 1));
-    q.set_initialization(part.get(0, 2) == "t");
+    *q.mutable_scope() = scope(session, Window{part->begin, part->end});
+    q.set_block_id(part->block);
+    q.set_sha256(part->sha256);
+    q.set_initialization(part->initialization);
     auto body = std::make_shared<RemotePart>(q);
     res.result(http::status::ok);
     res.set(http::field::content_type, "video/mp4");
@@ -443,31 +434,23 @@ void Playback::alert_archive(const Request& req, Response& res, const std::strin
     Database db;
     db.exec("BEGIN");
     auto who = sessions_.authenticate(db, req, false);
-    auto rows =
-        db.exec("SELECT d.point_id,d.binding_revision,d.observed_at_utc_us,d.time_basis,d.uncertainty_us,v.role "
-                "FROM bacuri_events.alert_details d JOIN visible_points v USING(site_id,point_id) "
-                "WHERE d.site_id=$1 AND d.alert_id=$2 AND v.user_id=$3",
-                {site, id, who.user});
-    if (!rows.size()) {
+    auto anchor = events::archive_anchor(db, site, id);
+    if (!anchor)
         throw Failure{404, "not_found"};
-    }
-    require_archive(db, site);
-    const auto point = rows.get(0);
-    const auto time = std::stoll(rows.get(0, 2));
+    const auto& point = anchor->point;
+    auto role = access::role_for_existing_point(db, site, point, who.user);
+    recordings::require_available(db, site);
+    const auto time = anchor->time;
     Json link{{"point_id", point}, {"state", "uncertain_time"}, {"archive_interval", alert_window(time).json()}};
-    if (rows.get(0, 3) == "source_clock" && std::stoll(rows.get(0, 4)) <= alert_context_us) {
-        const auto uncertainty = std::stoll(rows.get(0, 4));
+    if (anchor->basis == "source_clock" && std::stoll(anchor->uncertainty) <= alert_context_us) {
+        const auto uncertainty = std::stoll(anchor->uncertainty);
         Window instant{time - uncertainty, time + uncertainty + 1};
-        auto blocks = db.exec(
-            "SELECT begin_utc_us,end_utc_us,binding_revision,time_basis,uncertainty_us,unavailable_reason FROM "
-            "bacuri_archive.retained_blocks "
-            "WHERE site_id=$1 AND point_id=$2 AND int8range(begin_utc_us,end_utc_us,'[)') && "
-            "int8range($3,$4,'[)') LIMIT 2",
-            {site, point, std::to_string(instant.start), std::to_string(instant.end)});
-        if (blocks.size() == 1 && blocks.get(0, 2) == rows.get(0, 1) && blocks.get(0, 3) == "source_clock" &&
-            blocks.get(0, 5).empty()) {
-            Window block{std::stoll(blocks.get(0)), std::stoll(blocks.get(0, 1))};
-            auto error = std::stoll(blocks.get(0, 4));
+        auto blocks =
+            recordings::blocks_at(db, site, point, std::to_string(instant.start), std::to_string(instant.end));
+        if (blocks.size() == 1 && blocks.front().revision == anchor->revision &&
+            blocks.front().basis == "source_clock" && blocks.front().unavailable_reason.empty()) {
+            Window block{blocks.front().begin, blocks.front().end};
+            auto error = std::stoll(blocks.front().uncertainty);
             using domain::Microseconds;
             using domain::UtcTime;
             auto interval =
@@ -478,9 +461,9 @@ void Playback::alert_archive(const Request& req, Response& res, const std::strin
                 link["interval"] = block.json();
                 link["position"] = ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(time));
             }
-        } else if (!blocks.size() || (blocks.size() == 1 && !blocks.get(0, 5).empty())) {
-            auto page = search(db, key_, {site, point, fingerprint(key_, "session", who.cookie), rows.get(0, 5)},
-                               instant.json(), std::stoll(rows.get(0, 1)));
+        } else if (blocks.empty() || (blocks.size() == 1 && !blocks.front().unavailable_reason.empty())) {
+            auto page = search(db, key_, {site, point, fingerprint(key_, "session", who.cookie), role},
+                               instant.json(), std::stoll(anchor->revision));
             const auto& items = page.at("items");
             if (items.size() == 1 && items[0].at("state") != "recorded") {
                 link["state"] = items[0].at("state");

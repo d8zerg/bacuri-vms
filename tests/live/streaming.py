@@ -175,7 +175,7 @@ def run():
             begin = time.monotonic()
             control.wait_for(
                 lambda: control.query(
-                    f"SELECT closed FROM bacuri_inventory.media_sessions WHERE id='{pending_id}'"
+                    f"SELECT closed FROM bacuri_media_sessions.media_sessions WHERE id='{pending_id}'"
                 )
                 == "t",
                 "unconnected peer release",
@@ -206,12 +206,12 @@ def run():
             verify_cutoff(
                 link,
                 lambda: control.query(
-                    f"DELETE FROM bacuri_inventory.point_grants WHERE point_id='{point}'"
+                    f"DELETE FROM bacuri_access.point_grants WHERE point_id='{point}'"
                 ),
                 "revocation",
             )
             assert (
-                control.query(f"SELECT closed FROM bacuri_inventory.media_sessions WHERE id='{revoked}'")
+                control.query(f"SELECT closed FROM bacuri_media_sessions.media_sessions WHERE id='{revoked}'")
                 == "t"
             )
         subprocess.run([control.CORE, "grant-point", "operator", point], check=True)
@@ -220,12 +220,12 @@ def run():
             verify_cutoff(
                 link,
                 lambda: control.query(
-                    f"UPDATE bacuri_inventory.media_sessions SET expires_at=clock_timestamp() WHERE id='{live_id}'"
+                    f"UPDATE bacuri_media_sessions.media_sessions SET expires_at=clock_timestamp() WHERE id='{live_id}'"
                 ),
                 "expiry",
             )
             assert (
-                control.query(f"SELECT closed FROM bacuri_inventory.media_sessions WHERE id='{live_id}'")
+                control.query(f"SELECT closed FROM bacuri_media_sessions.media_sessions WHERE id='{live_id}'")
                 == "t"
             )
         with browser_session("chrome", viewer, "/live/") as (call, _), VideoLink("chrome") as link:

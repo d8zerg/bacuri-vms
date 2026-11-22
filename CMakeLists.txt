@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bacuri-vms VERSION 0.1.1 LANGUAGES CXX)
+project(bacuri-vms VERSION 0.1.3 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,6 +25,8 @@ find_package(PkgConfig REQUIRED)
 find_package(Protobuf REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(PNG REQUIRED)
+find_package(LibArchive REQUIRED)
+pkg_check_modules(MAP_CURL REQUIRED IMPORTED_TARGET libcurl)
 find_package(PostgreSQL REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 pkg_check_modules(GRPC REQUIRED IMPORTED_TARGET grpc++)
@@ -105,15 +107,19 @@ add_executable(bacuri-install src/core/install.cpp)
 target_link_libraries(bacuri-install PRIVATE bacuri-maintenance-common)
 target_link_options(bacuri-install PRIVATE -static)
 add_executable(bacuri-maintain src/core/maintenance.cpp src/core/maintenance_crypto.cpp src/core/maintenance_diagnostics.cpp
-    src/control/database.cpp src/control/archive_recovery.cpp)
+    src/control/database.cpp src/control/archive_recovery.cpp src/control/media_sessions/operations.cpp)
 target_link_libraries(bacuri-maintain PRIVATE bacuri-maintenance-common bacuri-vms-volume PostgreSQL::PostgreSQL)
 add_executable(bacuri-vms src/core/site_admin.cpp)
 target_link_libraries(bacuri-vms PRIVATE bacuri-vms-control-support OpenSSL::Crypto)
-add_executable(bacuri-vms-core src/core/main.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/registry.cpp src/control/onvif.cpp src/control/camera_events.cpp
+add_executable(bacuri-vms-core src/core/main.cpp
+    src/control/access/operations.cpp src/control/inventory/operations.cpp src/control/events/operations.cpp
+    src/control/recordings/operations.cpp src/control/media_sessions/operations.cpp
+    src/control/inventory/configuration.cpp src/control/access/configuration.cpp src/control/maps/configuration.cpp src/control/recordings/configuration.cpp
+    src/control/configuration_snapshot.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/registry.cpp src/control/onvif.cpp src/control/camera_events.cpp
     src/control/observations.cpp src/control/alert_work.cpp src/control/alerts.cpp src/control/alert_socket.cpp
     src/archive/clip.cpp src/control/export.cpp src/control/media_authority.cpp src/control/playback.cpp
-    src/control/webauthn.cpp src/control/session.cpp src/control/server.cpp src/control/https.cpp src/control/maps.cpp src/control/map_import.cpp src/control/delivery.cpp src/control/archive_catalog.cpp)
-target_link_libraries(bacuri-vms-core PRIVATE PkgConfig::FIDO bacuri-vms-evidence bacuri-vms-media-auth PNG::PNG PkgConfig::GST)
+    src/control/webauthn.cpp src/control/session.cpp src/control/server.cpp src/control/https.cpp src/control/maps.cpp src/control/map_import.cpp src/control/maps/packages.cpp src/control/maps/transfers.cpp src/control/delivery.cpp src/control/archive_catalog.cpp)
+target_link_libraries(bacuri-vms-core PRIVATE LibArchive::LibArchive PkgConfig::MAP_CURL PkgConfig::FIDO bacuri-vms-evidence bacuri-vms-media-auth PNG::PNG PkgConfig::GST)
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-control-support bacuri-vms-rpc
     LibXml2::LibXml2 PostgreSQL::PostgreSQL Boost::headers OpenSSL::SSL PkgConfig::GIO nlohmann_json::nlohmann_json)
 target_compile_definitions(bacuri-vms-core PRIVATE BACURI_VMS_VERSION="${PROJECT_VERSION}")
@@ -122,6 +128,8 @@ target_compile_options(bacuri-vms-core PRIVATE -Wall -Wextra -Wpedantic)
 if(BUILD_TESTING)
     find_package(GTest CONFIG REQUIRED)
     include(GoogleTest)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_test(NAME core-module-boundaries COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tests/architecture/core_boundaries.py)
     add_executable(bacuri-vms-archive-test tests/archive/volume.cpp)
     target_link_libraries(bacuri-vms-archive-test PRIVATE bacuri-vms-archive GTest::gtest_main)
     gtest_discover_tests(bacuri-vms-archive-test DISCOVERY_MODE PRE_TEST)
@@ -135,7 +143,7 @@ if(BUILD_TESTING)
     target_link_libraries(bacuri-vms-domain-test PRIVATE bacuri-vms-domain GTest::gmock_main)
     target_compile_options(bacuri-vms-domain-test PRIVATE -Wall -Wextra -Wpedantic)
     gtest_discover_tests(bacuri-vms-domain-test DISCOVERY_MODE PRE_TEST)
-    add_executable(bacuri-vms-control-test tests/control/support.cpp)
+    add_executable(bacuri-vms-control-test tests/control/support.cpp tests/control/alert_workflow.cpp)
     target_link_libraries(bacuri-vms-control-test PRIVATE bacuri-vms-control-support GTest::gtest_main)
     gtest_discover_tests(bacuri-vms-control-test DISCOVERY_MODE PRE_TEST)
 endif()

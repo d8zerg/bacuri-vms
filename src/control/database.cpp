@@ -17,12 +17,37 @@ std::string Rows::get(int row, int column) const
     return PQgetvalue(result_.get(), row, column);
 }
 
+std::vector<std::string> Rows::column(int index) const
+{
+    std::vector<std::string> values;
+    values.reserve(size());
+    for (int row = 0; row < size(); ++row)
+        values.push_back(get(row, index));
+    return values;
+}
+std::string array_parameter(const std::vector<std::string>& elements)
+{
+    std::string value = "{";
+    for (const auto& element : elements) {
+        if (value.size() > 1)
+            value += ',';
+        value += '"';
+        for (char c : element) {
+            if (c == '"' || c == '\\')
+                value += '\\';
+            value += c;
+        }
+        value += '"';
+    }
+    return value + '}';
+}
+
 Database::Database() : connection_{PQconnectdb("connect_timeout=3"), PQfinish}
 {
     if (!connection_ || PQstatus(connection_.get()) != CONNECTION_OK) {
         throw std::runtime_error("Database unavailable");
     }
-    exec("SET search_path TO bacuri_inventory,pg_catalog; SET statement_timeout='6s'; SET lock_timeout='4s'");
+    exec("SET search_path TO pg_catalog,pg_temp; SET statement_timeout='6s'; SET lock_timeout='4s'");
 }
 
 Rows Database::exec(const char* query, std::initializer_list<std::string> arguments)
@@ -53,8 +78,10 @@ void migrate()
     Database db;
     db.exec("SELECT pg_advisory_lock(486324017)");
     int version = 0;
-    if (db.exec("SELECT to_regclass('bacuri_inventory.schema_migrations') IS NOT NULL").get(0) == "t") {
-        version = std::stoi(db.exec("SELECT max(version) FROM schema_migrations").get(0));
+    if (db.exec("SELECT to_regclass('bacuri_meta.schema_migrations') IS NOT NULL").get(0) == "t") {
+        version = std::stoi(db.exec(schema_version_query).get(0));
+    } else if (db.exec("SELECT to_regclass('bacuri_inventory.schema_migrations') IS NOT NULL").get(0) == "t") {
+        version = std::stoi(db.exec(legacy_schema_version_query).get(0));
     }
     constexpr std::array migrations{"0001_initial.sql",
                                     "0002_control.sql",
@@ -70,7 +97,9 @@ void migrate()
                                     "0012_archive_retention.sql",
                                     "0013_fragment_export.sql",
                                     "0014_admin_mfa.sql",
-                                    "0015_credential_recovery.sql"};
+                                    "0015_credential_recovery.sql",
+                                    "0016_module_schemas.sql",
+                                    "0017_map_packages.sql"};
     if (version > static_cast<int>(migrations.size())) {
         throw std::runtime_error("Unsupported database schema");
     }

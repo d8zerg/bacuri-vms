@@ -162,6 +162,9 @@ services:
     volumes:
       - ./build/clang-tsan:/workspace/build/clang-tsan
       - ./CMakePresets.json:/workspace/CMakePresets.json:ro
+      - ./tests/architecture:/workspace/tests/architecture:ro
+      - ./src:/workspace/src:ro
+      - ./storage/postgresql:/workspace/storage/postgresql:ro
 
   api-types:
     profiles: ["tools"]
@@ -181,6 +184,7 @@ services:
     volumes:
       - ./tools/control-init:/init:ro
       - observation-ipc:/observation-ipc
+      - map-packages:/var/lib/bacuri-core/maps
       - core-identity:/identity/core
       - preview-ipc:/preview-ipc
       - recorder-identity:/identity/recorder
@@ -215,6 +219,7 @@ services:
       BACURI_ORIGIN: https://localhost:${BACURI_HTTPS_PORT:-8443}
       BACURI_PORT: "8443"
       BACURI_LISTEN: 0.0.0.0
+      BACURI_MAP_CATALOG_URL: ${BACURI_MAP_CATALOG_URL:-}
       BACURI_TLS_CERT: /identity/tls.crt
       BACURI_TLS_KEY: /identity/tls.key
       BACURI_EXPORT_KEY_FILE: /identity/export.key
@@ -222,6 +227,7 @@ services:
     volumes:
       - ./build/gcc-debug:/opt/bacuri:ro
       - ./storage/postgresql/migrations:/workspace/storage/postgresql/migrations:ro
+      - map-packages:/var/lib/bacuri-core/maps
       - core-identity:/identity:ro
       - ./web:/workspace/web:ro
       - ./build/web-client:/workspace/build/web-client:ro
@@ -331,6 +337,7 @@ services:
 volumes:
   postgres-data:
   archive-data:
+  map-packages:
   core-identity:
   recorder-identity:
   recorder-data:

@@ -46,9 +46,10 @@ grpc::Status ArchiveCatalog::AdvanceRetention(grpc::ServerContext*, const v1::Re
         Database db;
         db.exec("BEGIN");
         db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,1))", {owner_.site});
-        const auto policy = db.exec(
-            "SELECT days,reserve_percent FROM archive_retention WHERE site_id=$1 FOR SHARE", {owner_.site});
-        if (db.exec("SELECT FROM archive_recovery WHERE site_id=$1", {owner_.site}).size())
+        const auto policy =
+            db.exec("SELECT days,reserve_percent FROM bacuri_archive.archive_retention WHERE site_id=$1 FOR SHARE",
+                    {owner_.site});
+        if (db.exec("SELECT FROM bacuri_archive.archive_recovery WHERE site_id=$1", {owner_.site}).size())
             return {grpc::StatusCode::UNAVAILABLE, "Archive verification in progress"};
         db.exec("SELECT bacuri_archive.advance_cutoff($1)", {owner_.site});
         auto boundary =

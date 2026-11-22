@@ -233,7 +233,7 @@ def run():
         snapshot_time = time.monotonic()
         op("set-retention", "30", "20")
         op("grant-export", "viewer", point, playback.utc(0), playback.utc(60))
-        grants_sql = "SELECT user_id,site_id,point_id,begin_us,end_us,grant_id FROM bacuri_inventory.export_grants"
+        grants_sql = "SELECT user_id,site_id,point_id,begin_us,end_us,grant_id FROM bacuri_access.export_grants"
         original_grant = c.query(grants_sql)
         assert original_grant and point in original_grant
         backup = op("backup-config")
@@ -267,7 +267,7 @@ def run():
         assert c.query("SELECT count(*) FROM bacuri_inventory.sites") == "0"
         op("restore-config", input=backup)
         assert c.query(grants_sql) == original_grant
-        assert c.query("SELECT days,reserve_percent FROM bacuri_inventory.archive_retention") == "30|20"
+        assert c.query("SELECT days,reserve_percent FROM bacuri_archive.archive_retention") == "30|20"
         op("restore-config", input=backup)
         server = start_core()
         assert c.http("GET", "session", headers=viewer)[0] == 401
@@ -277,7 +277,7 @@ def run():
         assert restored["id"] == camera["id"] and restored["has_credentials"]
         assert [p["id"] for p in c.http("GET", POINTS, headers=viewer)[2]] == [point]
         assert foreign in {p["id"] for p in c.http("GET", POINTS, headers=admin)[2]}
-        assert c.query("SELECT count(*) FROM bacuri_inventory.local_users WHERE username='after-backup'") == "0"
+        assert c.query("SELECT count(*) FROM bacuri_access.local_users WHERE username='after-backup'") == "0"
         assert create(foreign, first, viewer)[0] == 404
         assert create(point, first, viewer)[0] == 503
         metrics["configuration"] = {**loss.finish("rto_s"), "rpo_snapshot_age_s": round(loss.started - snapshot_time, 3),

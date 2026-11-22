@@ -91,7 +91,10 @@ net::awaitable<void> exchange(std::shared_ptr<TlsStream> connection, net::thread
                                                    std::string_view{"/maps/plans"}.size() &&
                               target.starts_with("/api/v1/sites/") && target.ends_with("/maps/plans");
             const bool offer = target.starts_with("/api/v1/media-sessions/") && target.ends_with("/offer");
-            const unsigned limit = plan ? plan_limit : (offer ? 65536 : 32768);
+            const bool map_chunk = parser.get().method() == http::verb::put &&
+                                   target.starts_with("/api/v1/sites/") &&
+                                   target.find("/maps/sources/") != target.npos && target.ends_with("/chunks");
+            const unsigned limit = map_chunk ? 1048576 : plan ? plan_limit : (offer ? 65536 : 32768);
             parser.body_limit(limit);
             if (parser.content_length().value_or(0) > limit) {
                 error = http::error::body_limit;

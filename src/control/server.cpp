@@ -1,9 +1,11 @@
+#include "control/inventory/registry.hpp"
+#include "control/export.hpp"
 #include "control/api.hpp"
 #include "control/maps.hpp"
 #include "control/alerts.hpp"
 #include "control/alert_work.hpp"
 #include "control/observations.hpp"
-#include "control/onvif.hpp"
+#include "control/inventory/camera_events.hpp"
 #include <boost/beast/websocket/rfc6455.hpp>
 #include "control/delivery.hpp"
 #include "control/archive_catalog.hpp"
@@ -266,6 +268,7 @@ void serve()
     auto networks = CameraNetworks::configured();
     auto policy = Json(networks.legacy_addresses()).dump();
     const CameraRegistry registry{sessions, key, networks};
+    std::jthread map_worker{map_packages::work};
     std::jthread event_reader{[&](std::stop_token stop) { camera_events(stop, networks, key); }};
     std::jthread worker{[&key, policy = std::move(policy)](std::stop_token stop) { deliver(stop, key, policy); }};
     const auto handle = [&](const Request& req, const std::string& peer) {

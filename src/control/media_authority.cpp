@@ -1,3 +1,5 @@
+#include "control/access/operations.hpp"
+#include "control/recordings/operations.hpp"
 #include "control/media_authority.hpp"
 #include "control/playback_time.hpp"
 #include <grpcpp/grpcpp.h>
@@ -32,20 +34,30 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
         }
         const Window bounds{utc_us(q->archive().start()), utc_us(q->archive().end())};
         Database db;
-        const auto rows =
-            db.exec(R"sql(
-          SELECT least(5000,floor(extract(epoch FROM valid_until-clock_timestamp())*1000),
-              CASE WHEN NOT $7::boolean THEN floor(($6::numeric-bacuri_archive.retention_now_us()+
-                    (SELECT days FROM archive_retention WHERE site_id=$3)*86400000000::bigint)/1000) END)::bigint
-          FROM media_rights WHERE id=$1 AND browser=$2 AND site_id=$3 AND point_id=$4 AND NOT closed
-          AND CASE WHEN $7::boolean THEN begin_us IS NULL ELSE begin_us<=$5::bigint AND $5::bigint<$6::bigint AND $6::bigint<=end_us AND $6::bigint>bacuri_archive.retention_cutoff($3) END
+        db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+        const auto expiry =
+            access::browser_point_expiry(db, q->browser_session_id(), q->point().site_id(), q->point().point_id());
+        if (!expiry)
+            return {grpc::StatusCode::PERMISSION_DENIED, "No applicable media session"};
+        const auto rows = db.exec(R"sql(
+          SELECT least(5000,floor(extract(epoch FROM least(expires_at,$8::timestamptz)-clock_timestamp())*1000))::bigint
+          FROM bacuri_media_sessions.media_sessions WHERE id=$1 AND browser=$2 AND site_id=$3 AND point_id=$4 AND NOT closed
+          AND CASE WHEN $7::boolean THEN begin_us IS NULL ELSE begin_us<=$5::bigint AND $5::bigint<$6::bigint AND $6::bigint<=end_us END
         )sql",
-                    {q->media_session_id(), q->browser_session_id(), q->point().site_id(), q->point().point_id(),
-                     std::to_string(bounds.start), std::to_string(bounds.end), q->has_live() ? "true" : "false"});
+                                  {q->media_session_id(), q->browser_session_id(), q->point().site_id(),
+                                   q->point().point_id(), std::to_string(bounds.start), std::to_string(bounds.end),
+                                   q->has_live() ? "true" : "false", *expiry});
         if (!rows.size()) {
             return {grpc::StatusCode::PERMISSION_DENIED, "No applicable media session"};
         }
-        const auto ms = std::stoll(rows.get(0));
+        std::int64_t ms = std::stoll(rows.get(0));
+        if (q->has_archive()) {
+            const auto limit = recordings::delivery_lifetime_ms(db, q->point().site_id(), bounds.end);
+            if (!limit)
+                return {grpc::StatusCode::PERMISSION_DENIED, "No applicable media session"};
+            ms = std::min(ms, *limit);
+        }
+        db.exec("COMMIT");
         if (ms <= 0) {
             return {grpc::StatusCode::FAILED_PRECONDITION, "Media session expired"};
         }
@@ -66,7 +78,8 @@ grpc::Status MediaAuthority::CloseLive(grpc::ServerContext*, const v1::Authorize
     }
     try {
         Database db;
-        db.exec("UPDATE media_sessions SET closed=true WHERE id=$1 AND browser=$2 AND site_id=$3 AND point_id=$4 "
+        db.exec("UPDATE bacuri_media_sessions.media_sessions SET closed=true WHERE id=$1 AND browser=$2 AND "
+                "site_id=$3 AND point_id=$4 "
                 "AND begin_us IS NULL AND NOT closed",
                 {q->media_session_id(), q->browser_session_id(), q->point().site_id(), q->point().point_id()});
         return grpc::Status::OK;

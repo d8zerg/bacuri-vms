@@ -269,7 +269,7 @@ def run():
             )
             cursor = current["cursor"]
             probe(call, cursor)
-            c.query(f"DELETE FROM bacuri_inventory.point_grants WHERE point_id='{point}'")
+            c.query(f"DELETE FROM bacuri_access.point_grants WHERE point_id='{point}'")
             assert frames(call, 1)[0]["reason"] == "scope_changed"
             closed(call, 1000)
             assert not snapshot(viewer)["items"]

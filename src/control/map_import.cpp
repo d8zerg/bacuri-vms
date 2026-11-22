@@ -1,4 +1,6 @@
+#include "control/inventory/operations.hpp"
 #include "control/maps.hpp"
+#include "control/maps/packages.hpp"
 #include <png.h>
 #include <sqlite3.h>
 #include <charconv>
@@ -109,7 +111,11 @@ MapImage read_map_png(std::string_view bytes, bool tile)
     return {image.width, image.height, std::move(clean)};
 }
 
-void import_map(const std::filesystem::path& file)
+namespace map_packages
+{
+namespace
+{
+auto open_package(const fs::path& file)
 {
     require(std::filesystem::is_regular_file(file) &&
             std::filesystem::file_size(file) <= 8ULL * 1024 * 1024 * 1024);
@@ -119,8 +125,15 @@ void import_map(const std::filesystem::path& file)
     require(result == SQLITE_OK &&
             sqlite3_exec(raw, "PRAGMA trusted_schema=OFF; BEGIN", nullptr, nullptr, nullptr) == SQLITE_OK);
     sqlite3_limit(raw, SQLITE_LIMIT_LENGTH, image_limit + 1024);
-    Statement metadata(
-        raw, "SELECT name,value FROM metadata WHERE name IN ('name','bounds','format','osm_base_timestamp')");
+    return handle;
+}
+} // namespace
+Json inspect(const fs::path& file)
+{
+    auto handle = open_package(file);
+    auto* raw = handle.get();
+    Statement metadata(raw, "SELECT name,value FROM metadata WHERE name IN "
+                            "('name','bounds','format','osm_base_timestamp','region_id')");
     Json meta = Json::object();
     while (metadata.next()) {
         std::string name{metadata.bytes(0)}, value{metadata.bytes(1)};
@@ -133,13 +146,36 @@ void import_map(const std::filesystem::path& file)
     std::unique_ptr<GDateTime, decltype(&g_date_time_unref)> time{
         g_date_time_new_from_iso8601(stamp.c_str(), nullptr), g_date_time_unref};
     require(time != nullptr);
-    Database db;
-    const auto site = setting("BACURI_SITE_ID");
-    db.exec("BEGIN");
-    require(db.exec("SELECT FROM sites WHERE site_id=$1 FOR UPDATE", {site}).size() == 1);
-    db.exec("DELETE FROM map_regions WHERE site_id=$1", {site});
-    db.exec("INSERT INTO map_regions(site_id,name,source_time,bounds,min_zoom,max_zoom) VALUES ($1,$2,$3,$4,0,0)",
-            {site, meta.at("name").get<std::string>(), stamp, bounds.dump()});
+    require(!meta.at("name").get_ref<const std::string&>().empty());
+    const auto id = meta.value("region_id", meta.at("name").get<std::string>());
+    return {{"id", id},
+            {"name", meta.at("name")},
+            {"source_time", stamp},
+            {"bounds", bounds},
+            {"bytes", fs::file_size(file)}};
+}
+void install(Database& db, const fs::path& file, const std::string& site, const Json& entry, std::string_view mode)
+{
+    const auto meta = inspect(file);
+    for (const auto* key : {"id", "name", "bytes", "bounds"})
+        require(meta.at(key) == entry.at(key));
+    auto id = meta.at("id").get<std::string>();
+    auto stamp = meta.at("source_time").get<std::string>();
+    require(db.exec("SELECT $1::timestamptz=$2::timestamptz", {stamp, entry.at("source_time")}).get(0) == "t");
+    db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,17))", {site + id});
+    auto current = db.exec(
+        "SELECT source_time<$3::timestamptz FROM bacuri_maps.map_regions WHERE site_id=$1 AND region_id=$2",
+        {site, id, stamp});
+    if (mode == "install" && current.size())
+        throw std::invalid_argument("already_installed");
+    if (mode == "update" && (!current.size() || current.get(0) != "t"))
+        throw std::invalid_argument("not_newer");
+    db.exec("DELETE FROM bacuri_maps.map_regions WHERE site_id=$1 AND region_id=$2", {site, id});
+    db.exec("INSERT INTO bacuri_maps.map_regions(site_id,region_id,name,source_time,bounds,min_zoom,max_zoom) "
+            "VALUES($1,$2,$3,$4,$5,0,0)",
+            {site, id, meta.at("name"), stamp, meta.at("bounds").dump()});
+    auto handle = open_package(file);
+    auto* raw = handle.get();
     Statement tiles(raw, "SELECT zoom_level,tile_column,tile_row,tile_data FROM tiles");
     int min_zoom = 23, max_zoom = -1;
     while (tiles.next()) {
@@ -149,14 +185,24 @@ void import_map(const std::filesystem::path& file)
         auto tile = read_map_png(tiles.bytes(3), true);
         std::unique_ptr<char, decltype(&g_free)> encoded{
             g_base64_encode(reinterpret_cast<const guchar*>(tile.png.data()), tile.png.size()), g_free};
-        db.exec("INSERT INTO map_tiles VALUES ($1,$2,$3,$4,decode($5,'base64'))",
-                {site, std::to_string(z), std::to_string(x), std::to_string(y), encoded.get()});
+        db.exec("INSERT INTO bacuri_maps.map_tiles(site_id,z,x,y,image,region_id) VALUES "
+                "($1,$2,$3,$4,decode($5,'base64'),$6)",
+                {site, std::to_string(z), std::to_string(x), std::to_string(y), encoded.get(), id});
         min_zoom = std::min(z, min_zoom);
         max_zoom = std::max(z, max_zoom);
     }
     require(max_zoom >= min_zoom);
-    db.exec("UPDATE map_regions SET min_zoom=$2,max_zoom=$3 WHERE site_id=$1",
-            {site, std::to_string(min_zoom), std::to_string(max_zoom)});
+    db.exec("UPDATE bacuri_maps.map_regions SET min_zoom=$2,max_zoom=$3 WHERE site_id=$1 AND region_id=$4",
+            {site, std::to_string(min_zoom), std::to_string(max_zoom), id});
+}
+} // namespace map_packages
+void import_map(const std::filesystem::path& file)
+{
+    Database db;
+    const auto site = setting("BACURI_SITE_ID");
+    db.exec("BEGIN");
+    require(inventory::lock_site(db, site));
+    map_packages::install(db, file, site, map_packages::inspect(file), "replace");
     db.exec("COMMIT");
 }
 } // namespace bacuri::vms::control

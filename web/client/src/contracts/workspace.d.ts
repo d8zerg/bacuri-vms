@@ -27,6 +27,9 @@ export type Feed = {
   status: "loading" | "online" | "reconnecting" | "denied";
 };
 export type MapScene = Schema["MapScene"];
+export type MapManagement = Schema["MapManagement"];
+export type MapSource = Schema["MapSourceState"];
+export type MapMode = Schema["MapSelection"]["mode"];
 export type Placement = Schema["PointPlacement"];
 export type AlertWork = Schema["AlertWork"];
 export type AlertCommand = Schema["AlertCommand"];
@@ -62,6 +65,25 @@ export interface Services {
   ): Promise<Schema["IssuedAlertDelegation"]>;
   revokeDelegation(site: string, id: string): Promise<void>;
   maps(site: string, signal: AbortSignal): Promise<MapScene>;
+  mapManagement(site: string, signal: AbortSignal): Promise<MapManagement>;
+  mapSource(
+    site: string,
+    body: Schema["MapSourceRequest"],
+  ): Promise<{ id: string }>;
+  inspectMapSource(
+    site: string,
+    id: string,
+    signal: AbortSignal,
+  ): Promise<MapSource>;
+  uploadMapChunk(
+    site: string,
+    id: string,
+    offset: number,
+    chunk: Blob,
+    signal: AbortSignal,
+  ): Promise<void>;
+  pauseMapDownload(site: string, id: string, paused: boolean): Promise<void>;
+  queueMapRegions(site: string, body: Schema["MapSelection"]): Promise<void>;
   place(site: string, body: Placement): Promise<void>;
   addPlan(site: string, name: string, png: string): Promise<{ id: string }>;
   session(signal: AbortSignal): Promise<Session>;

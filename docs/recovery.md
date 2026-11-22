@@ -45,9 +45,9 @@ fi
 
    ```sql
    SELECT u.username, r.site_id, r.role, g.point_id
-   FROM bacuri_inventory.site_roles r
-   JOIN bacuri_inventory.local_users u USING (user_id)
-   LEFT JOIN bacuri_inventory.point_grants g USING (user_id, site_id)
+   FROM bacuri_access.site_roles r
+   JOIN bacuri_access.local_users u USING (user_id)
+   LEFT JOIN bacuri_access.point_grants g USING (user_id, site_id)
    ORDER BY u.username, r.site_id, g.point_id;
    ```
 

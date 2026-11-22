@@ -22,14 +22,15 @@ v1::ApplyConfigurationRequest prepare(Database& db, const Key& key, const Assign
     const auto& [site, node] = assignment;
     db.exec("BEGIN");
     auto pending = db.exec(R"sql(
-        SELECT 1 FROM recorder_delivery WHERE site_id=$1 AND desired_revision>decided_revision
+        SELECT 1 FROM bacuri_inventory.recorder_delivery WHERE site_id=$1 AND desired_revision>decided_revision
     )sql",
                            {site});
     if (!pending.size()) {
         return {};
     }
-    db.exec("SELECT site_id FROM sites WHERE site_id=$1 FOR UPDATE", {site});
-    auto previous = db.exec("SELECT generation,sealed_snapshot FROM recorder_attempt WHERE site_id=$1", {site});
+    db.exec("SELECT site_id FROM bacuri_inventory.sites WHERE site_id=$1 FOR UPDATE", {site});
+    auto previous = db.exec(
+        "SELECT generation,sealed_snapshot FROM bacuri_inventory.recorder_attempt WHERE site_id=$1", {site});
     if (previous.size()) {
         v1::ApplyConfigurationRequest saved;
         if (!saved.ParseFromString(unseal(previous.get(0, 1), key, "delivery/" + site + "/" + previous.get(0)))) {
@@ -39,7 +40,7 @@ v1::ApplyConfigurationRequest prepare(Database& db, const Key& key, const Assign
         return saved;
     }
     const auto generation =
-        db.exec("SELECT desired_revision FROM recorder_delivery WHERE site_id=$1", {site}).get(0);
+        db.exec("SELECT desired_revision FROM bacuri_inventory.recorder_delivery WHERE site_id=$1", {site}).get(0);
     v1::ApplyConfigurationRequest snapshot;
     snapshot.set_site_id(site);
     snapshot.set_recording_node_id(node);
@@ -47,10 +48,10 @@ v1::ApplyConfigurationRequest prepare(Database& db, const Key& key, const Assign
     auto rows = db.exec(R"sql(
         SELECT s.device_id,s.point_id,s.body->>'main_url',s.body->>'secondary_url',r.secret_revision,r.sealed_credentials,
                b.channel_id,p.profile_id,b.binding_revision
-        FROM camera_state s JOIN camera_registry r USING(site_id,device_id,point_id)
-        JOIN LATERAL (SELECT channel_id,binding_revision FROM point_bindings
+        FROM bacuri_inventory.camera_state s JOIN bacuri_inventory.camera_registry r USING(site_id,device_id,point_id)
+        JOIN LATERAL (SELECT channel_id,binding_revision FROM bacuri_inventory.point_bindings
                       WHERE site_id=s.site_id AND point_id=s.point_id ORDER BY binding_revision DESC LIMIT 1) b ON true
-        JOIN stream_profiles p ON p.site_id=s.site_id AND p.channel_id=b.channel_id AND p.stream_role='main'
+        JOIN bacuri_inventory.stream_profiles p ON p.site_id=s.site_id AND p.channel_id=b.channel_id AND p.stream_role='main'
         WHERE s.site_id=$1 ORDER BY s.device_id
     )sql",
                         {site});
@@ -72,8 +73,8 @@ v1::ApplyConfigurationRequest prepare(Database& db, const Key& key, const Assign
         }
     }
     db.exec(R"sql(
-        INSERT INTO recorder_attempt SELECT $1,$2,$3,coalesce(jsonb_object_agg(device_id,desired_revision),'{}')
-        FROM configuration_progress JOIN camera_registry USING (site_id,device_id) WHERE site_id=$1
+        INSERT INTO bacuri_inventory.recorder_attempt SELECT $1,$2,$3,coalesce(jsonb_object_agg(device_id,desired_revision),'{}')
+        FROM bacuri_inventory.configuration_progress JOIN bacuri_inventory.camera_registry USING (site_id,device_id) WHERE site_id=$1
     )sql",
             {site, generation, seal(key, "delivery/" + site + "/" + generation, snapshot.SerializeAsString())});
     db.exec("COMMIT");
@@ -90,9 +91,10 @@ void send_pending(v1::RecorderControl::Stub& recorder, const Key& key, const Ass
     }
     if (policy) {
         db.exec("BEGIN");
-        bool exists = db.exec("SELECT 1 FROM sites WHERE site_id=$1 FOR UPDATE", {site}).size() > 0;
+        bool exists =
+            db.exec("SELECT 1 FROM bacuri_inventory.sites WHERE site_id=$1 FOR UPDATE", {site}).size() > 0;
         if (exists)
-            db.exec("SELECT record_camera_transport_policy($1,$2::jsonb)", {site, *policy});
+            db.exec("SELECT bacuri_inventory.record_camera_transport_policy($1,$2::jsonb)", {site, *policy});
         db.exec("COMMIT");
         if (exists)
             policy.reset();
@@ -109,13 +111,13 @@ void send_pending(v1::RecorderControl::Stub& recorder, const Key& key, const Ass
         return;
     }
     db.exec("BEGIN");
-    db.exec("SELECT site_id FROM sites WHERE site_id=$1 FOR UPDATE", {site});
+    db.exec("SELECT site_id FROM bacuri_inventory.sites WHERE site_id=$1 FOR UPDATE", {site});
     if (decision.state() == v1::APPLY_STATE_APPLIED && decision.applied_revision() == snapshot.revision()) {
         db.exec(R"sql(
-            UPDATE configuration_progress p SET applied_revision=r.value::bigint,
+            UPDATE bacuri_inventory.configuration_progress p SET applied_revision=r.value::bigint,
               application_state=CASE WHEN p.desired_revision=r.value::bigint THEN 'applied' ELSE 'pending' END,
               failure_code=NULL
-            FROM recorder_attempt a CROSS JOIN LATERAL jsonb_each_text(a.revisions) r
+            FROM bacuri_inventory.recorder_attempt a CROSS JOIN LATERAL jsonb_each_text(a.revisions) r
             WHERE a.site_id=$1 AND p.site_id=a.site_id AND p.device_id=r.key::uuid
         )sql",
                 {site});
@@ -124,16 +126,17 @@ void send_pending(v1::RecorderControl::Stub& recorder, const Key& key, const Ass
                             : decision.failure() == v1::APPLY_FAILURE_INCOMPATIBLE_PROFILES
                                 ? "incompatible_profiles"
                                 : "invalid_configuration";
-        db.exec("UPDATE configuration_progress SET application_state='failed',failure_code=$2 WHERE site_id=$1 "
+        db.exec("UPDATE bacuri_inventory.configuration_progress SET application_state='failed',failure_code=$2 "
+                "WHERE site_id=$1 "
                 "AND applied_revision IS DISTINCT FROM desired_revision AND desired_revision=(SELECT "
-                "(revisions->>device_id::text)::bigint FROM recorder_attempt WHERE site_id=$1)",
+                "(revisions->>device_id::text)::bigint FROM bacuri_inventory.recorder_attempt WHERE site_id=$1)",
                 {site, reason});
     } else {
         return;
     }
-    db.exec("UPDATE recorder_delivery SET decided_revision=$2 WHERE site_id=$1",
+    db.exec("UPDATE bacuri_inventory.recorder_delivery SET decided_revision=$2 WHERE site_id=$1",
             {site, std::to_string(snapshot.revision())});
-    db.exec("DELETE FROM recorder_attempt WHERE site_id=$1", {site});
+    db.exec("DELETE FROM bacuri_inventory.recorder_attempt WHERE site_id=$1", {site});
     db.exec("COMMIT");
 }
 } // namespace

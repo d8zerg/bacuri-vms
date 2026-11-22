@@ -209,7 +209,7 @@ alert_snapshot:
 map_scene:
   operation: getMapScene
   status: 200
-  response: { region: null, plans: [], placements: [], symbols: /assets/sprite.svg, fonts: [/assets/inter-latin.woff2, /assets/inter-cyrillic.woff2] }
+  response: { region: null, regions: [], plans: [], placements: [], symbols: /assets/sprite.svg, fonts: [/assets/inter-latin.woff2, /assets/inter-cyrillic.woff2] }
 place_point:
   operation: placePoint
   request: { point_id: 20000000-0000-4000-8000-000000000001, plan_id: null, x: 37.5, y: 55.7 }

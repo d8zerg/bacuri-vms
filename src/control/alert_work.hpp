@@ -1,3 +1,4 @@
+#include "control/access/session.hpp"
 #pragma once
 #include "control/api.hpp"
 

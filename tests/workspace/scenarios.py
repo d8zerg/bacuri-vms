@@ -259,7 +259,7 @@ def operator(browser, cam, viewer, restart, plan):
         wait(call, "document.body.innerText.includes('Кадр записи получен')", "connection restored")
         assert js(call, "return location.pathname+location.search") == url
         began = time.monotonic()
-        c.query(f"DELETE FROM bacuri_inventory.point_grants WHERE point_id='{point}'")
+        c.query(f"DELETE FROM bacuri_access.point_grants WHERE point_id='{point}'")
         wait(
             call,
             "!document.querySelector('video') && !document.querySelector('.ws-alerts li')",
@@ -278,7 +278,7 @@ def operator(browser, cam, viewer, restart, plan):
         login(call, "viewer")
         wait(call, "document.body.innerText.includes('Недостаточно прав')", "installer access denied")
         c.query(
-            "UPDATE bacuri_inventory.browser_sessions SET expires_at=now() WHERE user_id=(SELECT user_id FROM bacuri_inventory.local_users WHERE username='viewer')"
+            "UPDATE bacuri_access.browser_sessions SET expires_at=now() WHERE user_id=(SELECT user_id FROM bacuri_access.local_users WHERE username='viewer')"
         )
         wait(call, "document.querySelector('input[name=username]')", "expired session", timeout=5)
         call("POST", "/url", {"url": c.ORIGIN + url})
@@ -292,7 +292,7 @@ def operator(browser, cam, viewer, restart, plan):
         login(call, "viewer")
         wait(call, "document.body.innerText.includes('Недостаточно прав')", "idle operator")
         c.query(
-            "UPDATE bacuri_inventory.browser_sessions SET last_active=now()-interval '29 minutes 57 seconds' WHERE user_id=(SELECT user_id FROM bacuri_inventory.local_users WHERE username='viewer')"
+            "UPDATE bacuri_access.browser_sessions SET last_active=now()-interval '29 minutes 57 seconds' WHERE user_id=(SELECT user_id FROM bacuri_access.local_users WHERE username='viewer')"
         )
         wait(
             call,

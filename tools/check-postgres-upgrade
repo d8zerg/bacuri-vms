@@ -80,12 +80,14 @@ def main():
             new_version = start()
             if new_version != "170012":
                 raise ValueError("Unexpected upgraded PostgreSQL version: " + new_version)
-            indexes = sql("""SELECT indexdef FROM pg_indexes WHERE schemaname IN
-                             ('bacuri_inventory','bacuri_archive','bacuri_events') ORDER BY indexdef""").splitlines()
+            indexes = sql("""SELECT indexdef FROM pg_indexes
+                             WHERE starts_with(schemaname,'bacuri_') ORDER BY indexdef""").splitlines()
             if not indexes:
                 raise ValueError("No product indexes found")
-            for namespace in ("bacuri_inventory", "bacuri_archive", "bacuri_events"):
-                sql("REINDEX SCHEMA " + namespace)
+            reindex_statements = sql("""SELECT format('REINDEX SCHEMA %I',nspname) FROM pg_namespace
+                                       WHERE starts_with(nspname,'bacuri_') ORDER BY nspname""").splitlines()
+            for statement in reindex_statements:
+                sql(statement)
             server("pg_amcheck", "--install-missing", "-U", "bacuri", "bacuri_vms")
             if rows() != expected:
                 raise ValueError("Archive search or pending alert changed across upgrade")

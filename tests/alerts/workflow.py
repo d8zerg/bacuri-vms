@@ -126,7 +126,7 @@ def check(c, first, other):
     command(expired, "record_result", 2, "Expired", status=403)
     _, withdrawn = issue()
     c.query(
-        f"DELETE FROM bacuri_inventory.point_grants WHERE user_id=(SELECT user_id FROM bacuri_inventory.local_users WHERE username='shift-{'ab'[winner]}') AND point_id='{point}'"
+        f"DELETE FROM bacuri_access.point_grants WHERE user_id=(SELECT user_id FROM bacuri_access.local_users WHERE username='shift-{'ab'[winner]}') AND point_id='{point}'"
     )
     command(withdrawn, "record_result", 2, "No grant", status=404)
     subprocess.run([c.CORE, "grant-point", "shift-" + "ab"[winner], point], check=True)

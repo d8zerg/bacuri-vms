@@ -1,3 +1,4 @@
+#include "control/inventory/camera_events.hpp"
 #include "control/onvif.hpp"
 #include "control/observations.hpp"
 #include <cstdio>
@@ -74,10 +75,10 @@ void camera_events(std::stop_token stop, const CameraNetworks& networks, const K
             auto rows = db.exec(R"sql(
                 SELECT r.device_id,r.point_id,b.binding_revision,p.desired_revision,v.settings->'onvif_control',
                        r.secret_revision,r.sealed_credentials,b.valid_from_utc_us
-                FROM camera_registry r JOIN configuration_progress p USING(site_id,device_id)
-                JOIN LATERAL (SELECT binding_revision,valid_from_utc_us FROM point_bindings
+                FROM bacuri_inventory.camera_registry r JOIN bacuri_inventory.configuration_progress p USING(site_id,device_id)
+                JOIN LATERAL (SELECT binding_revision,valid_from_utc_us FROM bacuri_inventory.point_bindings
                               WHERE site_id=r.site_id AND point_id=r.point_id ORDER BY binding_revision DESC LIMIT 1) b ON true
-                JOIN configuration_versions v ON (v.site_id,v.device_id,v.revision)=(r.site_id,r.device_id,p.desired_revision)
+                JOIN bacuri_inventory.configuration_versions v ON (v.site_id,v.device_id,v.revision)=(r.site_id,r.device_id,p.desired_revision)
                 WHERE r.site_id=$1 AND r.sealed_credentials IS NOT NULL AND v.settings->'onvif_control' ? 'Events'
                 AND v.settings->'onvif_control'->>'source' <> ''
             )sql",

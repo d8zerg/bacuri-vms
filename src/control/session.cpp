@@ -1,3 +1,4 @@
+#include "control/access/session.hpp"
 #include "control/api.hpp"
 #include "control/webauthn.hpp"
 
@@ -37,8 +38,8 @@ Json session_body(Database& db, const Key& key, const Identity& identity)
     const auto rows = db.exec(R"sql(
         SELECT to_char(expires_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
             (SELECT coalesce(jsonb_agg(jsonb_build_object('site_id',site_id,'role',role) ORDER BY site_id),'[]')
-             FROM site_roles WHERE user_id=s.user_id)
-        FROM browser_sessions s WHERE token_hash=$1
+             FROM bacuri_access.site_roles WHERE user_id=s.user_id)
+        FROM bacuri_access.browser_sessions s WHERE token_hash=$1
     )sql",
                               {fingerprint(key, "session", identity.cookie)});
     return {{"user_id", identity.user},
@@ -106,9 +107,10 @@ Identity Sessions::authenticate(Database& db, const Request& request, bool mutat
         throw Failure{401, "unauthenticated"};
     }
     const auto rows = db.exec(
-        activity ? "UPDATE browser_sessions SET last_active=now() WHERE token_hash=$1 AND expires_at>now() "
+        activity ? "UPDATE bacuri_access.browser_sessions SET last_active=now() WHERE token_hash=$1 AND "
+                   "expires_at>now() "
                    "AND last_active>now()-interval '30 minutes' RETURNING user_id"
-                 : "SELECT user_id FROM browser_sessions WHERE token_hash=$1 AND expires_at>now() "
+                 : "SELECT user_id FROM bacuri_access.browser_sessions WHERE token_hash=$1 AND expires_at>now() "
                    "AND last_active>now()-interval '30 minutes'",
         {fingerprint(key_, "session", value)});
     if (!rows.size()) {
@@ -131,7 +133,7 @@ void Sessions::login(const Request& request, Response& response, const std::stri
     const auto password = string_field(body, "password", 1024);
     Database db;
     const auto attempts = db.exec(R"sql(
-            INSERT INTO login_attempts VALUES ($1,now(),1) ON CONFLICT (client_address) DO UPDATE SET
+            INSERT INTO bacuri_access.login_attempts VALUES ($1,now(),1) ON CONFLICT (client_address) DO UPDATE SET
             attempts=CASE WHEN login_attempts.started_at<now()-interval '1 minute' THEN 1 ELSE login_attempts.attempts+1 END,
             started_at=CASE WHEN login_attempts.started_at<now()-interval '1 minute' THEN now() ELSE login_attempts.started_at END
             RETURNING attempts
@@ -142,11 +144,13 @@ void Sessions::login(const Request& request, Response& response, const std::stri
         throw Failure{429, "rate_limited"};
     }
     db.exec("BEGIN");
-    auto user = db.exec("SELECT user_id,password_hash FROM local_users WHERE username=$1 FOR UPDATE", {username});
+    auto user = db.exec("SELECT user_id,password_hash FROM bacuri_access.local_users WHERE username=$1 FOR UPDATE",
+                        {username});
     if (!password_matches(user.size() ? user.get(0, 1) : dummy_hash_, password) || !user.size()) {
         throw Failure{401, "invalid_credentials"};
     }
-    if (db.exec("SELECT FROM site_roles WHERE user_id=$1 AND role='administrator'", {user.get(0)}).size()) {
+    if (db.exec("SELECT FROM bacuri_access.site_roles WHERE user_id=$1 AND role='administrator'", {user.get(0)})
+            .size()) {
         auto challenge = begin_webauthn(db, key_, origin_, user.get(0), body);
         db.exec("COMMIT");
         return respond(response, challenge, 202);
@@ -167,7 +171,7 @@ void Sessions::factor(const Request& request, Response& response) const
         result = finish_webauthn(db, key_, origin_, body);
     } catch (const Failure&) {
         db.exec("ROLLBACK TO SAVEPOINT verify_factor");
-        db.exec("DELETE FROM webauthn_challenges WHERE ticket_hash=$1", {ticket});
+        db.exec("DELETE FROM bacuri_access.webauthn_challenges WHERE ticket_hash=$1", {ticket});
         db.exec("COMMIT");
         throw;
     }
@@ -181,11 +185,12 @@ void Sessions::factor(const Request& request, Response& response) const
 void Sessions::issue(Database& db, const Request& request, Response& response, const std::string& user_id) const
 {
     auto previous = cookie(request);
-    db.exec("DELETE FROM browser_sessions WHERE token_hash=$1 OR expires_at<=now() OR "
+    db.exec("DELETE FROM bacuri_access.browser_sessions WHERE token_hash=$1 OR expires_at<=now() OR "
             "last_active<=now()-interval '30 minutes'",
             {fingerprint(key_, "session", previous)});
     const Identity identity{user_id, token()};
-    db.exec("INSERT INTO browser_sessions(token_hash,user_id,expires_at) VALUES ($1,$2,now()+interval '8 hours')",
+    db.exec("INSERT INTO bacuri_access.browser_sessions(token_hash,user_id,expires_at) VALUES "
+            "($1,$2,now()+interval '8 hours')",
             {fingerprint(key_, "session", identity.cookie), identity.user});
     auto result = session_body(db, key_, identity);
     db.exec("COMMIT");
@@ -221,7 +226,7 @@ void Sessions::logout(const Request& request, Response& response) const
     if (!value.empty()) {
         try {
             auto identity = authenticate(db, request, true);
-            db.exec("DELETE FROM browser_sessions WHERE token_hash=$1",
+            db.exec("DELETE FROM bacuri_access.browser_sessions WHERE token_hash=$1",
                     {fingerprint(key_, "session", identity.cookie)});
         } catch (const Failure& error) {
             if (error.status != 401) {

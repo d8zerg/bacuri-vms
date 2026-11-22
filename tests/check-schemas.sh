@@ -86,6 +86,15 @@ psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migration
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0013_fragment_export.sql
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0014_admin_mfa.sql
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migrations/0015_credential_recovery.sql
+set -- -f tests/schema/module-schemas.sql -f tests/schema/map-packages.sql
+for migration in storage/postgresql/migrations/*.sql; do
+    name=${migration##*/}
+    if [ "${name%%_*}" -gt 17 ]; then
+        set -- "$@" -f "$migration"
+    fi
+done
+psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" "$@" -f tests/schema/module-dependencies.sql
+python3 -B tests/architecture/core_boundaries.py --database "$database"
 test "$(sqlite3 "$sqlite_file" 'PRAGMA user_version')" = 5
 test "$(sqlite3 "$sqlite_file" 'SELECT days,reserve_percent FROM retention')" = '0|20'
 printf '%s\n' 'PostgreSQL and SQLite schemas and archive upgrades passed'

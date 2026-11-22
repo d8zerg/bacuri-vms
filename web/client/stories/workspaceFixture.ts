@@ -1,3 +1,4 @@
+import { mapPackageFixture } from "./mapPackageFixture";
 import { alertWorkFixture } from "./alertWorkFixture";
 import floor from "./floor.png";
 import type { MapScene } from "../src/contracts/workspace";
@@ -58,6 +59,7 @@ export function fixture(condition = "normal"): Services {
     revision = 0;
   const scene: MapScene = {
     region: null,
+    regions: [],
     fonts: [],
     symbols: "",
     plans:
@@ -88,6 +90,7 @@ export function fixture(condition = "normal"): Services {
       scene.placements = [body];
       return Promise.resolve();
     },
+    ...mapPackageFixture(scene, condition === "map-management"),
     addPlan: (_site, name) => {
       scene.plans.push({
         id: "new",

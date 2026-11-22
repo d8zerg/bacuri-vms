@@ -1,3 +1,7 @@
+#include "control/inventory/registry.hpp"
+#include "control/inventory/operations.hpp"
+#include "control/recordings/operations.hpp"
+#include "control/access/operations.hpp"
 #include "control/api.hpp"
 #include "control/onvif.hpp"
 #include "control/playback_time.hpp"
@@ -15,7 +19,8 @@ std::string etag(const Key& key, const Json& camera)
 
 Json camera(Database& db, const std::string& site, const std::string& device)
 {
-    auto rows = db.exec("SELECT body FROM camera_state WHERE site_id=$1 AND device_id=$2", {site, device});
+    auto rows = db.exec("SELECT body FROM bacuri_inventory.camera_state WHERE site_id=$1 AND device_id=$2",
+                        {site, device});
     if (!rows.size()) {
         throw Failure{404, "not_found"};
     }
@@ -27,12 +32,7 @@ std::string site_role(Database& db, const Identity& identity, const std::string&
     if (!canonical_id(site)) {
         throw Failure{404, "not_found"};
     }
-    auto rows =
-        db.exec("SELECT role FROM site_roles WHERE site_id=$1 AND user_id=$2 FOR SHARE", {site, identity.user});
-    if (!rows.size()) {
-        throw Failure{404, "not_found"};
-    }
-    return rows.get(0);
+    return access::site_role(db, site, identity.user, access::RoleLock::shared);
 }
 
 Json read_configuration(const Request& request)
@@ -73,9 +73,10 @@ void write_version(Database& db, const Key& key, const std::string& site, const 
         settings["onvif"] = body.at("onvif");
     if (body.contains("onvif_control"))
         settings["onvif_control"] = body.at("onvif_control");
-    db.exec("INSERT INTO configuration_versions VALUES ($1,$2,$3,$4)", {site, device, revision, settings.dump()});
+    db.exec("INSERT INTO bacuri_inventory.configuration_versions VALUES ($1,$2,$3,$4)",
+            {site, device, revision, settings.dump()});
     db.exec(R"sql(
-        INSERT INTO configuration_progress(site_id,device_id,desired_revision,application_state)
+        INSERT INTO bacuri_inventory.configuration_progress(site_id,device_id,desired_revision,application_state)
         VALUES ($1,$2,$3,'pending') ON CONFLICT (site_id,device_id) DO UPDATE
         SET desired_revision=excluded.desired_revision,application_state='pending',failure_code=NULL
     )sql",
@@ -83,18 +84,20 @@ void write_version(Database& db, const Key& key, const std::string& site, const 
     if (body.contains("credentials")) {
         const auto& credentials = body.at("credentials");
         if (credentials.is_null()) {
-            db.exec("UPDATE camera_registry SET secret_revision=NULL,sealed_credentials=NULL WHERE site_id=$1 AND "
+            db.exec("UPDATE bacuri_inventory.camera_registry SET secret_revision=NULL,sealed_credentials=NULL "
+                    "WHERE site_id=$1 AND "
                     "device_id=$2",
                     {site, device});
         } else {
             const auto context = site + "/" + device + "/" + revision;
-            db.exec("UPDATE camera_registry SET secret_revision=$3,sealed_credentials=$4 WHERE site_id=$1 AND "
+            db.exec("UPDATE bacuri_inventory.camera_registry SET secret_revision=$3,sealed_credentials=$4 WHERE "
+                    "site_id=$1 AND "
                     "device_id=$2",
                     {site, device, revision, seal(key, context, credentials.dump())});
         }
     }
     db.exec(R"sql(
-        INSERT INTO recorder_delivery(site_id,desired_revision) VALUES ($1,1)
+        INSERT INTO bacuri_inventory.recorder_delivery(site_id,desired_revision) VALUES ($1,1)
         ON CONFLICT (site_id) DO UPDATE SET desired_revision=recorder_delivery.desired_revision+1
     )sql",
             {site});
@@ -106,39 +109,49 @@ std::string register_device(Database& db, const std::string& site, const Json& b
     std::string point;
     if (body.contains("point_id")) {
         point = body.at("point_id").get<std::string>();
-        if (!db.exec("SELECT 1 FROM observation_points WHERE site_id=$1 AND point_id=$2", {site, point}).size()) {
+        if (!db.exec("SELECT 1 FROM bacuri_inventory.observation_points WHERE site_id=$1 AND point_id=$2",
+                     {site, point})
+                 .size()) {
             throw Failure{404, "not_found"};
         }
         if (body.contains("replace_device_id")) {
-            if (!db.exec("DELETE FROM camera_registry WHERE site_id=$1 AND point_id=$2 AND device_id=$3 RETURNING "
+            if (!db.exec("DELETE FROM bacuri_inventory.camera_registry WHERE site_id=$1 AND point_id=$2 AND "
+                         "device_id=$3 RETURNING "
                          "device_id",
                          {site, point, body.at("replace_device_id").get<std::string>()})
                      .size())
                 throw Failure{409, "camera_binding_conflict"};
         }
-        if (db.exec("SELECT 1 FROM camera_registry WHERE site_id=$1 AND point_id=$2", {site, point}).size()) {
+        if (db.exec("SELECT 1 FROM bacuri_inventory.camera_registry WHERE site_id=$1 AND point_id=$2",
+                    {site, point})
+                .size()) {
             throw Failure{400, "invalid_request"};
         }
     } else {
-        point = db.exec("INSERT INTO observation_points VALUES ($1,gen_random_uuid(),$2) RETURNING point_id",
+        point = db.exec("INSERT INTO bacuri_inventory.observation_points VALUES ($1,gen_random_uuid(),$2) "
+                        "RETURNING point_id",
                         {site, name})
                     .get(0);
     }
     auto device =
-        db.exec("INSERT INTO devices VALUES ($1,gen_random_uuid(),$2) RETURNING device_id", {site, name}).get(0);
-    auto channel =
-        db.exec("INSERT INTO channels VALUES ($1,gen_random_uuid(),$2,0) RETURNING channel_id", {site, device})
+        db.exec("INSERT INTO bacuri_inventory.devices VALUES ($1,gen_random_uuid(),$2) RETURNING device_id",
+                {site, name})
             .get(0);
-    db.exec("INSERT INTO stream_profiles SELECT $1,gen_random_uuid(),$2,role FROM "
+    auto channel =
+        db.exec("INSERT INTO bacuri_inventory.channels VALUES ($1,gen_random_uuid(),$2,0) RETURNING channel_id",
+                {site, device})
+            .get(0);
+    db.exec("INSERT INTO bacuri_inventory.stream_profiles SELECT $1,gen_random_uuid(),$2,role FROM "
             "unnest(ARRAY['main','secondary']) role",
             {site, channel});
     db.exec(R"sql(
-        INSERT INTO point_bindings SELECT $1,$2,coalesce(max(binding_revision),0)+1,$3,
+        INSERT INTO bacuri_inventory.point_bindings SELECT $1,$2,coalesce(max(binding_revision),0)+1,$3,
         greatest((extract(epoch FROM clock_timestamp())*1000000)::bigint,max(valid_from_utc_us)+1)
-        FROM point_bindings WHERE site_id=$1 AND point_id=$2
+        FROM bacuri_inventory.point_bindings WHERE site_id=$1 AND point_id=$2
     )sql",
             {site, point, channel});
-    db.exec("INSERT INTO camera_registry(site_id,device_id,point_id) VALUES ($1,$2,$3)", {site, device, point});
+    db.exec("INSERT INTO bacuri_inventory.camera_registry(site_id,device_id,point_id) VALUES ($1,$2,$3)",
+            {site, device, point});
     return device;
 }
 } // namespace
@@ -197,17 +210,13 @@ void CameraRegistry::previous_recording(const Request& req, Response& res, const
     if (site_role(db, identity, site) != "administrator")
         throw Failure{403, "forbidden"};
     const auto current = camera(db, site, device);
-    if (db.exec("SELECT 1 FROM archive_recovery WHERE site_id=$1", {site}).size())
-        throw Failure{503, "media_unavailable"};
-    auto rows = db.exec("SELECT binding_revision,begin_utc_us,end_utc_us FROM bacuri_archive.retained_blocks "
-                        "WHERE site_id=$1 AND point_id=$2 AND binding_revision<$3 AND unavailable_reason IS NULL "
-                        "ORDER BY binding_revision DESC,begin_utc_us DESC LIMIT 1",
-                        {site, current.at("point_id"), current.at("binding_revision")});
-    if (!rows.size())
+    const auto recording =
+        recordings::previous_binding_recording(db, site, current.at("point_id"), current.at("binding_revision"));
+    if (!recording)
         throw Failure{404, "not_found"};
     db.exec("COMMIT");
-    respond(res, {{"binding_revision", rows.get(0)},
-                  {"interval", Window{std::stoll(rows.get(0, 1)), std::stoll(rows.get(0, 2))}.json()}});
+    respond(res, {{"binding_revision", recording->revision},
+                  {"interval", Window{recording->start, recording->end}.json()}});
 }
 
 void CameraRegistry::ptz(const Request& req, Response& res, const std::string& site,
@@ -217,12 +226,9 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
     db.exec("BEGIN");
     auto user = sessions_.authenticate(db, req, true);
     auto role = site_role(db, user, site);
-    auto visible =
-        role == "administrator"
-            ? db.exec("SELECT 1 FROM observation_points WHERE site_id=$1 AND point_id=$2", {site, point})
-            : db.exec("SELECT 1 FROM point_grants WHERE site_id=$1 AND point_id=$2 AND user_id=$3 FOR SHARE",
-                      {site, point, user.user});
-    if (!visible.size())
+    const bool visible = role == "administrator" ? inventory::lock_point(db, site, point)
+                                                 : access::lock_point_grant(db, site, point, user.user);
+    if (!visible)
         throw Failure{404, "not_found"};
     auto body = object_body(req, {"device_id", "command"});
     auto device = string_field(body, "device_id", 36);
@@ -232,8 +238,8 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
         throw Failure{400, "invalid_request"};
     auto rows = db.exec(R"sql(
         SELECT v.settings->'onvif_control', r.secret_revision, r.sealed_credentials
-        FROM camera_registry r JOIN configuration_progress p USING(site_id,device_id)
-        JOIN configuration_versions v ON (v.site_id,v.device_id,v.revision)=(r.site_id,r.device_id,p.desired_revision)
+        FROM bacuri_inventory.camera_registry r JOIN bacuri_inventory.configuration_progress p USING(site_id,device_id)
+        JOIN bacuri_inventory.configuration_versions v ON (v.site_id,v.device_id,v.revision)=(r.site_id,r.device_id,p.desired_revision)
         WHERE r.site_id=$1 AND r.point_id=$2 AND r.device_id=$3 FOR UPDATE OF r
     )sql",
                         {site, point, device});
@@ -241,11 +247,12 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
         throw Failure{409, "camera_binding_conflict"};
     // Keep the binding locked while a separate transaction records dispatch before touching the device.
     Database journal;
-    journal.exec("DELETE FROM ptz_commands WHERE started_at<now()-interval '24 hours'");
+    journal.exec("DELETE FROM bacuri_inventory.ptz_commands WHERE started_at<now()-interval '24 hours'");
     auto replay = [&] {
-        auto saved = journal.exec("SELECT device_id,point_id,command,status,failure_code FROM ptz_commands "
-                                  "WHERE site_id=$1 AND user_id=$2 AND request_key=$3",
-                                  {site, user.user, request_key});
+        auto saved = journal.exec(
+            "SELECT device_id,point_id,command,status,failure_code FROM bacuri_inventory.ptz_commands "
+            "WHERE site_id=$1 AND user_id=$2 AND request_key=$3",
+            {site, user.user, request_key});
         if (!saved.size())
             return false;
         if (saved.get(0) != device || saved.get(0, 1) != point || saved.get(0, 2) != command)
@@ -265,16 +272,17 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
         if (std::ranges::find(allowed, Json(command)) == allowed.end())
             throw Failure{422, "camera_ptz_unsupported"};
         auto credentials = Json::parse(unseal(rows.get(0, 2), key_, site + "/" + device + "/" + rows.get(0, 1)));
-        auto owner = journal.exec(
-            "SELECT user_id,lease_until>clock_timestamp() FROM ptz_commands WHERE site_id=$1 AND device_id=$2 "
-            "ORDER BY started_at DESC LIMIT 1",
-            {site, device});
+        auto owner = journal.exec("SELECT user_id,lease_until>clock_timestamp() FROM "
+                                  "bacuri_inventory.ptz_commands WHERE site_id=$1 AND device_id=$2 "
+                                  "ORDER BY started_at DESC LIMIT 1",
+                                  {site, device});
         if (owner.size() && owner.get(0, 1) == "t" && owner.get(0) != user.user && role != "administrator")
             throw Failure{409, "camera_ptz_busy"};
-        auto created =
-            journal.exec("INSERT INTO ptz_commands(site_id,user_id,request_key,device_id,point_id,command) VALUES "
-                         "($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING 1",
-                         {site, user.user, request_key, device, point, command});
+        auto created = journal.exec(
+            "INSERT INTO bacuri_inventory.ptz_commands(site_id,user_id,request_key,device_id,point_id,command) "
+            "VALUES "
+            "($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING 1",
+            {site, user.user, request_key, device, point, command});
         if (created.size()) {
             try {
                 move_onvif(networks_, control, credentials, command);
@@ -284,15 +292,17 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
                 const auto failure = (e.code == "camera_unavailable" || e.code == "camera_protocol_error")
                                          ? Failure{e.status, "camera_ptz_unknown"}
                                          : e;
-                journal.exec("UPDATE ptz_commands SET status=$4,failure_code=$5 WHERE site_id=$1 AND user_id=$2 "
+                journal.exec("UPDATE bacuri_inventory.ptz_commands SET status=$4,failure_code=$5 WHERE site_id=$1 "
+                             "AND user_id=$2 "
                              "AND request_key=$3",
                              {site, user.user, request_key, std::to_string(failure.status), failure.code});
                 throw failure;
             }
-            journal.exec("UPDATE ptz_commands SET status=204,lease_until=clock_timestamp()+CASE WHEN "
-                         "command='stop' THEN interval '0 seconds' "
-                         "ELSE interval '1 second' END WHERE site_id=$1 AND user_id=$2 AND request_key=$3",
-                         {site, user.user, request_key});
+            journal.exec(
+                "UPDATE bacuri_inventory.ptz_commands SET status=204,lease_until=clock_timestamp()+CASE WHEN "
+                "command='stop' THEN interval '0 seconds' "
+                "ELSE interval '1 second' END WHERE site_id=$1 AND user_id=$2 AND request_key=$3",
+                {site, user.user, request_key});
         } else if (!replay())
             throw Failure{503, "dependency_unavailable"};
     }
@@ -303,24 +313,25 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
 void CameraRegistry::points(const Request& req, Response& res, const std::string& site) const
 {
     Database db;
-    db.exec("BEGIN");
+    db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const auto identity = sessions_.authenticate(db, req, false, false);
-    const auto role = site_role(db, identity, site);
-    auto rows = db.exec(R"sql(
+    const bool admin = access::site_role(db, site, identity.user, access::RoleLock::read) == "administrator";
+    auto rows =
+        db.exec(R"sql(
             SELECT coalesce(jsonb_agg(jsonb_build_object('id',p.point_id,'name',p.name,
               'connection','unknown','recording','unknown') ||
-              CASE WHEN EXISTS(SELECT FROM export_grants g WHERE (g.site_id,g.point_id,g.user_id)=(p.site_id,p.point_id,$3::uuid))
+              CASE WHEN p.point_id=ANY($3::uuid[])
               THEN jsonb_build_object('can_export',true) ELSE '{}'::jsonb END ||
               CASE WHEN r.sealed_credentials IS NOT NULL AND jsonb_array_length(cfg.settings->'onvif_control'->'directions')>0
               THEN jsonb_build_object('ptz',jsonb_build_object('device_id',r.device_id,'commands',cfg.settings->'onvif_control'->'directions'))
               ELSE '{}'::jsonb END ORDER BY p.point_id),'[]')
-            FROM observation_points p LEFT JOIN camera_registry r USING(site_id,point_id)
-            LEFT JOIN configuration_progress cp ON (cp.site_id,cp.device_id)=(r.site_id,r.device_id)
-            LEFT JOIN configuration_versions cfg ON (cfg.site_id,cfg.device_id,cfg.revision)=(r.site_id,r.device_id,cp.desired_revision)
-            WHERE p.site_id=$1 AND ($2='administrator' OR EXISTS
-              (SELECT 1 FROM point_grants g WHERE g.site_id=p.site_id AND g.point_id=p.point_id AND g.user_id=$3))
+            FROM bacuri_inventory.observation_points p LEFT JOIN bacuri_inventory.camera_registry r USING(site_id,point_id)
+            LEFT JOIN bacuri_inventory.configuration_progress cp ON (cp.site_id,cp.device_id)=(r.site_id,r.device_id)
+            LEFT JOIN bacuri_inventory.configuration_versions cfg ON (cfg.site_id,cfg.device_id,cfg.revision)=(r.site_id,r.device_id,cp.desired_revision)
+            WHERE p.site_id=$1 AND ($4::boolean OR p.point_id=ANY($2::uuid[]))
         )sql",
-                        {site, role, identity.user});
+                {site, admin ? "{}" : array_parameter(access::granted_point_ids(db, site, identity.user)),
+                 array_parameter(access::export_point_ids(db, site, identity.user)), admin ? "true" : "false"});
     db.exec("COMMIT");
     respond(res, Json::parse(rows.get(0)));
 }
@@ -340,9 +351,9 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
     }
     if (!write) {
         if (device.empty()) {
-            auto rows = db.exec(
-                "SELECT coalesce(jsonb_agg(body ORDER BY device_id),'[]') FROM camera_state WHERE site_id=$1",
-                {site});
+            auto rows = db.exec("SELECT coalesce(jsonb_agg(body ORDER BY device_id),'[]') FROM "
+                                "bacuri_inventory.camera_state WHERE site_id=$1",
+                                {site});
             respond(res, Json::parse(rows.get(0)));
         } else {
             auto current = camera(db, site, device);
@@ -353,8 +364,8 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
         return;
     }
     auto body = read_configuration(req);
-    db.exec("SELECT site_id FROM sites WHERE site_id=$1 FOR UPDATE", {site});
-    db.exec("SELECT record_camera_transport_policy($1,$2::jsonb)",
+    db.exec("SELECT site_id FROM bacuri_inventory.sites WHERE site_id=$1 FOR UPDATE", {site});
+    db.exec("SELECT bacuri_inventory.record_camera_transport_policy($1,$2::jsonb)",
             {site, Json(networks_.legacy_addresses()).dump()});
     const auto request_key = std::string{req["Idempotency-Key"]};
     std::string digest;
@@ -367,10 +378,12 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
             throw Failure{400, "invalid_request"};
         }
         digest = fingerprint(key_, "registration", body.dump());
-        db.exec("DELETE FROM registration_requests WHERE site_id=$1 AND expires_at<=now()", {site});
-        auto replay = db.exec("SELECT fingerprint,response FROM registration_requests WHERE site_id=$1 AND "
-                              "user_id=$2 AND request_key=$3",
-                              {site, identity.user, request_key});
+        db.exec("DELETE FROM bacuri_inventory.registration_requests WHERE site_id=$1 AND expires_at<=now()",
+                {site});
+        auto replay =
+            db.exec("SELECT fingerprint,response FROM bacuri_inventory.registration_requests WHERE site_id=$1 AND "
+                    "user_id=$2 AND request_key=$3",
+                    {site, identity.user, request_key});
         if (replay.size()) {
             if (replay.get(0) != digest) {
                 throw Failure{409, "idempotency_conflict"};
@@ -380,7 +393,8 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
         } else {
             if (body.contains("onvif_selection")) {
                 selected = read_camera_ticket(key_, site, body.at("onvif_selection"));
-                if (db.exec("SELECT 1 FROM camera_state WHERE site_id=$1 AND body->>'endpoint_id'=$2",
+                if (db.exec("SELECT 1 FROM bacuri_inventory.camera_state WHERE site_id=$1 AND "
+                            "body->>'endpoint_id'=$2",
                             {site, selected.at("endpoint_id")})
                         .size())
                     throw Failure{409, "camera_already_registered"};
@@ -401,7 +415,8 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
                 onvif[field] = current.at(field);
         }
         if (!body.contains("onvif_selection")) {
-            auto saved = db.exec("SELECT settings->'onvif_control' FROM configuration_versions WHERE site_id=$1 "
+            auto saved = db.exec("SELECT settings->'onvif_control' FROM bacuri_inventory.configuration_versions "
+                                 "WHERE site_id=$1 "
                                  "AND device_id=$2 AND revision=$3",
                                  {site, device, current.at("desired_revision")})
                              .get(0);
@@ -419,11 +434,11 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
         if (body.contains("point_id") && body["point_id"] != current.at("point_id")) {
             throw Failure{400, "invalid_request"};
         }
-        revision =
-            db.exec("SELECT desired_revision+1 FROM configuration_progress WHERE site_id=$1 AND device_id=$2",
-                    {site, device})
-                .get(0);
-        db.exec("UPDATE devices SET name=$3 WHERE site_id=$1 AND device_id=$2",
+        revision = db.exec("SELECT desired_revision+1 FROM bacuri_inventory.configuration_progress WHERE "
+                           "site_id=$1 AND device_id=$2",
+                           {site, device})
+                       .get(0);
+        db.exec("UPDATE bacuri_inventory.devices SET name=$3 WHERE site_id=$1 AND device_id=$2",
                 {site, device, body.at("name").get<std::string>()});
     }
     if (result.is_null()) {
@@ -437,7 +452,7 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
                 const auto id = selected.at("endpoint_id").get<std::string>();
                 if (!onvif.empty() && onvif["endpoint_id"] != id)
                     throw Failure{409, "camera_binding_conflict"};
-                if (db.exec("SELECT 1 FROM camera_state WHERE site_id=$1 AND device_id<>$2 AND "
+                if (db.exec("SELECT 1 FROM bacuri_inventory.camera_state WHERE site_id=$1 AND device_id<>$2 AND "
                             "body->>'endpoint_id'=$3",
                             {site, device, id})
                         .size())
@@ -466,7 +481,7 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
         write_version(db, key_, site, device, revision, body);
         result = camera(db, site, device);
         db.exec(R"sql(
-                INSERT INTO configuration_audit(request_id,user_id,site_id,device_id,action,previous_revision,revision,outcome)
+                INSERT INTO bacuri_inventory.configuration_audit(request_id,user_id,site_id,device_id,action,previous_revision,revision,outcome)
                 VALUES ($6,$1,$2,$3,$4,nullif($5::bigint-1,0),$5,'saved')
             )sql",
                 {identity.user, site, device,
@@ -475,7 +490,8 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
                                                     : "update",
                  revision, std::string{res["X-Request-Id"]}});
         if (create) {
-            db.exec("INSERT INTO registration_requests VALUES ($1,$2,$3,$4,$5,now()+interval '24 hours')",
+            db.exec("INSERT INTO bacuri_inventory.registration_requests VALUES ($1,$2,$3,$4,$5,now()+interval '24 "
+                    "hours')",
                     {site, identity.user, request_key, digest, result.dump()});
         }
     }

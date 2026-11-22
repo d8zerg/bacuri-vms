@@ -1,5 +1,7 @@
+#include "control/inventory/operations.hpp"
+#include "control/access/operations.hpp"
 #include "control/maps.hpp"
-#include "control/playback.hpp"
+#include "control/maps/packages.hpp"
 #include <sodium.h>
 #include <charconv>
 
@@ -17,39 +19,47 @@ void found(bool condition)
     if (!condition)
         throw Failure{404, "not_found"};
 }
-Json scene(Database& db, const std::string& site, const std::string& user)
+Json scene(Database& db, const std::string& site, const std::string& user, bool admin)
 {
     Json result{{"region", nullptr},
+                {"regions", Json::array()},
                 {"plans", Json::array()},
                 {"placements", Json::array()},
                 {"symbols", "/assets/sprite.svg"},
                 {"fonts", {"/assets/inter-latin.woff2", "/assets/inter-cyrillic.woff2"}}};
     const auto base = "/api/v1/sites/" + site + "/maps/";
-    auto region = db.exec(
-        "SELECT revision,name,to_char(source_time AT TIME ZONE "
-        "'UTC','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'),bounds,min_zoom,max_zoom FROM map_regions WHERE site_id=$1",
-        {site});
+    auto region = db.exec("SELECT revision,name,to_char(source_time AT TIME ZONE "
+                          "'UTC','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'),bounds,min_zoom,max_zoom,region_id FROM "
+                          "bacuri_maps.map_regions WHERE site_id=$1 ORDER BY name,region_id",
+                          {site});
+    for (int i = 0; i < region.size(); ++i)
+        result["regions"].push_back({{"id", region.get(i, 6)},
+                                     {"revision", region.get(i)},
+                                     {"name", region.get(i, 1)},
+                                     {"source_time", region.get(i, 2)},
+                                     {"bounds", Json::parse(region.get(i, 3))},
+                                     {"min_zoom", std::stoi(region.get(i, 4))},
+                                     {"max_zoom", std::stoi(region.get(i, 5))},
+                                     {"style_url", base + region.get(i) + "/style"},
+                                     {"attribution", "© OpenStreetMap contributors · ODbL"}});
     if (region.size())
-        result["region"] = {{"revision", region.get(0)},
-                            {"name", region.get(0, 1)},
-                            {"source_time", region.get(0, 2)},
-                            {"bounds", Json::parse(region.get(0, 3))},
-                            {"min_zoom", std::stoi(region.get(0, 4))},
-                            {"max_zoom", std::stoi(region.get(0, 5))},
-                            {"style_url", base + region.get(0) + "/style"},
-                            {"attribution", "© OpenStreetMap contributors · ODbL"}};
-    auto plans = db.exec("SELECT plan_id,name,width,height FROM floor_plans JOIN visible_plans "
-                         "USING(site_id,plan_id) WHERE site_id=$1 AND user_id=$2 ORDER BY name,plan_id",
-                         {site, user});
+        result["region"] = result["regions"].front();
+    const auto points = admin ? "{}" : array_parameter(access::granted_point_ids(db, site, user));
+    auto plans =
+        db.exec("SELECT plan_id,name,width,height FROM bacuri_maps.floor_plans p WHERE site_id=$1 AND "
+                "($3::boolean OR EXISTS(SELECT FROM bacuri_maps.point_placements l WHERE l.site_id=p.site_id AND "
+                "l.plan_id=p.plan_id AND l.point_id=ANY($2::uuid[]))) ORDER BY name,plan_id",
+                {site, points, admin ? "true" : "false"});
     for (int i = 0; i < plans.size(); ++i)
         result["plans"].push_back({{"id", plans.get(i)},
                                    {"name", plans.get(i, 1)},
                                    {"width", std::stoi(plans.get(i, 2))},
                                    {"height", std::stoi(plans.get(i, 3))},
                                    {"image_url", base + "plans/" + plans.get(i)}});
-    auto markers = db.exec("SELECT point_id,plan_id,x,y FROM point_placements JOIN visible_points "
-                           "USING(site_id,point_id) WHERE site_id=$1 AND user_id=$2 ORDER BY point_id,plan_id",
-                           {site, user});
+    auto markers =
+        db.exec("SELECT point_id,plan_id,x,y FROM bacuri_maps.point_placements "
+                "WHERE site_id=$1 AND ($3::boolean OR point_id=ANY($2::uuid[])) ORDER BY point_id,plan_id",
+                {site, points, admin ? "true" : "false"});
     for (int i = 0; i < markers.size(); ++i)
         result["placements"].push_back(
             {{"point_id", markers.get(i)},
@@ -81,8 +91,9 @@ void region_resource(Database& db, Response& res, const std::string& site, std::
     const std::string revision{path.substr(0, 36)};
     path.remove_prefix(37);
     if (path == "style") {
-        auto rows = db.exec("SELECT bounds,min_zoom,max_zoom FROM map_regions WHERE site_id=$1 AND revision=$2",
-                            {site, revision});
+        auto rows = db.exec(
+            "SELECT bounds,min_zoom,max_zoom FROM bacuri_maps.map_regions WHERE site_id=$1 AND revision=$2",
+            {site, revision});
         found(rows.size());
         const auto url = origin + "/api/v1/sites/" + site + "/maps/" + revision + "/tiles/{z}/{x}/{y}.png";
         const Json source{{"type", "raster"},
@@ -107,7 +118,8 @@ void region_resource(Database& db, Response& res, const std::string& site, std::
     split = path.find('/');
     found(split != path.npos);
     const int x = tile_coordinate(path.substr(0, split), max), y = tile_coordinate(path.substr(split + 1), max);
-    png(res, db.exec("SELECT encode(image,'base64') FROM map_tiles JOIN map_regions USING(site_id) WHERE "
+    png(res, db.exec("SELECT encode(image,'base64') FROM bacuri_maps.map_tiles JOIN bacuri_maps.map_regions "
+                     "USING(site_id,region_id) WHERE "
                      "site_id=$1 AND revision=$2 AND z=$3 AND x=$4 AND y=$5",
                      {site, revision, std::to_string(z), std::to_string(x), std::to_string(y)}));
 }
@@ -130,14 +142,15 @@ Json add_plan(Database& db, const Request& req, const std::string& site)
     } catch (const std::invalid_argument&) {
         throw Failure{400, "invalid_request"};
     }
-    db.exec("SELECT FROM sites WHERE site_id=$1 FOR UPDATE", {site});
-    valid(db.exec("SELECT coalesce(sum(octet_length(image)),0)+$2::integer<=16777216 FROM floor_plans WHERE "
+    found(inventory::lock_site(db, site));
+    valid(db.exec("SELECT coalesce(sum(octet_length(image)),0)+$2::integer<=16777216 FROM bacuri_maps.floor_plans "
+                  "WHERE "
                   "site_id=$1",
                   {site, std::to_string(image.png.size())})
               .get(0) == "t");
     std::unique_ptr<char, decltype(&g_free)> clean{
         g_base64_encode(reinterpret_cast<const guchar*>(image.png.data()), image.png.size()), g_free};
-    auto plan = db.exec("INSERT INTO floor_plans(site_id,name,image,width,height) VALUES "
+    auto plan = db.exec("INSERT INTO bacuri_maps.floor_plans(site_id,name,image,width,height) VALUES "
                         "($1,$2,decode($3,'base64'),$4,$5) RETURNING plan_id",
                         {site, name, clean.get(), std::to_string(image.width), std::to_string(image.height)});
     return {{"id", plan.get(0)}};
@@ -156,14 +169,14 @@ void place(Database& db, const Request& req, const std::string& site)
     const double x = body["x"], y = body["y"];
     valid(plan.empty() ? (std::abs(x) <= 180 && std::abs(y) <= 85.051129)
                        : (x >= 0 && x <= 1 && y >= 0 && y <= 1));
-    found(db.exec("SELECT FROM observation_points WHERE site_id=$1 AND point_id=$2 FOR KEY SHARE", {site, point})
-              .size());
+    found(inventory::lock_point(db, site, point));
     if (plan.empty())
-        found(db.exec("SELECT FROM map_regions WHERE site_id=$1 FOR SHARE", {site}).size());
+        found(db.exec("SELECT FROM bacuri_maps.map_regions WHERE site_id=$1 FOR SHARE", {site}).size());
     else
-        found(
-            db.exec("SELECT FROM floor_plans WHERE site_id=$1 AND plan_id=$2 FOR KEY SHARE", {site, plan}).size());
-    db.exec("INSERT INTO point_placements VALUES ($1,$2,nullif($3,'')::uuid,$4,$5) ON CONFLICT "
+        found(db.exec("SELECT FROM bacuri_maps.floor_plans WHERE site_id=$1 AND plan_id=$2 FOR KEY SHARE",
+                      {site, plan})
+                  .size());
+    db.exec("INSERT INTO bacuri_maps.point_placements VALUES ($1,$2,nullif($3,'')::uuid,$4,$5) ON CONFLICT "
             "(site_id,point_id,plan_id) DO UPDATE SET x=excluded.x,y=excluded.y",
             {site, point, plan, body["x"].dump(), body["y"].dump()});
 }
@@ -172,16 +185,28 @@ void place(Database& db, const Request& req, const std::string& site)
 void maps(const Request& req, Response& res, const Sessions& sessions, const std::string& site,
           std::string_view path, const std::string& origin)
 {
+    const bool management = path == "maps/management" || path == "maps/sources" ||
+                            path.starts_with("maps/sources/") ||
+                            (path == "maps/jobs" || path.starts_with("maps/jobs/"));
+    if (management) {
+        const bool mutate = req.method() != http::verb::get;
+        Database db;
+        db.exec("BEGIN");
+        auto identity = sessions.authenticate(db, req, mutate, mutate);
+        if (access::site_role(db, site, identity.user, access::RoleLock::shared) != "administrator")
+            throw Failure{403, "forbidden"};
+        map_packages::manage(req, res, db, site, path);
+        db.exec("COMMIT");
+        return;
+    }
     const bool upload = path == "maps/plans", placement = path == "maps/placement", write = upload || placement;
     allow(req, res, {upload ? http::verb::post : placement ? http::verb::put : http::verb::get});
     Database db;
     db.exec(write ? "BEGIN" : "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const auto identity = sessions.authenticate(db, req, write, write);
-    const auto role = db.exec(write ? "SELECT role FROM site_roles WHERE site_id=$1 AND user_id=$2 FOR SHARE"
-                                    : "SELECT role FROM site_roles WHERE site_id=$1 AND user_id=$2",
-                              {site, identity.user});
-    found(role.size());
-    if (write && role.get(0) != "administrator")
+    const auto role =
+        access::site_role(db, site, identity.user, write ? access::RoleLock::shared : access::RoleLock::read);
+    if (write && role != "administrator")
         throw Failure{403, "forbidden"};
     if (upload)
         respond(res, add_plan(db, req, site), 201);
@@ -189,13 +214,19 @@ void maps(const Request& req, Response& res, const Sessions& sessions, const std
         place(db, req, site);
         res.result(http::status::no_content);
     } else if (path == "maps")
-        respond(res, scene(db, site, identity.user));
+        respond(res, scene(db, site, identity.user, role == "administrator"));
     else if (path.starts_with("maps/plans/")) {
         const auto id = path.substr(11);
         found(canonical_id(id));
-        png(res, db.exec("SELECT encode(image,'base64') FROM floor_plans JOIN visible_plans "
-                         "USING(site_id,plan_id) WHERE site_id=$1 AND user_id=$2 AND plan_id=$3",
-                         {site, identity.user, std::string{id}}));
+        png(res,
+            db.exec(
+                "SELECT encode(image,'base64') FROM bacuri_maps.floor_plans p WHERE site_id=$1 AND plan_id=$4 AND "
+                "($3::boolean OR EXISTS(SELECT FROM bacuri_maps.point_placements l WHERE l.site_id=p.site_id AND "
+                "l.plan_id=p.plan_id AND l.point_id=ANY($2::uuid[])))",
+                {site,
+                 role == "administrator" ? "{}"
+                                         : array_parameter(access::granted_point_ids(db, site, identity.user)),
+                 role == "administrator" ? "true" : "false", std::string{id}}));
     } else
         region_resource(db, res, site, path.substr(5), origin);
     db.exec("COMMIT");

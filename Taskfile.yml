@@ -234,7 +234,7 @@ tasks:
       - sh tools/check-storage
 
   schema:check:
-    desc: Validate the manifest and apply both initial schemas to temporary databases
+    desc: Verify the manifest, database migrations and PostgreSQL module ownership on a disposable database
     deps: [dev:image, stand:up]
     cmd: '{{.DEV_RUN}} sh tests/check-schemas.sh'
 

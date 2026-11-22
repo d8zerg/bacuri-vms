@@ -47,3 +47,8 @@ export const MapsUnavailable: Story = {
   name: "Карты недоступны",
   args: { initial: "/maps", condition: "map-error" },
 };
+
+export const MapManagement: Story = {
+  name: "Установка и обновление карт",
+  args: { initial: "/maps?plan=floor", condition: "map-management" },
+};

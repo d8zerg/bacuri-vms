@@ -159,8 +159,9 @@ def verify_restore():
         subprocess.run([c.CORE, "migrate"], env=environment, check=True)
         subprocess.run([c.CORE, "restore-config"], env=environment, input=backup, check=True)
         queries = (
-            "SELECT plan_id,name,width,height,md5(image) FROM bacuri_inventory.floor_plans ORDER BY plan_id",
-            "SELECT site_id,point_id,plan_id,x,y FROM bacuri_inventory.point_placements ORDER BY point_id,plan_id",
+            "SELECT site_id,url FROM bacuri_maps.map_catalog_settings ORDER BY site_id",
+            "SELECT plan_id,name,width,height,md5(image) FROM bacuri_maps.floor_plans ORDER BY plan_id",
+            "SELECT site_id,point_id,plan_id,x,y FROM bacuri_maps.point_placements ORDER BY point_id,plan_id",
         )
         for query in queries:
             actual = subprocess.check_output(
@@ -256,7 +257,7 @@ def offline_maps(wait, button, field, raw, capture):
                     )
                     wait(call, "document.querySelector('.ws-plan img')?.naturalWidth===640", "offline plan")
                     capture(call, browser, "plan")
-                    c.query(f"DELETE FROM bacuri_inventory.point_grants WHERE point_id='{point}'")
+                    c.query(f"DELETE FROM bacuri_access.point_grants WHERE point_id='{point}'")
                     wait(
                         call,
                         "!document.querySelector('.ws-plan img') && !document.getElementById('map-point-'+arguments[0])",
@@ -265,6 +266,8 @@ def offline_maps(wait, button, field, raw, capture):
                         timeout=6,
                     )
                 print(browser, "offline map import, update, placement and revocation passed", flush=True)
-            verify_restore()
         finally:
             c.stop(core)
+    from map_packages import qualify
+    qualify(wait, button, raw)
+    verify_restore()

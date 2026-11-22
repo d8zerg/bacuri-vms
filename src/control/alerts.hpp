@@ -1,3 +1,4 @@
+#include "control/access/session.hpp"
 #pragma once
 #include "control/api.hpp"
 namespace bacuri::vms::control
@@ -21,6 +22,7 @@ class AlertFeed
     struct Scope {
         std::string user, context;
         std::int64_t revision, head, floor, work_revision;
+        bool admin;
     };
     Scope scope(Database& db) const;
     std::string cursor(const Scope&, std::int64_t position, bool pending = false) const;

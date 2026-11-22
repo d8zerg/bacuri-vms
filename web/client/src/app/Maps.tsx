@@ -11,6 +11,7 @@ import type { FormEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { Services, MapScene, Point, Feed } from "../contracts/workspace";
 import { Button } from "../ui-kit/FormControls";
+import { MapPackages } from "./MapPackages";
 import "./maps.css";
 const RegionMap = lazy(() => import("./RegionMap"));
 const fixed = (v: number) => String(Number(v.toFixed(6)));
@@ -83,6 +84,8 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
       clearInterval(timer);
     };
   }, [site, services, version]);
+  const region =
+    scene?.regions.find((r) => r.id === params.get("region")) ?? scene?.region;
   const plan = scene?.plans.find((p) => p.id === surface);
   const marker = scene?.placements.find(
     (p) => p.point_id === selected && (p.plan_id ?? "") === surface,
@@ -257,6 +260,28 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                 ))}
               </select>
             </label>
+            {!surface && scene.regions.length > 1 && (
+              <label>
+                Регион{" "}
+                <select
+                  value={region?.id}
+                  onChange={(e) =>
+                    update({
+                      region: e.target.value,
+                      lng: null,
+                      lat: null,
+                      z: null,
+                    })
+                  }
+                >
+                  {scene.regions.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {surface ? (
               plan ? (
                 <>
@@ -322,13 +347,13 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
               ) : (
                 <p role="status">План недоступен</p>
               )
-            ) : scene.region ? (
+            ) : region ? (
               <>
-                <h2>{scene.region.name}</h2>
+                <h2>{region.name}</h2>
                 <Suspense fallback={<p>Загрузка карты…</p>}>
                   <RegionMap
-                    key={scene.region.revision}
-                    region={scene.region}
+                    key={region.revision}
+                    region={region}
                     markers={markers}
                     points={points}
                     chosen={selected}
@@ -349,17 +374,17 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                 </Suspense>
                 <p>
                   Данные на{" "}
-                  <time dateTime={scene.region.source_time}>
+                  <time dateTime={region.source_time}>
                     {new Intl.DateTimeFormat("ru-RU", {
                       dateStyle: "medium",
                       timeStyle: "short",
                       timeZone: "UTC",
-                    }).format(new Date(scene.region.source_time))}{" "}
+                    }).format(new Date(region.source_time))}{" "}
                     UTC
                   </time>{" "}
                   ·{" "}
                   <a href="https://www.openstreetmap.org/copyright">
-                    {scene.region.attribution}
+                    {region.attribution}
                   </a>
                 </p>
               </>
@@ -408,7 +433,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                       {a.type} · {a.observed_at}
                     </Link>
                   ))}
-                {admin && (plan || (!surface && scene.region)) && (
+                {admin && (plan || (!surface && region)) && (
                   <form onSubmit={(e) => void save(e)}>
                     <h3>Положение точки</h3>
                     {(["x", "y"] as const).map((axis) => (
@@ -460,6 +485,14 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                   </Button>
                 </form>
               </details>
+            )}
+            {admin && (
+              <MapPackages
+                site={site}
+                services={services}
+                regions={scene.regions}
+                placements={scene.placements}
+              />
             )}
             <p role="status">{notice}</p>
           </section>

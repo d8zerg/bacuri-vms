@@ -90,3 +90,20 @@
 .ws-maps summary {
   cursor: pointer;
 }
+
+.ws-map-packages fieldset {
+  display: grid;
+  gap: 0.75rem;
+  min-inline-size: 0;
+  margin: 0.75rem 0;
+}
+.ws-map-packages ul {
+  list-style: none;
+  padding-inline-start: 0;
+}
+.ws-map-packages li {
+  margin-block: 0.5rem;
+}
+.ws-map-packages li label {
+  display: inline;
+}

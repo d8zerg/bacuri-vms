@@ -13,6 +13,9 @@ libpq5
 libxml2
 libsoup-3.0-0
 libpng16-16t64
+libarchive13t64
+libcurl4t64
+ca-certificates
 libsodium23
 libsqlite3-0
 libgstrtspserver-1.0-0

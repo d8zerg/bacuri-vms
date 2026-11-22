@@ -1,3 +1,5 @@
+#include "control/inventory/restore.hpp"
+#include "control/access/restore.hpp"
 #include "maintenance.hpp"
 #include "control/database.hpp"
 #include "control/recovery.hpp"
@@ -21,7 +23,6 @@ using Json = nlohmann::json;
 const fs::path config = "/etc/bacuri-vms", archive = "/srv/bacuri-archive/recorder",
                state = "/var/lib/bacuri-maintenance", pending = state / "pending";
 const std::array<std::string, 3> units{"bacuri-core.service", "bacuri-media.service", "bacuri-recorder.service"};
-const std::string schema_query = "SELECT max(version) FROM bacuri_inventory.schema_migrations";
 Args postgres(const std::string& command)
 {
     return {"/usr/sbin/runuser", "-u", "postgres", "--", "/usr/bin/" + command};
@@ -46,7 +47,15 @@ int schema_for(std::string v)
         return 14;
     if (v == "0.1.1-1")
         return 15;
+    if (v == "0.1.2-1")
+        return 16;
+    if (v == "0.1.3-1")
+        return 17;
     throw std::runtime_error("Unsupported Bacuri VMS package version");
+}
+const char* version_query(int schema)
+{
+    return schema < 16 ? control::legacy_schema_version_query : control::schema_version_query;
 }
 void sync_path(const fs::path& file)
 {
@@ -141,7 +150,7 @@ void backup(const fs::path& file, const Json& info, const fs::path& key)
     validate_recovery_key(key);
     ensure(!fs::exists(file), "Snapshot already exists");
     volume(info);
-    ensure(sql(schema_query) == std::to_string(info.at("schema").get<int>()),
+    ensure(sql(version_query(info.at("schema"))) == std::to_string(info.at("schema").get<int>()),
            "Source database version differs from package");
     auto bytes = std::stoull(sql("SELECT pg_database_size(current_database())"));
     space(4 * bytes, "/var/tmp");
@@ -203,7 +212,9 @@ void reconcile(const Json& info)
     control::Database db;
     ensure(seteuid(0) == 0 && initgroups("bacuri-recorder", gid) == 0 && setgid(gid) == 0 && setuid(uid) == 0,
            "Cannot select archive identity");
-    control::rebuild_archive(db, std::cout);
+    control::rebuild_archive(db, std::cout,
+                             info.at("schema") < 16 ? control::StorageLayout::legacy
+                                                    : control::StorageLayout::module_schemas);
 }
 void restore_files(const Temp& tmp, const Json& info)
 {
@@ -248,19 +259,17 @@ void load_snapshot(const Temp& tmp, const Json& info)
     bootstrap.insert(bootstrap.end(), {"-f", "/usr/share/bacuri-vms/bootstrap.sql"});
     run(bootstrap);
     auto args = psql("bacuri_vms");
-    std::string reset =
-        "SET search_path=bacuri_inventory,pg_catalog; DELETE FROM webauthn_credentials; DELETE FROM "
-        "webauthn_enrollment; DELETE FROM webauthn_challenges; DELETE FROM browser_sessions; DELETE FROM "
-        "recorder_attempt; UPDATE recorder_delivery SET decided_revision=0; UPDATE configuration_progress SET "
-        "applied_revision=NULL,application_state='pending',failure_code=NULL;";
-    if (info.at("schema") == 15)
-        reset += "INSERT INTO credential_audit(user_id,action) SELECT DISTINCT user_id,'restore_reset' FROM "
-                 "site_roles WHERE role='administrator';";
-    args.insert(
-        args.end(),
-        {"--single-transaction", "-c",
-         "DROP SCHEMA IF EXISTS bacuri_events,bacuri_inventory,bacuri_archive CASCADE; SET ROLE \"bacuri-core\";",
-         "-f", "-", "-c", reset});
+    using namespace bacuri::vms::control;
+    std::string reset = info.at("schema") < 16 ? access::legacy_restore_search_path : access::restore_search_path;
+    reset += access::reset_sessions;
+    reset += inventory::reset_recorder;
+    if (info.at("schema") >= 15)
+        reset += access::audit_restore;
+    args.insert(args.end(), {"--single-transaction", "-c",
+                             "DROP SCHEMA IF EXISTS "
+                             "bacuri_events,bacuri_inventory,bacuri_archive,bacuri_access,bacuri_maps,bacuri_"
+                             "media_sessions,bacuri_meta CASCADE; SET ROLE \"bacuri-core\";",
+                             "-f", "-", "-c", reset});
     run(args, {.input = tmp.dir / "database.sql"});
     restore_files(tmp, info);
     ensure(info.at("site") == read(config / "site-id") && info.at("node") == read(config / "node-id"),
@@ -284,10 +293,11 @@ void operate(const std::string& action, char** v)
     ensure(fs::is_directory(file.parent_path()), "Snapshot directory does not exist");
     validate_recovery_key(key);
     if (action == "upgrade") {
-        ensure(target == 15, "Unsupported upgrade target");
+        ensure(target == 17, "Unsupported upgrade target");
         if (!resumed || !fs::exists(file)) {
             const auto current = installed_package().version;
-            ensure(schema_for(current) == 14 && sql(schema_query) == "14" && !fs::exists(file),
+            const int source = schema_for(current);
+            ensure(source < target && sql(version_query(source)) == std::to_string(source) && !fs::exists(file),
                    "Expected installed predecessor and unused backup path");
             auto info = identity(current);
             volume(info);
@@ -299,13 +309,13 @@ void operate(const std::string& action, char** v)
         } else {
             Temp tmp;
             auto info = open_snapshot(file, key, tmp);
-            ensure(identity(info.at("version")) == info && info.at("schema") == 14, "Wrong upgrade checkpoint");
+            ensure(identity(info.at("version")) == info && info.at("schema") < target, "Wrong upgrade checkpoint");
             fence(op);
         }
         bundle.install();
         run({bundle.package == "bacuri-vms" ? "/usr/sbin/bacuri-vms" : "/usr/sbin/bacuri-basic", "admin",
              "migrate"});
-        ensure(sql(schema_query) == "15", "Migration did not complete");
+        ensure(sql(version_query(target)) == std::to_string(target), "Migration did not complete");
     } else {
         Temp tmp;
         auto info = open_snapshot(file, key, tmp);
@@ -322,7 +332,8 @@ void operate(const std::string& action, char** v)
             list.insert(list.end(), {"-c", "SELECT count(*) FROM pg_database WHERE datname='bacuri_vms'"});
             if (!resumed && capture(list) != "0")
                 ensure(sql("SELECT count(*) FROM pg_namespace WHERE nspname IN "
-                           "('bacuri_events','bacuri_inventory','bacuri_archive')") == "0",
+                           "('bacuri_events','bacuri_inventory','bacuri_archive','bacuri_access','bacuri_maps','"
+                           "bacuri_media_sessions','bacuri_meta')") == "0",
                        "Restore requires an empty application database");
         }
         fence(op);
@@ -333,7 +344,7 @@ void operate(const std::string& action, char** v)
         bundle.install(action == "rollback");
         load_snapshot(tmp, info);
     }
-    if (target == 15)
+    if (target >= 15)
         run({"/usr/bin/systemctl", "enable", "--now", "bacuri-diagnostics.timer", "bacuri-metrics.socket"});
     finish(op);
 }

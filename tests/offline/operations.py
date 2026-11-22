@@ -335,6 +335,10 @@ def operation(action, kit, snapshot):
     return f"{MAINT} {action} {trust} {kit} /safe/{snapshot} {KEY}"
 
 
+def scrape_metrics(cmd):
+    return cmd("exec 7<>/dev/tcp/127.0.0.1/9464; printf 'GET /metrics HTTP/1.0\\r\\n\\r\\n' >&7; cat <&7")
+
+
 def diagnostic(cmd, label, check, forbidden):
     path = "/tmp/probe-" + label
 
@@ -380,9 +384,7 @@ def diagnostic(cmd, label, check, forbidden):
         )
         serialized = json.dumps([raw, logs, payload])
         assert all(value not in serialized for value in forbidden)
-        scrape = cmd(
-            "systemctl start bacuri-diagnostics.service; exec 7<>/dev/tcp/127.0.0.1/9464; printf 'GET /metrics HTTP/1.0\\r\\n\\r\\n' >&7; cat <&7"
-        )
+        scrape = scrape_metrics(cmd)
         if not check(scrape):
             return None
         assert cmd(f"ls -1 {path}") == "events.jsonl\nmetrics.prom\ntraces.json"
@@ -416,6 +418,9 @@ def main():
         )
         site = Site(cmd, password)
         site.wait()
+        ledger = "bacuri_meta" if query(cmd, "SELECT to_regclass('bacuri_meta.schema_migrations') IS NOT NULL") == "t" else "bacuri_inventory"
+        source_schema = int(query(cmd, f"SELECT max(version) FROM {ledger}.schema_migrations"))
+        assert source_schema in (14, 15, 16), source_schema
         old_id = site.enroll(cmd, code)
         a = site.login()
         s, _, camera = site.api(
@@ -444,13 +449,15 @@ def main():
         site.access(viewer)
         print("Previous release recorded and played back a frame; interrupting migration", flush=True)
         upgrade = operation("upgrade", NEW, "previous.snap")
+        lock_table = "bacuri_maps.map_regions" if source_schema == 16 else "bacuri_inventory.webauthn_credentials"
+        blocked_statement = "ALTER TABLE bacuri_maps.map_regions" if source_schema == 16 else "ALTER TABLE bacuri_inventory.local_users SET SCHEMA"
         cmd(
-            f"""({PSQL} -c "SET application_name='migration_blocker'; BEGIN; LOCK bacuri_inventory.webauthn_credentials IN ROW EXCLUSIVE MODE; SELECT pg_sleep(180)" >/dev/null) & waiter=$!
+            f"""({PSQL} -c "SET application_name='migration_blocker'; BEGIN; LOCK {lock_table} IN ACCESS SHARE MODE; SELECT pg_sleep(180)" >/dev/null) & waiter=$!
 sleep 0.5
 {upgrade} >/root/update.log 2>&1 & update=$!
 terminated=''
 for i in {{1..900}}; do
- terminated=$({PSQL} -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='bacuri_vms' AND wait_event_type='Lock' AND query LIKE '%CREATE TABLE credential_audit%'")
+ terminated=$({PSQL} -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='bacuri_vms' AND wait_event_type='Lock' AND query LIKE '%{blocked_statement}%'")
  [[ $terminated != t ]] || break
  sleep .1
 done
@@ -462,7 +469,7 @@ test -f /var/lib/bacuri-maintenance/pending
 for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is-active "$service" || true)" = inactive; done
 """
         )
-        assert query(cmd, "SELECT max(version) FROM bacuri_inventory.schema_migrations") == "14"
+        assert query(cmd, f"SELECT max(version) FROM {ledger}.schema_migrations") == str(max(15, source_schema))
         h = cmd("sha256sum /safe/previous.snap")
         cmd(upgrade)
         assert h == cmd("sha256sum /safe/previous.snap")
@@ -478,7 +485,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
         cmd(
             "test ! -f /var/lib/bacuri-maintenance/pending; systemctl is-active --quiet bacuri-core bacuri-media bacuri-recorder"
         )
-        assert query(cmd, "SELECT max(version) FROM bacuri_inventory.schema_migrations") == "15"
+        assert query(cmd, "SELECT max(version) FROM bacuri_meta.schema_migrations") == "17"
         forbidden = (
             password,
             code,
@@ -517,13 +524,15 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
             cmd, "space", lambda t: "bacuri_archive_recording_stopped 1" in t, forbidden
         )
         cmd("rm /srv/bacuri-archive/fill")
-        cmd(
-            "systemctl start bacuri-diagnostics.service; exec 7<>/dev/tcp/127.0.0.1/9464; printf 'GET /metrics HTTP/1.0\\r\\n\\r\\n' >&7; cat <&7 | grep -q '^bacuri_archive_available_bytes '"
-        )
+        def capacity_restored():
+            metrics = scrape_metrics(cmd)
+            return "bacuri_archive_recording_stopped 0" in metrics and "bacuri_archive_available_bytes " in metrics
+
+        until(capacity_restored, "archive capacity after removing the test file", 40)
         publish("diagnostics.json", diagnostics)
         cmd(operation("rollback", OLD, "previous.snap"))
         site.wait()
-        assert query(cmd, "SELECT max(version) FROM bacuri_inventory.schema_migrations") == "14"
+        assert query(cmd, f"SELECT max(version) FROM {ledger}.schema_migrations") == str(source_schema)
         assert (
             site.api("GET", "session", headers=a)[0] == 401
             and site.api("GET", "session", headers=viewer)[0] == 401
@@ -546,7 +555,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
         a2 = site.login()
         site.assert_lost(restored_id)
         audit_before = query(
-            cmd, "SELECT action FROM bacuri_inventory.credential_audit ORDER BY recorded_at"
+            cmd, "SELECT action FROM bacuri_access.credential_audit ORDER BY recorded_at"
         ).splitlines()
         assert audit_before[-3:] == ["revoked", "recovery_started", "enrolled"]
         latest(cmd, rollback_frame["end_utc_us"])
@@ -587,7 +596,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
         site.assert_lost(restored_id)
         site.assert_lost(replacement_id)
         audit = query(
-            cmd, "SELECT action FROM bacuri_inventory.credential_audit ORDER BY recorded_at"
+            cmd, "SELECT action FROM bacuri_access.credential_audit ORDER BY recorded_at"
         ).splitlines()
         assert "restore_reset" in audit and "enrolled" in audit
         rpo = outage - backup_started
@@ -603,10 +612,10 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
             "operations.json",
             {
                 "status": "passed",
-                "source_schema": 14,
-                "target_schema": 15,
+                "source_schema": source_schema,
+                "target_schema": 17,
                 "interrupted_migration_retried": True,
-                "rollback_schema": 14,
+                "rollback_schema": source_schema,
                 "independent_root": True,
                 "verified_old_blocks": len(known),
                 "lost_healthy_blocks": 0,
