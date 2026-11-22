@@ -291,8 +291,52 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/PointCoordinates' }
       responses:
+        '409': { description: This geographic position is supplied by a floor plan. }
         '204':
           description: Set longitude and latitude on the region or fractional coordinates from the top left of a plan. Requires the site administrator role.
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/maps/georeference/preview:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+      - { $ref: '#/components/parameters/Csrf' }
+    post:
+      operationId: previewPlanGeoreference
+      description: Preview the image footprint and affected point positions. Requires the site administrator role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlanLink' }
+      responses:
+        '200':
+          description: Preview the image footprint and affected point positions.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanLinkPreview' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/maps/georeference:
+    parameters:
+      - { $ref: '#/components/parameters/Site' }
+      - { $ref: '#/components/parameters/Csrf' }
+    put:
+      operationId: setPlanGeoreference
+      description: Apply or remove a previewed plan georeference. Requires the site administrator role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SavePlanLink' }
+      responses:
+        '204': { description: Applied the previewed change. }
+        '409': { description: The plan or a point placement changed after preview. }
         '400': { $ref: '#/components/responses/InvalidRequest' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -1208,6 +1252,72 @@ components:
         bounds: { type: array, minItems: 4, maxItems: 4, items: { type: number } }
         style_url: { type: string }
         attribution: { type: string }
+    PlanAnchor:
+      type: object
+      additionalProperties: false
+      required: [x, y, lng, lat]
+      properties:
+        x: { type: number, minimum: 0, maximum: 1 }
+        y: { type: number, minimum: 0, maximum: 1 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+        lat: { type: number, minimum: -85.051129, maximum: 85.051129 }
+    PlanReference:
+      type: object
+      additionalProperties: false
+      required: [anchor]
+      oneOf:
+        - { required: [second], not: { anyOf: [{required: [bearing]}, {required: [width_m]}] } }
+        - { required: [width_m, bearing], not: { required: [second] } }
+      properties:
+        anchor: { $ref: '#/components/schemas/PlanAnchor' }
+        second: { $ref: '#/components/schemas/PlanAnchor' }
+        width_m: { type: number, minimum: 0.25, maximum: 40075016.7 }
+        bearing: { type: number, minimum: 0, maximum: 360 }
+        building: { type: string, minLength: 1, maxLength: 128 }
+    GeographicPair:
+      type: array
+      minItems: 2
+      maxItems: 2
+      items: { type: number }
+    PlanFootprint:
+      type: object
+      required: [bearing, width_m, corners, center]
+      properties:
+        bearing: { type: number }
+        width_m: { type: number }
+        center: { $ref: '#/components/schemas/GeographicPair' }
+        corners: { type: array, minItems: 4, maxItems: 4, items: { $ref: '#/components/schemas/GeographicPair' } }
+    PlanLink:
+      type: object
+      required: [plan_id, definition]
+      properties:
+        plan_id: { $ref: '#/components/schemas/Id' }
+        definition: { oneOf: [{ $ref: '#/components/schemas/PlanReference' }, { type: 'null' }] }
+    SavePlanLink:
+      allOf:
+        - { $ref: '#/components/schemas/PlanLink' }
+        - type: object
+          required: [token, choices]
+          properties:
+            token: { type: string }
+            choices: { type: object, additionalProperties: { enum: [keep, plan] } }
+    PlanLinkPreview:
+      type: object
+      required: [token, cameras]
+      properties:
+        token: { type: string }
+        footprint: { $ref: '#/components/schemas/PlanFootprint' }
+        cameras:
+          type: array
+          items:
+            type: object
+            required: [point_id, projected]
+            properties:
+              point_id: { $ref: '#/components/schemas/Id' }
+              projected: { $ref: '#/components/schemas/GeographicPair' }
+              existing: { $ref: '#/components/schemas/GeographicPair' }
+              existing_plan_id: { $ref: '#/components/schemas/Id' }
+              distance_m: { type: number }
     FloorPlan:
       type: object
       additionalProperties: false
@@ -1216,6 +1326,9 @@ components:
         id: { $ref: '#/components/schemas/Id' }
         name: { type: string }
         image_url: { type: string }
+        footprint: { $ref: '#/components/schemas/PlanFootprint' }
+        building: { type: string }
+        definition: { $ref: '#/components/schemas/PlanReference' }
         width: { type: integer }
         height: { type: integer }
     PointCoordinates:
@@ -1246,6 +1359,7 @@ components:
         plan_id: { oneOf: [{ $ref: '#/components/schemas/Id' }, { type: 'null' }] }
         x: { type: number }
         y: { type: number }
+        source_plan_id: { $ref: '#/components/schemas/Id' }
         camera: { $ref: '#/components/schemas/MapCamera' }
         calibration: { $ref: '#/components/schemas/StoredViewCalibration' }
         view: { $ref: '#/components/schemas/CameraView' }

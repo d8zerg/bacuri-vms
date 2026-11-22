@@ -121,6 +121,21 @@ export function createServices(): Services {
         }),
       );
     },
+    async previewPlan(siteId, body) {
+      return data(
+        await api.POST("/sites/{siteId}/maps/georeference/preview", {
+          params: { path: { siteId }, header: auth() },
+          body,
+        }),
+      );
+    },
+    async linkPlan(siteId, body) {
+      const { response } = await api.PUT("/sites/{siteId}/maps/georeference", {
+        params: { path: { siteId }, header: auth() },
+        body,
+      });
+      if (!response.ok) throw Error(String(response.status));
+    },
     async calibrate(siteId, body) {
       const { response } = await api.PUT("/sites/{siteId}/maps/calibration", {
         params: { path: { siteId }, header: auth() },

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bacuri-vms VERSION 0.1.4 LANGUAGES CXX)
+project(bacuri-vms VERSION 0.1.5 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -115,7 +115,7 @@ add_executable(bacuri-vms-core src/core/main.cpp
     src/control/access/operations.cpp src/control/inventory/operations.cpp src/control/events/operations.cpp
     src/control/recordings/operations.cpp src/control/media_sessions/operations.cpp
     src/control/inventory/configuration.cpp src/control/access/configuration.cpp src/control/maps/configuration.cpp src/control/recordings/configuration.cpp
-    src/control/configuration_snapshot.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/registry.cpp src/control/onvif.cpp src/control/camera_events.cpp src/control/inventory/telemetry.cpp src/control/maps/orientation.cpp
+    src/control/configuration_snapshot.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/registry.cpp src/control/onvif.cpp src/control/camera_events.cpp src/control/inventory/telemetry.cpp src/control/maps/orientation.cpp src/control/maps/georeference.cpp
     src/control/observations.cpp src/control/alert_work.cpp src/control/alerts.cpp src/control/alert_socket.cpp
     src/archive/clip.cpp src/control/export.cpp src/control/media_authority.cpp src/control/playback.cpp
     src/control/webauthn.cpp src/control/session.cpp src/control/server.cpp src/control/https.cpp src/control/maps.cpp src/control/map_import.cpp src/control/maps/packages.cpp src/control/maps/transfers.cpp src/control/delivery.cpp src/control/archive_catalog.cpp)

@@ -55,6 +55,9 @@ def map_orientation(call, device, cam, admin, viewer, move):
     png = base64.b64encode(Path("web/client/stories/floor.png").read_bytes()).decode()
     code, _, plan = c.http("POST", base + "/plans", {"name":"Orientation", "png":png}, admin)
     assert code == 201, plan
+    reference = {"plan_id": plan["id"], "definition": {"anchor": {"x": .5, "y": .5, "lng": 7.4, "lat": 43.73}, "width_m": 40, "bearing": 90}}
+    preview = c.http("POST", base + "/georeference/preview", reference, admin)[2]
+    assert c.http("PUT", base + "/georeference", {**reference, "token": preview["token"], "choices": {}}, admin)[0] == 204
     placement = {"point_id":point,"plan_id":plan["id"],"x":0.5,"y":0.5}
     assert c.http("PUT", base + "/placement", placement, admin)[0] == 204
 
@@ -68,6 +71,11 @@ def map_orientation(call, device, cam, admin, viewer, move):
     assert c.http("PUT", base+"/calibration", {**config,"reference_pan":ref+1}, admin)[0] == 409
     assert c.http("PUT", base+"/calibration", config, admin)[0] == 204
     assert marker(viewer)["view"]["bearing"] == 350 and "camera" not in marker(viewer)
+
+    def geographic_view():
+        return next(p["view"] for p in c.http("GET", base, headers=viewer)[2]["placements"] if p.get("source_plan_id") == plan["id"])
+
+    assert geographic_view()["bearing"] == 80
     navigate(call, viewer, "/maps?plan="+plan["id"]+"&point="+point)
     wait(call, "document.querySelector('.ws-sector')?.dataset.state==='live'", "calibrated live sector")
     assert move(admin,"right")==204
@@ -80,13 +88,15 @@ def map_orientation(call, device, cam, admin, viewer, move):
         device.hfov=27
     expected=(350+180*(0.5-ref))%360
     c.wait_for(lambda: abs(marker()["view"]["bearing"]-expected)<0.01 and marker()["view"]["hfov"]==27, "external PTZ and optical zoom")
+    projected = geographic_view()
+    assert projected["state"] == "live" and abs(projected["bearing"] - (expected + 90) % 360) < .01 and projected["hfov"] == 27
     with device.lock:
         device.hfov=None
         device.zoom=0.5
     c.wait_for(lambda: marker()["view"].get("estimated") and marker()["view"]["hfov"]==50, "calibrated zoom fallback")
     device.online=False
     wait(call, "document.querySelector('.ws-sector')?.dataset.state==='stale'", "stale direction on loss")
-    assert marker()["view"].get("observed_at")
+    assert marker()["view"].get("observed_at") and geographic_view()["state"] == "stale"
     device.report_position=False
     device.online=True
     c.wait_for(lambda: marker()["view"]["state"]=="unknown", "device omitted position")

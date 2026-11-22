@@ -100,7 +100,8 @@ void migrate()
                                     "0015_credential_recovery.sql",
                                     "0016_module_schemas.sql",
                                     "0017_map_packages.sql",
-                                    "0018_camera_orientation.sql"};
+                                    "0018_camera_orientation.sql",
+                                    "0019_plan_georeference.sql"};
     if (version > static_cast<int>(migrations.size())) {
         throw std::runtime_error("Unsupported database schema");
     }

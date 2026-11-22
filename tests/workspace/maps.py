@@ -159,6 +159,101 @@ def admin_placements(browser, admin, viewer, cam, wait, button, field, raw):
     return plan["id"]
 
 
+
+def georeference(browser, admin, viewer, plan, point, wait, button, raw):
+    import math
+
+    endpoint = BASE + "/georeference"
+    a = {"x": 0, "y": 1, "lng": 7.40, "lat": 43.73}
+    b = {"x": 1, "y": 1, "lng": 7.40, "lat": 43.729}
+    pair = {"anchor": a, "second": b, "building": "Корпус"}
+    request = {"plan_id": plan, "definition": pair}
+
+    def inspect(body):
+        code, _, result = c.http("POST", endpoint + "/preview", body, admin)
+        assert code == 200, result
+        return result
+
+    def apply(body, preview, choices):
+        return c.http("PUT", endpoint, {**body, "token": preview["token"], "choices": choices}, admin)[0]
+
+    def geographic():
+        rows = [p for p in c.http("GET", BASE, headers=admin)[2]["placements"]
+                if p["plan_id"] is None and p["point_id"] == point]
+        assert len(rows) == 1
+        return rows[0]
+
+    assert c.http("POST", endpoint + "/preview", request, viewer)[0] == 403
+    assert c.http("PUT", endpoint, request, {**admin, "X-CSRF-Token": ""})[0] == 403
+    assert c.http("POST", endpoint + "/preview",
+                  {**request, "definition": {"anchor": a, "second": a}}, admin)[0] == 400
+    preview = inspect(request)
+    footprint = preview["footprint"]
+    assert abs(footprint["bearing"] - 90) < 1e-8
+    assert abs(footprint["width_m"] - 111.32) < .03
+    for actual, expected in zip(footprint["corners"][2:], [b, a], strict=True):
+        assert abs(actual[0] - expected["lng"]) < 1e-8 and abs(actual[1] - expected["lat"]) < 1e-8
+    assert preview["cameras"][0]["distance_m"] > 10
+    manual = geographic()
+    assert apply(request, preview, {}) == 400
+    assert apply(request, preview, {point: "keep"}) == 204 and geographic() == manual
+    assert apply(request, preview, {point: "plan"}) == 409
+    assert apply(request, inspect(request), {point: "plan"}) == 204
+    geo = geographic()
+    assert geo["source_plan_id"] == plan and abs(geo["view"]["bearing"] - 110) < 1e-8
+    assert "definition" not in str(c.http("GET", BASE, headers=viewer)[2]["plans"])
+    assert c.http("PUT", BASE + "/placement", {"point_id": point, "plan_id": None, "x": 0, "y": 0}, admin)[0] == 409
+    single = {"plan_id": plan, "definition": {"anchor": a, "width_m": footprint["width_m"], "bearing": 90}}
+    second = inspect(single)
+    assert all(math.dist(x,y)<1e-8 for x,y in zip(second["footprint"]["corners"],footprint["corners"],strict=True))
+    assert apply(single, second, {point: "plan"}) == 204
+    moved = {"point_id": point, "plan_id": plan, "x": 0, "y": 1}
+    assert c.http("PUT", BASE + "/placement", moved, admin)[0] == 204
+    assert math.dist([geographic()["x"],geographic()["y"]], [a["lng"],a["lat"]]) < 1e-9
+    assert apply(single, second, {point: "plan"}) == 409
+    unlink = {"plan_id": plan, "definition": None}
+    assert apply(unlink, inspect(unlink), {}) == 204 and geographic() == manual
+
+    with browser_session(browser, admin, "/maps?plan=" + plan, workspace_coverage=raw, software_map=True) as (call, _):
+        button(call, "Привязать план к карте")
+        wait(call, "document.querySelector('.ws-reference .maplibregl-canvas')", "local reference map")
+        # Select two different plan and map landmarks without knowing a bearing or scale.
+        for x, y in ((.24, .32), (.76, .65)):
+            for selector in (".ws-reference .ws-plan img", ".ws-reference .maplibregl-canvas"):
+                js(call, """const e=document.querySelector(arguments[0]), r=e.getBoundingClientRect();
+                   e.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,clientX:r.left+r.width*arguments[1],clientY:r.top+r.height*arguments[2]}));
+                   e.dispatchEvent(new MouseEvent('mouseup',{bubbles:true,clientX:r.left+r.width*arguments[1],clientY:r.top+r.height*arguments[2]}));
+                   e.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:r.left+r.width*arguments[1],clientY:r.top+r.height*arguments[2]}));""", selector, x, y)
+        button(call, "Предпросмотр")
+        wait(call, "document.body.innerText.includes('Проверка привязки')", "paired landmark preview")
+        assert js(call, "return [...document.querySelectorAll('button')].find(b=>b.textContent==='Сохранить привязку').disabled")
+        js(call, """const s=document.querySelector('option[value=keep]').parentElement;
+            s.value='plan';s.dispatchEvent(new Event('change',{bubbles:true}));""")
+        button(call, "Сохранить привязку")
+        button(call, "Показать на геокарте")
+        wait(call, "document.querySelector('.maplibregl-marker .ws-sector')", "projected geographic camera")
+        wait(call, "document.querySelector('input[type=range]')", "floor image opacity")
+    # Keep a linked floor and its source choice in the backup and across a regional update.
+    assert apply(request, inspect(request), {point: "plan"}) == 204
+    geo = geographic()
+    install("current")
+    assert geographic() == geo
+
+    # Competing floors retain one geographic source, including a camera added after linking.
+    second_plan = c.http("POST", BASE + "/plans",
+                         {"name": "Второй этаж " + browser, "png": base64.b64encode(FILE.read_bytes()).decode()}, admin)[2]["id"]
+    upper = {**request, "plan_id": second_plan}
+    assert apply(upper, inspect(upper), {}) == 204
+    assert c.http("PUT", BASE + "/placement", {**moved, "plan_id": second_plan, "x": .75}, admin)[0] == 204
+    assert geographic() == geo
+    competing = inspect(upper)
+    assert competing["cameras"][0]["existing_plan_id"] == plan
+    assert apply(upper, competing, {point: "plan"}) == 204
+    assert geographic()["source_plan_id"] == second_plan
+    assert apply(request, inspect(request), {point: "plan"}) == 204
+    assert geographic() == geo
+
+
 def verify_restore():
     database = os.environ["PGDATABASE"] + "_restore"
     environment = {**os.environ, "PGDATABASE": database}
@@ -169,8 +264,8 @@ def verify_restore():
         subprocess.run([c.CORE, "restore-config"], env=environment, input=backup, check=True)
         queries = (
             "SELECT site_id,url FROM bacuri_maps.map_catalog_settings ORDER BY site_id",
-            "SELECT plan_id,name,width,height,md5(image) FROM bacuri_maps.floor_plans ORDER BY plan_id",
-            "SELECT site_id,point_id,plan_id,x,y,calibration FROM bacuri_maps.point_placements ORDER BY point_id,plan_id",
+            "SELECT plan_id,name,width,height,md5(image),georeference FROM bacuri_maps.floor_plans ORDER BY plan_id",
+            "SELECT site_id,point_id,plan_id,x,y,calibration,geo_primary FROM bacuri_maps.point_placements ORDER BY point_id,plan_id",
         )
         for query in queries:
             actual = subprocess.check_output(
@@ -197,6 +292,7 @@ def offline_maps(wait, button, field, raw, capture):
                 assert code == 201, cam
                 point = cam["point_id"]
                 plan = admin_placements(browser, admin, viewer, cam, wait, button, field, raw)
+                georeference(browser, admin, viewer, plan, point, wait, button, raw)
                 subprocess.run([c.CORE, "grant-point", "viewer", point], check=True)
                 with browser_session(
                     browser, viewer, "/maps?point=" + point, workspace_coverage=raw, software_map=True

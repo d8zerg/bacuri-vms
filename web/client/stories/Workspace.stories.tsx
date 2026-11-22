@@ -57,3 +57,8 @@ export const PtzPlan: Story = {
   name: "Калибровка PTZ на плане",
   args: { initial: "/maps?plan=floor&point=dock", condition: "ptz-plan" },
 };
+
+export const LinkedFloors: Story = {
+  name: "Этажи здания на геокарте",
+  args: { initial: "/maps", condition: "linked-floors" },
+};

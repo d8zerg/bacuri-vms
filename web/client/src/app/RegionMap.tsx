@@ -1,12 +1,102 @@
 import { createPortal } from "react-dom";
 import { CameraMarker } from "./CameraMarker";
 import { useEffect, useRef, useState } from "react";
-import { Map as LibreMap, Marker, NavigationControl } from "maplibre-gl";
+import {
+  Map as LibreMap,
+  Marker,
+  NavigationControl,
+  LngLatBounds,
+} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { MapScene, Point, Placement } from "../contracts/workspace";
 
 type View = { lng: number; lat: number; zoom: number };
+type Overlay = { image: string; corners: number[][]; opacity: number };
+export type MapLabel = {
+  id: string;
+  text: string;
+  lng: number;
+  lat: number;
+  activate?: () => void;
+};
+function MapBadge({ map, label }: { map: LibreMap; label: MapLabel }) {
+  const [element] = useState(() => document.createElement("div"));
+  useEffect(() => {
+    const marker = new Marker({ element })
+      .setLngLat([label.lng, label.lat])
+      .addTo(map);
+    return () => {
+      marker.remove();
+    };
+  }, [map, element, label.lng, label.lat]);
+  return createPortal(
+    label.activate ? (
+      <button
+        type="button"
+        className="ws-map-badge"
+        onClick={(e) => {
+          e.stopPropagation();
+          label.activate?.();
+        }}
+      >
+        {label.text}
+      </button>
+    ) : (
+      <span className="ws-map-badge">{label.text}</span>
+    ),
+    element,
+  );
+}
+function ImageOverlay({
+  map,
+  overlay,
+  fit,
+}: {
+  map: LibreMap;
+  overlay: Overlay;
+  fit: boolean;
+}) {
+  const corners = JSON.stringify(overlay.corners);
+  const { image, opacity } = overlay;
+  const latestOpacity = useRef(opacity);
+  useEffect(() => {
+    latestOpacity.current = opacity;
+    if (map.getLayer("floor-image"))
+      map.setPaintProperty("floor-image", "raster-opacity", opacity);
+  }, [map, opacity]);
+  useEffect(() => {
+    function add() {
+      type Pair = [number, number];
+      const coordinates = JSON.parse(corners) as [Pair, Pair, Pair, Pair];
+      map.addSource("floor-image", { type: "image", url: image, coordinates });
+      map.addLayer({
+        id: "floor-image",
+        type: "raster",
+        source: "floor-image",
+        paint: {
+          "raster-opacity": latestOpacity.current,
+          "raster-fade-duration": 0,
+        },
+      });
+      if (fit) {
+        const bounds = new LngLatBounds();
+        for (const corner of coordinates) bounds.extend(corner);
+        map.fitBounds(bounds, { padding: 36, maxZoom: 21, duration: 0 });
+      }
+    }
+    add();
+    return () => {
+      if (!map.style) return;
+      if (map.getLayer("floor-image")) map.removeLayer("floor-image");
+      if (map.getSource("floor-image")) map.removeSource("floor-image");
+    };
+  }, [map, corners, image, fit]);
+  return null;
+}
 type Props = {
+  overlay?: Overlay | undefined;
+  fitOverlay?: boolean;
+  labels?: MapLabel[];
   region: NonNullable<MapScene["region"]>;
   markers: Placement[];
   points: Point[];
@@ -49,9 +139,11 @@ function RegionPin({
   );
 }
 export default function RegionMap(props: Props) {
+  const [fitInitially] = useState(!!props.fitOverlay);
   const host = useRef<HTMLDivElement>(null),
     latest = useRef(props);
   const [map, setMap] = useState<LibreMap | null>(null),
+    [loadedMap, setLoadedMap] = useState<LibreMap | null>(null),
     [failed, setFailed] = useState(false);
   useEffect(() => {
     latest.current = props;
@@ -94,7 +186,10 @@ export default function RegionMap(props: Props) {
       return;
     }
     instance.addControl(new NavigationControl({ showCompass: false }));
-    instance.on("load", () => setFailed(false));
+    instance.on("load", () => {
+      setLoadedMap(instance);
+      setFailed(false);
+    });
     instance.on("error", () => setFailed(true));
     instance.on("pitch", () =>
       el.style.setProperty(
@@ -123,6 +218,18 @@ export default function RegionMap(props: Props) {
         role="region"
         aria-label="Карта региона"
       />
+      {map && map === loadedMap && props.overlay && (
+        <ImageOverlay
+          key={props.overlay.image}
+          map={map}
+          overlay={props.overlay}
+          fit={fitInitially}
+        />
+      )}
+      {map &&
+        props.labels?.map((label) => (
+          <MapBadge key={label.id} map={map} label={label} />
+        ))}
       {map &&
         props.markers.map((marker) => {
           const point = props.points.find((p) => p.id === marker.point_id);

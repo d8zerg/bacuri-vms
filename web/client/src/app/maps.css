@@ -157,3 +157,48 @@
 .ws-maps details[open] > summary {
   min-block-size: 2rem;
 }
+.ws-reference {
+  grid-template-columns: minmax(0, 1fr);
+}
+.ws-reference fieldset {
+  display: grid;
+  gap: var(--space-3);
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.ws-reference-pair,
+.ws-reference-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.ws-reference-pair .ws-plan {
+  margin-block: var(--space-2);
+  cursor: crosshair;
+}
+.ws-reference-pair .ws-region {
+  height: clamp(18rem, 38vh, 32rem);
+}
+.ws-map-badge {
+  background: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--focus);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font: inherit;
+}
+button.ws-map-badge {
+  cursor: pointer;
+}
+.ws-anchor {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+@media (max-width: 56rem) {
+  .ws-reference-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

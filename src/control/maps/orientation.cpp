@@ -29,6 +29,11 @@ void calibrate(Database& db, const Request& req, const std::string& site)
     }
     if (!inventory::lock_point(db, site, point))
         throw Failure{404, "not_found"};
+    if (plan.empty() &&
+        db.exec("SELECT FROM bacuri_maps.point_placements WHERE site_id=$1 AND point_id=$2 AND geo_primary",
+                {site, point})
+            .size())
+        throw Failure{409, "position_from_plan"};
     auto cameras = inventory::camera_orientations(db, site, {point});
     if (!cameras.contains(point) || cameras.at(point).at("device_id") != device)
         throw Failure{409, "camera_binding_conflict"};

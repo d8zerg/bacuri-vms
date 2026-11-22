@@ -17,9 +17,11 @@ import {
   landmarkBearing,
   type Landmark,
 } from "./ViewCalibration";
+import { coveringRegion } from "./mapRegions";
 import { MapPackages } from "./MapPackages";
 import "./maps.css";
 const RegionMap = lazy(() => import("./RegionMap"));
+const PlanGeoreference = lazy(() => import("./PlanGeoreference"));
 const fixed = (v: number) => String(Number(v.toFixed(6)));
 type Props = {
   services: Services;
@@ -36,6 +38,8 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
     [version, refresh] = useState(0),
     [busy, lock] = useState(false);
   const [draft, setDraft] = useState<{ x: string; y: string } | null>(null);
+  const [editingPlan, setEditingPlan] = useState("");
+  const [opacity, setOpacity] = useState(0.65);
   const [aim, setAim] = useState(false);
   const [landmark, setLandmark] = useState<Landmark | null>(null);
   const selected = params.get("point") ?? "",
@@ -95,9 +99,6 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
   const region =
     scene?.regions.find((r) => r.id === params.get("region")) ?? scene?.region;
   const plan = scene?.plans.find((p) => p.id === surface);
-  const marker = scene?.placements.find(
-    (p) => p.point_id === selected && (p.plan_id ?? "") === surface,
-  );
   const markers = useMemo(
     () =>
       scene?.placements.filter(
@@ -107,6 +108,53 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
       ) ?? [],
     [scene, surface, points],
   );
+  const floors = scene?.plans.filter((p) => p.footprint) ?? [];
+  const floor = floors.find((p) => p.id === params.get("floor"));
+  const buildings = new Map<string, typeof floors>();
+  for (const linked of floors) {
+    if (!linked.building) continue;
+    const group = buildings.get(linked.building) ?? [];
+    group.push(linked);
+    buildings.set(linked.building, group);
+  }
+  const floorPoints = new Set(
+    floor
+      ? scene?.placements
+          .filter((p) => p.plan_id === floor.id)
+          .map((p) => p.point_id)
+      : [],
+  );
+  const groupedPlans = new Set(
+    floors.filter((p) => p.building).map((p) => p.id),
+  );
+  const geographyMarkers = markers.filter((m) =>
+    floor
+      ? floorPoints.has(m.point_id)
+      : m.point_id === selected ||
+        !m.source_plan_id ||
+        !groupedPlans.has(m.source_plan_id),
+  );
+  const visibleMarkers = surface ? markers : geographyMarkers;
+  const marker = visibleMarkers.find((p) => p.point_id === selected);
+  function selectFloor(id: string, keepPoint = false) {
+    setDraft(null);
+    setAim(false);
+    setLandmark(null);
+    const next = coveringRegion(
+      scene?.regions ?? [],
+      region,
+      floors.find((p) => p.id === id)?.footprint?.center,
+    );
+    update({
+      plan: null,
+      floor: id || null,
+      region: next?.id ?? region?.id ?? null,
+      point: keepPoint ? selected || null : null,
+      lng: null,
+      lat: null,
+      z: null,
+    });
+  }
   const point = points.find((p) => p.id === selected);
   const scale = Number(params.get("scale")) === 2 ? 2 : 1;
   useEffect(() => {
@@ -147,7 +195,8 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
     setAim(false);
     setLandmark(null);
     tell("");
-    update({ plan: id || null, sx: null, sy: null, scale: null });
+    setEditingPlan("");
+    update({ floor: null, plan: id || null, sx: null, sy: null, scale: null });
   }
   function pick(x: number, y: number) {
     if (admin && aim && marker) {
@@ -161,7 +210,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
       tell("");
       return;
     }
-    if (admin && point) {
+    if (admin && point && (!floor || marker) && !marker?.source_plan_id) {
       setDraft({ x: fixed(x), y: fixed(y) });
       tell("");
     }
@@ -266,6 +315,25 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
             ? "Не удалось загрузить карты и планы"
             : "Загрузка карт и планов…"}
         </p>
+      ) : admin && plan && editingPlan === plan.id ? (
+        <Suspense fallback={<p>Загрузка привязки…</p>}>
+          <PlanGeoreference
+            key={site + plan.id}
+            plan={plan}
+            scene={scene}
+            initialRegion={region?.id}
+            points={points}
+            site={site}
+            services={services}
+            close={(saved) => {
+              setEditingPlan("");
+              if (saved) {
+                refresh((v) => v + 1);
+                tell("Привязка обновлена");
+              }
+            }}
+          />
+        </Suspense>
       ) : (
         <div className="ws-maps">
           <section className="ws-panel ws-pad">
@@ -309,6 +377,22 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
               plan ? (
                 <>
                   <h2>{plan.name}</h2>
+                  {(admin || (plan.footprint && region)) && (
+                    <div className="ws-map-actions">
+                      {admin && (
+                        <Button onClick={() => setEditingPlan(plan.id)}>
+                          {plan.footprint
+                            ? "Настроить привязку к карте"
+                            : "Привязать план к карте"}
+                        </Button>
+                      )}
+                      {plan.footprint && region && (
+                        <Button onClick={() => selectFloor(plan.id, true)}>
+                          Показать на геокарте
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   <label>
                     Масштаб плана{" "}
                     <select
@@ -373,11 +457,86 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
             ) : region ? (
               <>
                 <h2>{region.name}</h2>
+                {floors.length > 0 && (
+                  <label>
+                    План на геокарте
+                    <select
+                      value={floor?.id ?? ""}
+                      onChange={(e) => selectFloor(e.target.value)}
+                    >
+                      <option value="">Обзор территории</option>
+                      {floors
+                        .filter((p) => !p.building)
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      {[...buildings].map(([name, levels]) => (
+                        <optgroup key={name} label={name}>
+                          {levels.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {floor &&
+                  !coveringRegion(
+                    region ? [region] : [],
+                    region,
+                    floor.footprint?.center,
+                  ) && (
+                    <p role="status">
+                      План находится за пределами выбранного региона.
+                    </p>
+                  )}
+                {floor && (
+                  <label>
+                    Непрозрачность плана
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step=".05"
+                      value={opacity}
+                      onChange={(e) => setOpacity(Number(e.target.value))}
+                    />
+                  </label>
+                )}
                 <Suspense fallback={<p>Загрузка карты…</p>}>
                   <RegionMap
-                    key={region.revision}
+                    key={region.revision + "/" + (floor?.id ?? "")}
                     region={region}
-                    markers={markers}
+                    markers={geographyMarkers}
+                    overlay={
+                      floor?.footprint
+                        ? {
+                            image: floor.image_url,
+                            corners: floor.footprint.corners,
+                            opacity,
+                          }
+                        : undefined
+                    }
+                    fitOverlay={!view}
+                    labels={
+                      floor
+                        ? []
+                        : [...buildings].map(([name, levels]) => {
+                            const first = levels[0]!;
+                            const [lng, lat] = first.footprint!.center;
+                            return {
+                              id: name,
+                              text: name,
+                              lng: lng!,
+                              lat: lat!,
+                              activate: () => selectFloor(first.id),
+                            };
+                          })
+                    }
                     points={points}
                     chosen={selected}
                     view={view}
@@ -418,9 +577,11 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
           <section className="ws-panel ws-pad">
             <h2>Точки наблюдения</h2>
             <ul className="ws-map-list">
-              {(admin
+              {(admin && !floor
                 ? points
-                : points.filter((p) => markers.some((m) => m.point_id === p.id))
+                : points.filter((p) =>
+                    visibleMarkers.some((m) => m.point_id === p.id),
+                  )
               ).map((p) => (
                 <li key={p.id}>
                   <Button
@@ -457,6 +618,12 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                       {a.type} · {a.observed_at}
                     </Link>
                   ))}
+                {marker?.source_plan_id && (
+                  <Button onClick={() => changeSurface(marker.source_plan_id!)}>
+                    Открыть план ·{" "}
+                    {floors.find((p) => p.id === marker.source_plan_id)?.name}
+                  </Button>
+                )}
                 {admin && marker?.camera && (
                   <ViewCalibration
                     key={
@@ -476,34 +643,40 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                     }}
                   />
                 )}
-                {admin && (plan || (!surface && region)) && (
-                  <form onSubmit={(e) => void save(e)}>
-                    <h3>Положение точки</h3>
-                    {(["x", "y"] as const).map((axis) => (
-                      <label key={axis}>
-                        {plan
-                          ? axis.toUpperCase()
-                          : axis === "x"
-                            ? "Долгота"
-                            : "Широта"}
-                        <input
-                          required
-                          type="number"
-                          step="any"
-                          min={plan ? 0 : axis === "x" ? -180 : -85.051129}
-                          max={plan ? 1 : axis === "x" ? 180 : 85.051129}
-                          value={coordinates[axis]}
-                          onChange={(e) =>
-                            setDraft({ ...coordinates, [axis]: e.target.value })
-                          }
-                        />
-                      </label>
-                    ))}
-                    <Button type="submit" disabled={!draft || busy}>
-                      Сохранить положение
-                    </Button>
-                  </form>
-                )}
+                {admin &&
+                  (!floor || marker) &&
+                  !marker?.source_plan_id &&
+                  (plan || (!surface && region)) && (
+                    <form onSubmit={(e) => void save(e)}>
+                      <h3>Положение точки</h3>
+                      {(["x", "y"] as const).map((axis) => (
+                        <label key={axis}>
+                          {plan
+                            ? axis.toUpperCase()
+                            : axis === "x"
+                              ? "Долгота"
+                              : "Широта"}
+                          <input
+                            required
+                            type="number"
+                            step="any"
+                            min={plan ? 0 : axis === "x" ? -180 : -85.051129}
+                            max={plan ? 1 : axis === "x" ? 180 : 85.051129}
+                            value={coordinates[axis]}
+                            onChange={(e) =>
+                              setDraft({
+                                ...coordinates,
+                                [axis]: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      ))}
+                      <Button type="submit" disabled={!draft || busy}>
+                        Сохранить положение
+                      </Button>
+                    </form>
+                  )}
               </>
             )}
             {admin && (

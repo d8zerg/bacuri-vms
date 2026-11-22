@@ -26,6 +26,10 @@ export type Feed = {
   items: AlertItem[];
   status: "loading" | "online" | "reconnecting" | "denied";
 };
+export type PlanLink = Schema["PlanLink"];
+export type PlanLinkPreview = Schema["PlanLinkPreview"];
+export type PlanReference = Schema["PlanReference"];
+export type FloorPlan = Schema["FloorPlan"];
 export type MapScene = Schema["MapScene"];
 export type MapManagement = Schema["MapManagement"];
 export type MapSource = Schema["MapSourceState"];
@@ -64,6 +68,8 @@ export interface Services {
     body: Schema["IssueAlertDelegation"],
   ): Promise<Schema["IssuedAlertDelegation"]>;
   revokeDelegation(site: string, id: string): Promise<void>;
+  previewPlan(site: string, body: PlanLink): Promise<PlanLinkPreview>;
+  linkPlan(site: string, body: Schema["SavePlanLink"]): Promise<void>;
   maps(site: string, signal: AbortSignal): Promise<MapScene>;
   mapManagement(site: string, signal: AbortSignal): Promise<MapManagement>;
   mapSource(

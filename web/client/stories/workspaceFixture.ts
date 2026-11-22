@@ -57,6 +57,17 @@ export function fixture(condition = "normal"): Services {
   };
   let attempt = 0,
     revision = 0;
+  const footprint = {
+    bearing: 90,
+    width_m: 40,
+    center: [7.4, 43.73],
+    corners: [
+      [7.4, 43.73],
+      [7.4, 43.7296],
+      [7.3997, 43.7296],
+      [7.3997, 43.73],
+    ],
+  };
   const scene: MapScene = {
     region: null,
     regions: [],
@@ -94,6 +105,53 @@ export function fixture(condition = "normal"): Services {
             },
           ],
   };
+  if (condition === "linked-floors") {
+    const region = {
+      id: "city",
+      revision: "city-v1",
+      name: "Территория",
+      source_time: utc(0),
+      min_zoom: 0,
+      max_zoom: 19,
+      bounds: [7.399, 43.729, 7.401, 43.731],
+      style_url:
+        "data:application/json," +
+        encodeURIComponent(
+          JSON.stringify({
+            version: 8,
+            sources: {},
+            layers: [
+              {
+                id: "ground",
+                type: "background",
+                paint: { "background-color": "#62686d" },
+              },
+            ],
+          }),
+        ),
+      attribution: "OpenStreetMap",
+    };
+    scene.region = region;
+    scene.regions = [region];
+    const floor = scene.plans[0]!;
+    floor.building = "Корпус";
+    floor.footprint = footprint;
+    floor.definition = {
+      anchor: { x: 0.5, y: 0.5, lng: 7.4, lat: 43.73 },
+      width_m: 40,
+      bearing: 90,
+      building: floor.building,
+    };
+    scene.plans.push({ ...floor, id: "upper", name: "Второй этаж" });
+    scene.placements.push({
+      point_id: point,
+      plan_id: null,
+      x: 7.4,
+      y: 43.73,
+      source_plan_id: floor.id,
+      view: { state: "fixed", bearing: 145, hfov: 65 },
+    });
+  }
   if (condition === "ptz-plan") {
     const placed = scene.placements[0]!;
     placed.camera = {
@@ -116,6 +174,37 @@ export function fixture(condition = "normal"): Services {
       condition === "map-error"
         ? Promise.reject(Error("503"))
         : Promise.resolve(structuredClone(scene)),
+    previewPlan: (_site, body) =>
+      Promise.resolve(
+        body.definition
+          ? {
+              token: "preview",
+              footprint,
+              cameras: [
+                {
+                  point_id: "dock",
+                  projected: [7.4, 43.73],
+                  existing: [7.4001, 43.73],
+                  distance_m: 8,
+                },
+              ],
+            }
+          : { token: "preview", cameras: [] },
+      ),
+    linkPlan: (_site, body) => {
+      const plan = scene.plans.find((p) => p.id === body.plan_id);
+      if (!plan) return Promise.reject(Error("404"));
+      if (body.definition) {
+        plan.definition = body.definition;
+        plan.footprint = footprint;
+        if (body.definition.building) plan.building = body.definition.building;
+      } else {
+        delete plan.footprint;
+        delete plan.definition;
+        delete plan.building;
+      }
+      return Promise.resolve();
+    },
     calibrate: (_site, b) => {
       const row = scene.placements.find(
         (p) => p.point_id === b.point_id && p.plan_id === b.plan_id,

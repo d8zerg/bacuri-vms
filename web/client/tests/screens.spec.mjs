@@ -399,3 +399,81 @@ test("Administrator selects online regions, pauses a download and updates instal
   await area.getByRole("button", { name: "Закрыть" }).click();
   await expect(catalog).toHaveCount(0);
 });
+
+test("Administrator references a floor offline and resolves an existing camera position", async ({
+  page,
+}) => {
+  await open(page, "plan");
+  await page.getByRole("button", { name: "Привязать план к карте" }).click();
+  await page.getByRole("button", { name: "Предпросмотр" }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Укажите положение" }),
+  ).toBeVisible();
+  await page.getByLabel("Способ привязки").selectOption("width");
+  await page.getByLabel("X на плане").fill("0.5");
+  await page.getByLabel("Y на плане").fill("0.2");
+  await page.getByLabel("Широта").fill("43.73");
+  await page.getByLabel("Долгота").fill("7.4");
+  await page.getByLabel("Ширина изображения, м").fill("40");
+  await page.getByRole("button", { name: "Восток" }).click();
+  await expect(page.getByLabel("Азимут верха")).toHaveValue("90");
+  await page.getByLabel("Здание для группировки").fill("Корпус");
+  await page.getByRole("button", { name: "Предпросмотр" }).click();
+  const save = page.getByRole("button", { name: "Сохранить привязку" });
+  await expect(save).toBeDisabled();
+  await page
+    .getByRole("combobox", { name: /расхождение/ })
+    .selectOption("keep");
+  await checkAccessibility(page, ".ws-shell");
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+  await save.click();
+  await page
+    .getByRole("button", { name: "Настроить привязку к карте" })
+    .click();
+  await expect(page.getByLabel("Ширина изображения, м")).toHaveValue("40");
+  await page.getByLabel("Способ привязки").selectOption("unlink");
+  await page.getByRole("button", { name: "Предпросмотр" }).click();
+  await page.getByRole("button", { name: "Снять привязку" }).click();
+  await expect(
+    page.getByRole("button", { name: "Привязать план к карте" }),
+  ).toBeVisible();
+});
+
+test("Switching building floors isolates cameras and opens their source plan", async ({
+  page,
+}, info) => {
+  await open(page, "linked-floors");
+  const floors = page.getByLabel("План на геокарте");
+  await expect(floors).toHaveValue("");
+  if (info.project.name.startsWith("chromium")) {
+    await page.getByRole("button", { name: "Корпус", exact: true }).click();
+    await expect(page.locator(".maplibregl-marker .ws-sector")).toHaveCount(1);
+  } else await floors.selectOption("floor");
+  await expect(floors).toHaveValue("floor");
+  await page.getByLabel("Непрозрачность плана").fill("0.3");
+  await floors.selectOption("upper");
+  await expect(page.locator(".maplibregl-marker .ws-sector")).toHaveCount(0);
+  await floors.selectOption("floor");
+  await page.locator(".ws-map-list button").click();
+  await page
+    .getByRole("button", { name: "Открыть план · Первый этаж" })
+    .click();
+  await page
+    .getByRole("button", { name: "Настроить привязку к карте" })
+    .click();
+  await page.getByLabel("Способ привязки").selectOption("pair");
+  const image = page.locator(".ws-reference .ws-plan img");
+  await image.click({ position: { x: 20, y: 40 } });
+  await page.getByText("Координаты ориентира B", { exact: true }).click();
+  await page.getByLabel("X на плане").fill("0.75");
+  await page.getByLabel("Y на плане").fill("0.85");
+  await page.getByLabel("Широта").fill("43.7301");
+  await page.getByLabel("Долгота").fill("7.4002");
+  await page.getByRole("button", { name: "Предпросмотр" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Проверка привязки" }),
+  ).toBeVisible();
+});

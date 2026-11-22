@@ -1,6 +1,9 @@
 #include "control/inventory/operations.hpp"
 #include "control/access/operations.hpp"
 #include "control/maps.hpp"
+#include "control/maps/georeference.hpp"
+#include <map>
+#include <cmath>
 #include "control/maps/packages.hpp"
 #include "control/inventory/telemetry.hpp"
 #include "control/maps/orientation.hpp"
@@ -20,6 +23,18 @@ void found(bool condition)
 {
     if (!condition)
         throw Failure{404, "not_found"};
+}
+
+bool has_bearing(const Json& marker)
+{
+    return marker.contains("view") && marker.at("view").contains("bearing");
+}
+Json rotated_view(const Json& marker, double angle)
+{
+    auto view = marker.at("view");
+    if (view.contains("bearing"))
+        view["bearing"] = std::fmod(view.at("bearing").get<double>() + angle + 360, 360);
+    return view;
 }
 Json scene(Database& db, const std::string& site, const std::string& user, bool admin)
 {
@@ -47,22 +62,38 @@ Json scene(Database& db, const std::string& site, const std::string& user, bool 
     if (region.size())
         result["region"] = result["regions"].front();
     const auto points = admin ? "{}" : array_parameter(access::granted_point_ids(db, site, user));
-    auto plans =
-        db.exec("SELECT plan_id,name,width,height FROM bacuri_maps.floor_plans p WHERE site_id=$1 AND "
-                "($3::boolean OR EXISTS(SELECT FROM bacuri_maps.point_placements l WHERE l.site_id=p.site_id AND "
-                "l.plan_id=p.plan_id AND l.point_id=ANY($2::uuid[]))) ORDER BY name,plan_id",
-                {site, points, admin ? "true" : "false"});
-    for (int i = 0; i < plans.size(); ++i)
+    auto plans = db.exec(
+        "SELECT plan_id,name,width,height,georeference FROM bacuri_maps.floor_plans p WHERE site_id=$1 AND "
+        "($3::boolean OR EXISTS(SELECT FROM bacuri_maps.point_placements l WHERE l.site_id=p.site_id AND "
+        "l.plan_id=p.plan_id AND l.point_id=ANY($2::uuid[]))) ORDER BY name,plan_id",
+        {site, points, admin ? "true" : "false"});
+    std::map<std::string, maps_geo::PlanTransform> transforms;
+    for (int i = 0; i < plans.size(); ++i) {
         result["plans"].push_back({{"id", plans.get(i)},
                                    {"name", plans.get(i, 1)},
                                    {"width", std::stoi(plans.get(i, 2))},
                                    {"height", std::stoi(plans.get(i, 3))},
                                    {"image_url", base + "plans/" + plans.get(i)}});
+        if (!plans.get(i, 4).empty()) {
+            auto definition = Json::parse(plans.get(i, 4));
+            auto& transform =
+                transforms
+                    .try_emplace(plans.get(i), definition, std::stoi(plans.get(i, 2)), std::stoi(plans.get(i, 3)))
+                    .first->second;
+            auto& plan = result["plans"].back();
+            plan["footprint"] = transform.footprint();
+            if (definition.contains("building"))
+                plan["building"] = definition.at("building");
+            if (admin)
+                plan["definition"] = std::move(definition);
+        }
+    }
     auto markers =
-        db.exec("SELECT point_id,plan_id,x,y,calibration FROM bacuri_maps.point_placements "
+        db.exec("SELECT point_id,plan_id,x,y,calibration,geo_primary FROM bacuri_maps.point_placements "
                 "WHERE site_id=$1 AND ($3::boolean OR point_id=ANY($2::uuid[])) ORDER BY point_id,plan_id",
                 {site, points, admin ? "true" : "false"});
     auto cameras = inventory::camera_orientations(db, site, markers.column(0));
+    std::map<std::string, Json> geographic, plan_views;
     for (int i = 0; i < markers.size(); ++i) {
         const auto point = markers.get(i);
         Json marker{{"point_id", point},
@@ -79,8 +110,46 @@ Json scene(Database& db, const std::string& site, const std::string& user, bool 
                     marker["calibration"] = cfg;
             }
         }
+        if (marker.at("plan_id").is_null()) {
+            auto [it, inserted] = geographic.try_emplace(point, std::move(marker));
+            if (!inserted && !has_bearing(it->second) && has_bearing(marker))
+                it->second["view"] = marker.at("view");
+            continue;
+        }
+        if (transforms.contains(markers.get(i, 1)) && has_bearing(marker)) {
+            auto [it, unique] =
+                plan_views.try_emplace(point, rotated_view(marker, transforms.at(markers.get(i, 1)).heading()));
+            if (!unique)
+                it->second = nullptr;
+        }
+        if (markers.get(i, 5) == "t") {
+            const auto& transform = transforms.at(markers.get(i, 1));
+            const auto pos = transform.project(marker.at("x"), marker.at("y"));
+            Json projected{{"point_id", point},
+                           {"plan_id", nullptr},
+                           {"source_plan_id", markers.get(i, 1)},
+                           {"x", pos.lng},
+                           {"y", pos.lat}};
+            if (marker.contains("view"))
+                projected["view"] = rotated_view(marker, transform.heading());
+            geographic[point] = std::move(projected);
+        }
         result["placements"].push_back(std::move(marker));
     }
+    for (auto& [point, marker] : geographic) {
+        auto view = plan_views.find(point);
+        if (!has_bearing(marker) && view != plan_views.end() && view->second.is_object())
+            marker["view"] = view->second;
+    }
+    for (auto& local : result["placements"]) {
+        auto transform = transforms.find(local.at("plan_id"));
+        auto global = geographic.find(local.at("point_id"));
+        if (!has_bearing(local) && transform != transforms.end() && global != geographic.end() &&
+            has_bearing(global->second))
+            local["view"] = rotated_view(global->second, -transform->second.heading());
+    }
+    for (auto& [point, marker] : geographic)
+        result["placements"].push_back(std::move(marker));
     return result;
 }
 void png(Response& res, const Rows& rows)
@@ -185,6 +254,11 @@ void place(Database& db, const Request& req, const std::string& site)
     valid(plan.empty() ? (std::abs(x) <= 180 && std::abs(y) <= 85.051129)
                        : (x >= 0 && x <= 1 && y >= 0 && y <= 1));
     found(inventory::lock_point(db, site, point));
+    if (plan.empty() &&
+        db.exec("SELECT FROM bacuri_maps.point_placements WHERE site_id=$1 AND point_id=$2 AND geo_primary",
+                {site, point})
+            .size())
+        throw Failure{409, "position_from_plan"};
     if (plan.empty())
         found(db.exec("SELECT FROM bacuri_maps.map_regions WHERE site_id=$1 FOR SHARE", {site}).size());
     else
@@ -195,6 +269,12 @@ void place(Database& db, const Request& req, const std::string& site)
             "($1,$2,nullif($3,'')::uuid,$4,$5) ON CONFLICT "
             "(site_id,point_id,plan_id) DO UPDATE SET x=excluded.x,y=excluded.y",
             {site, point, plan, body["x"].dump(), body["y"].dump()});
+    if (!plan.empty())
+        db.exec(R"sql(UPDATE bacuri_maps.point_placements l SET geo_primary=true
+        WHERE site_id=$1 AND point_id=$2 AND plan_id=$3 AND EXISTS (SELECT FROM bacuri_maps.floor_plans p
+        WHERE p.site_id=l.site_id AND p.plan_id=l.plan_id AND p.georeference IS NOT NULL)
+        AND NOT EXISTS(SELECT FROM bacuri_maps.point_placements m WHERE m.site_id=l.site_id AND m.point_id=l.point_id AND (m.plan_id IS NULL OR m.geo_primary)))sql",
+                {site, point, plan});
 }
 } // namespace
 
@@ -216,8 +296,13 @@ void maps(const Request& req, Response& res, const Sessions& sessions, const std
         return;
     }
     const bool upload = path == "maps/plans", placement = path == "maps/placement",
-               calibration = path == "maps/calibration", write = upload || placement || calibration;
-    allow(req, res, {upload ? http::verb::post : (placement || calibration) ? http::verb::put : http::verb::get});
+               calibration = path == "maps/calibration", preview = path == "maps/georeference/preview",
+               reference = path == "maps/georeference",
+               write = upload || placement || calibration || preview || reference;
+    allow(req, res,
+          {(upload || preview)                       ? http::verb::post
+           : (placement || calibration || reference) ? http::verb::put
+                                                     : http::verb::get});
     Database db;
     db.exec(write ? "BEGIN" : "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const auto identity = sessions.authenticate(db, req, write, write);
@@ -225,7 +310,15 @@ void maps(const Request& req, Response& res, const Sessions& sessions, const std
         access::site_role(db, site, identity.user, write ? access::RoleLock::shared : access::RoleLock::read);
     if (write && role != "administrator")
         throw Failure{403, "forbidden"};
-    if (upload)
+    if (placement || calibration || preview || reference)
+        maps_geo::lock_geography(db, site);
+    if (preview || reference) {
+        auto result = maps_geo::georeference(db, req, site, reference);
+        if (preview)
+            respond(res, result);
+        else
+            res.result(http::status::no_content);
+    } else if (upload)
         respond(res, add_plan(db, req, site), 201);
     else if (calibration) {
         maps_view::calibrate(db, req, site);
