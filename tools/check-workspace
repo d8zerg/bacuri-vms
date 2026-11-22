@@ -4,6 +4,7 @@ report=$(sh tools/quality-report-dir workspace)
 export BACURI_UI_RESULTS="$PWD/$report"
 echo "Workspace evidence: $report"
 run=(docker compose run --rm --no-deps -T --user "$(id -u):$(id -g)")
+"${run[@]}" -v "$PWD/build/web-client:/results/client:ro" ui-kit-check node tests/first-paint.mjs
 "${run[@]}" ui-kit-check
 bash tests/workspace/isolated.sh "$1" "$report"
 docker compose up -d --wait playback-chrome playback-firefox

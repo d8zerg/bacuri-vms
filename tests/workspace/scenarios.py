@@ -18,7 +18,7 @@ from maps import admin_placements, link, offline_maps
 report = Path(os.environ["BACURI_WORKSPACE_RESULTS"])
 raw = report / "chrome"
 raw.mkdir(parents=True, exist_ok=True)
-buttons = "[...document.querySelectorAll('button')].find(b => b.textContent===arguments[0])"
+buttons = "[...document.querySelectorAll('button')].find(b => b.textContent === arguments[0] || b.getAttribute('aria-label') === arguments[0])"
 
 
 def wait(call, condition, label, *args, timeout=45):
@@ -115,6 +115,21 @@ def installer(browser, admin, restart):
         wait(call, "document.querySelector('input[name=username]')", "logged out")
         print(browser, "installer applied revision", cam["applied_revision"], "decoded", dims, flush=True)
         return cam
+
+
+def access_settings(browser, admin):
+    with browser_session(browser, admin, "/access", workspace_coverage=raw) as (call, _):
+        wait(call, "document.body.innerText.includes('Новый пользователь')", "user management")
+        button(call, "Группы")
+        name = "Workspace group " + browser
+        field(call, "name", name)
+        button(call, "Сохранить группу")
+        wait(call, "Array.from(document.querySelectorAll('main select option')).some(option=>option.textContent===arguments[0])",
+             "saved group", name)
+        for tab, label in [("Разрешения", "Действие"), ("Приватность", "Области маски"),
+                           ("Вход", "OpenID Connect"), ("Аудит", "resource_groups.insert")]:
+            button(call, tab)
+            wait(call, "document.querySelector('main').innerText.includes(arguments[0])", tab, label)
 
 
 def pending_alert(call, point, viewer, on_map):
@@ -381,6 +396,7 @@ def run():
             viewer = c.login("viewer")
             plan = admin_placements(browser, admin, viewer, cam, wait, button, field, raw)
             operator(browser, cam, viewer, restart, plan)
+            access_settings(browser, admin)
         measure("integrated", admin)
     for before, after in zip(evidence[:4], evidence[4:], strict=True):
         assert before["browser"] == after["browser"] and before["route"] == after["route"]

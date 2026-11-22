@@ -148,7 +148,7 @@ def exercise(line, send):
         js("document.querySelector('form button[type=submit]').click()")
 
     def logged_in():
-        return js("return document.body.innerText.includes('Выйти')")
+        return js("""return !!document.querySelector('button[aria-label="Выйти"]')""")
 
     try:
         call(
@@ -180,7 +180,7 @@ def exercise(line, send):
             )
 
         assert authorized() == 200
-        js("[...document.querySelectorAll('button')].find(b=>b.textContent==='Выйти').click()")
+        js("""document.querySelector('button[aria-label="Выйти"]').click()""")
         form("username", "installer")
         form("password", password)
         submit()

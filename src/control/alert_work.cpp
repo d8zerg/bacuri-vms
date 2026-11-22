@@ -318,6 +318,8 @@ void alert_work(const Request& req, Response& res, const Sessions& sessions, con
     Database db;
     const bool read = req.method() == http::verb::get;
     db.exec(read || path == "alert-audit/search" ? "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY" : "BEGIN");
+    if (!read && path != "alert-audit/search")
+        access::lock_policy(db, site, true);
     if (path.starts_with("alerts/") && path.size() == 48 && path.ends_with("/work") &&
         canonical_id(path.substr(7, 36))) {
         const std::string id{path.substr(7, 36)};

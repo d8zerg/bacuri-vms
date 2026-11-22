@@ -54,7 +54,7 @@ class ExportBody final : public MediaBody
     {
         const auto now = std::chrono::steady_clock::now();
         db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-        const auto lease = access::export_lease(db, browser, grant);
+        const auto lease = access::export_lease(db, browser, grant, point, begin, end);
         const auto ms = lease ? std::min(lease->milliseconds,
                                          recordings::export_lifetime_ms(db, lease->site, lease->point, hashes))
                               : 0;
@@ -76,7 +76,7 @@ class ExportBody final : public MediaBody
     Slot slot;
     Database db;
     fs::path root;
-    std::string browser, grant, hashes;
+    std::string browser, grant, hashes, point, begin, end;
     std::ifstream input;
     std::chrono::steady_clock::time_point deadline{};
 };
@@ -141,6 +141,9 @@ void export_fragment(const Request& req, Response& res, const Sessions& sessions
         auto stream = std::make_shared<ExportBody>();
         auto& db = stream->db;
         stream->grant = permission;
+        stream->point = point;
+        stream->begin = start;
+        stream->end = end;
         stream->browser = browser;
         std::string revision;
         if (!alert.empty()) {

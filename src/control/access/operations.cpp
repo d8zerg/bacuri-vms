@@ -4,52 +4,69 @@
 
 namespace bacuri::vms::control::access
 {
+void lock_policy(Database& db, const std::string& site, bool shared)
+{
+    db.exec(shared ? "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,41))"
+                   : "SELECT pg_advisory_xact_lock(hashtextextended($1,41))",
+            {site});
+}
+std::string scope_revision(Database& db, const std::string& site)
+{
+    return db
+        .exec("SELECT coalesce((SELECT revision FROM bacuri_access.policy_versions WHERE site_id=$1),0)", {site})
+        .get(0);
+}
 std::string site_role(Database& db, const std::string& site, const std::string& user, RoleLock lock)
 {
-    auto r = db.exec(lock == RoleLock::shared
-                         ? "SELECT role FROM bacuri_access.site_roles WHERE site_id=$1 AND user_id=$2 FOR SHARE"
-                         : "SELECT role FROM bacuri_access.site_roles WHERE site_id=$1 AND user_id=$2",
-                     {site, user});
+    auto r = db.exec(
+        lock == RoleLock::shared
+            ? "SELECT role FROM bacuri_access.site_roles WHERE site_id=$1 AND user_id=$2 AND enabled FOR SHARE"
+            : "SELECT role FROM bacuri_access.site_roles WHERE site_id=$1 AND user_id=$2 AND enabled",
+        {site, user});
     if (!r.size())
         throw Failure{404, "not_found"};
     return r.get(0);
 }
 bool lock_point_grant(Database& db, const std::string& site, const std::string& point, const std::string& user)
 {
-    return db
-        .exec("SELECT FROM bacuri_access.point_grants WHERE site_id=$1 AND point_id=$2 AND user_id=$3 FOR SHARE",
-              {site, point, user})
-        .size();
+    return allowed(db, site, user, point, "view");
 }
+
+bool allowed(Database& db, const std::string& site, const std::string& user, const std::string& point,
+             const std::string& action, const std::string& surface, const std::string& begin,
+             const std::string& end)
+{
+    return db.exec("SELECT bacuri_access.can_use($1,$2,$3,$4,nullif($5,'')::bigint,nullif($6,'')::bigint,$7)",
+                   {site, user, point, action, begin, end, surface})
+               .get(0) == "t";
+}
+
 std::string role_for_existing_point(Database& db, const std::string& site, const std::string& point,
                                     const std::string& user)
 {
     const auto role = site_role(db, site, user, RoleLock::read);
-    if (role == "administrator" ||
-        db.exec("SELECT FROM bacuri_access.point_grants WHERE user_id=$1 AND site_id=$2 AND point_id=$3",
-                {user, site, point})
-            .size())
-        return role;
-    throw Failure{404, "not_found"};
+    if (!allowed(db, site, user, point, "view"))
+        throw Failure{404, "not_found"};
+    return role;
 }
-std::vector<std::string> granted_point_ids(Database& db, const std::string& site, const std::string& user)
+std::vector<std::string> granted_point_ids(Database& db, const std::string& site, const std::string& user,
+                                           const std::string& action, bool include_intervals)
 {
-    return db.exec("SELECT point_id FROM bacuri_access.point_grants WHERE site_id=$1 AND user_id=$2", {site, user})
+    return db
+        .exec("SELECT DISTINCT point_id FROM bacuri_access.effective_grants WHERE site_id=$1 AND user_id=$2 "
+              "AND point_id IS NOT NULL AND action=$3 AND (begin_us IS NULL OR $4::boolean)",
+              {site, user, action, include_intervals ? "true" : "false"})
         .column();
 }
 std::vector<std::string> export_point_ids(Database& db, const std::string& site, const std::string& user)
 {
-    return db
-        .exec("SELECT point_id FROM bacuri_access.export_grants WHERE site_id=$1 AND user_id=$2", {site, user})
-        .column();
+    return granted_point_ids(db, site, user, "export", true);
 }
 std::vector<std::string> viewer_ids(Database& db, const std::string& site, const std::string& point)
 {
     return db
-        .exec("SELECT user_id FROM bacuri_access.site_roles r WHERE site_id=$1 AND (role='administrator' OR "
-              "EXISTS(SELECT FROM bacuri_access.point_grants g WHERE g.user_id=r.user_id AND g.site_id=r.site_id "
-              "AND "
-              "g.point_id=$2)) ORDER BY user_id",
+        .exec("SELECT user_id FROM bacuri_access.site_roles WHERE site_id=$1 AND "
+              "bacuri_access.can_use(site_id,user_id,$2,'view',NULL,NULL,'') ORDER BY user_id",
               {site, point})
         .column();
 }
@@ -67,44 +84,41 @@ std::string browser_expiry(Database& db, const std::string& browser)
               {browser})
         .get(0);
 }
-namespace
-{
-constexpr auto point_permission = R"sql(
-    (r.role='administrator' OR EXISTS (SELECT FROM bacuri_access.point_grants p
-     WHERE (p.site_id,p.user_id,p.point_id)=(r.site_id,r.user_id,g.point_id)))
-)sql";
-}
 std::string export_permission(Database& db, const std::string& site, const std::string& point,
                               const std::string& user, const std::string& begin, const std::string& end)
 {
-    const auto query =
-        std::string{"SELECT grant_id FROM bacuri_access.export_grants g JOIN bacuri_access.site_roles r "
-                    "USING(site_id,user_id) "
-                    "WHERE user_id=$1 AND site_id=$2 AND point_id=$3 AND begin_us<=$4 AND end_us>=$5 AND "} +
-        point_permission;
-    auto grant = db.exec(query.c_str(), {user, site, point, begin, end});
-    if (!grant.size())
+    if (!allowed(db, site, user, point, "view", "export", begin, end))
         throw Failure{403, "forbidden"};
-    return grant.get(0);
+    auto rows =
+        db.exec("SELECT grant_id FROM bacuri_access.effective_grants WHERE site_id=$1 AND point_id=$2 "
+                "AND user_id=$3 AND action='export' AND (begin_us IS NULL OR (begin_us<=$4 AND end_us>=$5)) "
+                "ORDER BY grant_id LIMIT 1",
+                {site, point, user, begin, end});
+    if (!rows.size())
+        throw Failure{403, "forbidden"};
+    return rows.get(0);
 }
-std::optional<ExportLease> export_lease(Database& db, const std::string& browser, const std::string& grant)
+std::optional<ExportLease> export_lease(Database& db, const std::string& browser, const std::string& grant,
+                                        const std::string& point, const std::string& begin, const std::string& end)
 {
-    const auto query =
-        std::string{"SELECT g.site_id,g.point_id,least(1000,floor(extract(epoch FROM "
-                    "least(b.expires_at,b.last_active+interval '30 minutes')-clock_timestamp())*1000))::bigint "
-                    "FROM bacuri_access.browser_sessions b JOIN bacuri_access.export_grants g USING(user_id) JOIN "
-                    "bacuri_access.site_roles r USING(user_id,site_id) "
-                    "WHERE b.token_hash=$1 AND g.grant_id=$2 AND "} +
-        point_permission;
-    auto r = db.exec(query.c_str(), {browser, grant});
-    if (!r.size())
+    auto rows = db.exec(R"sql(
+        SELECT g.site_id,g.point_id,least(1000,floor(extract(epoch FROM
+            least(b.expires_at,b.last_active+interval '30 minutes',b.oidc_until)-clock_timestamp())*1000))::bigint
+        FROM bacuri_access.browser_sessions b JOIN bacuri_access.effective_grants g USING(user_id)
+        WHERE b.token_hash=$1 AND (b.oidc_site IS NULL OR b.oidc_site=g.site_id) AND g.grant_id=$2 AND g.point_id=$3 AND g.action='export'
+            AND (g.begin_us IS NULL OR (g.begin_us<=$4 AND g.end_us>=$5))
+            AND bacuri_access.can_use(g.site_id,g.user_id,g.point_id,'view',$4,$5,'export')
+    )sql",
+                        {browser, grant, point, begin, end});
+    if (!rows.size())
         return {};
-    return ExportLease{r.get(0), r.get(0, 1), std::stoll(r.get(0, 2))};
+    return ExportLease{rows.get(0), rows.get(0, 1), std::stoll(rows.get(0, 2))};
 }
 
 void provision_user(Database& db, const std::string& site, const LocalAccount& account,
                     const std::string& password, bool initial)
 {
+    lock_policy(db, site);
     if (initial) {
         db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,1))", {site});
         auto existing = db.exec("SELECT username FROM bacuri_access.site_roles JOIN bacuri_access.local_users "
@@ -153,9 +167,8 @@ void grant_export(Database& db, const GrantTarget& target, std::int64_t begin, s
         db.exec("INSERT INTO bacuri_access.export_grants(user_id,site_id,point_id,begin_us,end_us) "
                 "SELECT r.user_id,r.site_id,$3,$4,$5 FROM bacuri_access.site_roles r JOIN "
                 "bacuri_access.local_users u USING(user_id) "
-                "WHERE u.username=$1 AND r.site_id=$2 AND (r.role='administrator' OR EXISTS(SELECT FROM "
-                "bacuri_access.point_grants p "
-                "WHERE (p.site_id,p.user_id,p.point_id)=(r.site_id,r.user_id,$3::uuid))) ON "
+                "WHERE u.username=$1 AND r.site_id=$2 AND "
+                "bacuri_access.can_use(r.site_id,r.user_id,$3,'view',$4,$5,'') ON "
                 "CONFLICT(user_id,site_id,point_id) "
                 "DO UPDATE SET begin_us=excluded.begin_us,end_us=excluded.end_us,grant_id=excluded.grant_id "
                 "RETURNING grant_id",
@@ -175,6 +188,7 @@ void revoke_point(Database& db, const GrantTarget& target)
 void grant_point(Database& db, const GrantTarget& target)
 {
     db.exec("BEGIN");
+    lock_policy(db, target.site);
     auto user = db.exec(R"sql(
             SELECT u.user_id FROM bacuri_access.local_users u JOIN bacuri_access.site_roles r USING(user_id)
             WHERE u.username=$1 AND r.site_id=$2 AND r.role='operator' FOR SHARE
@@ -189,15 +203,15 @@ void grant_point(Database& db, const GrantTarget& target)
 }
 
 std::optional<std::string> browser_point_expiry(Database& db, const std::string& browser, const std::string& site,
-                                                const std::string& point)
+                                                const std::string& point, const std::string& surface,
+                                                const std::string& begin, const std::string& end)
 {
-    auto row = db.exec(
-        "SELECT least(b.expires_at,b.last_active+interval '30 minutes') FROM bacuri_access.browser_sessions b "
-        "JOIN bacuri_access.site_roles r USING(user_id) WHERE b.token_hash=$1 AND r.site_id=$2 AND "
-        "(r.role='administrator' OR "
-        "EXISTS(SELECT FROM bacuri_access.point_grants p WHERE "
-        "(p.site_id,p.user_id,p.point_id)=(r.site_id,r.user_id,$3::uuid)))",
-        {browser, site, point});
+    auto row =
+        db.exec("SELECT least(b.expires_at,b.last_active+interval '30 minutes',b.oidc_until) "
+                "FROM bacuri_access.browser_sessions b WHERE token_hash=$1 AND (b.oidc_site IS NULL OR "
+                "b.oidc_site=$2) AND "
+                "bacuri_access.can_use($2,b.user_id,$3,'view',nullif($4,'')::bigint,nullif($5,'')::bigint,$6)",
+                {browser, site, point, begin, end, surface});
     if (!row.size())
         return {};
     return row.get(0);

@@ -46,7 +46,7 @@ Json query_parameters(std::string_view target)
 }
 
 struct PointAccess {
-    std::string site, point, browser, role;
+    std::string site, point, browser, role, user;
 };
 
 Json search(Database& db, const Key& key, const PointAccess& access, Json params,
@@ -56,6 +56,9 @@ Json search(Database& db, const Key& key, const PointAccess& access, Json params
     const auto cursor = params.value("cursor", std::string{});
     const bool continued = params.erase("cursor") != 0;
     const auto bounds = window(params);
+    if (!access::allowed(db, access.site, access.user, access.point, "view", "archive",
+                         std::to_string(bounds.start), std::to_string(bounds.end)))
+        throw Failure{404, "not_found"};
     auto position = bounds.start;
     const auto context =
         Json::array({"archive", access.browser, access.role, access.site, access.point, bounds.start, bounds.end})
@@ -141,6 +144,9 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     }
     const auto begin = range ? std::to_string(range->start) : std::string{};
     const auto end = range ? std::to_string(range->end) : std::string{};
+    if (!access::allowed(db, access.site, access.user, access.point, "view", mode,
+                         range ? std::to_string(range->start) : "", range ? std::to_string(range->end) : ""))
+        throw Failure{404, "not_found"};
     Json selection{{"mode", mode}};
     std::optional<std::int64_t> binding;
     std::string revision;
@@ -313,7 +319,7 @@ void Playback::point(const Request& req, Response& res, const std::string& site,
     if (!inventory::point_exists(db, site, point))
         throw Failure{404, "not_found"};
     PointAccess access{site, point, fingerprint(key_, "session", who.cookie),
-                       access::role_for_existing_point(db, site, point, who.user)};
+                       access::site_role(db, site, who.user, access::RoleLock::read), who.user};
     if (searching) {
         respond(res, search(db, key_, access, query_parameters(std::string_view{req.target()})));
     } else {
@@ -343,7 +349,9 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
                 {id, browser});
     if (!session.size())
         throw Failure{404, "not_found"};
-    const auto expiry = access::browser_point_expiry(db, browser, session.get(0), session.get(0, 1));
+    const auto expiry = access::browser_point_expiry(db, browser, session.get(0), session.get(0, 1),
+                                                     session.get(0, 2).empty() ? "live" : "archive",
+                                                     session.get(0, 2), session.get(0, 3));
     if (!expiry)
         throw Failure{404, "not_found"};
     const bool live = session.get(0, 2).empty();
@@ -439,6 +447,8 @@ void Playback::alert_archive(const Request& req, Response& res, const std::strin
         throw Failure{404, "not_found"};
     const auto& point = anchor->point;
     auto role = access::role_for_existing_point(db, site, point, who.user);
+    if (!access::allowed(db, site, who.user, point, "view", "archive"))
+        throw Failure{404, "not_found"};
     recordings::require_available(db, site);
     const auto time = anchor->time;
     Json link{{"point_id", point}, {"state", "uncertain_time"}, {"archive_interval", alert_window(time).json()}};
@@ -462,7 +472,7 @@ void Playback::alert_archive(const Request& req, Response& res, const std::strin
                 link["position"] = ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(time));
             }
         } else if (blocks.empty() || (blocks.size() == 1 && !blocks.front().unavailable_reason.empty())) {
-            auto page = search(db, key_, {site, point, fingerprint(key_, "session", who.cookie), role},
+            auto page = search(db, key_, {site, point, fingerprint(key_, "session", who.cookie), role, who.user},
                                instant.json(), std::stoll(anchor->revision));
             const auto& items = page.at("items");
             if (items.size() == 1 && items[0].at("state") != "recorded") {

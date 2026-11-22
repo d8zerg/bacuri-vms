@@ -56,6 +56,11 @@ export function fixture(condition = "normal"): Services {
     expires_at: utc(3600),
     site_roles: [{ site_id: site, role: "administrator" }],
   };
+  if (condition === "multiple-sites")
+    session.site_roles.push({
+      site_id: "production-warehouse-north-entrance",
+      role: "operator",
+    });
   let signedIn = condition !== "login";
   let disconnected = condition === "session-offline";
   let attempt = 0,

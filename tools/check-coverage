@@ -23,6 +23,7 @@ done
 "${run[@]}" -e "BACURI_WORKSPACE_RESULTS=/workspace/$report/commissioning" \
     dev sh tests/check-control.sh gcc-coverage commissioning
 
+bash tests/access/isolated.sh gcc-coverage
 python3 tools/check-recovery gcc-coverage
 
 "${run[@]}" quality gcovr --gcov-executable gcov-14 --filter 'src/' -j 2 \

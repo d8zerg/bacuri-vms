@@ -420,7 +420,7 @@ def main():
         site.wait()
         ledger = "bacuri_meta" if query(cmd, "SELECT to_regclass('bacuri_meta.schema_migrations') IS NOT NULL") == "t" else "bacuri_inventory"
         source_schema = int(query(cmd, f"SELECT max(version) FROM {ledger}.schema_migrations"))
-        assert source_schema in (14, 15, 16, 17, 18, 19), source_schema
+        assert source_schema in (14, 15, 16, 17, 18, 19, 20), source_schema
         old_id = site.enroll(cmd, code)
         a = site.login()
         s, _, camera = site.api(
@@ -458,6 +458,9 @@ def main():
             lock_table = "bacuri_maps.floor_plans"
             blocked_statement = "ALTER TABLE bacuri_maps.floor_plans"
         lock_mode = "ACCESS SHARE"
+        if source_schema == 20:
+            lock_table = "bacuri_access.site_roles"
+            blocked_statement = "ALTER TABLE bacuri_access.site_roles"
         if source_schema == 19:
             lock_table = "bacuri_maps.map_sources"
             blocked_statement = "CREATE INDEX map_sources_pending"
@@ -470,6 +473,7 @@ terminated=''
 for i in {{1..900}}; do
  terminated=$({PSQL} -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='bacuri_vms' AND wait_event_type='Lock' AND query LIKE '%{blocked_statement}%'")
  [[ $terminated != t ]] || break
+ kill -0 "$update" 2>/dev/null || break
  sleep .1
 done
 test "$terminated" = t
@@ -496,7 +500,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
         cmd(
             "test ! -f /var/lib/bacuri-maintenance/pending; systemctl is-active --quiet bacuri-core bacuri-media bacuri-recorder"
         )
-        assert query(cmd, "SELECT max(version) FROM bacuri_meta.schema_migrations") == "20"
+        assert query(cmd, "SELECT max(version) FROM bacuri_meta.schema_migrations") == "21"
         forbidden = (
             password,
             code,
@@ -624,7 +628,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
             {
                 "status": "passed",
                 "source_schema": source_schema,
-                "target_schema": 20,
+                "target_schema": 21,
                 "interrupted_migration_retried": True,
                 "rollback_schema": source_schema,
                 "independent_root": True,

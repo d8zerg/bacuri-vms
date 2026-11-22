@@ -2,6 +2,8 @@
 #include "control/inventory/registry.hpp"
 #include "control/export.hpp"
 #include "control/api.hpp"
+#include "control/access/admin.hpp"
+#include "control/access/oidc.hpp"
 #include "control/maps.hpp"
 #include "control/alerts.hpp"
 #include "control/alert_work.hpp"
@@ -39,7 +41,8 @@ namespace
 {
 bool workspace_page(std::string_view path)
 {
-    return path == "/audit" || path == "/" || path == "/maps" || path == "/monitor" || path == "/cameras";
+    return path == "/access" || path == "/audit" || path == "/" || path == "/maps" || path == "/monitor" ||
+           path == "/cameras";
 }
 
 void workspace_file(const Request& req, Response& res, std::string_view path)
@@ -120,6 +123,28 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
         }
         return playback.session(req, res, id, slash == path.npos ? std::string_view{} : path.substr(slash + 1));
     }
+    constexpr std::string_view oidc = "/api/v1/session/oidc/";
+    if (path.starts_with(oidc)) {
+        res.set("Referrer-Policy", "no-referrer");
+        try {
+            return sessions.corporate(req, res, path.substr(oidc.size()));
+        } catch (const Failure& e) {
+            if (!std::string_view(req[http::field::accept]).contains("text/html") ||
+                (e.code != "invalid_identity" && e.code != "identity_unavailable"))
+                throw;
+            res.result(e.status);
+            res.set(http::field::content_type, "text/html; charset=utf-8");
+            res.set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+            res.body() = "<!doctype html><html lang=ru><meta charset=utf-8><meta name=viewport "
+                         "content='width=device-width,initial-scale=1'>"
+                         "<title>Вход | Bacuri VMS</title><main><h1>Корпоративный вход</h1><p>";
+            res.body() += e.status == 503 ? "Провайдер недоступен."
+                                          : "Не удалось подтвердить личность или требуемый уровень MFA.";
+            res.body() +=
+                "</p><p>" + e.code + "</p><a href='/monitor'>Вернуться к локальному входу</a></main></html>";
+            return;
+        }
+    }
     if (path == "/api/v1/session/webauthn") {
         allow(req, res, {http::verb::post});
         return sessions.factor(req, res);
@@ -138,6 +163,8 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     }
     const std::string site{path.substr(0, separator)};
     path.remove_prefix(separator + 1);
+    if (access::administration(req, res, sessions, key, site, path))
+        return;
     if (path == "maps" || path.starts_with("maps/"))
         return maps(req, res, sessions, site, path, origin);
     if (path == "alerts" || path == "alerts/stream") {
@@ -265,6 +292,7 @@ void serve()
     MediaAuthority authority;
     Observations observations;
     const Sessions sessions{key, origin};
+    std::jthread identities{[&](std::stop_token stop) { access::refresh_identities(stop, key); }};
     const Playback playback{sessions, key};
     auto networks = CameraNetworks::configured();
     auto policy = Json(networks.legacy_addresses()).dump();

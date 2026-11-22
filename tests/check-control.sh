@@ -60,6 +60,11 @@ psql -Xq -v ON_ERROR_STOP=1 -c "INSERT INTO bacuri_inventory.sites VALUES ('$BAC
 "$BACURI_TEST_BIN/bacuri-vms-core" migrate
 "$BACURI_TEST_BIN/bacuri-vms-core" migrate
 case "${2:-control}" in
+    access)
+        export BACURI_ORIGIN=https://workspace.test:8443 BACURI_LISTEN=0.0.0.0
+        openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -noenc -days 1 -subj /CN=workspace.test \
+            -addext 'subjectAltName=DNS:localhost,DNS:workspace.test' -keyout "$BACURI_TLS_KEY" -out "$BACURI_TLS_CERT" 2>/dev/null
+        PYTHONDONTWRITEBYTECODE=1 python3 tests/access/scenario.py "$test_dir" ;;
     control) python3 tests/control/registry.py "$test_dir" ;;
     recovery)
         ctest --test-dir "$BACURI_TEST_BIN" -R PublicationDeathTest --no-tests=error --output-on-failure \

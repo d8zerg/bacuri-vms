@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bacuri-vms VERSION 0.1.6 LANGUAGES CXX)
+project(bacuri-vms VERSION 0.1.7 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -105,14 +105,18 @@ target_link_libraries(bacuri-vms-observation-source PRIVATE bacuri-vms-rpc bacur
 add_library(bacuri-maintenance-common STATIC src/core/maintenance_process.cpp src/core/maintenance_bundle.cpp)
 add_executable(bacuri-install src/core/install.cpp)
 target_link_libraries(bacuri-install PRIVATE bacuri-maintenance-common)
-target_link_options(bacuri-install PRIVATE -static)
+# The sanitizer runtimes need a dynamic loader. The offline installer is linked statically for distribution.
+if(NOT CMAKE_CXX_FLAGS MATCHES "-fsanitize=")
+    target_link_options(bacuri-install PRIVATE -static)
+endif()
 add_executable(bacuri-maintain src/core/maintenance.cpp src/core/maintenance_crypto.cpp src/core/maintenance_diagnostics.cpp
     src/control/database.cpp src/control/archive_recovery.cpp src/control/media_sessions/operations.cpp)
+target_compile_definitions(bacuri-maintain PRIVATE BACURI_VMS_VERSION="${PROJECT_VERSION}")
 target_link_libraries(bacuri-maintain PRIVATE bacuri-maintenance-common bacuri-vms-volume PostgreSQL::PostgreSQL)
 add_executable(bacuri-vms src/core/site_admin.cpp)
 target_link_libraries(bacuri-vms PRIVATE bacuri-vms-control-support OpenSSL::Crypto)
 add_executable(bacuri-vms-core src/core/main.cpp
-    src/control/access/operations.cpp src/control/inventory/operations.cpp src/control/events/operations.cpp
+    src/control/access/admin.cpp src/control/access/oidc.cpp src/control/access/operations.cpp src/control/inventory/operations.cpp src/control/events/operations.cpp
     src/control/recordings/operations.cpp src/control/media_sessions/operations.cpp
     src/control/inventory/configuration.cpp src/control/access/configuration.cpp src/control/maps/configuration.cpp src/control/recordings/configuration.cpp
     src/control/configuration_snapshot.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/registry.cpp src/control/onvif.cpp src/control/camera_events.cpp src/control/inventory/telemetry.cpp src/control/maps/orientation.cpp src/control/maps/georeference.cpp

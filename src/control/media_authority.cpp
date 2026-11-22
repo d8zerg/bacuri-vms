@@ -35,8 +35,10 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
         const Window bounds{utc_us(q->archive().start()), utc_us(q->archive().end())};
         Database db;
         db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-        const auto expiry =
-            access::browser_point_expiry(db, q->browser_session_id(), q->point().site_id(), q->point().point_id());
+        const auto expiry = access::browser_point_expiry(db, q->browser_session_id(), q->point().site_id(),
+                                                         q->point().point_id(), q->has_live() ? "live" : "archive",
+                                                         q->has_live() ? "" : std::to_string(bounds.start),
+                                                         q->has_live() ? "" : std::to_string(bounds.end));
         if (!expiry)
             return {grpc::StatusCode::PERMISSION_DENIED, "No applicable media session"};
         const auto rows = db.exec(R"sql(

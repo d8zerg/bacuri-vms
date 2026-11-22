@@ -56,6 +56,7 @@ tasks:
       - task: secrets:check
       - task: format:check
       - task: docs:check
+      - task: access:check
       - task: camera:check
       - task: camera:commissioning
       - task: release:check
@@ -376,6 +377,16 @@ tasks:
       - docker compose up -d --wait playback-chrome playback-firefox
       - defer: docker compose stop playback-chrome playback-firefox
       - '{{.DEV_RUN}} env BACURI_TEST_CAMERA_HOST={{.CAMERA | shellQuote}} sh tests/check-control.sh {{.PRESET | shellQuote}} live'
+
+  access:check:
+    desc: Verify local and Keycloak sessions, site administration and access revocation in an isolated installation
+    deps:
+      - web:build
+      - task: build
+        vars: {PRESET: gcc-debug}
+    cmds:
+      - docker compose build postgres rtsp-camera
+      - bash tests/access/isolated.sh gcc-debug
 
   api:check:
     desc: Validate OpenAPI, Protobuf and WebSocket schemas and examples

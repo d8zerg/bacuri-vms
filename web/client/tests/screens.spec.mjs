@@ -3,6 +3,156 @@ async function open(page, story) {
   await page.goto("/iframe.html?viewMode=story&id=workspace--" + story);
   await expect(page.locator("main h1")).toBeVisible();
 }
+
+test("Workspace theme follows the system, supports keyboard selection and survives reload and logout", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.emulateMedia({ colorScheme: "light" });
+  await open(page, "monitor");
+  const theme = page.getByRole("radiogroup", { name: "Тема оформления" });
+  const system = theme.getByRole("radio", { name: "Системная тема" });
+  const dark = theme.getByRole("radio", { name: "Тёмная тема" });
+  const light = theme.getByRole("radio", { name: "Светлая тема" });
+  const logout = page.getByRole("button", { name: "Выйти" });
+  const canvas = page.locator("body");
+  const lightColor = "rgb(247, 244, 237)";
+  const darkColor = "rgb(30, 30, 30)";
+  await expect(system).toBeChecked();
+  await expect(canvas).toHaveCSS("background-color", lightColor);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(canvas).toHaveCSS("background-color", darkColor);
+  await system.press("ArrowRight");
+  await expect(dark).toBeChecked();
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(canvas).toHaveCSS("background-color", darkColor);
+  await page.reload();
+  await expect(dark).toBeChecked();
+  await expect(canvas).toHaveCSS("background-color", darkColor);
+  await dark.press("ArrowRight");
+  await expect(light).toBeChecked();
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(canvas).toHaveCSS("background-color", lightColor);
+  const otherTab = await page.context().newPage();
+  await open(otherTab, "monitor");
+  await expect(
+    otherTab.getByRole("radio", { name: "Светлая тема" }),
+  ).toBeChecked();
+  await system.check();
+  await expect(
+    otherTab.getByRole("radio", { name: "Системная тема" }),
+  ).toBeChecked();
+  await otherTab.close();
+  await expect(canvas).toHaveCSS("background-color", darkColor);
+  await light.check();
+  await page.getByRole("link", { name: "Журнал тревог" }).click();
+  await expect(light).toBeChecked();
+  await expect(logout).toHaveAttribute("title", "Выйти");
+  await expect(logout).toHaveText("");
+  await logout.click();
+  await expect(
+    page.getByRole("heading", { name: "Вход в Bacuri VMS" }),
+  ).toBeVisible();
+  await expect(canvas).toHaveCSS("background-color", lightColor);
+});
+
+test("Workspace navigation keeps icons level and labels inside touch targets", async ({
+  page,
+}) => {
+  await open(page, "monitor");
+  await page.evaluate(() => document.fonts.ready);
+  const nav = page.getByRole("navigation", { name: "Рабочее место" });
+  const links = nav.getByRole("link");
+  await expect(links).toHaveCount(5);
+  for (const width of [
+    320, 360, 390, 448, 449, 600, 752, 768, 1041, 1080, 1280, 1281, 1440,
+  ]) {
+    await page.setViewportSize({ width, height: 900 });
+    const brand = await page.locator(".ws-brand").boundingBox();
+    const switcher = await page
+      .getByRole("radiogroup", { name: "Тема оформления" })
+      .boundingBox();
+    const logout = await page
+      .getByRole("button", { name: "Выйти" })
+      .boundingBox();
+    expect(switcher.x).toBeGreaterThanOrEqual(brand.x + brand.width);
+    expect(logout.x).toBeGreaterThan(switcher.x + switcher.width);
+    expect(logout.x + logout.width).toBeLessThanOrEqual(width);
+    const menu = await nav.boundingBox();
+    if (
+      menu.y < switcher.y + switcher.height &&
+      switcher.y < menu.y + menu.height
+    ) {
+      expect(switcher.x).toBeGreaterThan(menu.x + menu.width);
+    }
+    expect(
+      Math.abs(switcher.y + switcher.height / 2 - (brand.y + brand.height / 2)),
+    ).toBeLessThan(1);
+    expect(Math.abs(logout.y - switcher.y)).toBeLessThan(1);
+    await expect(
+      nav.getByRole("link", { name: "Журнал тревог", exact: true }),
+    ).toHaveText(width <= 448 ? "Журнал" : "Журнал тревог", {
+      useInnerText: true,
+    });
+    await expect(
+      nav.getByRole("link", { name: "Карты и планы", exact: true }),
+    ).toHaveText(width <= 448 ? "Карты" : "Карты и планы", {
+      useInnerText: true,
+    });
+    expect(
+      await nav.evaluate((el) => el.scrollWidth - el.clientWidth),
+    ).toBeLessThanOrEqual(1);
+    const items = await links.evaluateAll((nodes) =>
+      nodes.map((link) => {
+        const box = link.getBoundingClientRect();
+        const icon = link.querySelector("svg").getBoundingClientRect();
+        const label = link.querySelector("span").getBoundingClientRect();
+        return {
+          iconY: icon.top,
+          labelY: label.top,
+          width: box.width,
+          height: box.height,
+          inset: Math.min(
+            label.left - box.left,
+            box.right - label.right,
+            box.bottom - label.bottom,
+          ),
+        };
+      }),
+    );
+    for (const item of items) {
+      expect(Math.abs(item.iconY - items[0].iconY)).toBeLessThan(1);
+      expect(Math.abs(item.labelY - items[0].labelY)).toBeLessThan(1);
+      expect(item.inset).toBeGreaterThanOrEqual(3);
+      if (width <= 752) {
+        expect(Math.min(item.width, item.height)).toBeGreaterThanOrEqual(44);
+      }
+    }
+  }
+});
+test("The site selector fits below the header controls on a narrow screen", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto(
+    "/iframe.html?viewMode=story&id=workspace--monitor&args=condition:multiple-sites",
+  );
+  const selector = page.getByRole("combobox", { name: "Площадка" });
+  await expect(selector).toBeVisible();
+  await expect(selector.locator("option")).toHaveCount(2);
+  const field = await selector.boundingBox();
+  const controls = await page
+    .getByRole("button", { name: "Выйти" })
+    .boundingBox();
+  const menu = await page
+    .getByRole("navigation", { name: "Рабочее место" })
+    .boundingBox();
+  expect(field.y).toBeGreaterThanOrEqual(controls.y + controls.height);
+  expect(menu.y).toBeGreaterThanOrEqual(field.y + field.height);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    320,
+  );
+});
 test("Installer binds both streams and can confirm only a decoded archive frame", async ({
   page,
 }) => {

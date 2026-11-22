@@ -14,7 +14,8 @@ OBJECTS = {
         configuration_progress camera_registry recorder_delivery recorder_attempt registration_requests configuration_audit
         camera_configuration_state camera_state camera_transport_audit record_camera_transport_policy ptz_commands ptz_telemetry""",
     "access": """local_users site_roles point_grants browser_sessions login_attempts export_grants webauthn_credentials
-        webauthn_enrollment webauthn_challenges credential_audit invalidate_role_sessions audit_credential_binding""",
+        webauthn_enrollment webauthn_challenges credential_audit resource_groups group_points scoped_grants effective_grants privacy_policies identity_providers
+        external_identities oidc_requests policy_versions access_audit can_use audit_policy_change invalidate_role_sessions audit_credential_binding""",
     "recordings": """blocks gaps retired_through catalog_intervals timeline_intervals retained_blocks archive_retention archive_recovery
         retention_now_us retention_cutoff advance_cutoff playback_parts""",
     "media_sessions": "media_sessions",
@@ -45,7 +46,7 @@ PUBLIC = set("""
     api.hpp http.hpp support.hpp playback_time.hpp database.hpp recovery.hpp configuration_snapshot.hpp
     archive_catalog.hpp maps.hpp alerts.hpp alert_work.hpp observations.hpp delivery.hpp media_authority.hpp
     playback.hpp export.hpp access/enrollment.hpp inventory/camera_events.hpp access/session.hpp inventory/registry.hpp
-    access/operations.hpp inventory/operations.hpp inventory/telemetry.hpp events/operations.hpp recordings/operations.hpp media_sessions/operations.hpp
+    access/operations.hpp access/admin.hpp access/oidc.hpp inventory/operations.hpp inventory/telemetry.hpp events/operations.hpp recordings/operations.hpp media_sessions/operations.hpp
     access/configuration.hpp inventory/configuration.hpp recordings/configuration.hpp maps/configuration.hpp
     access/restore.hpp inventory/restore.hpp
 """.split())
@@ -90,7 +91,7 @@ LEGACY_NAMES = {
     Path("src/control/media_sessions/operations.cpp"): {"media_sessions"},
 }
 FUNCTION_NAMES = {
-    "advance_cutoff", "retention_cutoff", "retention_now_us", "audit_credential_binding",
+    "can_use", "advance_cutoff", "retention_cutoff", "retention_now_us", "audit_credential_binding",
     "invalidate_role_sessions", "record_camera_transport_policy", "touch_alert_scope", "protect_alert_audit",
 }
 def sql_references(query):

@@ -57,6 +57,8 @@ int schema_for(std::string v)
         return 19;
     if (v == "0.1.6-1")
         return 20;
+    if (v == "0.1.7-1")
+        return 21;
     throw std::runtime_error("Unsupported Bacuri VMS package version");
 }
 const char* version_query(int schema)
@@ -268,6 +270,8 @@ void load_snapshot(const Temp& tmp, const Json& info)
     using namespace bacuri::vms::control;
     std::string reset = info.at("schema") < 16 ? access::legacy_restore_search_path : access::restore_search_path;
     reset += access::reset_sessions;
+    if (info.at("schema") >= 21)
+        reset += access::reset_oidc_requests;
     reset += inventory::reset_recorder;
     if (info.at("schema") >= 15)
         reset += access::audit_restore;
@@ -298,7 +302,7 @@ void operate(const std::string& action, char** v)
     ensure(fs::is_directory(file.parent_path()), "Snapshot directory does not exist");
     validate_recovery_key(key);
     if (action == "upgrade") {
-        ensure(target == 20, "Unsupported upgrade target");
+        ensure(target == schema_for(BACURI_VMS_VERSION "-1"), "Unsupported upgrade target");
         if (!resumed || !fs::exists(file)) {
             const auto current = installed_package().version;
             const int source = schema_for(current);

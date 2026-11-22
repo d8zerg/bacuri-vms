@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { globSync, readFileSync } from "node:fs";
-import { basename } from "node:path";
+import { existsSync, globSync, readFileSync } from "node:fs";
+import { basename, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { coverageReport, assertCoverage } from "./coverage.mjs";
 const report = coverageReport(true);
 const runs = globSync("/results/chrome/*.json");
@@ -10,12 +11,18 @@ for (const file of runs) {
   assert.ok(scripts.length);
   await report.add(
     scripts.map((script) => {
-      const path =
-        "/results/client/assets/" + basename(new URL(script.url).pathname);
+      const name = basename(new URL(script.url).pathname);
+      const path = "/results/client/assets/" + name;
+      const source = readFileSync(path, "utf8");
+      const publicAsset = resolve("public/assets", name);
+      if (existsSync(publicAsset)) {
+        assert.equal(source, readFileSync(publicAsset, "utf8"));
+        return { ...script, url: pathToFileURL(publicAsset).href, source };
+      }
       return {
         ...script,
         url: "file://" + path,
-        source: readFileSync(path, "utf8"),
+        source,
         sourceMap: JSON.parse(readFileSync(path + ".map", "utf8")),
       };
     }),

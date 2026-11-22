@@ -3,6 +3,7 @@
 #include "control/recordings/operations.hpp"
 #include "control/api.hpp"
 #include "control/access/enrollment.hpp"
+#include "control/access/oidc.hpp"
 #include "control/playback_time.hpp"
 #include "archive/evidence.hpp"
 #include "control/recovery.hpp"
@@ -79,6 +80,25 @@ try {
             std::cout << enrollment_code(argv[2]) << '\n';
     } else if (action == "create-user" && argc == 4) {
         provision(argv[2], argv[3]);
+    } else if ((action == "configure-oidc" && argc == 5) || (action == "bind-identity" && argc == 5)) {
+        Database db;
+        const auto site = setting("BACURI_SITE_ID");
+        db.exec("BEGIN");
+        access::lock_policy(db, site);
+        if (action == "configure-oidc") {
+            std::string secret;
+            if (!std::getline(std::cin, secret))
+                throw std::invalid_argument("Expected client secret on stdin");
+            access::configure_provider(db, load_key(setting("BACURI_KEY_FILE")), site,
+                                       {{"enabled", true},
+                                        {"issuer", argv[2]},
+                                        {"client_id", argv[3]},
+                                        {"admin_acr", argv[4]},
+                                        {"client_secret", secret}});
+        } else {
+            access::bind_identity(db, site, argv[2], {{"issuer", argv[3]}, {"subject", argv[4]}});
+        }
+        db.exec("COMMIT");
     } else if (action == "export-public-key" && argc == 2) {
         std::cout << bacuri::vms::archive::export_public_key(load_key(setting("BACURI_EXPORT_KEY_FILE")),
                                                              setting("BACURI_SITE_ID"))
@@ -87,23 +107,28 @@ try {
     } else if ((action == "grant-export" && argc == 6) || (action == "revoke-export" && argc == 4)) {
         Database db;
         const auto site = setting("BACURI_SITE_ID");
+        db.exec("BEGIN");
+        access::lock_policy(db, site);
         if (action == "revoke-export") {
             access::revoke_export(db, {.site = site, .username = argv[2], .point = argv[3]});
         } else {
             const auto a = parse_utc(argv[4]), b = parse_utc(argv[5]);
-            db.exec("BEGIN");
             if (!inventory::lock_point(db, site, argv[3]))
                 throw std::invalid_argument("User has no access to this point");
             access::grant_export(db, {.site = site, .username = argv[2], .point = argv[3]}, a, b);
-            db.exec("COMMIT");
         }
+        db.exec("COMMIT");
     } else if (action == "recover-admin" && argc == 3) {
         std::cout << enrollment_code(argv[2], Enrollment::recovery) << '\n';
     } else if (action == "enroll-admin" && argc == 3) {
         std::cout << enrollment_code(argv[2]) << '\n';
     } else if (action == "revoke-point" && argc == 4) {
         Database db;
-        access::revoke_point(db, {.site = setting("BACURI_SITE_ID"), .username = argv[2], .point = argv[3]});
+        const auto site = setting("BACURI_SITE_ID");
+        db.exec("BEGIN");
+        access::lock_policy(db, site);
+        access::revoke_point(db, {.site = site, .username = argv[2], .point = argv[3]});
+        db.exec("COMMIT");
     } else if (action == "grant-point" && argc == 4) {
         Database db;
         access::grant_point(db, {.site = setting("BACURI_SITE_ID"), .username = argv[2], .point = argv[3]});
@@ -112,6 +137,7 @@ try {
             "Usage: bacuri-vms-core --version | serve | migrate | backup-config | restore-config | "
             "recovery-status | set-retention DAYS [RESERVE_PERCENT] | rebuild-archive | import-map "
             "REGION.mbtiles | create-user USER ROLE | "
+            "configure-oidc ISSUER CLIENT_ID ADMIN_ACR | bind-identity USER_ID ISSUER SUBJECT | "
             "enroll-admin USER | recover-admin USER | revoke-point USER POINT | grant-point USER "
             "POINT | grant-export USER POINT START_UTC END_UTC | revoke-export USER POINT | export-public-key\n",
             stderr);

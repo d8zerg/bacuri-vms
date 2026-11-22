@@ -42,6 +42,7 @@ AlertFeed::Scope AlertFeed::scope(Database& db) const
                               {site_, who.user});
     return {who.user,
             Json::array({"alerts", site_, who.user, fingerprint(key_, "session", who.cookie)}).dump(),
+            access::scope_revision(db, site_),
             std::stoll(rows.get(0)),
             std::stoll(rows.get(0, 1)),
             std::stoll(rows.get(0, 2)),
@@ -51,7 +52,8 @@ AlertFeed::Scope AlertFeed::scope(Database& db) const
 std::string AlertFeed::cursor(const Scope& rights, std::int64_t position, bool pending) const
 {
     return seal(key_, rights.context,
-                Json::array({rights.revision, position, pending, rights.work_revision}).dump())
+                Json::array({rights.revision, position, pending, rights.work_revision, rights.policy_revision})
+                    .dump())
         .substr(3);
 }
 void AlertFeed::authorize()
@@ -89,6 +91,7 @@ FeedBatch AlertFeed::poll(std::string_view after)
             revision_ = state.at(0).get<std::int64_t>();
             position_ = state.at(1).get<std::int64_t>();
             pending_ = state.at(2).get<bool>();
+            policy_revision_ = state.size() > 4 ? state.at(4).get<std::string>() : "0";
             work_revision_ = state.size() > 3 ? state.at(3).get<std::int64_t>() : 0;
         } catch (const std::exception&) {
             return resync("cursor_invalid");
@@ -99,7 +102,7 @@ FeedBatch AlertFeed::poll(std::string_view after)
         resume_head_ = rights.head;
         subscribed_ = true;
     }
-    if (revision_ != rights.revision) {
+    if (revision_ != rights.revision || policy_revision_ != rights.policy_revision) {
         return resync("scope_changed");
     }
     if (position_ < rights.floor - 1 || (pending_ && position_ < rights.floor)) {

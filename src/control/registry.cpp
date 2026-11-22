@@ -228,12 +228,15 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
 {
     Database db;
     db.exec("BEGIN");
+    access::lock_policy(db, site, true);
     auto user = sessions_.authenticate(db, req, true);
     auto role = site_role(db, user, site);
     const bool visible = role == "administrator" ? inventory::lock_point(db, site, point)
                                                  : access::lock_point_grant(db, site, point, user.user);
     if (!visible)
         throw Failure{404, "not_found"};
+    if (!access::allowed(db, site, user.user, point, "ptz"))
+        throw Failure{403, "forbidden"};
     auto body = object_body(req, {"device_id", "command"});
     auto device = string_field(body, "device_id", 36);
     auto command = string_field(body, "command", 16);
@@ -321,13 +324,13 @@ void CameraRegistry::points(const Request& req, Response& res, const std::string
     db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const auto identity = sessions_.authenticate(db, req, false, false);
     const bool admin = access::site_role(db, site, identity.user, access::RoleLock::read) == "administrator";
-    auto rows =
-        db.exec(R"sql(
+    auto rows = db.exec(
+        R"sql(
             SELECT coalesce(jsonb_agg(jsonb_build_object('id',p.point_id,'name',p.name,
               'connection','unknown','recording','unknown') ||
               CASE WHEN p.point_id=ANY($3::uuid[])
               THEN jsonb_build_object('can_export',true) ELSE '{}'::jsonb END ||
-              CASE WHEN r.sealed_credentials IS NOT NULL AND jsonb_array_length(cfg.settings->'onvif_control'->'directions')>0
+              CASE WHEN ($4::boolean OR p.point_id=ANY($5::uuid[])) AND r.sealed_credentials IS NOT NULL AND jsonb_array_length(cfg.settings->'onvif_control'->'directions')>0
               THEN jsonb_build_object('ptz',jsonb_build_object('device_id',r.device_id,'commands',cfg.settings->'onvif_control'->'directions'))
               ELSE '{}'::jsonb END ORDER BY p.point_id),'[]')
             FROM bacuri_inventory.observation_points p LEFT JOIN bacuri_inventory.camera_registry r USING(site_id,point_id)
@@ -335,8 +338,9 @@ void CameraRegistry::points(const Request& req, Response& res, const std::string
             LEFT JOIN bacuri_inventory.configuration_versions cfg ON (cfg.site_id,cfg.device_id,cfg.revision)=(r.site_id,r.device_id,cp.desired_revision)
             WHERE p.site_id=$1 AND ($4::boolean OR p.point_id=ANY($2::uuid[]))
         )sql",
-                {site, admin ? "{}" : array_parameter(access::granted_point_ids(db, site, identity.user)),
-                 array_parameter(access::export_point_ids(db, site, identity.user)), admin ? "true" : "false"});
+        {site, admin ? "{}" : array_parameter(access::granted_point_ids(db, site, identity.user, "view", true)),
+         array_parameter(access::export_point_ids(db, site, identity.user)), admin ? "true" : "false",
+         array_parameter(access::granted_point_ids(db, site, identity.user, "ptz"))});
     db.exec("COMMIT");
     respond(res, Json::parse(rows.get(0)));
 }
@@ -347,18 +351,31 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
     const bool write = create || req.method() == http::verb::put;
     Database db;
     db.exec("BEGIN");
+    if (write)
+        access::lock_policy(db, site, true);
     const auto identity = sessions_.authenticate(db, req, write);
-    if (site_role(db, identity, site) != "administrator") {
-        throw Failure{403, "forbidden"};
-    }
+    const bool admin = site_role(db, identity, site) == "administrator";
     if (!device.empty() && !canonical_id(device)) {
         throw Failure{404, "not_found"};
     }
+    std::vector<std::string> configurable;
+    if (!admin) {
+        configurable = access::granted_point_ids(db, site, identity.user, "configure");
+        if (create || configurable.empty())
+            throw Failure{403, "forbidden"};
+        if (!device.empty() && !db.exec("SELECT FROM bacuri_inventory.camera_registry WHERE site_id=$1 AND "
+                                        "device_id=$2 AND point_id=ANY($3::uuid[])",
+                                        {site, device, array_parameter(configurable)})
+                                    .size())
+            throw Failure{403, "forbidden"};
+    }
+
     if (!write) {
         if (device.empty()) {
-            auto rows = db.exec("SELECT coalesce(jsonb_agg(body ORDER BY device_id),'[]') FROM "
-                                "bacuri_inventory.camera_state WHERE site_id=$1",
-                                {site});
+            auto rows = db.exec(
+                "SELECT coalesce(jsonb_agg(body ORDER BY device_id),'[]') FROM "
+                "bacuri_inventory.camera_state WHERE site_id=$1 AND ($2::boolean OR point_id=ANY($3::uuid[]))",
+                {site, admin ? "true" : "false", array_parameter(configurable)});
             respond(res, Json::parse(rows.get(0)));
         } else {
             auto current = camera(db, site, device);

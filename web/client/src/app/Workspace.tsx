@@ -14,6 +14,7 @@ import type { Feed, Point, Services, Session } from "../contracts/workspace";
 import { HttpFailure } from "../adapters/api";
 import { Installer } from "./installer";
 import { Monitor } from "./monitor";
+import { ThemeSwitch, useWorkspaceTheme } from "./WorkspaceTheme";
 import { Button } from "../ui-kit/FormControls";
 import icons from "../../../../design/bacuri/icons/sprite.svg";
 import mark from "../../../../design/bacuri/brand/mark.svg";
@@ -21,6 +22,7 @@ import "./workspace.css";
 const Audit = lazy(() =>
   import("./AlertWork").then((m) => ({ default: m.AlertAudit })),
 );
+const Access = lazy(() => import("./Access"));
 const Maps = lazy(() => import("./Maps"));
 const waiting: Feed = { items: [], status: "loading" };
 function Login({
@@ -35,6 +37,22 @@ function Login({
   const [notice, setNotice] = useState(message),
     [busy, setBusy] = useState(false),
     [enroll, setEnroll] = useState(false);
+  const [corporate, setCorporate] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/v1/session/oidc/methods", {
+      signal: controller.signal,
+      cache: "no-store",
+    })
+      .then(
+        async (res) => res.ok && ((await res.json()) as { oidc: boolean }).oidc,
+      )
+      .then((enabled) => {
+        if (!controller.signal.aborted) setCorporate(enabled === true);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
   const enrollmentInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (enroll) enrollmentInput.current?.focus();
@@ -120,6 +138,9 @@ function Login({
           {busy ? "Выполняется вход…" : "Войти"}
         </Button>
       </form>
+      {corporate && (
+        <a href="/api/v1/session/oidc/start">Войти через Keycloak</a>
+      )}
       <p role="status">{notice}</p>
     </main>
   );
@@ -272,12 +293,18 @@ function Site({
   );
 }
 function Workspace({ services }: { services: Services }) {
+  const theme = useWorkspaceTheme();
   const [identity, setIdentity] = useState<Session | null | undefined>(
     undefined,
   );
   const [message, setMessage] = useState("");
   const [sessionFailed, setSessionFailed] = useState(false);
   const [sessionAttempt, setSessionAttempt] = useState(0);
+  useEffect(() => {
+    const channel = new BroadcastChannel("bacuri-session");
+    channel.onmessage = () => setSessionAttempt((n) => n + 1);
+    return () => channel.close();
+  }, []);
   const [params, setParams] = useSearchParams();
   const location = useLocation();
   const path = location.pathname.replace(/\/$/, "");
@@ -305,6 +332,7 @@ function Workspace({ services }: { services: Services }) {
     {
       "/maps": "Карты и планы",
       "/audit": "Журнал тревог",
+      "/access": "Доступ и пользователи",
       "/cameras": "Подключение камеры",
     }[path] ?? "Мониторинг";
   useEffect(() => {
@@ -332,7 +360,7 @@ function Workspace({ services }: { services: Services }) {
     );
   if (identity === undefined)
     return (
-      <main className="ws-pad" role="status">
+      <main className="ws-startup" role="status">
         Загрузка сеанса…
       </main>
     );
@@ -370,29 +398,42 @@ function Workspace({ services }: { services: Services }) {
             <svg aria-hidden="true">
               <use href={icons + "#i-monitor-play"} />
             </svg>
-            Мониторинг
+            <span>Мониторинг</span>
           </NavLink>
           <NavLink
             className="ws-audit-link"
+            aria-label="Журнал тревог"
             to={"/audit?" + auditQuery.toString()}
           >
             <svg aria-hidden="true">
               <use href={icons + "#i-bell-ring"} />
             </svg>
-            Журнал тревог
+            <span>
+              Журнал<span className="ws-nav-detail"> тревог</span>
+            </span>
           </NavLink>
-          <NavLink to={"/maps" + query}>
+          <NavLink to={"/maps" + query} aria-label="Карты и планы">
             <svg aria-hidden="true">
               <use href={icons + "#i-map"} />
             </svg>
-            Карты и планы
+            <span>
+              Карты<span className="ws-nav-detail"> и планы</span>
+            </span>
           </NavLink>
+          {site?.role === "administrator" && (
+            <NavLink to={"/access" + query}>
+              <svg aria-hidden="true">
+                <use href={icons + "#i-shield-check"} />
+              </svg>
+              <span>Доступ</span>
+            </NavLink>
+          )}
           {site?.role === "administrator" && (
             <NavLink to={"/cameras" + query}>
               <svg aria-hidden="true">
                 <use href={icons + "#i-cctv"} />
               </svg>
-              Камеры
+              <span>Камеры</span>
             </NavLink>
           )}
         </nav>
@@ -403,7 +444,7 @@ function Workspace({ services }: { services: Services }) {
             </span>
           )}
           {identity.site_roles.length > 1 && (
-            <label>
+            <label className="ws-site-select">
               Площадка{" "}
               <select
                 value={site?.site_id ?? ""}
@@ -420,24 +461,48 @@ function Workspace({ services }: { services: Services }) {
               </select>
             </label>
           )}
-          <Button
-            onClick={() => {
-              void services
-                .logout()
-                .then(() => {
-                  setMessage("");
-                  setIdentity(null);
-                })
-                .catch(() => setMessage("Не удалось завершить сеанс"));
-            }}
-          >
-            Выйти
-          </Button>
+          <div className="ws-session-actions">
+            <ThemeSwitch {...theme} />
+            <Button
+              className="ws-logout"
+              title="Выйти"
+              aria-label="Выйти"
+              onClick={() => {
+                void services
+                  .logout()
+                  .then(() => {
+                    setMessage("");
+                    setIdentity(null);
+                    const channel = new BroadcastChannel("bacuri-session");
+                    channel.postMessage("logout");
+                    channel.close();
+                  })
+                  .catch(() => setMessage("Не удалось завершить сеанс"));
+              }}
+            >
+              <svg aria-hidden="true">
+                <use href={icons + "#i-log-out"} />
+              </svg>
+            </Button>
+          </div>
         </div>
       </header>
       <main id="workspace" tabIndex={-1}>
         {message && <p role="status">{message}</p>}
-        {site ? (
+        {site && path === "/access" ? (
+          site.role === "administrator" ? (
+            <Suspense fallback={<p role="status">Загрузка прав</p>}>
+              <Access
+                key={site.site_id}
+                site={site.site_id}
+                session={identity}
+                expire={expired}
+              />
+            </Suspense>
+          ) : (
+            <p role="status">Недостаточно прав</p>
+          )
+        ) : site ? (
           <Site
             key={site.site_id}
             services={services}
@@ -485,7 +550,7 @@ export function WorkspaceRouter({
         loader: ({ request }) =>
           replace("/monitor" + new URL(request.url).search),
       },
-      ...["/monitor", "/cameras", "/maps", "/audit"].map((path) => ({
+      ...["/monitor", "/cameras", "/maps", "/audit", "/access"].map((path) => ({
         path,
         element: <Workspace services={services} />,
       })),

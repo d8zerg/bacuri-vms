@@ -1,0 +1,279 @@
+#include "control/access/admin.hpp"
+#include "control/access/operations.hpp"
+#include "control/access/oidc.hpp"
+#include "control/inventory/operations.hpp"
+#include "control/playback_time.hpp"
+#include <set>
+
+namespace bacuri::vms::control::access
+{
+namespace
+{
+void require(bool ok)
+{
+    if (!ok)
+        throw Failure{400, "invalid_request"};
+}
+std::string identifier(const Json& body, const char* key)
+{
+    auto id = string_field(body, key, 36);
+    require(canonical_id(id));
+    return id;
+}
+bool flag(const Json& body, const char* key)
+{
+    require(body.contains(key) && body.at(key).is_boolean());
+    return body.at(key).get<bool>();
+}
+Json list(const Rows& rows)
+{
+    auto result = Json::array();
+    for (const auto& item : rows.column())
+        result.push_back(Json::parse(item));
+    return result;
+}
+void member(Database& db, const std::string& site, const std::string& user)
+{
+    if (!db.exec("SELECT FROM bacuri_access.site_roles WHERE site_id=$1 AND user_id=$2 FOR UPDATE", {site, user})
+             .size())
+        throw Failure{404, "not_found"};
+}
+void check_point(Database& db, const std::string& site, const std::string& point)
+{
+    if (!inventory::lock_point(db, site, point))
+        throw Failure{404, "not_found"};
+}
+std::string role(const Json& body)
+{
+    auto value = string_field(body, "role", 16);
+    require(value == "administrator" || value == "operator");
+    return value;
+}
+Json users(Database& db, const Request& req, const std::string& site, const std::string& id)
+{
+    if (req.method() == http::verb::get && id.empty())
+        return list(db.exec(
+            R"sql(SELECT jsonb_build_object('id',r.user_id,'username',u.username,'role',r.role,'enabled',r.enabled,
+               'issuer',e.issuer,'subject',e.subject)
+            FROM bacuri_access.site_roles r JOIN bacuri_access.local_users u USING(user_id)
+            LEFT JOIN bacuri_access.external_identities e USING(site_id,user_id) WHERE site_id=$1 ORDER BY u.username)sql",
+            {site}));
+    if (req.method() == http::verb::post && id.empty()) {
+        auto body = object_body(req, {"username", "password", "role"});
+        auto name = string_field(body, "username", 128);
+        if (db.exec("SELECT FROM bacuri_access.local_users WHERE username=$1", {name}).size())
+            throw Failure{409, "account_conflict"};
+        provision_user(db, site, {name, role(body)}, string_field(body, "password", 1024), false);
+        return {{"id", db.exec("SELECT user_id FROM bacuri_access.local_users WHERE username=$1", {name}).get(0)}};
+    }
+    require(req.method() == http::verb::patch && canonical_id(id));
+    auto body = object_body(req, {"role", "enabled"});
+    auto target = role(body);
+    bool enabled = flag(body, "enabled");
+    member(db, site, id);
+    if ((!enabled || target != "administrator") &&
+        !db.exec("SELECT FROM bacuri_access.site_roles WHERE site_id=$1 AND user_id<>$2 AND role='administrator' "
+                 "AND enabled",
+                 {site, id})
+             .size())
+        throw Failure{409, "last_administrator"};
+    db.exec("UPDATE bacuri_access.site_roles SET role=$3,enabled=$4 WHERE site_id=$1 AND user_id=$2 "
+            "AND (role,enabled) IS DISTINCT FROM ($3,$4::boolean)",
+            {site, id, target, enabled ? "true" : "false"});
+    return {{"id", id}};
+}
+Json groups(Database& db, const Request& req, const std::string& site, const std::string& id)
+{
+    if (req.method() == http::verb::get && id.empty())
+        return list(db.exec(
+            R"sql(SELECT jsonb_build_object('id',g.group_id,'name',g.name,'points',coalesce((SELECT jsonb_agg(point_id ORDER BY point_id)
+              FROM bacuri_access.group_points m WHERE (m.site_id,m.group_id)=(g.site_id,g.group_id)),'[]'))
+            FROM bacuri_access.resource_groups g WHERE site_id=$1 ORDER BY name)sql",
+            {site}));
+    const bool create = req.method() == http::verb::post && id.empty();
+    require(create || (req.method() == http::verb::put && canonical_id(id)));
+    auto body = object_body(req, {"name", "points"});
+    auto name = string_field(body, "name", 128);
+    require(body.contains("points") && body["points"].is_array() && body["points"].size() <= 1000);
+    std::set<std::string> points;
+    for (const auto& item : body["points"]) {
+        require(item.is_string() && canonical_id(item.get_ref<const std::string&>()));
+        require(points.insert(item.get<std::string>()).second);
+        check_point(db, site, item.get_ref<const std::string&>());
+    }
+    if (db.exec("SELECT FROM bacuri_access.resource_groups WHERE site_id=$1 AND name=$2 AND group_id IS DISTINCT "
+                "FROM nullif($3,'')::uuid",
+                {site, name, id})
+            .size())
+        throw Failure{409, "group_conflict"};
+    auto row =
+        create
+            ? db.exec("INSERT INTO bacuri_access.resource_groups(site_id,name) VALUES($1,$2) RETURNING group_id",
+                      {site, name})
+            : db.exec("UPDATE bacuri_access.resource_groups SET name=$3 WHERE site_id=$1 AND group_id=$2 "
+                      "RETURNING group_id",
+                      {site, id, name});
+    if (!row.size())
+        throw Failure{404, "not_found"};
+    auto group = row.get(0);
+    db.exec("DELETE FROM bacuri_access.group_points WHERE site_id=$1 AND group_id=$2", {site, group});
+    db.exec("INSERT INTO bacuri_access.group_points SELECT $1,$2,value::uuid FROM "
+            "jsonb_array_elements_text($3::jsonb)",
+            {site, group, body["points"].dump()});
+    return {{"id", group}};
+}
+Json grants(Database& db, const Request& req, const std::string& site, const std::string& id)
+{
+    if (req.method() == http::verb::get && id.empty())
+        return list(db.exec(R"sql(SELECT to_jsonb(t) FROM (
+            SELECT grant_id AS id,user_id,point_id,group_id,action,begin_us::text,end_us::text FROM bacuri_access.scoped_grants WHERE site_id=$1
+            UNION ALL SELECT grant_id,user_id,point_id,NULL,'export',begin_us::text,end_us::text FROM bacuri_access.export_grants WHERE site_id=$1
+            UNION ALL SELECT md5(site_id::text||user_id::text||point_id::text)::uuid,user_id,point_id,NULL,'view_ptz',NULL,NULL
+            FROM bacuri_access.point_grants WHERE site_id=$1) t ORDER BY user_id,id)sql",
+                            {site}));
+    require(canonical_id(id));
+    if (req.method() == http::verb::delete_) {
+        if (!db.exec("DELETE FROM bacuri_access.scoped_grants WHERE site_id=$1 AND grant_id=$2 RETURNING grant_id",
+                     {site, id})
+                 .size()) {
+            auto old = db.exec(
+                "SELECT u.username,g.point_id,g.action FROM bacuri_access.effective_grants g "
+                "JOIN bacuri_access.local_users u USING(user_id) WHERE g.site_id=$1 AND g.grant_id=$2 LIMIT 1",
+                {site, id});
+            if (!old.size())
+                throw Failure{404, "not_found"};
+            GrantTarget target{site, old.get(0), old.get(0, 1)};
+            if (old.get(0, 2) == "export")
+                revoke_export(db, target);
+            else
+                revoke_point(db, target);
+        }
+        return {{"id", id}};
+    }
+    require(req.method() == http::verb::put);
+    auto body = object_body(req, {"user_id", "action", "point_id", "group_id", "interval"});
+    auto user = identifier(body, "user_id"), action = string_field(body, "action", 16);
+    const std::set<std::string> actions{"view", "audio", "ptz", "configure", "protect", "export"};
+    require(actions.contains(action) && body.contains("point_id") != body.contains("group_id"));
+    member(db, site, user);
+    std::string point, group, begin, end;
+    if (body.contains("point_id")) {
+        point = identifier(body, "point_id");
+        check_point(db, site, point);
+    } else {
+        group = identifier(body, "group_id");
+        if (!db.exec("SELECT FROM bacuri_access.resource_groups WHERE site_id=$1 AND group_id=$2", {site, group})
+                 .size())
+            throw Failure{404, "not_found"};
+    }
+    if (body.contains("interval")) {
+        require(action == "view" || action == "export");
+        auto range = body.at("interval");
+        auto a = parse_utc(string_field(range, "start", 32)), b = parse_utc(string_field(range, "end", 32));
+        require(range.size() == 2 && a < b);
+        begin = std::to_string(a);
+        end = std::to_string(b);
+    }
+    if (db.exec("SELECT FROM bacuri_access.export_grants WHERE grant_id=$1 UNION ALL SELECT FROM "
+                "bacuri_access.point_grants "
+                "WHERE md5(site_id::text||user_id::text||point_id::text)::uuid=$1",
+                {id})
+            .size())
+        throw Failure{409, "grant_conflict"};
+    auto row = db.exec(R"sql(INSERT INTO bacuri_access.scoped_grants AS g VALUES($1,$2,$3,nullif($4,'')::uuid,
+         nullif($5,'')::uuid,$6,nullif($7,'')::bigint,nullif($8,'')::bigint) ON CONFLICT(grant_id) DO UPDATE SET
+         user_id=excluded.user_id,point_id=excluded.point_id,group_id=excluded.group_id,action=excluded.action,
+         begin_us=excluded.begin_us,end_us=excluded.end_us WHERE g.site_id=excluded.site_id RETURNING grant_id)sql",
+                       {id, site, user, point, group, action, begin, end});
+    if (!row.size())
+        throw Failure{409, "grant_conflict"};
+    return {{"id", id}};
+}
+Json privacy(Database& db, const Request& req, const std::string& site, const std::string& id)
+{
+    if (req.method() == http::verb::get && id.empty())
+        return list(db.exec("SELECT to_jsonb(p)-'site_id' FROM bacuri_access.privacy_policies p WHERE site_id=$1 "
+                            "ORDER BY point_id",
+                            {site}));
+    require(req.method() == http::verb::put && canonical_id(id));
+    check_point(db, site, id);
+    auto body = object_body(req, {"live", "archive", "thumbnail", "export", "regions"});
+    const auto regions = body.value("regions", Json::array());
+    require(regions.is_array() && regions.size() <= 32);
+    for (const auto& region : regions) {
+        require(region.is_object() && region.size() == 4);
+        for (const char* edge : {"left", "top", "right", "bottom"}) {
+            require(region.contains(edge) && region[edge].is_number() && region[edge] >= 0 && region[edge] <= 1);
+        }
+        require(region["left"] < region["right"] && region["top"] < region["bottom"]);
+    }
+    db.exec(
+        "INSERT INTO bacuri_access.privacy_policies VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(site_id,point_id) "
+        "DO UPDATE SET "
+        "live=excluded.live,archive=excluded.archive,thumbnail=excluded.thumbnail,export=excluded.export,regions="
+        "excluded.regions",
+        {site, id, flag(body, "live") ? "true" : "false", flag(body, "archive") ? "true" : "false",
+         flag(body, "thumbnail") ? "true" : "false", flag(body, "export") ? "true" : "false", regions.dump()});
+    return {{"id", id}};
+}
+} // namespace
+bool administration(const Request& req, Response& res, const Sessions& sessions, const Key& key,
+                    const std::string& site, std::string_view path)
+{
+    auto slash = path.find('/');
+    auto resource = path.substr(0, slash);
+    if (resource != "users" && resource != "resource-groups" && resource != "grants" &&
+        resource != "privacy-policies" && path != "identity/provider" && path != "audit/search")
+        return false;
+    const bool audit = path == "audit/search", write = req.method() != http::verb::get && !audit;
+    Database db;
+    db.exec(write ? "BEGIN" : "BEGIN ISOLATION LEVEL REPEATABLE READ");
+    if (write)
+        lock_policy(db, site);
+    auto who = sessions.authenticate(db, req, req.method() != http::verb::get, write);
+    if (site_role(db, site, who.user, RoleLock::shared) != "administrator")
+        throw Failure{403, "forbidden"};
+    std::string id{slash == path.npos ? std::string_view{} : path.substr(slash + 1)};
+    if (write) {
+        auto tag = "\"" + scope_revision(db, site) + "\"";
+        res.set("ETag", tag);
+        if (req.count("If-Match") != 1)
+            throw Failure{428, "precondition_required"};
+        if (req["If-Match"] != tag)
+            throw Failure{412, "policy_conflict"};
+        db.exec("SELECT set_config('bacuri.actor',$1,true),set_config('bacuri.auth',login_method,true) FROM "
+                "bacuri_access.browser_sessions WHERE token_hash=$2",
+                {who.user, fingerprint(key, "session", who.cookie)});
+    }
+    Json value;
+    if (path == "identity/provider")
+        value = oidc_provider(db, req, key, site);
+    else if (resource == "users" && id.ends_with("/external-identity")) {
+        id.resize(id.size() - std::string_view{"/external-identity"}.size());
+        require(canonical_id(id));
+        value = external_identity(db, req, site, id);
+    } else if (resource == "users")
+        value = users(db, req, site, id);
+    else if (resource == "resource-groups")
+        value = groups(db, req, site, id);
+    else if (resource == "grants")
+        value = grants(db, req, site, id);
+    else if (resource == "privacy-policies")
+        value = privacy(db, req, site, id);
+    else {
+        allow(req, res, {http::verb::post});
+        auto query = object_body(req, {"actor", "resource"});
+        const auto actor = query.contains("actor") ? string_field(query, "actor", 128) : "";
+        const auto target = query.contains("resource") ? string_field(query, "resource", 256) : "";
+        value = list(db.exec("SELECT to_jsonb(a)-'site_id' FROM bacuri_access.access_audit a WHERE site_id=$1 "
+                             "AND ($2='' OR actor=$2) AND ($3='' OR resource=$3 OR "
+                             "$3=ANY(string_to_array(resource,'/'))) ORDER BY recorded_at DESC,id DESC LIMIT 200",
+                             {site, actor, target}));
+    }
+    auto version = scope_revision(db, site);
+    db.exec("COMMIT");
+    res.set("ETag", "\"" + version + "\"");
+    respond(res, {{"revision", version}, {"data", value}});
+    return true;
+}
+} // namespace bacuri::vms::control::access

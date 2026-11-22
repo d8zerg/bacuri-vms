@@ -7,6 +7,7 @@ function isProductSource(path) {
   return /^src\/.*\.tsx?$/.test(path) && !path.endsWith(".d.ts");
 }
 function inScope(path, integrated) {
+  if (integrated && /^public\/assets\/[^/]+\.js$/.test(path)) return true;
   return (
     isProductSource(path) &&
     (integrated || !/^src\/(adapters\/|main\.tsx$)/.test(path))
@@ -33,7 +34,8 @@ export function coverageReport(integrated = false) {
       ...(integrated ? [] : [["raw", { merge: true }]]),
     ],
     entryFilter: integrated ? () => true : containsProductSource,
-    sourcePath: (path) => path.replace(/^.*\/web\/client\/src\//, "src/"),
+    sourcePath: (path) =>
+      path.replace(/^.*\/web\/client\/(src|public)\//, "$1/"),
     sourceFilter: (path) => inScope(path, integrated),
     all: {
       dir: "src",
@@ -54,6 +56,7 @@ export async function assertCoverage(report, integrated) {
   const expected = globSync("src/**/*.{ts,tsx}").filter((path) =>
     inScope(path, integrated),
   );
+  if (integrated) expected.push(...globSync("public/assets/*.js"));
   assert.deepEqual(
     new Set(result.files.map((file) => file.sourcePath)),
     new Set(expected),

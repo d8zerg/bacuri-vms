@@ -7,6 +7,7 @@ inline constexpr char reset_sessions[] = "DELETE FROM webauthn_credentials;"
                                          "DELETE FROM webauthn_challenges;"
                                          "DELETE FROM webauthn_enrollment;"
                                          "DELETE FROM browser_sessions;";
+inline constexpr char reset_oidc_requests[] = "DELETE FROM oidc_requests;";
 inline constexpr char audit_restore[] = "INSERT INTO credential_audit(user_id,action) SELECT DISTINCT "
                                         "user_id,'restore_reset' FROM site_roles WHERE role='administrator';";
 } // namespace bacuri::vms::control::access

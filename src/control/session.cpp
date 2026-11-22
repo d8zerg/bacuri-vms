@@ -38,7 +38,7 @@ Json session_body(Database& db, const Key& key, const Identity& identity)
     const auto rows = db.exec(R"sql(
         SELECT to_char(expires_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
             (SELECT coalesce(jsonb_agg(jsonb_build_object('site_id',site_id,'role',role) ORDER BY site_id),'[]')
-             FROM bacuri_access.site_roles WHERE user_id=s.user_id)
+             FROM bacuri_access.site_roles WHERE user_id=s.user_id AND enabled AND (s.oidc_site IS NULL OR site_id=s.oidc_site))
         FROM bacuri_access.browser_sessions s WHERE token_hash=$1
     )sql",
                               {fingerprint(key, "session", identity.cookie)});
@@ -106,16 +106,23 @@ Identity Sessions::authenticate(Database& db, const Request& request, bool mutat
     if (value.empty()) {
         throw Failure{401, "unauthenticated"};
     }
-    const auto rows = db.exec(
-        activity ? "UPDATE bacuri_access.browser_sessions SET last_active=now() WHERE token_hash=$1 AND "
-                   "expires_at>now() "
-                   "AND last_active>now()-interval '30 minutes' RETURNING user_id"
-                 : "SELECT user_id FROM bacuri_access.browser_sessions WHERE token_hash=$1 AND expires_at>now() "
-                   "AND last_active>now()-interval '30 minutes'",
-        {fingerprint(key_, "session", value)});
+    const auto rows =
+        db.exec(activity ? "UPDATE bacuri_access.browser_sessions SET last_active=now() WHERE token_hash=$1 AND "
+                           "expires_at>now() "
+                           "AND (oidc_until IS NULL OR oidc_until>clock_timestamp()) AND "
+                           "last_active>now()-interval '30 minutes' RETURNING user_id,oidc_site"
+                         : "SELECT user_id,oidc_site FROM bacuri_access.browser_sessions WHERE token_hash=$1 AND "
+                           "expires_at>now() "
+                           "AND (oidc_until IS NULL OR oidc_until>clock_timestamp()) AND "
+                           "last_active>now()-interval '30 minutes'",
+                {fingerprint(key_, "session", value)});
     if (!rows.size()) {
         throw Failure{401, "unauthenticated"};
     }
+    const std::string_view target{request.target()};
+    constexpr std::string_view sites = "/api/v1/sites/";
+    if (!rows.get(0, 1).empty() && target.starts_with(sites) && target.substr(sites.size(), 36) != rows.get(0, 1))
+        throw Failure{403, "forbidden"};
     if (mutation) {
         check_origin(request, origin_);
         if (request.count("X-CSRF-Token") != 1 || request["X-CSRF-Token"] != fingerprint(key_, "csrf", value)) {
@@ -149,7 +156,10 @@ void Sessions::login(const Request& request, Response& response, const std::stri
     if (!password_matches(user.size() ? user.get(0, 1) : dummy_hash_, password) || !user.size()) {
         throw Failure{401, "invalid_credentials"};
     }
-    if (db.exec("SELECT FROM bacuri_access.site_roles WHERE user_id=$1 AND role='administrator'", {user.get(0)})
+    if (!db.exec("SELECT FROM bacuri_access.site_roles WHERE user_id=$1 AND enabled", {user.get(0)}).size())
+        throw Failure{401, "invalid_credentials"};
+    if (db.exec("SELECT FROM bacuri_access.site_roles WHERE user_id=$1 AND enabled AND role='administrator'",
+                {user.get(0)})
             .size()) {
         auto challenge = begin_webauthn(db, key_, origin_, user.get(0), body);
         db.exec("COMMIT");
@@ -182,16 +192,27 @@ void Sessions::factor(const Request& request, Response& response) const
     }
     issue(db, request, response, result.user);
 }
-void Sessions::issue(Database& db, const Request& request, Response& response, const std::string& user_id) const
+void Sessions::issue(Database& db, const Request& request, Response& response, const std::string& user_id,
+                     const std::string& site, const std::string& refresh) const
 {
     auto previous = cookie(request);
     db.exec("DELETE FROM bacuri_access.browser_sessions WHERE token_hash=$1 OR expires_at<=now() OR "
             "last_active<=now()-interval '30 minutes'",
             {fingerprint(key_, "session", previous)});
     const Identity identity{user_id, token()};
-    db.exec("INSERT INTO bacuri_access.browser_sessions(token_hash,user_id,expires_at) VALUES "
-            "($1,$2,now()+interval '8 hours')",
-            {fingerprint(key_, "session", identity.cookie), identity.user});
+    const auto hash = fingerprint(key_, "session", identity.cookie);
+    db.exec("INSERT INTO "
+            "bacuri_access.browser_sessions(token_hash,user_id,expires_at,login_method,oidc_site,oidc_until,"
+            "sealed_refresh_token) "
+            "VALUES($1,$2,now()+interval '8 hours',$3,nullif($4,'')::uuid,CASE WHEN $3='oidc' THEN now()+interval "
+            "'55 seconds' END,nullif($5,''))",
+            {hash, user_id, site.empty() ? "local" : "oidc", site,
+             site.empty() ? "" : seal(key_, "oidc-session/" + hash, refresh)});
+    db.exec("INSERT INTO bacuri_access.access_audit(site_id,actor,method,action,resource) SELECT "
+            "site_id,$1::uuid::text,$2,'session.login',$1::uuid::text "
+            "FROM bacuri_access.site_roles WHERE user_id=$1::uuid AND enabled AND ($3='' OR "
+            "site_id=nullif($3,'')::uuid)",
+            {user_id, site.empty() ? "local" : "oidc", site});
     auto result = session_body(db, key_, identity);
     db.exec("COMMIT");
     response.set("Set-Cookie", std::string{cookie_name} + identity.cookie + std::string{attributes});
@@ -226,6 +247,11 @@ void Sessions::logout(const Request& request, Response& response) const
     if (!value.empty()) {
         try {
             auto identity = authenticate(db, request, true);
+            db.exec("INSERT INTO bacuri_access.access_audit(site_id,actor,method,action,resource) "
+                    "SELECT r.site_id,r.user_id::text,b.login_method,'session.logout',r.user_id::text FROM "
+                    "bacuri_access.browser_sessions b JOIN bacuri_access.site_roles r USING(user_id) WHERE "
+                    "b.token_hash=$1 AND r.enabled AND (b.oidc_site IS NULL OR b.oidc_site=r.site_id)",
+                    {fingerprint(key_, "session", identity.cookie)});
             db.exec("DELETE FROM bacuri_access.browser_sessions WHERE token_hash=$1",
                     {fingerprint(key_, "session", identity.cookie)});
         } catch (const Failure& error) {

@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: ${BACURI_POSTGRES_IMAGE:?}
+    environment:
+      POSTGRES_DB: bacuri_vms
+      POSTGRES_USER: bacuri
+      POSTGRES_PASSWORD: bacuri-stand
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bacuri"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  rtsp-camera:
+    image: ${BACURI_CAMERA_IMAGE:?}
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332
+    command: ["start-dev", "--hostname=https://keycloak:8443", "--http-enabled=false", "--https-certificate-file=/stand/tls.crt", "--https-certificate-key-file=/stand/tls.key", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: qualification
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${BACURI_TEST_IDP_PASSWORD:?}
+    volumes:
+      - ${BACURI_ACCESS_STAND:?}/keycloak:/stand:ro
+      - ${BACURI_ACCESS_STAND:?}/keycloak/realm.json:/opt/keycloak/data/import/bacuri.json:ro
+  playback-chrome:
+    image: selenium/standalone-chrome:4.53.0@sha256:11b1c18434233ea10e065ba2c43f8599373a014f8253e689d1df6cd96f9ea8e5
+    shm_size: 1gb
+  runner:
+    image: ${BACURI_DEV_IMAGE:?}
+    volumes:
+      - .:/workspace
+      - ${BACURI_ACCESS_STAND:?}:/stand
+    networks:
+      default:
+        aliases: [workspace.test]
+    environment:
+      PGHOST: postgres
+      PGDATABASE: bacuri_vms
+      PGUSER: bacuri
+      PGPASSWORD: bacuri-stand
+      BACURI_TEST_IDP_PASSWORD: ${BACURI_TEST_IDP_PASSWORD:?}
+      BACURI_TEST_CAMERA_HOST: rtsp-camera
+      BACURI_OIDC_CA_FILE: /stand/keycloak/tls.crt

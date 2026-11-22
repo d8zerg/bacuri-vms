@@ -20,7 +20,7 @@ class AlertFeed
 
   private:
     struct Scope {
-        std::string user, context;
+        std::string user, context, policy_revision;
         std::int64_t revision, head, floor, work_revision;
         bool admin;
     };
@@ -29,7 +29,7 @@ class AlertFeed
     const Sessions& sessions_;
     const Key& key_;
     Request request_;
-    std::string site_;
+    std::string site_, policy_revision_;
     std::int64_t position_{}, revision_{}, resume_head_{}, work_revision_{};
     bool subscribed_{}, pending_{};
 };

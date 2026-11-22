@@ -87,11 +87,16 @@ void restore_configuration(std::istream& input)
     encrypted.pop_back();
     auto data = Json::parse(unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site)));
     data.erase("webauthn_credentials");
-    for (const auto* table : {"credential_audit", "camera_transport_audit", "floor_plans", "point_placements",
-                              "archive_retention", "export_grants", "map_catalog_settings"}) {
+    for (const auto* table :
+         {"credential_audit", "camera_transport_audit", "floor_plans", "point_placements", "archive_retention",
+          "export_grants", "map_catalog_settings", "resource_groups", "group_points", "scoped_grants",
+          "privacy_policies", "identity_providers", "external_identities", "policy_versions", "access_audit"}) {
         if (!data.contains(table))
             data[table] = Json::array();
     }
+    for (auto& role : data.at("site_roles"))
+        if (!role.contains("enabled"))
+            role["enabled"] = true;
     require_single_site(data, site);
     Database db;
     db.exec("BEGIN ISOLATION LEVEL SERIALIZABLE; SET LOCAL TIME ZONE 'UTC'");
@@ -99,11 +104,14 @@ void restore_configuration(std::istream& input)
     const auto existing = snapshot(db);
     if (std::ranges::any_of(existing, [](const Json& rows) { return !rows.empty(); })) {
         auto configuration = existing;
-        configuration["credential_audit"] = data.at("credential_audit");
+        // Preserve newer audit entries and policy revisions on an already configured site.
+        for (const auto* field : {"credential_audit", "access_audit", "policy_versions"})
+            configuration[field] = data.at(field);
         if (configuration != data) {
             throw std::runtime_error("Restore requires a clean database or an identical inventory");
         }
     } else {
+        db.exec("SET LOCAL bacuri.restoring='yes'");
         ConfigurationSnapshot archive{db, data};
         visit_configuration(archive);
     }
@@ -113,6 +121,7 @@ void restore_configuration(std::istream& input)
     db.exec(access::restore_search_path);
     db.exec(access::audit_restore);
     db.exec(access::reset_sessions);
+    db.exec(access::reset_oidc_requests);
     db.exec("COMMIT");
 }
 } // namespace bacuri::vms::control

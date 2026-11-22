@@ -1,0 +1,33 @@
+.ws-access nav,
+.ws-access label,
+.ws-access form {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.ws-access nav button[aria-pressed="true"] {
+  font-weight: bold;
+  text-decoration: underline;
+}
+.ws-access fieldset {
+  min-width: 0;
+  margin-block: 1rem;
+  padding: 1rem;
+}
+.ws-access form {
+  margin-block: 1rem;
+  align-items: end;
+}
+.ws-access form h2 {
+  width: 100%;
+  font-size: 1rem;
+}
+.ws-access input,
+.ws-access select {
+  max-width: 100%;
+}
+.ws-access li {
+  margin-block: 0.5rem;
+  overflow-wrap: anywhere;
+}
