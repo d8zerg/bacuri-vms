@@ -173,6 +173,10 @@ def run():
             expect(profiles(admin, selection, "wrong"), 422, "camera_authentication_failed")
             device.codec = "JPEG"
             expect(profiles(admin, selection, device.password), 422, "camera_incompatible_profiles")
+            device.media2=True
+            status, inspected=profiles(admin,selection,device.password)
+            assert status==200 and [p["codec"] for p in inspected["profiles"]]==["h265","h264"], inspected.get("code")
+            device.media2=False
             device.codec = "H264"
             device.stream_uris["enc-low-83"] = "rtsps://localhost:8554/main"
             expect(profiles(admin, selection, device.password), 422, "camera_incompatible_profiles")

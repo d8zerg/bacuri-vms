@@ -21,6 +21,7 @@ struct Block {
     Origin origin;
     domain::ProjectedTime first;
     domain::UtcTime end;
+    std::string codec{"h264"};
 };
 struct Identity {
     Owner owner;

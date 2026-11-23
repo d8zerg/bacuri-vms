@@ -18,7 +18,7 @@ const failures: Record<string, string> = {
   camera_ptz_unsupported: "Профиль камеры не поддерживает эту команду.",
   camera_tls_error: "Проверьте имя камеры и доверенный сертификат.",
   camera_incompatible_profiles:
-    "Для подключения нужны два разных профиля H.264.",
+    "Для подключения нужны два разных видеопрофиля H.264 или H.265.",
   camera_transport_denied:
     "Адрес или транспорт камеры запрещён настройками площадки.",
   camera_protocol_error: "Камера вернула неподдерживаемый ответ ONVIF.",

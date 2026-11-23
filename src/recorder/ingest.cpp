@@ -85,12 +85,21 @@ void Stream::receive(const FramePtr& frame, VideoFormat format, bool discontinui
             }
         }
         ++stats_.frames;
-        stats_.bytes += frame->h264.size();
+        stats_.bytes += frame->access_unit.size();
         stats_.keyframes += frame->keyframe;
         stats_.time = frame->time;
         stats_.rtp_timestamp = frame->rtp_timestamp;
         stats_.ntp_ns = frame->ntp_ns;
         stats_.pts_ns = frame->pts_ns;
+        const auto now = std::chrono::steady_clock::now();
+        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - sample_at_).count();
+        if (recovered || elapsed >= 1000) {
+            if (!recovered)
+                stats_.bitrate_kbps = static_cast<unsigned>((stats_.bytes - sample_bytes_) * 8 / elapsed);
+            sample_at_ = now;
+            sample_bytes_ = stats_.bytes;
+        }
+        stats_.codec = frame->codec;
         stats_.width = format.width;
         stats_.height = format.height;
         std::erase_if(consumers_, [&frame](const auto& entry) {

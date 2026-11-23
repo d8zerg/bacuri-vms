@@ -304,3 +304,21 @@ camera_audio:
   request: { mode: record, device_id: 40000000-0000-4000-8000-000000000001 }
   status: 200
   response: {}
+save_monitor_layout:
+  operation: saveMonitorLayout
+  request: {name: Gate, shared: false, points: [20000000-0000-4000-8000-000000000001], revision: '0'}
+  status: 200
+  response: {id: 80000000-0000-4000-8000-000000000001, revision: '1'}
+read_shared_layout:
+  operation: listMonitorLayouts
+  status: 200
+  response:
+    - id: 80000000-0000-4000-8000-000000000001
+      name: Site
+      shared: true
+      editable: false
+      points: [20000000-0000-4000-8000-000000000001, null]
+      revision: '2'
+delete_monitor_layout:
+  operation: deleteMonitorLayout
+  status: 204

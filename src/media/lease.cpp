@@ -8,8 +8,10 @@ namespace bacuri::vms::media
 using namespace std::chrono_literals;
 std::shared_ptr<grpc::Channel> local_channel(const char* setting_name)
 {
-    return grpc::CreateChannel("unix:" + control::setting(setting_name),
-                               grpc::experimental::LocalCredentials(UDS));
+    grpc::ChannelArguments args;
+    args.SetMaxReceiveMessageSize(8 * 1024 * 1024 + 1024);
+    return grpc::CreateCustomChannel("unix:" + control::setting(setting_name),
+                                     grpc::experimental::LocalCredentials(UDS), args);
 }
 Lease::Lease(v1::AuthorizeDeliveryRequest scope)
     : scope_{std::move(scope)}, authority_{v1::MediaAuthorization::NewStub(local_channel("BACURI_AUTH_SOCKET"))}

@@ -15,8 +15,17 @@ export type BoundRecording = Schema["BoundRecording"];
 export type Interval = Schema["UtcInterval"];
 export type Entry = Schema["ArchiveEntry"];
 export type AlertLink = Schema["AlertArchive"];
+export type Layout = Schema["MonitorLayout"];
+export type LayoutDraft = Schema["MonitorLayoutDraft"];
+export type Quality = "auto" | "main" | "secondary";
 export type Target =
-  | { mode: "live"; point: string }
+  | {
+      mode: "live";
+      point: string;
+      quality?: Quality;
+      width?: number;
+      requireSecondary?: boolean;
+    }
   | {
       mode: "archive";
       point: string;
@@ -42,6 +51,13 @@ export type AlertCommand = Schema["AlertCommand"];
 export type AuditEntry = Schema["AuditEntry"];
 export type AuditFilter = Schema["AuditFilter"];
 export interface Services {
+  layouts(site: string, signal: AbortSignal): Promise<Layout[]>;
+  saveLayout(
+    site: string,
+    id: string,
+    draft: LayoutDraft,
+  ): Promise<{ id: string; revision: string }>;
+  deleteLayout(site: string, id: string, revision: string): Promise<void>;
   exportFragment(
     site: string,
     point: string,
@@ -176,5 +192,7 @@ export interface Services {
     target: Target,
     signal: AbortSignal,
     failure: (message: string) => void,
+    format?: (description: string) => void,
+    renew?: () => void,
   ): Promise<void>;
 }

@@ -31,14 +31,17 @@ struct VideoFormat {
     int height;
 };
 
+enum class VideoCodec { h264, h265 };
+
 struct Frame {
-    std::vector<std::byte> h264;
+    std::vector<std::byte> access_unit;
     domain::ProjectedTime time;
     std::optional<std::uint32_t> rtp_timestamp;
     std::optional<std::uint64_t> ntp_ns;
     std::optional<std::uint64_t> pts_ns;
     bool keyframe;
     std::optional<std::uint64_t> duration_ns{};
+    VideoCodec codec{VideoCodec::h264};
 };
 
 using FramePtr = std::shared_ptr<const Frame>;
@@ -84,6 +87,8 @@ class FrameQueue
 struct StreamStats {
     std::uint64_t frames{}, bytes{}, keyframes{}, reconnects{}, gaps{};
     int width{}, height{};
+    unsigned bitrate_kbps{};
+    VideoCodec codec{VideoCodec::h264};
     std::string state{"connecting"};
     std::optional<domain::UtcTime> gap_begin, gap_end;
     std::optional<domain::ProjectedTime> time;
@@ -117,6 +122,8 @@ class Stream
     const StreamOptions options_;
     mutable std::mutex mutex_;
     StreamStats stats_;
+    std::chrono::steady_clock::time_point sample_at_{};
+    std::uint64_t sample_bytes_{};
     std::vector<std::weak_ptr<FrameQueue>> consumers_;
     std::condition_variable_any retry_;
     std::jthread worker_;

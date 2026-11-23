@@ -165,6 +165,10 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     path.remove_prefix(separator + 1);
     if (access::administration(req, res, sessions, key, site, path))
         return;
+    if (path == "monitor-layouts")
+        return playback.layouts(req, res, site, {});
+    if (path.starts_with("monitor-layouts/") && canonical_id(path.substr(16)))
+        return playback.layouts(req, res, site, std::string{path.substr(16)});
     if (path == "maps" || path.starts_with("maps/"))
         return maps(req, res, sessions, site, path, origin);
     if (path == "alerts" || path == "alerts/stream") {

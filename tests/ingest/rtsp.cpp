@@ -142,9 +142,24 @@ TEST(RtspIngest, IndependentProfilesBoundedPreviewAndOutageRecovery)
                   << '\n';
     }
 }
+TEST(RtspIngest, DetectsHevcMainFromRtp)
+{
+    if (!std::getenv("BACURI_TEST_FIXTURE_CODECS"))
+        GTEST_SKIP() << "Requires the HEVC fixture";
+    Stream video{fixture_stream(Profile::main, "/hevc")};
+    const auto queue = video.subscribe();
+    ASSERT_TRUE(wait_for([&] { return video.stats().frames >= 3; }, 12s)) << video.stats().state;
+    const auto first = queue->try_pop();
+    ASSERT_TRUE(first);
+    EXPECT_TRUE(first->keyframe);
+    EXPECT_EQ(first->codec, VideoCodec::h265);
+    EXPECT_EQ(video.stats().width, 640);
+    EXPECT_EQ(video.stats().height, 360);
+}
+
 TEST(RtspIngest, ReportsAnUnsupportedVideoCodec)
 {
-    if (!std::getenv("BACURI_TEST_JPEG")) {
+    if (!std::getenv("BACURI_TEST_FIXTURE_CODECS")) {
         GTEST_SKIP() << "This source provides two H.264 profiles";
     }
     Stream jpeg{fixture_stream(Profile::main, "/jpeg")};

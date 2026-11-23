@@ -79,13 +79,13 @@ struct Selection {
     std::atomic<bool> saw_other{};
 };
 
-gboolean select_h264(GstElement*, guint, GstCaps* caps, gpointer data)
+gboolean select_video(GstElement*, guint, GstCaps* caps, gpointer data)
 {
     auto& selection = *static_cast<Selection*>(data);
     const auto* track = gst_caps_get_structure(caps, 0);
     const auto* encoding = gst_structure_get_string(track, "encoding-name");
     if (g_strcmp0(gst_structure_get_string(track, "media"), "video") == 0 && encoding &&
-        g_ascii_strcasecmp(encoding, "H264") == 0) {
+        (g_ascii_strcasecmp(encoding, "H264") == 0 || g_ascii_strcasecmp(encoding, "H265") == 0)) {
         return !selection.selected.exchange(true);
     }
     selection.saw_other = true;
@@ -99,6 +99,37 @@ GstPadProbeReturn observe_packet(GstPad*, GstPadProbeInfo* info, gpointer data)
         static_cast<PacketTimes*>(data)->observe(buffer);
     }
     return GST_PAD_PROBE_OK;
+}
+
+void link_video(GstElement* source, GstPad* pad, gpointer data)
+{
+    Handle<GstCaps, gst_caps_unref> caps{gst_pad_get_current_caps(pad)};
+    if (!caps || gst_caps_is_empty(caps.get()))
+        return;
+    const auto* type = gst_caps_get_structure(caps.get(), 0);
+    const auto* encoding = gst_structure_get_string(type, "encoding-name");
+    if (!encoding || g_strcmp0(gst_structure_get_string(type, "media"), "video") != 0)
+        return;
+    const bool hevc = g_ascii_strcasecmp(encoding, "H265") == 0;
+    if (!hevc && g_ascii_strcasecmp(encoding, "H264") != 0)
+        return;
+    auto* parent = GST_BIN(GST_OBJECT_PARENT(source));
+    Handle<GstElement, gst_object_unref> sink{gst_bin_get_by_name(parent, "frames")};
+    GError* raw{};
+    Handle<GstElement, gst_object_unref> branch{gst_parse_bin_from_description(
+        hevc ? "rtph265depay ! h265parse config-interval=-1 ! capsfilter "
+               "caps=video/x-h265,profile=main,stream-format=byte-stream,alignment=au"
+             : "rtph264depay request-keyframe=true wait-for-keyframe=true ! h264parse config-interval=-1 ! "
+               "capsfilter caps=video/x-h264,stream-format=byte-stream,alignment=au",
+        TRUE, &raw)};
+    Handle<GError, g_error_free> error{raw};
+    if (!branch || error || !gst_bin_add(parent, branch.get()))
+        return;
+    auto* decoder = branch.release();
+    Handle<GstPad, gst_object_unref> input{gst_element_get_static_pad(decoder, "sink")};
+    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, observe_packet, data, nullptr);
+    if (gst_element_link(decoder, sink.get()) && gst_pad_link(pad, input.get()) == GST_PAD_LINK_OK)
+        gst_element_sync_state_with_parent(decoder);
 }
 
 int port(GUri* uri)
@@ -178,10 +209,7 @@ std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const R
     std::unique_ptr<GstElement, StopPipeline> pipeline{
         gst_parse_launch("rtspsrc name=source protocols=tcp latency=250 drop-on-latency=true tcp-timeout=3000000 "
                          "teardown-timeout=100000000 add-reference-timestamp-meta=true "
-                         "! application/x-rtp,media=video,encoding-name=H264 "
-                         "! rtph264depay name=depay request-keyframe=true wait-for-keyframe=true "
-                         "! h264parse config-interval=-1 ! video/x-h264,stream-format=byte-stream,alignment=au "
-                         "! appsink name=frames sync=false max-buffers=1 wait-on-eos=false "
+                         "appsink name=frames sync=false max-buffers=1 wait-on-eos=false "
                          "enable-last-sample=false",
                          &error)};
     Handle<GError, g_error_free> failure{error};
@@ -196,10 +224,8 @@ std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const R
         g_object_set(sink.get(), "max-bytes", static_cast<guint64>(limits(Profile::main).bytes), "max-buffers", 4U,
                      nullptr);
     }
-    Handle<GstElement, gst_object_unref> depay{gst_bin_get_by_name(GST_BIN(pipeline.get()), "depay")};
-    Handle<GstPad, gst_object_unref> pad{gst_element_get_static_pad(depay.get(), "sink")};
     Handle<GstBus, gst_object_unref> bus{gst_element_get_bus(pipeline.get())};
-    gst_pad_add_probe(pad.get(), GST_PAD_PROBE_TYPE_BUFFER, observe_packet, &packets, nullptr);
+    g_signal_connect(source.get(), "pad-added", G_CALLBACK(link_video), &packets);
     g_signal_connect(source.get(), "accept-certificate",
                      G_CALLBACK(+[](GstElement*, GTlsConnection*, GTlsCertificate*, GTlsCertificateFlags,
                                     gpointer data) -> gboolean {
@@ -207,7 +233,7 @@ std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const R
                          return FALSE;
                      }),
                      &certificate_rejected);
-    g_signal_connect(source.get(), "select-stream", G_CALLBACK(select_h264), &selection);
+    g_signal_connect(source.get(), "select-stream", G_CALLBACK(select_video), &selection);
     if (!configure_rtsp_source(source.get(), endpoint))
         return "certificate_error";
     if (gst_element_set_state(pipeline.get(), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
@@ -257,11 +283,12 @@ std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const R
         const auto stamp = packets.lookup(pts);
         const auto received = std::chrono::time_point_cast<Microseconds>(std::chrono::system_clock::now());
         const auto pts_ns = GST_CLOCK_TIME_IS_VALID(pts) ? std::optional{pts} : std::nullopt;
-        auto frame = std::make_shared<Frame>(Frame{
-            std::vector<std::byte>(size), clock.project(received, {stamp.ntp, pts_ns}), stamp.rtp, stamp.ntp,
-            pts_ns, !GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT),
-            GST_BUFFER_DURATION_IS_VALID(buffer) ? std::optional{GST_BUFFER_DURATION(buffer)} : std::nullopt});
-        if (gst_buffer_extract(buffer, 0, frame->h264.data(), size) != size) {
+        auto frame = std::make_shared<Frame>(
+            Frame{std::vector<std::byte>(size), clock.project(received, {stamp.ntp, pts_ns}), stamp.rtp, stamp.ntp,
+                  pts_ns, !GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT),
+                  GST_BUFFER_DURATION_IS_VALID(buffer) ? std::optional{GST_BUFFER_DURATION(buffer)} : std::nullopt,
+                  gst_structure_has_name(type, "video/x-h265") ? VideoCodec::h265 : VideoCodec::h264});
+        if (gst_buffer_extract(buffer, 0, frame->access_unit.data(), size) != size) {
             return "invalid_access_unit";
         }
         receive(std::move(frame), format, GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DISCONT));

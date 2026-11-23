@@ -9,6 +9,7 @@ class Playback
 {
   public:
     Playback(const Sessions& sessions, const Key& key) : sessions_{sessions}, key_{key} {}
+    void layouts(const Request&, Response&, const std::string& site, const std::string& id) const;
     void point(const Request&, Response&, const std::string& site, const std::string& point, bool search) const;
     void session(const Request&, Response&, const std::string& id, std::string_view operation) const;
     void alert_archive(const Request&, Response&, const std::string& site, const std::string& id) const;

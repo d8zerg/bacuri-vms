@@ -1,5 +1,6 @@
 #include "archive/clip.hpp"
 #include "archive/evidence.hpp"
+#include "media/privacy.hpp"
 #include <gst/app/gstappsink.h>
 #include <gst/app/gstappsrc.h>
 #include <chrono>
@@ -82,18 +83,25 @@ struct Pipeline {
 };
 } // namespace
 ClipFrames select_frames(const std::filesystem::path& input, const std::filesystem::path& output,
-                         std::int64_t from_us, std::int64_t until_us)
+                         std::int64_t from_us, std::int64_t until_us, bool fragmented, std::string_view regions)
 {
     if (from_us < 0 || until_us <= from_us)
         throw std::invalid_argument("Invalid export interval");
     gst_init(nullptr, nullptr);
-    Pipeline decoder{"filesrc name=file ! qtdemux ! h264parse ! avdec_h264 ! videoconvert ! "
+    Pipeline decoder{"filesrc name=file ! qtdemux ! decodebin ! videoconvert ! "
                      "video/x-raw,format=I420 ! appsink name=frames max-buffers=2 sync=false"};
     FrameTiming timing;
-    Pipeline encoder{
-        "appsrc name=frames format=time ! x264enc tune=zerolatency speed-preset=ultrafast pass=quant quantizer=16 "
+    media::PrivacyMask mask{regions};
+    std::string encoding =
+        "appsrc name=frames format=time ! x264enc name=encoder threads=2 tune=zerolatency speed-preset=ultrafast "
+        "pass=quant quantizer=16 "
         "! video/x-h264,profile=baseline ! h264parse name=parser ! mp4mux trak-timescale=1000000 "
-        "movie-timescale=1000000 ! filesink name=file"};
+        "movie-timescale=1000000 ";
+    if (fragmented)
+        encoding += "fragment-duration=500 ";
+    encoding += "! filesink name=file";
+    Pipeline encoder{encoding.c_str()};
+    mask.attach(encoder.element("encoder").get());
     auto decoded = decoder.element("frames"), raw = encoder.element("frames");
     g_object_set(decoder.element("file").get(), "location", input.c_str(), nullptr);
     g_object_set(encoder.element("file").get(), "location", output.c_str(), nullptr);

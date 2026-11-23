@@ -20,6 +20,8 @@ std::string site_role(Database&, const std::string& site, const std::string& use
 bool lock_point_grant(Database&, const std::string& site, const std::string& point, const std::string& user);
 std::string role_for_existing_point(Database&, const std::string& site, const std::string& point,
                                     const std::string& user);
+std::string delivery_regions(Database&, const std::string& site, const std::string& point,
+                             const std::string& surface);
 bool allowed(Database&, const std::string& site, const std::string& user, const std::string& point,
              const std::string& action, const std::string& surface = {}, const std::string& begin = {},
              const std::string& end = {});

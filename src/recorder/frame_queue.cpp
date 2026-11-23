@@ -8,7 +8,7 @@ namespace bacuri::vms::ingest
 void FrameQueue::push(const FramePtr& frame)
 {
     std::scoped_lock lock{mutex_};
-    if (frames_.size() == capacity_.frames || frame->h264.size() > capacity_.bytes - stats_.bytes) {
+    if (frames_.size() == capacity_.frames || frame->access_unit.size() > capacity_.bytes - stats_.bytes) {
         if (!stats_.loss_begin || stats_.recovered_at) {
             stats_.loss_begin = profile_ == Profile::secondary && !frames_.empty()
                                     ? frames_.front()->time.received_at()
@@ -24,7 +24,7 @@ void FrameQueue::push(const FramePtr& frame)
         frames_.clear();
         stats_.bytes = 0;
     }
-    if ((need_keyframe_ && !frame->keyframe) || frame->h264.size() > capacity_.bytes) {
+    if ((need_keyframe_ && !frame->keyframe) || frame->access_unit.size() > capacity_.bytes) {
         ++stats_.dropped;
         return;
     }
@@ -33,7 +33,7 @@ void FrameQueue::push(const FramePtr& frame)
     }
     need_keyframe_ = false;
     frames_.push_back(frame);
-    stats_.bytes += frame->h264.size();
+    stats_.bytes += frame->access_unit.size();
     stats_.peak_bytes = std::max(stats_.peak_bytes, stats_.bytes);
     stats_.peak_depth = std::max(stats_.peak_depth, frames_.size());
     ready_.notify_one();
@@ -65,7 +65,7 @@ FramePtr FrameQueue::pop_locked()
     }
     auto frame = std::move(frames_.front());
     frames_.pop_front();
-    stats_.bytes -= frame->h264.size();
+    stats_.bytes -= frame->access_unit.size();
     return frame;
 }
 

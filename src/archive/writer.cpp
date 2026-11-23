@@ -60,12 +60,14 @@ std::vector<SampleTime> sample_times(const Frames& frames)
 void mux(const fs::path& path, const Frames& frames, const std::vector<SampleTime>& times)
 {
     GError* error{};
-    std::unique_ptr<GstElement, StopPipeline> pipeline{
-        gst_parse_launch("appsrc name=input format=time caps=video/x-h264,stream-format=byte-stream,alignment=au "
-                         "! h264parse ! video/x-h264,stream-format=avc,alignment=au ! h264timestamper "
-                         "! mp4mux fragment-duration=500 trak-timescale=90000 "
-                         "! filesink name=output sync=false",
-                         &error)};
+    const std::string chain = frames.front()->codec == ingest::VideoCodec::h265
+                                  ? "video/x-h265,stream-format=byte-stream,alignment=au ! h265parse ! "
+                                    "video/x-h265,stream-format=hvc1,alignment=au ! h265timestamper"
+                                  : "video/x-h264,stream-format=byte-stream,alignment=au ! h264parse ! "
+                                    "video/x-h264,stream-format=avc,alignment=au ! h264timestamper";
+    const auto launch = "appsrc name=input format=time caps=" + chain +
+                        " ! mp4mux fragment-duration=500 trak-timescale=90000 ! filesink name=output sync=false";
+    std::unique_ptr<GstElement, StopPipeline> pipeline{gst_parse_launch(launch.c_str(), &error)};
     std::unique_ptr<GError, decltype(&g_error_free)> failure{error, g_error_free};
     if (failure || !pipeline) {
         throw std::runtime_error("Archive muxer unavailable");
@@ -82,11 +84,11 @@ void mux(const fs::path& path, const Frames& frames, const std::vector<SampleTim
 
     for (std::size_t i = 0; i < frames.size(); ++i) {
         const auto& frame = *frames[i];
-        auto* buffer = gst_buffer_new_allocate(nullptr, frame.h264.size(), nullptr);
+        auto* buffer = gst_buffer_new_allocate(nullptr, frame.access_unit.size(), nullptr);
         if (!buffer) {
             throw std::bad_alloc{};
         }
-        gst_buffer_fill(buffer, 0, frame.h264.data(), frame.h264.size());
+        gst_buffer_fill(buffer, 0, frame.access_unit.data(), frame.access_unit.size());
         GST_BUFFER_PTS(buffer) = times[i].pts;
         GST_BUFFER_DURATION(buffer) = times[i].duration;
         if (!frame.keyframe) {
@@ -156,7 +158,8 @@ void Writer::finish()
             sound.pcm.resize(std::min<std::size_t>(sound.pcm.size(), (end_us - start) / 125 * 2));
         else
             sound.pcm.clear();
-        volume_.publish({origin_, batch.front()->time, end},
+        volume_.publish({origin_, batch.front()->time, end,
+                         batch.front()->codec == ingest::VideoCodec::h265 ? "h265" : "h264"},
                         [&](const fs::path& path) { mux(path, batch, times); }, {}, payload_bytes,
                         {start, sound.pcm});
     } catch (const std::exception& error) {
@@ -198,9 +201,9 @@ void Writer::run(std::stop_token stop)
         last = Clock::now();
         if (!frames_.empty()) {
             const auto& first = frames_.front()->time;
-            if (frame->keyframe) {
+            if (frame->keyframe || frame->codec != frames_.front()->codec) {
                 finish();
-            } else if (frames_.size() >= 900 || bytes_ + frame->h264.size() > 32uz * 1024 * 1024 ||
+            } else if (frames_.size() >= 900 || bytes_ + frame->access_unit.size() > 32uz * 1024 * 1024 ||
                        frame->time.received_at() - first.received_at() > 15s) {
                 finish();
                 std::fprintf(stderr, "archive GOP limit reached point=%s; waiting for keyframe\n",
@@ -210,7 +213,7 @@ void Writer::run(std::stop_token stop)
         if (frames_.empty() && !frame->keyframe) {
             continue;
         }
-        bytes_ += frame->h264.size();
+        bytes_ += frame->access_unit.size();
         frames_.push_back(std::move(frame));
     }
     finish();

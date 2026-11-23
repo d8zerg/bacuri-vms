@@ -35,20 +35,27 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
         const Window bounds{utc_us(q->archive().start()), utc_us(q->archive().end())};
         Database db;
         db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-        const auto expiry = access::browser_point_expiry(db, q->browser_session_id(), q->point().site_id(),
-                                                         q->point().point_id(), q->has_live() ? "live" : "archive",
-                                                         q->has_live() ? "" : std::to_string(bounds.start),
-                                                         q->has_live() ? "" : std::to_string(bounds.end));
+        const auto surface = q->has_live() ? "live" : "archive";
+        if (!q->privacy_regions().empty() &&
+            access::delivery_regions(db, q->point().site_id(), q->point().point_id(), surface) !=
+                q->privacy_regions())
+            return {grpc::StatusCode::PERMISSION_DENIED, "Privacy policy changed"};
+        const auto expiry = access::browser_point_expiry(
+            db, q->browser_session_id(), q->point().site_id(), q->point().point_id(),
+            q->privacy_regions().empty() ? surface : "", q->has_live() ? "" : std::to_string(bounds.start),
+            q->has_live() ? "" : std::to_string(bounds.end));
         if (!expiry)
             return {grpc::StatusCode::PERMISSION_DENIED, "No applicable media session"};
-        const auto rows = db.exec(R"sql(
+        const auto rows =
+            db.exec(R"sql(
           SELECT least(5000,floor(extract(epoch FROM least(expires_at,$8::timestamptz)-clock_timestamp())*1000))::bigint
           FROM bacuri_media_sessions.media_sessions WHERE id=$1 AND browser=$2 AND site_id=$3 AND point_id=$4 AND NOT closed
+          AND coalesce(presentation->>'mask','')=$9 AND ($7::boolean OR coalesce((presentation->>'converted')::boolean,false)=$10::boolean)
           AND CASE WHEN $7::boolean THEN begin_us IS NULL ELSE begin_us<=$5::bigint AND $5::bigint<$6::bigint AND $6::bigint<=end_us END
         )sql",
-                                  {q->media_session_id(), q->browser_session_id(), q->point().site_id(),
-                                   q->point().point_id(), std::to_string(bounds.start), std::to_string(bounds.end),
-                                   q->has_live() ? "true" : "false", *expiry});
+                    {q->media_session_id(), q->browser_session_id(), q->point().site_id(), q->point().point_id(),
+                     std::to_string(bounds.start), std::to_string(bounds.end), q->has_live() ? "true" : "false",
+                     *expiry, q->privacy_regions(), q->archive_h264() ? "true" : "false"});
         if (!rows.size()) {
             return {grpc::StatusCode::PERMISSION_DENIED, "No applicable media session"};
         }

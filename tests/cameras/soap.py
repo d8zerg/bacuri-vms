@@ -18,6 +18,7 @@ NS = {
     "tds": "http://www.onvif.org/ver10/device/wsdl",
     "tio": "http://www.onvif.org/ver10/deviceIO/wsdl",
     "timg": "http://www.onvif.org/ver20/imaging/wsdl",
+    "tr2": "http://www.onvif.org/ver20/media/wsdl",
     "trt": "http://www.onvif.org/ver10/media/wsdl",
     "tt": "http://www.onvif.org/ver10/schema",
     "tptz": "http://www.onvif.org/ver20/ptz/wsdl",

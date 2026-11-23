@@ -1,6 +1,7 @@
 import { milliseconds, formatUtc } from "../ui-kit/utc";
 import { useEffect, useRef, useState } from "react";
 import type {
+  Quality,
   Services,
   Target,
   Entry,
@@ -104,6 +105,36 @@ export function SessionPlayer({
   ...view
 }: Props) {
   const video = useRef<HTMLVideoElement>(null);
+  const [quality, setQuality] = useState<Quality>("auto");
+  const [width, setWidth] = useState(0);
+  const [renewal, renew] = useState(0);
+  const [format, setFormat] = useState("");
+  const live = target?.mode === "live";
+  useEffect(() => {
+    const el = video.current;
+    if (!el || !live) return;
+    setWidth(Math.max(1, Math.round(el.clientWidth)));
+    let timer: ReturnType<typeof setTimeout>;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry || entry.contentRect.width < 1) return;
+      clearTimeout(timer);
+      timer = setTimeout(
+        () =>
+          setWidth((prev) =>
+            Math.abs(prev - entry.contentRect.width) > 48
+              ? Math.round(entry.contentRect.width)
+              : prev,
+          ),
+        350,
+      );
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      clearTimeout(timer);
+    };
+  }, [live]);
+  const negotiated = live && quality === "auto" ? width : 0;
   const [last, setLast] = useState<{
     target: Target;
     attempt: number;
@@ -115,19 +146,37 @@ export function SessionPlayer({
       : { kind: "loading", message: "Загрузка видео…" };
   useEffect(() => {
     const element = video.current;
-    if (!target || !element) return;
+    if (!target || !element || (live && quality === "auto" && !negotiated))
+      return;
+    setFormat("");
     const ctl = new AbortController();
     const setState = (state: PlayerState) =>
       setLast({ target, attempt, state });
     const fail = (message: string) => {
       if (!ctl.signal.aborted) {
         ctl.abort();
+        setFormat("");
         setState({ kind: "error", message });
         onFailure?.();
       }
     };
+    setState({ kind: "loading", message: "Загрузка видео…" });
     void services
-      .attach(element, site, target, ctl.signal, fail)
+      .attach(
+        element,
+        site,
+        target.mode === "live"
+          ? { ...target, quality, width: negotiated || element.clientWidth }
+          : target,
+        ctl.signal,
+        fail,
+        (text) => {
+          if (!ctl.signal.aborted) setFormat(text);
+        },
+        () => {
+          if (!ctl.signal.aborted) renew((n) => n + 1);
+        },
+      )
       .then(() => {
         if (ctl.signal.aborted) return;
         setState({
@@ -139,10 +188,23 @@ export function SessionPlayer({
       })
       .catch(() => fail("Видео недоступно. Повторите подключение."));
     return () => ctl.abort();
-  }, [services, site, target, attempt, onFrame, onFailure]);
+  }, [
+    services,
+    site,
+    target,
+    attempt,
+    onFrame,
+    onFailure,
+    quality,
+    negotiated,
+    live,
+    renewal,
+  ]);
   return (
     <MediaPanel
       {...view}
+      description={format}
+      {...(live ? { quality, onQuality: setQuality } : {})}
       videoRef={video}
       state={target ? state : { kind: "idle", message: notice }}
     />

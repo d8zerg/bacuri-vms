@@ -36,6 +36,7 @@ Json metrics(const StreamStats& stats)
                 {"frames", stats.frames},
                 {"bytes", stats.bytes},
                 {"keyframes", stats.keyframes},
+                {"codec", stats.frames ? Json(stats.codec == VideoCodec::h265 ? "h265" : "h264") : Json(nullptr)},
                 {"width", stats.width},
                 {"height", stats.height},
                 {"reconnects", stats.reconnects},
@@ -60,10 +61,10 @@ Json metrics(const StreamStats& stats)
 }
 } // namespace
 
-std::shared_ptr<FrameQueue> Sources::preview(const std::string& point)
+std::shared_ptr<FrameQueue> Sources::preview(const std::string& point, Profile profile)
 {
     for (auto& [key, entry] : streams_) {
-        if (key.profile == Profile::secondary && key.point == point) {
+        if (key.profile == profile && key.point == point) {
             return entry.stream->subscribe();
         }
     }
@@ -76,6 +77,25 @@ std::shared_ptr<CameraAudio> Sources::audio(const std::string& point, const std:
         if (key.point == point && key.device == device && key.profile == Profile::main)
             return entry.audio;
     return {};
+}
+
+v1::VideoProfiles Sources::video_profiles(const std::string& point) const
+{
+    v1::VideoProfiles out;
+    for (const auto& [key, entry] : streams_) {
+        if (key.point != point)
+            continue;
+        const auto stats = entry.stream->stats();
+        if (stats.state != "receiving")
+            continue;
+        auto* p = out.add_profiles();
+        p->set_main(key.profile == Profile::main);
+        p->set_codec(stats.codec == VideoCodec::h265 ? "h265" : "h264");
+        p->set_width(stats.width);
+        p->set_height(stats.height);
+        p->set_bitrate_kbps(stats.bitrate_kbps ? stats.bitrate_kbps : key.profile == Profile::main ? 4096 : 768);
+    }
+    return out;
 }
 
 v1::CameraIssues Sources::issues(const std::string& device) const

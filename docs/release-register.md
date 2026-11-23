@@ -59,6 +59,7 @@
 | audio | REST | exchangeCameraAudio |
 | ptz | REST | controlPointPtz, getCameraControls |
 | media | REST | createMediaSession, revokeMediaSession, negotiateLiveMedia, getPlaybackManifest, readPlaybackPart |
+| layouts | REST | listMonitorLayouts, saveMonitorLayout, deleteMonitorLayout |
 | search | REST | searchArchive |
 | evidence | REST | exportFragment |
 | alerts | REST | getAlertSnapshot, resolveAlertArchive, getAlertWork, applyAlertCommand, searchAlertAudit, issueAlertDelegation, revokeAlertDelegation |

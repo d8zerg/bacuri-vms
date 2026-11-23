@@ -25,6 +25,7 @@ function completed(target, name, signal) {
 
 function codec(init) {
     const view = new DataView(init);
+    let sampleType;
     let start = 0,
         end = init.byteLength;
     for (const [type, skip] of [
@@ -34,14 +35,17 @@ function codec(init) {
         ["minf", 0],
         ["stbl", 0],
         ["stsd", 8],
-        ["avc1", 78],
-        ["avcC", 0],
+        ["sample", 78],
+        ["config", 0],
     ]) {
         let found = false;
         while (start + 8 <= end) {
             const size = view.getUint32(start);
             if (size < 8 || start + size > end) break;
-            if (String.fromCharCode(...new Uint8Array(init, start + 4, 4)) === type) {
+            const name = String.fromCharCode(...new Uint8Array(init, start + 4, 4));
+            if (name === type || (type === "sample" && ["avc1","hvc1","hev1"].includes(name)) ||
+                (type === "config" && name === (sampleType === "avc1" ? "avcC" : "hvcC"))) {
+                if(type==="sample")sampleType=name;
                 end = start + size;
                 start += 8 + skip;
                 found = true;
@@ -49,7 +53,18 @@ function codec(init) {
             }
             start += size;
         }
-        if (!found || start > end) throw new Error("Некорректная инициализация H.264");
+        if (!found || start > end) throw new Error("Некорректная инициализация видеопотока");
+    }
+    if(sampleType!=="avc1"){
+        if(end-start<23 || view.getUint8(start)!==1)throw new Error("Неполное описание HEVC");
+        const flags=view.getUint8(start+1);
+        const space=["","A","B","C"][flags>>>6];
+        let compat=0, bits=view.getUint32(start+2);
+        for(let i=0;i<32;i++){compat=(compat*2)+(bits&1);bits>>>=1;}
+        const constraints=Array.from(new Uint8Array(init,start+6,6));
+        while(constraints.length && constraints.at(-1)===0)constraints.pop();
+        const fields=[sampleType,space+(flags&31),compat.toString(16),(flags&32?"H":"L")+view.getUint8(start+12),...constraints.map(x=>x.toString(16).padStart(2,"0"))];
+        return 'video/mp4; codecs="'+fields.join(".")+'"';
     }
     if (end - start < 4) throw new Error("Неполное описание H.264");
     const profile = [...new Uint8Array(init, start + 1, 3)]

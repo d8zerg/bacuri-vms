@@ -7,3 +7,7 @@ target_compile_options(bacuri-vms-test-rtsp-camera PRIVATE -Wall -Wextra -Wpedan
 
 add_executable(bacuri-vms-camera-frame camera_frame.cpp)
 target_link_libraries(bacuri-vms-camera-frame PRIVATE PkgConfig::GST PkgConfig::GIO)
+
+add_executable(bacuri-vms-hevc-receiver hevc_receiver.cpp)
+target_compile_definitions(bacuri-vms-hevc-receiver PRIVATE GST_USE_UNSTABLE_API)
+target_link_libraries(bacuri-vms-hevc-receiver PRIVATE PkgConfig::GST PkgConfig::WEBRTC)

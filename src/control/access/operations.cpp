@@ -32,6 +32,16 @@ bool lock_point_grant(Database& db, const std::string& site, const std::string& 
     return allowed(db, site, user, point, "view");
 }
 
+std::string delivery_regions(Database& db, const std::string& site, const std::string& point,
+                             const std::string& surface)
+{
+    const auto rows = db.exec(
+        "SELECT regions::text FROM bacuri_access.privacy_policies WHERE site_id=$1 AND point_id=$2 AND CASE $3 "
+        "WHEN 'live' THEN live WHEN 'archive' THEN archive ELSE false END AND jsonb_array_length(regions)>0",
+        {site, point, surface});
+    return rows.size() ? rows.get(0) : "";
+}
+
 bool allowed(Database& db, const std::string& site, const std::string& user, const std::string& point,
              const std::string& action, const std::string& surface, const std::string& begin,
              const std::string& end)

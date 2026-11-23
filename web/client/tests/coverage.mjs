@@ -38,7 +38,9 @@ export function coverageReport(integrated = false) {
       path.replace(/^.*\/web\/client\/(src|public)\//, "$1/"),
     sourceFilter: (path) => inScope(path, integrated),
     all: {
-      dir: "src",
+      // The page profiler cannot observe the audio worklet's separate JS context.
+      // Keep unobserved public scripts in the integrated line count.
+      dir: integrated ? ["src", "public/assets"] : "src",
       filter: {
         "**/*.d.ts": false,
         ...(!integrated
@@ -46,6 +48,7 @@ export function coverageReport(integrated = false) {
           : {}),
         "**/*.ts": true,
         "**/*.tsx": true,
+        ...(integrated ? { "**/*.js": true } : {}),
         "**/*": false,
       },
     },

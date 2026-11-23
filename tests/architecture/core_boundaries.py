@@ -18,7 +18,7 @@ OBJECTS = {
         external_identities oidc_requests policy_versions access_audit can_use audit_policy_change invalidate_role_sessions audit_credential_binding""",
     "recordings": """blocks gaps retired_through catalog_intervals timeline_intervals retained_blocks archive_retention archive_recovery
         retention_now_us retention_cutoff advance_cutoff playback_parts""",
-    "media_sessions": "media_sessions",
+    "media_sessions": "media_sessions monitor_layouts",
     "events": """observations feed_heads alerts alert_outbox alert_details access_versions touch_alert_scope
         alert_delegations alert_audit protect_alert_audit""",
     "maps": "map_regions map_tiles floor_plans point_placements map_jobs map_sources map_catalog_settings",

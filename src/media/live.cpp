@@ -17,7 +17,10 @@ void run(std::stop_token stop, const v1::LiveOffer& offer, std::promise<Result> 
     try {
         Lease lease{offer.scope()};
         lease.deadline();
-        WebRtcPeer peer{offer.sdp()};
+        const auto& video = offer.scope().live();
+        const std::string source_codec = video.source_codec().empty() ? "h264" : video.source_codec();
+        WebRtcPeer peer{offer.sdp(), source_codec, video.output_codec().empty() ? "h264" : video.output_codec(),
+                        offer.scope().privacy_regions()};
         const auto setup = Clock::now() + 5s;
         auto sdp = peer.answer(setup);
         lease.deadline();
@@ -53,9 +56,14 @@ void run(std::stop_token stop, const v1::LiveOffer& offer, std::promise<Result> 
                 source = std::jthread{[&] {
                     try {
                         auto stub = v1::PreviewSource::NewStub(local_channel("BACURI_PREVIEW_SOCKET"));
-                        auto reader = stub->Subscribe(&source_context, offer.scope().point());
+                        v1::PreviewRequest request;
+                        *request.mutable_point() = offer.scope().point();
+                        request.set_main(video.main());
+                        auto reader = stub->SubscribeProfile(&source_context, request);
                         v1::PreviewFrame frame;
                         while (reader->Read(&frame) && Clock::now() < authorized_until.load()) {
+                            if (frame.codec() != source_codec)
+                                break;
                             peer.push(frame.access_unit(), frame.keyframe());
                         }
                         source_context.TryCancel();

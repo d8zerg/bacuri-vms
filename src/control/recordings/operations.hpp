@@ -18,6 +18,7 @@ struct CoverageInterval {
 };
 struct ManifestPart {
     std::string initialization, media;
+    std::string codec;
     std::int64_t begin, end;
 };
 struct DeliveryPart {

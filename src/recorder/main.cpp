@@ -56,10 +56,12 @@ class Recorder final : public v1::RecorderControl::Service
                      static_cast<long long>(active_.revision()), active_.cameras_size());
     }
 
-    std::shared_ptr<ingest::FrameQueue> preview(const v1::PointKey& point)
+    std::shared_ptr<ingest::FrameQueue> preview(const v1::PointKey& point, bool main)
     {
         std::scoped_lock lock{mutex_};
-        return point.site_id() == site_ ? sources_.preview(point.point_id()) : nullptr;
+        return point.site_id() == site_
+                   ? sources_.preview(point.point_id(), main ? ingest::Profile::main : ingest::Profile::secondary)
+                   : nullptr;
     }
 
     grpc::Status ExchangeAudio(grpc::ServerContext*, const v1::AudioRequest* q, v1::AudioChunk* out) override
@@ -107,6 +109,15 @@ class Recorder final : public v1::RecorderControl::Service
         }
     }
 
+    grpc::Status GetVideoProfiles(grpc::ServerContext*, const v1::PointKey* point,
+                                  v1::VideoProfiles* result) override
+    {
+        if (point->site_id() != site_ || !canonical_id(point->point_id()))
+            return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid point"};
+        std::scoped_lock lock{mutex_};
+        *result = sources_.video_profiles(point->point_id());
+        return grpc::Status::OK;
+    }
     grpc::Status GetCameraIssues(grpc::ServerContext*, const v1::CameraIssueQuery* query,
                                  v1::CameraIssues* result) override
     {
@@ -277,6 +288,18 @@ class PreviewSource final : public v1::PreviewSource::Service
     grpc::Status Subscribe(grpc::ServerContext* context, const v1::PointKey* point,
                            grpc::ServerWriter<v1::PreviewFrame>* stream) override
     {
+        return stream_profile(context, *point, false, stream);
+    }
+    grpc::Status SubscribeProfile(grpc::ServerContext* context, const v1::PreviewRequest* request,
+                                  grpc::ServerWriter<v1::PreviewFrame>* stream) override
+    {
+        return stream_profile(context, request->point(), request->main(), stream);
+    }
+
+  private:
+    grpc::Status stream_profile(grpc::ServerContext* context, const v1::PointKey& point, bool main,
+                                grpc::ServerWriter<v1::PreviewFrame>* stream)
+    {
         using namespace std::chrono_literals;
         if (!slots_.try_acquire()) {
             return {grpc::StatusCode::RESOURCE_EXHAUSTED, "Preview capacity reached"};
@@ -288,7 +311,7 @@ class PreviewSource final : public v1::PreviewSource::Service
                 slots.release();
             }
         } slot{slots_};
-        auto queue = recorder_.preview(*point);
+        auto queue = recorder_.preview(point, main);
         if (!queue) {
             return {grpc::StatusCode::NOT_FOUND, "Preview unavailable"};
         }
@@ -296,8 +319,9 @@ class PreviewSource final : public v1::PreviewSource::Service
         while (!context->IsCancelled()) {
             if (auto frame = queue->wait_pop(std::min(last + 5s, std::chrono::steady_clock::now() + 100ms))) {
                 v1::PreviewFrame packet;
-                packet.set_access_unit(frame->h264.data(), frame->h264.size());
+                packet.set_access_unit(frame->access_unit.data(), frame->access_unit.size());
                 packet.set_keyframe(frame->keyframe);
+                packet.set_codec(frame->codec == ingest::VideoCodec::h265 ? "h265" : "h264");
                 if (!stream->Write(packet)) {
                     break;
                 }

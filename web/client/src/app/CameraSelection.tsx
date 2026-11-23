@@ -258,7 +258,11 @@ export default function CameraSelection({
                   {(role === "main" ? camera.profiles : (compatible ?? [])).map(
                     (p) => (
                       <option key={p.token} value={p.url}>
-                        {p.name} · {p.url}
+                        {p.name}
+                        {p.codec
+                          ? " · " + (p.codec === "h265" ? "HEVC" : "H.264")
+                          : ""}{" "}
+                        · {p.url}
                       </option>
                     ),
                   )}

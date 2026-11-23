@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { AudioRequest, Point, Services } from "../contracts/workspace";
-import { Button } from "../ui-kit/FormControls";
+import { IconButton } from "../ui-kit/FormControls";
 import { pause } from "../workflows/pause";
 import { cameraError } from "./cameraError";
 
@@ -235,20 +235,24 @@ export function CameraAudio({
   ];
   if (!items.some(([, visible]) => visible)) return null;
   return (
-    <fieldset className="ws-ptz">
-      <legend>Звук</legend>
+    <div className="cc-audio" role="group" aria-label="Звук">
       {items
         .filter(([, visible]) => visible)
         .map(([direction, , off, on]) => (
-          <Button
+          <IconButton
+            icon={
+              { listen: "headphones", record: "record-sound", talk: "mic" }[
+                direction
+              ] as "headphones" | "record-sound" | "mic"
+            }
+            label={active[direction] ? on : off}
+            data-direction={direction}
             key={direction}
             aria-pressed={!!active[direction]}
             onClick={() => void toggle(direction)}
-          >
-            {active[direction] ? on : off}
-          </Button>
+          />
         ))}
       {error && <span role="alert">{error}</span>}
-    </fieldset>
+    </div>
   );
 }

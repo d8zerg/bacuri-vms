@@ -229,7 +229,7 @@ test("Access editors keep a single user open, resolve audit resources and show f
   const impact = panel.locator(".ws-privacy-effect");
   await expect(impact).toContainText("Архив");
   await panel.getByRole("checkbox", { name: "Эфир" }).check();
-  await expect(impact).toContainText("весь кадр будет закрыт");
+  await expect(impact).toContainText("С маской");
   await expect(impact).toContainText("Эфир · Архив");
   if (info.project.name === "chromium-light")
     await page.screenshot({ path: "/results/privacy-mobile.png" });
@@ -262,7 +262,7 @@ test("Access editors keep a single user open, resolve audit resources and show f
   await panel
     .getByRole("combobox", { name: "Точка", exact: true })
     .selectOption("p2");
-  await expect(impact).toContainText("не будет закрывать");
+  await expect(impact).toContainText("разрешает выдачу");
   await expect(panel.getByText("Области маски (0)")).toBeVisible();
   await checkAccessibility(page, ".ws-access");
   expect(

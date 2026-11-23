@@ -2,10 +2,10 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   NavLink,
-  RouterProvider,
-  createBrowserRouter,
-  createMemoryRouter,
-  replace,
+  BrowserRouter,
+  MemoryRouter,
+  Navigate,
+  useRoutes,
   useLocation,
   useSearchParams,
   type RouteObject,
@@ -282,6 +282,7 @@ function Site({
   return (
     <Suspense fallback={<p role="status">Загрузка мониторинга…</p>}>
       <Monitor
+        admin={admin}
         services={services}
         site={site}
         points={points}
@@ -591,6 +592,22 @@ function Workspace({ services }: { services: Services }) {
     </div>
   );
 }
+function MonitorRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={{ pathname: "/monitor", search }} replace />;
+}
+
+function WorkspaceRoutes({ services }: { services: Services }) {
+  const routes: RouteObject[] = [
+    { path: "/", element: <MonitorRedirect /> },
+    ...["/monitor", "/cameras", "/maps", "/audit", "/access"].map((path) => ({
+      path,
+      element: <Workspace services={services} />,
+    })),
+  ];
+  return useRoutes(routes);
+}
+
 export function WorkspaceRouter({
   services,
   initial,
@@ -598,22 +615,10 @@ export function WorkspaceRouter({
   services: Services;
   initial?: string;
 }) {
-  const [router] = useState(() => {
-    const routes: RouteObject[] = [
-      {
-        path: "/",
-        loader: ({ request }) =>
-          replace("/monitor" + new URL(request.url).search),
-      },
-      ...["/monitor", "/cameras", "/maps", "/audit", "/access"].map((path) => ({
-        path,
-        element: <Workspace services={services} />,
-      })),
-    ];
-    return initial
-      ? createMemoryRouter(routes, { initialEntries: [initial] })
-      : createBrowserRouter(routes);
-  });
-  useEffect(() => () => router.dispose(), [router]);
-  return <RouterProvider router={router} />;
+  const content = <WorkspaceRoutes services={services} />;
+  return initial ? (
+    <MemoryRouter initialEntries={[initial]}>{content}</MemoryRouter>
+  ) : (
+    <BrowserRouter>{content}</BrowserRouter>
+  );
 }

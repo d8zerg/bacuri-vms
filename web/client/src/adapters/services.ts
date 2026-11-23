@@ -20,6 +20,35 @@ export function createServices(): Services {
   const operations = new WeakMap<object, Registration>();
   const auth = () => ({ "X-CSRF-Token": csrf });
   return {
+    async layouts(siteId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/monitor-layouts", {
+          params: { path: { siteId } },
+          signal,
+        }),
+      );
+    },
+    async saveLayout(siteId, layoutId, body) {
+      return data(
+        await api.PUT("/sites/{siteId}/monitor-layouts/{layoutId}", {
+          params: { path: { siteId, layoutId }, header: auth() },
+          body,
+        }),
+      );
+    },
+    async deleteLayout(siteId, layoutId, revision) {
+      const result = await api.DELETE(
+        "/sites/{siteId}/monitor-layouts/{layoutId}",
+        {
+          params: {
+            path: { siteId, layoutId },
+            header: { ...auth(), "If-Match": '"' + revision + '"' },
+          },
+        },
+      );
+      if (!result.response.ok)
+        throw new HttpFailure(result.response.status, result.error?.code ?? "");
+    },
     async session(signal) {
       const identity = data(await api.GET("/session", { signal }));
       signal.throwIfAborted();
@@ -390,7 +419,12 @@ export function createServices(): Services {
         attach(
           video,
           site,
-          { mode: "live", point: camera.point_id },
+          {
+            mode: "live",
+            point: camera.point_id,
+            quality: "secondary",
+            requireSecondary: true,
+          },
           auth(),
           liveSignal,
           () => probe.abort(),
@@ -439,7 +473,11 @@ export function createServices(): Services {
           await api.GET("/sites/{siteId}/points/{pointId}/archive", {
             params: {
               path: { siteId, pointId },
-              query: { ...window, ...(cursor ? { cursor } : {}) },
+              query: {
+                ...window,
+                presentation: "masked",
+                ...(cursor ? { cursor } : {}),
+              },
             },
             signal,
           }),
@@ -458,9 +496,9 @@ export function createServices(): Services {
       );
     },
     subscribe,
-    async attach(video, site, target, signal, fail) {
+    async attach(video, site, target, signal, fail, format, renew) {
       try {
-        await attach(video, site, target, auth(), signal, fail);
+        await attach(video, site, target, auth(), signal, fail, format, renew);
       } catch (error) {
         if (!signal.aborted) fail(mediaFailure(error));
         throw error;

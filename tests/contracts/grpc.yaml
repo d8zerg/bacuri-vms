@@ -16,6 +16,14 @@ apply_configuration:
     requested_revision: '2'
     applied_revision: '2'
     state: APPLY_STATE_APPLIED
+video_profiles:
+  rpc: RecorderControl.GetVideoProfiles
+  request: {site_id: *site, point_id: *point}
+  response: {profiles: [{main: true, codec: h265, width: 1920, height: 1080, bitrate_kbps: 4096}]}
+selected_preview:
+  rpc: PreviewSource.SubscribeProfile
+  request: {point: {site_id: *site, point_id: *point}, main: true}
+  response: {keyframe: true, codec: h265}
 camera_stream_issues:
   rpc: RecorderControl.GetCameraIssues
   request:

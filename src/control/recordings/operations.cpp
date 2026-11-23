@@ -81,7 +81,8 @@ bool bind_playback_parts(Database& db, const std::string& session, const std::st
 
 std::vector<ManifestPart> playback_manifest(Database& db, const std::string& session)
 {
-    auto rows = db.exec("SELECT init_id,media_id,begin_utc_us,end_utc_us FROM bacuri_archive.playback_parts JOIN "
+    auto rows = db.exec("SELECT init_id,media_id,begin_utc_us,end_utc_us,manifest#>>'{media,tracks,0,codec}' FROM "
+                        "bacuri_archive.playback_parts JOIN "
                         "bacuri_archive.retained_blocks "
                         "USING(site_id,block_id,recording_epoch_id,owner_generation) WHERE session_id=$1 AND "
                         "unavailable_reason IS NULL "
@@ -89,7 +90,8 @@ std::vector<ManifestPart> playback_manifest(Database& db, const std::string& ses
                         {session});
     std::vector<ManifestPart> parts;
     for (int i = 0; i < rows.size(); ++i)
-        parts.push_back({rows.get(i), rows.get(i, 1), std::stoll(rows.get(i, 2)), std::stoll(rows.get(i, 3))});
+        parts.push_back(
+            {rows.get(i), rows.get(i, 1), rows.get(i, 4), std::stoll(rows.get(i, 2)), std::stoll(rows.get(i, 3))});
     return parts;
 }
 

@@ -1,4 +1,5 @@
 #pragma once
+#include "media/privacy.hpp"
 #include <gst/app/gstappsrc.h>
 #include <gst/webrtc/webrtc.h>
 #include <chrono>
@@ -19,7 +20,8 @@ template <class T, auto Release> using GstHandle = std::unique_ptr<T, GstDeleter
 class WebRtcPeer
 {
   public:
-    explicit WebRtcPeer(const std::string& offer);
+    WebRtcPeer(const std::string& offer, std::string_view source, std::string_view output,
+               std::string_view regions);
     ~WebRtcPeer();
     void stop() noexcept;
     std::string answer(std::chrono::steady_clock::time_point deadline);
@@ -27,6 +29,7 @@ class WebRtcPeer
     void push(std::string_view access_unit, bool keyframe);
 
   private:
+    PrivacyMask mask_;
     GstHandle<GstWebRTCSessionDescription, gst_webrtc_session_description_free> offer_;
     GstHandle<GstElement, gst_object_unref> pipeline_, rtc_, input_;
     bool need_keyframe_{true};

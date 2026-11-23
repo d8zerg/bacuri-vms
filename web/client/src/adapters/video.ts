@@ -3,6 +3,14 @@ import type { Target } from "../contracts/workspace";
 import { api, data, HttpFailure } from "./api";
 export function mediaFailure(error: unknown) {
   if (error instanceof HttpFailure) {
+    if (error.code === "video_bandwidth_limit")
+      return "Сетевой бюджет исчерпан. Выберите дополнительный поток или освободите ячейку.";
+    if (error.code === "video_session_limit")
+      return "Все подключения к эфиру заняты. Освободите ячейку на одном из постов.";
+    if (error.code === "video_transcoder_limit")
+      return "Преобразование в H.264 занято. Освободите просмотр или используйте клиент с поддержкой HEVC.";
+    if (error.code === "video_source_unavailable")
+      return "Рекордер пока не получил видеопоток камеры.";
     if (error.code === "pending_catalog")
       return "Запись добавляется в каталог. Повторите проверку.";
     if (error.code === "recording_gap")
@@ -41,28 +49,152 @@ export async function attach(
   header: { "X-CSRF-Token": string },
   signal: AbortSignal,
   fail: (reason: string) => void,
+  format?: (description: string) => void,
+  renew?: () => void,
+) {
+  const supportsHevc =
+    target.mode === "archive"
+      ? (globalThis.MediaSource?.isTypeSupported(
+          'video/mp4; codecs="hvc1.1.6.L93.B0"',
+        ) ?? false)
+      : (RTCRtpReceiver.getCapabilities("video")?.codecs.some(
+          (c) => c.mimeType.toLowerCase() === "video/h265",
+        ) ?? false);
+  for (const hevc of supportsHevc ? [true, false] : [false]) {
+    const attempt = new AbortController();
+    const scoped = AbortSignal.any([signal, attempt.signal]);
+    let native = false,
+      ready = false;
+    try {
+      await connect(
+        video,
+        siteId,
+        target,
+        header,
+        scoped,
+        (message) => {
+          if (scoped.aborted) return;
+          if (native && !ready) attempt.abort();
+          else fail(message);
+        },
+        {
+          hevc,
+          markNative: () => {
+            native = true;
+          },
+        },
+        format,
+        renew,
+      );
+      ready = true;
+      return;
+    } catch (error) {
+      attempt.abort();
+      if (signal.aborted || !hevc || !native) throw error;
+    }
+  }
+}
+
+async function connect(
+  video: HTMLVideoElement,
+  siteId: string,
+  target: Target,
+  header: { "X-CSRF-Token": string },
+  signal: AbortSignal,
+  fail: (message: string) => void,
+  decoder: { hevc: boolean; markNative: () => void },
+  format?: (description: string) => void,
+  renew?: () => void,
 ) {
   signal.throwIfAborted();
-  const session = data(
-    await api.POST("/sites/{siteId}/points/{pointId}/media-sessions", {
-      params: {
-        path: { siteId, pointId: target.point },
-        header: { ...header, "Idempotency-Key": crypto.randomUUID() },
-      },
-      body:
-        target.mode === "archive"
-          ? {
-              mode: "archive",
-              interval: target.interval,
-              ...(target.binding_revision
-                ? { binding_revision: target.binding_revision }
-                : {}),
-            }
-          : { mode: "live" },
-      signal: AbortSignal.timeout(10000),
-    }),
-  );
+  const open = async () =>
+    data(
+      await api.POST("/sites/{siteId}/points/{pointId}/media-sessions", {
+        params: {
+          path: { siteId, pointId: target.point },
+          header: { ...header, "Idempotency-Key": crypto.randomUUID() },
+        },
+        body:
+          target.mode === "archive"
+            ? {
+                mode: "archive",
+                hevc: decoder.hevc,
+                accept_masked: true,
+                interval: target.interval,
+                ...(target.binding_revision
+                  ? { binding_revision: target.binding_revision }
+                  : {}),
+              }
+            : {
+                mode: "live",
+                quality: target.quality ?? "auto",
+                cell_width: Math.max(
+                  1,
+                  Math.min(
+                    16384,
+                    Math.round(target.width ?? video.clientWidth),
+                  ),
+                ),
+                hevc: decoder.hevc,
+                accept_masked: true,
+              },
+        signal: AbortSignal.timeout(10000),
+      }),
+    );
+  async function openAvailable() {
+    const deadline = performance.now() + 6000;
+    for (;;) {
+      signal.throwIfAborted();
+      try {
+        const result = await open();
+        if (
+          target.mode === "live" &&
+          target.requireSecondary &&
+          result.video?.profile !== "secondary"
+        ) {
+          await api.DELETE("/media-sessions/{mediaSessionId}", {
+            params: { path: { mediaSessionId: result.id }, header },
+          });
+          throw new HttpFailure(503, "video_source_unavailable");
+        }
+        return result;
+      } catch (error) {
+        if (
+          !(error instanceof HttpFailure) ||
+          error.code !== "video_source_unavailable" ||
+          performance.now() >= deadline
+        )
+          throw error;
+        await event(AbortSignal.timeout(350), "abort", signal);
+      }
+    }
+  }
+  const session = await openAvailable();
   const path = { mediaSessionId: session.id };
+  if (session.video) {
+    const v = session.video;
+    if (v.codec === "h265") decoder.markNative();
+    const reason =
+      v.reason === "privacy_mask"
+        ? " · с маской"
+        : v.reason === "bandwidth"
+          ? " · сетевой бюджет"
+          : v.converted
+            ? " · совместимая копия"
+            : v.reason === "compatible_profile"
+              ? " · совместимый профиль"
+              : "";
+    format?.(
+      (v.profile === "main" ? "Основной" : "Дополнительный") +
+        " · " +
+        (v.codec === "h265" ? "HEVC" : "H.264") +
+        " · " +
+        v.width +
+        "×" +
+        v.height +
+        reason,
+    );
+  }
   function releaseSession() {
     void api
       .DELETE("/media-sessions/{mediaSessionId}", {
@@ -77,7 +209,10 @@ export async function attach(
   }
   let peer: RTCPeerConnection | undefined, player: ArchivePlayer | undefined;
   const expire = setTimeout(
-    () => fail("Время просмотра истекло. Откройте видео снова."),
+    () =>
+      target.mode === "live" && renew
+        ? renew()
+        : fail("Время просмотра истекло. Откройте видео снова."),
     Date.parse(session.expires_at) - Date.now(),
   );
   const timeout = setTimeout(
@@ -126,6 +261,19 @@ export async function attach(
       }
     }
     verifyTimer = setTimeout(() => void verify(), 2000);
+    const part = manifest.parts.find(
+      (p) =>
+        Date.parse(target.position) >= Date.parse(p.interval.start) &&
+        Date.parse(target.position) < Date.parse(p.interval.end),
+    );
+    if (part?.codec === "h265") decoder.markNative();
+    if (part?.codec)
+      format?.(
+        (part.codec === "h265" ? "HEVC" : "H.264") +
+          (part.source_codec && part.source_codec !== part.codec
+            ? " · совместимая копия"
+            : " · Архив"),
+      );
     player = new ArchivePlayer(video, session.id, manifest, fail);
     if (!(await player.seek(target.position))) throw Error("Frame unavailable");
   } else {
@@ -134,10 +282,12 @@ export async function attach(
     const transceiver = pc.addTransceiver("video", { direction: "recvonly" });
     const codecs = RTCRtpReceiver.getCapabilities("video")?.codecs.filter(
       (c) =>
-        c.mimeType.toLowerCase() === "video/h264" &&
-        /packetization-mode=1/.test(c.sdpFmtpLine ?? ""),
+        session.video?.codec === "h265"
+          ? c.mimeType.toLowerCase() === "video/h265"
+          : c.mimeType.toLowerCase() === "video/h264" &&
+            /packetization-mode=1/.test(c.sdpFmtpLine ?? ""),
     );
-    if (!codecs?.length) throw Error("H.264 unavailable");
+    if (!codecs?.length) throw Error("Negotiated decoder unavailable");
     transceiver.setCodecPreferences(codecs);
     pc.ontrack = ({ track }) => {
       if (!signal.aborted) {

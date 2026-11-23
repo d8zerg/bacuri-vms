@@ -376,6 +376,14 @@ tasks:
       - defer: docker compose stop playback-chrome playback-firefox
       - '{{.DEV_RUN}} env BACURI_TEST_CAMERA_HOST={{.CAMERA | shellQuote}} sh tests/check-control.sh {{.PRESET | shellQuote}} live'
 
+  monitoring:check:
+    desc: Verify multi-camera workstations, HEVC recording, compatibility copies and masking
+    deps: [web:build, stand:up, build]
+    cmds:
+      - docker compose up -d --wait playback-chrome playback-firefox
+      - defer: docker compose stop playback-chrome playback-firefox
+      - '{{.DEV_RUN}} sh tests/check-control.sh {{.PRESET | shellQuote}} monitoring'
+
   access:check:
     desc: Verify local and Keycloak sessions, site administration and access revocation in an isolated installation
     deps:

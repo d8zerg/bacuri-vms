@@ -256,7 +256,7 @@ def exercise(call, device, cam, admin):
     stopped = device.feedback()[0]
     time.sleep(0.12)
     assert device.feedback()[0] == stopped
-    assert not js(call, "return [...document.querySelectorAll('.ws-ptz button')].some(b=>b.textContent==='Вверх')")
+    assert not js(call, "return [...document.querySelectorAll('.camera-console button')].some(b=>b.getAttribute('aria-label')==='Вверх')")
 
     button(call, "Приблизить")
     def zoom_position():

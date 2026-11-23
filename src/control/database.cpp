@@ -106,7 +106,8 @@ void migrate()
                                     "0021_access_policy.sql",
                                     "0022_camera_batches.sql",
                                     "0023_ptz_zoom.sql",
-                                    "0024_camera_controls.sql"};
+                                    "0024_camera_controls.sql",
+                                    "0025_monitoring.sql"};
     if (version > static_cast<int>(migrations.size())) {
         throw std::runtime_error("Unsupported database schema");
     }

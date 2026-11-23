@@ -2,12 +2,10 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import type {
   AlertLink,
-  CameraControls,
   Entry,
   Feed,
   Interval,
   Point,
-  PtzCommand,
   Services,
   Target,
 } from "../contracts/workspace";
@@ -23,10 +21,14 @@ import {
 
 import { milliseconds } from "../ui-kit/utc";
 import { alertStates } from "../ui-kit/alertLabels";
-import { Button, IconButton } from "../ui-kit/FormControls";
 import { SubsectionMenu } from "./SubsectionMenu";
-import { CameraAudio } from "./CameraAudio";
-import { cameraError } from "./cameraError";
+import { IconButton } from "../ui-kit/FormControls";
+const MonitorGrid = lazy(() =>
+  import("./MonitorGrid").then((m) => ({ default: m.MonitorGrid })),
+);
+const CameraConsole = lazy(() =>
+  import("./CameraConsole").then((m) => ({ default: m.CameraConsole })),
+);
 const ArchiveTimeline = lazy(() =>
   import("../ui-kit/ArchiveTimeline").then((m) => ({
     default: m.ArchiveTimeline,
@@ -47,213 +49,6 @@ const recordingLabels = {
   stopped: "Запись остановлена",
   unknown: "Состояние записи неизвестно",
 };
-import { ptzLabels } from "./cameraCommands";
-function CameraActionList({
-  actions,
-  move,
-}: {
-  actions: CameraControls["actions"];
-  move: (command: PtzCommand, target?: string) => Promise<void>;
-}) {
-  const [selected, setSelected] = useState<Partial<Record<PtzCommand, string>>>(
-    {},
-  );
-  return (
-    <div className="ws-camera-actions">
-      {Array.from(new Set(actions.map((item) => item.command))).map(
-        (command) => {
-          const items = actions.filter((item) => item.command === command);
-          const current =
-            items.find((item) => item.target === selected[command]) ?? items[0];
-          if (!current) return null;
-          return (
-            <div key={command}>
-              {items.length > 1 && (
-                <select
-                  aria-label={ptzLabels[command]}
-                  value={current.target}
-                  onChange={(event) =>
-                    setSelected({ ...selected, [command]: event.target.value })
-                  }
-                >
-                  {items.map((item) => (
-                    <option key={item.target} value={item.target}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <Button onClick={() => void move(command, current.target)}>
-                {ptzLabels[command]}
-                {items.length === 1 &&
-                [
-                  "preset_goto",
-                  "tour_start",
-                  "tour_stop",
-                  "relay_on",
-                  "relay_off",
-                ].includes(command)
-                  ? " " + current.label
-                  : ""}
-              </Button>
-            </div>
-          );
-        },
-      )}
-    </div>
-  );
-}
-function PtzControls({
-  commands,
-  services,
-  site,
-  point,
-  device,
-}: {
-  commands: PtzCommand[];
-  services: Services;
-  site: string;
-  point: string;
-  device: string;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [confirmed, setConfirmed] = useState("");
-  const [expanded, setExpanded] = useState(false);
-  const [revision, setRevision] = useState(0);
-  const [catalog, setCatalog] = useState<CameraControls>();
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    if (!expanded) return;
-    const controller = new AbortController();
-    setLoading(true);
-    services
-      .cameraControls(site, point, controller.signal)
-      .then((result) => {
-        if (controller.signal.aborted) return;
-        if (result.device_id !== device) throw new Error("changed");
-        setCatalog(result);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setCatalog(undefined);
-          setError("Не удалось прочитать состояние камеры.");
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [services, site, point, device, expanded, revision]);
-  async function move(command: PtzCommand, target?: string) {
-    setBusy(true);
-    setError("");
-    setConfirmed("");
-    try {
-      await services.ptz(site, point, device, command, target);
-      setConfirmed(
-        command === "stop"
-          ? "Камера подтвердила команду остановки."
-          : "Камера подтвердила команду.",
-      );
-    } catch (e) {
-      setError(
-        cameraError(e) ??
-          "Камера не подтвердила команду. Проверьте связь и доступ к точке.",
-      );
-    } finally {
-      setBusy(false);
-      setRevision((value) => value + 1);
-    }
-  }
-  return (
-    <fieldset className="ws-ptz" disabled={busy}>
-      <legend>Управление PTZ</legend>
-      {commands.map((command) => (
-        <Button key={command} onClick={() => void move(command)}>
-          {ptzLabels[command]}
-        </Button>
-      ))}
-      <details
-        className="ws-camera-equipment"
-        open={expanded}
-        onToggle={(event) => setExpanded(event.currentTarget.open)}
-      >
-        <summary>Позиции и оборудование</summary>
-        <IconButton
-          icon="rotate-cw"
-          label="Обновить состояние камеры"
-          onClick={() => setRevision((value) => value + 1)}
-        />
-        {loading && <span role="status">Получение состояния…</span>}
-        {catalog && (
-          <>
-            {catalog.owner &&
-              new Date(catalog.owner.until).getTime() > Date.now() && (
-                <p>
-                  Управляет {catalog.owner.name} до{" "}
-                  {new Date(catalog.owner.until).toLocaleTimeString()} ·
-                  приоритет {catalog.owner.priority}
-                </p>
-              )}
-            <CameraActionList actions={catalog.actions} move={move} />
-            {!!catalog.inputs.length && (
-              <ul>
-                {catalog.inputs.map((input) => (
-                  <li key={input.token}>
-                    Вход {input.token} ·{" "}
-                    {input.active === undefined
-                      ? "Состояние неизвестно"
-                      : input.active
-                        ? "Активен"
-                        : "Неактивен"}{" "}
-                    {input.observed_at && (
-                      <time dateTime={input.observed_at}>
-                        {new Date(input.observed_at).toLocaleTimeString()}
-                      </time>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {catalog.capability_error && (
-              <p role="status">
-                Связь с камерой недоступна. Показан сохранённый журнал.
-              </p>
-            )}
-            {!catalog.capability_error &&
-              !catalog.actions.length &&
-              !catalog.inputs.length && (
-                <p>Профиль не объявил дополнительных функций.</p>
-              )}
-            {!!catalog.history.length && (
-              <details>
-                <summary>Журнал команд</summary>
-                <ul>
-                  {catalog.history.map((row, i) => (
-                    <li key={i}>
-                      {new Date(row.at).toLocaleTimeString()} · {row.actor} ·{" "}
-                      {ptzLabels[row.command]} {row.target} ·{" "}
-                      {
-                        {
-                          acknowledged: "Подтверждена",
-                          unknown: "Исход неизвестен",
-                          rejected: "Отклонена",
-                        }[row.outcome]
-                      }
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </>
-        )}
-      </details>
-      {confirmed && <span role="status">{confirmed}</span>}
-      {error && <span role="alert">{error}</span>}
-    </fieldset>
-  );
-}
 type Selection = { entries: Entry[]; window: Interval; link?: AlertLink };
 function View({
   services,
@@ -414,6 +209,28 @@ function View({
         target={target}
         title={point.name}
         mode={archive ? "archive" : "live"}
+        controls={
+          (
+            archive
+              ? point.audio?.archive
+              : point.audio?.listen ||
+                point.audio?.record ||
+                point.audio?.talk ||
+                point.ptz
+          ) ? (
+            <Suspense fallback={null}>
+              <CameraConsole
+                key={[site, point.id, point.ptz?.device_id, archive].join("/")}
+                services={services}
+                site={site}
+                point={point.id}
+                ptz={archive ? undefined : point.ptz}
+                audio={point.audio}
+                position={archive ? ms * 1000 : undefined}
+              />
+            </Suspense>
+          ) : undefined
+        }
         notice={notice}
         retry={retry}
         {...(archive ? { position } : {})}
@@ -452,26 +269,6 @@ function View({
           />
         </Suspense>
       )}
-      {point.audio && (
-        <CameraAudio
-          key={[point.audio.device_id, archive ? ms : "live"].join("/")}
-          services={services}
-          site={site}
-          point={point.id}
-          capabilities={point.audio}
-          position={archive ? ms * 1000 : undefined}
-        />
-      )}
-      {!archive && point.ptz && (
-        <PtzControls
-          key={point.ptz.device_id}
-          commands={point.ptz.commands}
-          services={services}
-          site={site}
-          point={point.id}
-          device={point.ptz.device_id}
-        />
-      )}
       {archive && (
         <Suspense fallback={null}>
           <ArchiveTimeline
@@ -486,11 +283,13 @@ function View({
   );
 }
 export function Monitor({
+  admin,
   services,
   site,
   points,
   feed,
 }: {
+  admin: boolean;
   services: Services;
   site: string;
   points: Point[];
@@ -563,6 +362,10 @@ export function Monitor({
   const archive =
     params.get("mode") === "archive" ||
     (!!alert && params.get("mode") !== "live");
+  const grid = params.get("grid") === "1" && !archive;
+  function closeGrid() {
+    update({ grid: null, wall: null, layout: null, mode: "live" });
+  }
   const validAt = at && Number.isFinite(Date.parse(at)) ? at : null;
   return (
     <>
@@ -575,7 +378,7 @@ export function Monitor({
             active: !archive,
             disabled: !point,
             select: () => {
-              if (archive) update({ mode: "live" });
+              if (archive || grid) closeGrid();
             },
           },
           {
@@ -600,6 +403,7 @@ export function Monitor({
           },
           {
             label: "К тревогам",
+            disabled: grid,
             icon: "bell-ring",
             className: "ws-feed-jump",
             select: () => {
@@ -610,112 +414,142 @@ export function Monitor({
           },
         ]}
       />
-      <div className="ws-point-toolbar">
-        <label>
-          Точка наблюдения{" "}
-          <select
-            disabled={!points.length}
-            value={point?.id ?? ""}
-            onChange={(e) =>
-              update({
-                point: e.target.value,
-                alert: null,
-                focus: null,
-                at: null,
-                from: null,
-                to: null,
-                scroll: null,
-              })
-            }
-          >
-            {!point && (
-              <option value="" disabled>
-                {points.length ? "Выберите точку" : "Нет доступных точек"}
-              </option>
-            )}
-            {points.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {point && (
-          <div className="ws-point-health">
-            <span data-state={point.connection}>
-              {connectionLabels[point.connection]}
-            </span>
-            <span data-state={point.recording}>
-              {recordingLabels[point.recording]}
-            </span>
-          </div>
-        )}
-      </div>
-      <div className="ws-monitor">
-        {point ? (
-          <View
-            key={site + point.id + (alert ?? "")}
-            services={services}
+      {grid ? (
+        <Suspense fallback={<p role="status">Загрузка раскладки…</p>}>
+          <MonitorGrid
+            key={site}
             site={site}
-            point={point}
-            alert={alert}
-            at={validAt}
-            archive={archive}
-            restoredWindow={restoredWindow}
-            returnFocus={alert ? null : focus}
-            onSeek={(ms) =>
-              update({ at: new Date(ms).toISOString(), mode: "archive" }, true)
-            }
-            onBack={(at, window) => {
-              if (alert && !document.getElementById("alert-" + alert))
-                setFeedQuery("");
-              update({
-                focus: alert,
-                state:
-                  filter &&
-                  feed.items.find((item) => item.id === alert)?.work_state ===
-                    filter
-                    ? filter
-                    : null,
-                alert: null,
-                mode: "live",
-                at,
-                from: window.start,
-                to: window.end,
-              });
-            }}
+            services={services}
+            points={points}
+            admin={admin}
+            back={closeGrid}
           />
-        ) : (
-          <p className="ws-panel ws-pad" role="status">
-            {points.length
-              ? "Эта точка недоступна. Выберите другую точку наблюдения."
-              : "Нет доступных точек"}
-          </p>
-        )}
-        <AlertList
-          search={{ query: feedQuery, change: setFeedQuery }}
-          feed={feed}
-          points={points}
-          selected={alert ?? focus}
-          listRef={list}
-          filter={filter}
-          onFilter={(state) =>
-            update({ state: state || null, focus: null, scroll: null }, true)
-          }
-          onOpen={(item) => {
-            update({
-              point: item.point_id,
-              scroll: String(list.current?.scrollTop ?? 0),
-              from: null,
-              to: null,
-              alert: item.id,
-              at: null,
-              focus: null,
-              mode: "archive",
-            });
-          }}
-        />
-      </div>
+        </Suspense>
+      ) : (
+        <>
+          <div className="ws-point-toolbar">
+            <label>
+              Точка наблюдения{" "}
+              <select
+                disabled={!points.length}
+                value={point?.id ?? ""}
+                onChange={(e) =>
+                  update({
+                    point: e.target.value,
+                    alert: null,
+                    focus: null,
+                    at: null,
+                    from: null,
+                    to: null,
+                    scroll: null,
+                  })
+                }
+              >
+                {!point && (
+                  <option value="" disabled>
+                    {points.length ? "Выберите точку" : "Нет доступных точек"}
+                  </option>
+                )}
+                {points.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {!archive && (
+              <IconButton
+                icon="layers"
+                label="Многоканальный эфир"
+                onClick={() =>
+                  update({ grid: "1", mode: "live", alert: null, focus: null })
+                }
+              />
+            )}
+            {point && (
+              <div className="ws-point-health">
+                <span data-state={point.connection}>
+                  {connectionLabels[point.connection]}
+                </span>
+                <span data-state={point.recording}>
+                  {recordingLabels[point.recording]}
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="ws-monitor">
+            {point ? (
+              <View
+                key={site + point.id + (alert ?? "")}
+                services={services}
+                site={site}
+                point={point}
+                alert={alert}
+                at={validAt}
+                archive={archive}
+                restoredWindow={restoredWindow}
+                returnFocus={alert ? null : focus}
+                onSeek={(ms) =>
+                  update(
+                    { at: new Date(ms).toISOString(), mode: "archive" },
+                    true,
+                  )
+                }
+                onBack={(at, window) => {
+                  if (alert && !document.getElementById("alert-" + alert))
+                    setFeedQuery("");
+                  update({
+                    focus: alert,
+                    state:
+                      filter &&
+                      feed.items.find((item) => item.id === alert)
+                        ?.work_state === filter
+                        ? filter
+                        : null,
+                    alert: null,
+                    mode: "live",
+                    at,
+                    from: window.start,
+                    to: window.end,
+                  });
+                }}
+              />
+            ) : (
+              <p className="ws-panel ws-pad" role="status">
+                {points.length
+                  ? "Эта точка недоступна. Выберите другую точку наблюдения."
+                  : "Нет доступных точек"}
+              </p>
+            )}
+            <AlertList
+              search={{ query: feedQuery, change: setFeedQuery }}
+              feed={feed}
+              points={points}
+              selected={alert ?? focus}
+              listRef={list}
+              filter={filter}
+              onFilter={(state) =>
+                update(
+                  { state: state || null, focus: null, scroll: null },
+                  true,
+                )
+              }
+              onOpen={(item) => {
+                update({
+                  point: item.point_id,
+                  scroll: String(list.current?.scrollTop ?? 0),
+                  from: null,
+                  to: null,
+                  alert: item.id,
+                  at: null,
+                  focus: null,
+                  mode: "archive",
+                });
+              }}
+            />
+          </div>
+        </>
+      )}
     </>
   );
 }

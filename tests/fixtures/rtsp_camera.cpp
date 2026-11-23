@@ -158,14 +158,22 @@ int run_camera(bool webcam, const char* certificate_file)
     } else {
         mount_stream(mounts.get(), main_stream);
         mount_stream(mounts.get(), sub_stream);
-        if (certificate_file) {
-            for (int channel = 1; channel <= 4; ++channel) {
-                for (const auto& profile : {main_stream, sub_stream}) {
-                    auto path = "/channel" + std::to_string(channel) + profile.path;
-                    mount_stream(mounts.get(), {path.c_str(), profile.pipeline});
-                }
+        for (int channel = 1; channel <= 4; ++channel) {
+            for (const auto& profile : {main_stream, sub_stream}) {
+                auto path = "/channel" + std::to_string(channel) + profile.path;
+                mount_stream(mounts.get(), {path.c_str(), profile.pipeline});
             }
         }
+        const auto hevc_profile = [](const char* size) {
+            return std::string{"( videotestsrc is-live=true pattern=ball ! video/x-raw,format=I420,"} + size +
+                   ",framerate=15/1 ! x265enc bitrate=640 key-int-max=15 tune=zerolatency speed-preset=ultrafast "
+                   "option-string=pools=1 ! video/x-h265,profile=main ! rtph265pay name=pay0 pt=98 "
+                   "config-interval=1 )";
+        };
+        const auto main_hevc = hevc_profile("width=640,height=360"),
+                   sub_hevc = hevc_profile("width=320,height=180");
+        mount_stream(mounts.get(), {"/hevc", main_hevc.c_str()});
+        mount_stream(mounts.get(), {"/hevc-sub", sub_hevc.c_str()});
         mount_stream(mounts.get(),
                      {"/jpeg", "( videotestsrc is-live=true ! video/x-raw,format=I420,width=320,height=240 "
                                "! jpegenc ! rtpjpegpay name=pay0 pt=26 )"});

@@ -99,7 +99,7 @@ Json make_manifest(const Identity& identity, const std::string& id, const Block&
     if (auto value = time.uncertainty()) {
         timing["uncertainty_us"] = value->count();
     }
-    Json track{{"id", 1}, {"kind", "video"}, {"codec", "h264"}, {"time_scale", 90000}};
+    Json track{{"id", 1}, {"kind", "video"}, {"codec", block.codec}, {"time_scale", 90000}};
     Json result{{"manifest_version", domain::BlockManifestV1::version},
                 {"site_id", identity.owner.site},
                 {"block_id", id},

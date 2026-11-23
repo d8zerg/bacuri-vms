@@ -230,7 +230,15 @@ def operator(browser, cam, viewer, restart, plan):
     playback.fixture(cam, 0, 320, [(255, 0, 0), (0, 255, 0)])
     with browser_session(browser, None, "/", workspace_coverage=raw, software_map=True) as (call, _):
         login(call, "viewer")
-        wait(call, "document.querySelector('video')?.videoWidth===640", "secondary WebRTC frame")
+        wait(call, "document.querySelector('.ws-stream-choice select')", "live stream selector")
+        js(call, """const profile=document.querySelector('.ws-stream-choice select');
+            profile.value='secondary';profile.dispatchEvent(new Event('change',{bubbles:true}));""")
+        wait(
+            call,
+            """document.querySelector('video')?.videoWidth === 640 &&
+                document.querySelector('.ws-player header p')?.textContent.includes('640×360')""",
+            "selected secondary WebRTC frame",
+        )
         wait(call, "document.body.innerText.includes('Тревог пока нет')", "empty live feed")
         send(motion(point))
         alert = snapshot(viewer)["items"][-1]
@@ -255,7 +263,16 @@ def operator(browser, cam, viewer, restart, plan):
         url = js(call, "return location.pathname+location.search")
         js(call, "window.previousVideo = document.querySelector('.ws-player video'); return true")
         button(call, "Эфир")
-        wait(call, "document.querySelector('.ws-player video')?.videoWidth===640 && !document.querySelector('.bt-timeline')", "live without archive timeline")
+        wait(
+            call,
+            """!document.querySelector('.bt-timeline') && (() => {
+                const video = document.querySelector('.ws-player video');
+                const info = document.querySelector('.ws-player header p');
+                return [640,1280].includes(video?.videoWidth) &&
+                    info?.textContent.includes(video.videoWidth + '×' + video.videoHeight);
+            })()""",
+            "negotiated live frame without archive timeline",
+        )
         assert js(call, "return !previousVideo.isConnected && previousVideo.paused && !previousVideo.getAttribute('src')")
         js(call, "window.previousVideo = document.querySelector('.ws-player video'); return true")
         button(call, "Архив")

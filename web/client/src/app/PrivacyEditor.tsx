@@ -53,7 +53,10 @@ export function PrivacyEditor({
   const [boxes, setBoxes] = useState<Box[]>(policy?.regions ?? []);
   const [drag, setDrag] = useState<Box | null>(null);
   const start = useRef<{ x: number; y: number; id: number } | null>(null);
-  const blocked = outputKeys.filter((k) => selected[k]).map((k) => outputs[k]);
+  const masked = outputKeys.filter(
+    (k) => selected[k] && boxes.length && (k === "live" || k === "archive"),
+  );
+  const blocked = outputKeys.filter((k) => selected[k] && !masked.includes(k));
   function draw(e: PointerEvent<HTMLDivElement>) {
     if (!start.current || e.pointerId !== start.current.id) return null;
     const p = position(e);
@@ -199,14 +202,21 @@ export function PrivacyEditor({
         </p>
       )}
       <p id="privacy-effect" className="ws-privacy-effect" role="status">
-        {blocked.length ? (
-          <>
-            После применения весь кадр будет закрыт для выбранных видов выдачи.
-            <strong>{blocked.join(" · ")}</strong>
-          </>
-        ) : (
-          "После применения эта политика не будет закрывать изображение."
+        {masked.length > 0 && (
+          <span>
+            С маской:{" "}
+            <strong>{masked.map((k) => outputs[k]).join(" · ")}</strong>
+          </span>
         )}
+        {blocked.length > 0 && (
+          <span>
+            Полностью закрыты:{" "}
+            <strong>{blocked.map((k) => outputs[k]).join(" · ")}</strong>
+          </span>
+        )}
+        {!masked.length &&
+          !blocked.length &&
+          "Политика разрешает выдачу изображения."}
       </p>
       <Button
         variant="primary"

@@ -34,7 +34,7 @@ def interval(start, end):
     return {"start": utc(start), "end": utc(end)}
 
 
-def fixture(camera, offset, width, colors, padding=0):
+def fixture(camera, offset, width, colors, padding=0, codec="h264"):
     block = str(uuid.uuid4())
     directory = ROOT / "blocks" / block
     directory.mkdir()
@@ -62,13 +62,14 @@ def fixture(camera, offset, width, colors, padding=0):
             "!",
             "video/x-raw,format=I420",
             "!",
-            "x264enc",
+            "x265enc" if codec == "h265" else "x264enc",
             "tune=zerolatency",
             "key-int-max=25",
+            *(["option-string=pools=1"] if codec == "h265" else []),
             "!",
-            "video/x-h264,profile=baseline",
+            "video/x-h265,profile=main" if codec == "h265" else "video/x-h264,profile=baseline",
             "!",
-            "h264parse",
+            codec + "parse",
             "!",
             "mp4mux",
             "fragment-duration=500",
@@ -105,6 +106,7 @@ def fixture(camera, offset, width, colors, padding=0):
         end_utc_us=start + 1_000_000,
     )
     manifest["time"].update(received_at_utc_us=start, source_time_us=start)
+    manifest["media"]["tracks"][0]["codec"] = codec
     manifest["media"].update(size_bytes=len(payload), sha256=hashlib.sha256(payload).hexdigest())
     (directory / "manifest.json").write_text(json.dumps(manifest))
     control.query(f"INSERT INTO bacuri_archive.blocks(manifest) VALUES ('{json.dumps(manifest)}')")
@@ -268,7 +270,7 @@ def run():
         path = f"sites/{control.SITE}/points/{point}"
         red, green, blue, yellow = (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)
         first = fixture(camera, 0, 320, [red, green])
-        fixture(camera, 1, 640, [blue, yellow])
+        fixture(camera, 1, 640, [blue, yellow], codec="h265")
         fixture(camera, 3, 320, [red, green])
         fixture(camera, 5, 320, [red, green], 16 * 1024 * 1024)
         control.query(

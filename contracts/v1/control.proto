@@ -10,6 +10,7 @@ service RecorderControl {
   // A replay of the same site, node and revision returns the recorded decision.
   rpc ApplyConfiguration(ApplyConfigurationRequest) returns (ApplyConfigurationResult);
   rpc ExchangeAudio(AudioRequest) returns (AudioChunk);
+  rpc GetVideoProfiles(PointKey) returns (VideoProfiles);
   rpc GetCameraIssues(CameraIssueQuery) returns (CameraIssues);
   rpc ListPending(PendingQuery) returns (PendingIntervals);
 }
@@ -45,13 +46,25 @@ message CameraIssues {
   StreamIssue secondary = 2;
 }
 
+message VideoProfile {
+  bool main = 1;
+  string codec = 2;
+  uint32 width = 3;
+  uint32 height = 4;
+  uint32 bitrate_kbps = 5;
+}
+message VideoProfiles { repeated VideoProfile profiles = 1; }
+message PreviewRequest { PointKey point = 1; bool main = 2; }
+
 // Dedicated recorder socket, accessible to the delivery process.
 service PreviewSource {
+  rpc SubscribeProfile(PreviewRequest) returns (stream PreviewFrame);
   rpc Subscribe(PointKey) returns (stream PreviewFrame);
 }
 message PreviewFrame {
   bytes access_unit = 1; // Annex B, one access unit, up to 1 MiB.
   bool keyframe = 2;
+  string codec = 3;
 }
 service LiveDelivery {
   rpc Negotiate(LiveOffer) returns (LiveAnswer);
@@ -235,9 +248,11 @@ message AuthorizeDeliveryRequest {
     LiveSelection live = 4;
     UtcInterval archive = 5;
   }
+  string privacy_regions = 6;
+  bool archive_h264 = 7;
 }
 
-message LiveSelection {}
+message LiveSelection { bool main = 1; string source_codec = 2; string output_codec = 3; }
 
 message UtcInterval {
   google.protobuf.Timestamp start = 1;

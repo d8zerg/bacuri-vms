@@ -32,6 +32,7 @@ constexpr std::string_view addressing = "http://schemas.xmlsoap.org/ws/2004/08/a
 constexpr std::string_view discovery = "http://schemas.xmlsoap.org/ws/2005/04/discovery";
 constexpr std::string_view device = "http://www.onvif.org/ver10/device/wsdl";
 constexpr std::string_view media = "http://www.onvif.org/ver10/media/wsdl";
+constexpr std::string_view media2 = "http://www.onvif.org/ver20/media/wsdl";
 constexpr std::string_view device_io = "http://www.onvif.org/ver10/deviceIO/wsdl";
 constexpr std::string_view imaging = "http://www.onvif.org/ver20/imaging/wsdl";
 constexpr std::string_view schema = "http://www.onvif.org/ver10/schema";
@@ -96,7 +97,7 @@ std::string uuid()
 
 std::string envelope(const std::string& header, const std::string& body)
 {
-    return R"(<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://www.w3.org/2005/08/addressing" xmlns:w="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dn="http://www.onvif.org/ver10/network/wsdl" xmlns:tio="http://www.onvif.org/ver10/deviceIO/wsdl" xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:timg="http://www.onvif.org/ver20/imaging/wsdl" xmlns:tptz="http://www.onvif.org/ver20/ptz/wsdl" xmlns:tev="http://www.onvif.org/ver10/events/wsdl" xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2" xmlns:tt="http://www.onvif.org/ver10/schema"><s:Header>)" +
+    return R"(<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://www.w3.org/2005/08/addressing" xmlns:w="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dn="http://www.onvif.org/ver10/network/wsdl" xmlns:tio="http://www.onvif.org/ver10/deviceIO/wsdl" xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:tr2="http://www.onvif.org/ver20/media/wsdl" xmlns:timg="http://www.onvif.org/ver20/imaging/wsdl" xmlns:tptz="http://www.onvif.org/ver20/ptz/wsdl" xmlns:tev="http://www.onvif.org/ver10/events/wsdl" xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2" xmlns:tt="http://www.onvif.org/ver10/schema"><s:Header>)" +
            header + "</s:Header><s:Body>" + body + "</s:Body></s:Envelope>";
 }
 
@@ -217,6 +218,7 @@ struct CameraClient {
             throw Failure{502, "camera_tls_error"};
         const std::string action = headers.action.empty() ? std::string{ns} + "/" + operation : headers.action;
         const std::string element = (ns == device      ? "tds:"
+                                     : ns == media2    ? "tr2:"
                                      : ns == media     ? "trt:"
                                      : ns == device_io ? "tio:"
                                      : ns == imaging   ? "timg:"
@@ -424,6 +426,32 @@ void matches(Json& found, std::set<std::string>& seen, const Doc& doc, const std
                  {"selection", ticket(key, "probe/" + site, {{"id", id}, {"url", candidate}, {"ip", ip.get()}})}});
     }
 }
+struct MediaService {
+    std::string address;
+    std::string_view ns;
+    Doc profiles(const CameraClient& client) const
+    {
+        return client.call(address, ns, "GetProfiles", ns == media2 ? "<tr2:Type>All</tr2:Type>" : "");
+    }
+    xmlNode* configuration(xmlNode* profile, const char* legacy, const char* modern) const
+    {
+        return ns == media2 ? child(child(profile, media2, "Configurations"), media2, modern)
+                            : child(profile, schema, legacy);
+    }
+    std::string stream(const CameraClient& client, const std::string& token) const
+    {
+        const auto id = escape(token);
+        const auto params =
+            ns == media2 ? "<tr2:Protocol>RTSP</tr2:Protocol><tr2:ProfileToken>" + id + "</tr2:ProfileToken>"
+                         : "<trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</"
+                           "tt:Protocol></tt:Transport></trt:StreamSetup><trt:ProfileToken>" +
+                               id + "</trt:ProfileToken>";
+        auto doc = client.call(address, ns, "GetStreamUri", params);
+        auto* root = response(doc, ns, "GetStreamUriResponse");
+        return value(ns == media2 ? child(root, ns, "Uri") : child(child(root, ns, "MediaUri"), schema, "Uri"));
+    }
+};
+
 } // namespace
 
 Json discover_onvif(const CameraNetworks& networks, const Key& key, const std::string& site)
@@ -518,12 +546,12 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
                 {"serial", value(child(identity, device, "SerialNumber"))}};
     auto caps = client.call(url, device, "GetCapabilities", "<tds:Category>All</tds:Category>");
     auto* services = child(response(caps, device, "GetCapabilitiesResponse"), device, "Capabilities");
-    auto service = value(child(child(services, schema, "Media"), schema, "XAddr"));
+    auto* legacy_media = child(child(services, schema, "Media"), schema, "XAddr");
+    MediaService service{legacy_media ? value(legacy_media) : "", media};
     result["ptz"] = child(services, schema, "PTZ") != nullptr;
     result["events"] = child(services, schema, "Events") != nullptr;
-    auto profiles = client.call(service, media, "GetProfiles");
     Json options = Json::array();
-    Json control{{"ip", ip}, {"host", client.host}, {"device_service", url}, {"media_service", service}};
+    Json control{{"ip", ip}, {"host", client.host}, {"device_service", url}};
     for (const auto* name : {"PTZ", "Events", "Imaging"}) {
         if (auto* address = child(child(services, schema, name), schema, "XAddr"))
             control[name] = value(address);
@@ -538,6 +566,11 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
             if (!named(item, device, "Service"))
                 continue;
             const auto ns = value(child(item, device, "Namespace")), address = value(child(item, device, "XAddr"));
+            if (ns == media2 && address.starts_with("https://")) {
+                auto uri = https_uri(address);
+                if (!g_ascii_strcasecmp(client.host.c_str(), g_uri_get_host(uri.get())))
+                    service = {address, media2};
+            }
             if (ns == device_io) {
                 auto* io = child(child(item, device, "Capabilities"), device_io, "Capabilities");
                 audio_output = g_ascii_strtoull(attribute(io, "AudioOutputs").c_str(), nullptr, 10) > 0;
@@ -574,15 +607,30 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         if (flag != "true" && flag != "1")
             control.erase("Events");
     }
+    if (service.address.empty())
+        throw Failure{422, "camera_incompatible_profiles"};
+    Doc profiles{nullptr, xmlFreeDoc};
+    try {
+        profiles = service.profiles(client);
+    } catch (const Failure& err) {
+        if (service.ns != media2 || !legacy_media || err.code != "camera_protocol_error")
+            throw;
+        service = {value(legacy_media), media};
+        profiles = service.profiles(client);
+    }
+    control["media_service"] = service.address;
+    if (service.ns == media2)
+        control["media2"] = true;
     Json controls = Json::object();
     std::map<std::string, Json> ptz_options;
     std::set<std::string> tokens, addresses;
     bool denied_transport = false;
-    for (auto* p = response(profiles, media, "GetProfilesResponse")->children; p; p = p->next) {
-        if (!named(p, media, "Profiles"))
+    for (auto* p = response(profiles, service.ns, "GetProfilesResponse")->children; p; p = p->next) {
+        if (!named(p, service.ns, "Profiles"))
             continue;
-        auto* enc = child(p, schema, "VideoEncoderConfiguration");
-        if (!enc || value(child(enc, schema, "Encoding")) != "H264")
+        auto* enc = service.configuration(p, "VideoEncoderConfiguration", "VideoEncoder");
+        const auto encoding = enc ? value(child(enc, schema, "Encoding")) : "";
+        if (encoding != "H264" && encoding != "H265" && encoding != "HEVC")
             continue;
         std::unique_ptr<xmlChar, xmlFreeFunc> token{xmlGetProp(p, BAD_CAST "token"), xmlFree};
         if (!token || xmlStrlen(token.get()) > 128 || !*token)
@@ -590,13 +638,7 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         const std::string id = reinterpret_cast<const char*>(token.get());
         if (!tokens.insert(id).second || tokens.size() > 16)
             throw Failure{502, "camera_protocol_error"};
-        auto stream =
-            client.call(service, media, "GetStreamUri",
-                        "<trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</"
-                        "tt:Protocol></tt:Transport></trt:StreamSetup><trt:ProfileToken>" +
-                            escape(id) + "</trt:ProfileToken>");
-        auto address =
-            value(child(child(response(stream, media, "GetStreamUriResponse"), media, "MediaUri"), schema, "Uri"));
+        auto address = service.stream(client, id);
         Uri stream_uri{g_uri_parse(address.c_str(), G_URI_FLAGS_ENCODED, nullptr), g_uri_unref};
         if (!stream_uri ||
             g_ascii_strcasecmp(client.host.c_str(),
@@ -608,21 +650,22 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         if (!addresses.insert(address).second)
             continue;
         Json selected{{"profile", id}, {"directions", Json::array()}};
-        selected["audio_input"] = child(p, schema, "AudioSourceConfiguration") != nullptr;
+        selected["audio_input"] = service.configuration(p, "AudioSourceConfiguration", "AudioSource") != nullptr;
         auto* io = child(child(services, schema, "Extension"), schema, "DeviceIO");
         selected["audio_output"] =
-            audio_output || child(child(p, schema, "Extension"), schema, "AudioOutputConfiguration") ||
+            audio_output || service.configuration(p, "AudioOutputConfiguration", "AudioOutput") ||
+            child(child(p, schema, "Extension"), schema, "AudioOutputConfiguration") ||
             (child(io, schema, "AudioOutputs") &&
              g_ascii_strtoull(value(child(io, schema, "AudioOutputs")).c_str(), nullptr, 10) > 0);
-        auto* source = child(p, schema, "VideoSourceConfiguration");
+        auto* source = service.configuration(p, "VideoSourceConfiguration", "VideoSource");
         selected["source"] = attribute(source, "token");
         auto* physical_source = child(source, schema, "SourceToken");
         selected["channel"] = physical_source ? value(physical_source) : selected.at("source").get<std::string>();
         selected["imaging_source"] = physical_source != nullptr;
-        auto config = attribute(child(p, schema, "PTZConfiguration"), "token");
+        auto config = attribute(service.configuration(p, "PTZConfiguration", "PTZ"), "token");
         selected["ptz_profile"] = !config.empty();
         if (!config.empty() && control.contains("PTZ")) {
-            auto* cfg = child(p, schema, "PTZConfiguration");
+            auto* cfg = service.configuration(p, "PTZConfiguration", "PTZ");
             if (auto* node = child(cfg, schema, "NodeToken"))
                 selected["node"] = value(node);
             for (auto [field, element] : {std::pair{"pan_space", "DefaultAbsolutePantTiltPositionSpace"},
@@ -639,9 +682,10 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
             selected.update(ptz_options.at(config));
         }
         Json option{{"token", id},
-                    {"name", value(child(p, schema, "Name"))},
+                    {"name", value(child(p, service.ns == media2 ? media2 : schema, "Name"))},
                     {"url", address},
-                    {"channel", selected.at("channel")}};
+                    {"channel", selected.at("channel")},
+                    {"codec", encoding == "H264" ? "h264" : "h265"}};
         if (auto* resolution = child(enc, schema, "Resolution")) {
             auto dimension = [&](const char* name) {
                 const auto s = value(child(resolution, schema, name));
@@ -655,6 +699,7 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
             option["height"] = dimension("Height");
         }
         selected["stream_url"] = address;
+        selected["codec"] = option.at("codec");
         selected["pixels"] = option.value("width", 0LL) * option.value("height", 0LL);
         controls[fingerprint(key, "onvif-stream", address)] = std::move(selected);
         options.push_back(std::move(option));
@@ -682,15 +727,17 @@ void verify_camera_channel(const CameraNetworks& networks, const Json& config)
         value(child(identity, device, "Model")) != expected.at("model").get_ref<const std::string&>() ||
         value(child(identity, device, "FirmwareVersion")) != expected.at("firmware").get_ref<const std::string&>())
         throw Failure{409, "camera_binding_conflict"};
-    auto profiles = client.call(control.at("media_service"), media, "GetProfiles");
+    MediaService service{control.at("media_service"), control.value("media2", false) ? media2 : media};
+    auto profiles = service.profiles(client);
     std::set<std::string> compatible;
-    for (auto* p = response(profiles, media, "GetProfilesResponse")->children; p; p = p->next) {
-        if (!named(p, media, "Profiles"))
+    for (auto* p = response(profiles, service.ns, "GetProfilesResponse")->children; p; p = p->next) {
+        if (!named(p, service.ns, "Profiles"))
             continue;
-        auto* enc = child(p, schema, "VideoEncoderConfiguration");
-        if (!enc || value(child(enc, schema, "Encoding")) != "H264")
+        auto* enc = service.configuration(p, "VideoEncoderConfiguration", "VideoEncoder");
+        const auto encoding = enc ? value(child(enc, schema, "Encoding")) : "";
+        if (encoding != "H264" && encoding != "H265" && encoding != "HEVC")
             continue;
-        auto* source = child(p, schema, "VideoSourceConfiguration");
+        auto* source = service.configuration(p, "VideoSourceConfiguration", "VideoSource");
         auto* token = child(source, schema, "SourceToken");
         if ((token ? value(token) : attribute(source, "token")) ==
             control.at("channel").get_ref<const std::string&>())
@@ -700,13 +747,7 @@ void verify_camera_channel(const CameraNetworks& networks, const Json& config)
          {std::pair{"profile", "main_url"}, std::pair{"secondary_profile", "secondary_url"}}) {
         if (!compatible.contains(control.at(profile).get_ref<const std::string&>()))
             throw Failure{409, "camera_binding_conflict"};
-        auto reply =
-            client.call(control.at("media_service"), media, "GetStreamUri",
-                        "<trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</"
-                        "tt:Protocol></tt:Transport></trt:StreamSetup><trt:ProfileToken>" +
-                            escape(control.at(profile).get_ref<const std::string&>()) + "</trt:ProfileToken>");
-        auto uri =
-            value(child(child(response(reply, media, "GetStreamUriResponse"), media, "MediaUri"), schema, "Uri"));
+        auto uri = service.stream(client, control.at(profile));
         if (uri != config.at(url).get_ref<const std::string&>() || !networks.permits(uri))
             throw Failure{409, "camera_binding_conflict"};
     }

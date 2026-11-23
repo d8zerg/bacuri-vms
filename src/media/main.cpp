@@ -1,4 +1,8 @@
 #include "archive/mp4.hpp"
+#include "archive/clip.hpp"
+#include <sys/mman.h>
+#include <deque>
+#include <mutex>
 #include "control/support.hpp"
 #include "media/lease.hpp"
 #include "media/live.hpp"
@@ -83,9 +87,26 @@ class Delivery final : public v1::ArchiveDelivery::Service
             if (fstat(media.fd, &info) || !S_ISREG(info.st_mode) || info.st_size <= 0) {
                 throw std::runtime_error("Invalid media file");
             }
-            const auto layout = archive::verify_fragment_layout(media.fd, info.st_size);
+            auto layout = archive::verify_fragment_layout(media.fd, info.st_size);
             if (archive::digest_media(media.fd).sha256 != request->sha256()) {
                 throw std::runtime_error("Archive checksum mismatch");
+            }
+            std::shared_ptr<Descriptor> copy;
+            const bool masked = !scope.privacy_regions().empty();
+            if (masked && !scope.archive_h264())
+                return {grpc::StatusCode::PERMISSION_DENIED, "Masked representation required"};
+            const bool converted =
+                scope.archive_h264() && (masked || block.at("media").at("tracks").at(0).at("codec") == "h265");
+            if (complete && (masked || scope.archive_h264()))
+                return {grpc::StatusCode::PERMISSION_DENIED, "Original representation unavailable"};
+            if (converted) {
+                copy = compatible_block(request->sha256(), media.fd,
+                                        Time::TimestampToMicroseconds(scope.archive().end()) -
+                                            Time::TimestampToMicroseconds(scope.archive().start()),
+                                        scope.privacy_regions());
+                if (fstat(copy->fd, &info))
+                    throw std::runtime_error("Cannot read converted block");
+                layout = archive::verify_fragment_layout(copy->fd, info.st_size);
             }
             auto offset = complete || request->initialization() ? 0 : layout.media_begin;
             const auto end = complete                    ? static_cast<std::uint64_t>(info.st_size)
@@ -95,8 +116,9 @@ class Delivery final : public v1::ArchiveDelivery::Service
             chunk.set_total_bytes(end - offset);
             std::array<char, chunk_size> bytes;
             while (offset < end && !context->IsCancelled()) {
-                const auto n = pread(media.fd, bytes.data(), std::min<std::uint64_t>(end - offset, bytes.size()),
-                                     static_cast<off_t>(offset));
+                const auto n =
+                    pread(copy ? copy->fd : media.fd, bytes.data(),
+                          std::min<std::uint64_t>(end - offset, bytes.size()), static_cast<off_t>(offset));
                 if (n <= 0) {
                     throw std::runtime_error("Archive read failed");
                 }
@@ -114,6 +136,31 @@ class Delivery final : public v1::ArchiveDelivery::Service
     }
 
   private:
+    struct CachedBlock {
+        std::string hash, regions;
+        std::int64_t duration;
+        std::shared_ptr<Descriptor> file;
+    };
+    std::mutex conversion_;
+    std::deque<CachedBlock> cache_;
+    std::shared_ptr<Descriptor> compatible_block(const std::string& hash, int source, std::int64_t duration,
+                                                 const std::string& regions)
+    {
+        std::scoped_lock guard{conversion_};
+        for (const auto& entry : cache_)
+            if (entry.hash == hash && entry.regions == regions && entry.duration == duration)
+                return entry.file;
+        auto out = std::make_shared<Descriptor>(memfd_create("bacuri-playback", MFD_CLOEXEC));
+        const auto file = [](int fd) { return std::filesystem::path{"/proc/self/fd"} / std::to_string(fd); };
+        const auto result = archive::select_frames(file(source), file(out->fd), 0, duration, true, regions);
+        struct stat size{};
+        if (!result.count || fstat(out->fd, &size) || size.st_size <= 0 || size.st_size > 32 * 1024 * 1024)
+            throw std::runtime_error("Compatible block unavailable");
+        if (cache_.size() >= 4)
+            cache_.pop_front();
+        cache_.push_back({hash, regions, duration, out});
+        return out;
+    }
     const std::filesystem::path blocks_{std::filesystem::path{control::setting("BACURI_ARCHIVE_DIR")} / "blocks"};
 };
 } // namespace

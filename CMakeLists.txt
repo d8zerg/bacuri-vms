@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bacuri-vms VERSION 0.1.9 LANGUAGES CXX)
+project(bacuri-vms VERSION 0.1.10 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -70,7 +70,7 @@ target_link_libraries(bacuri-vms-rpc PUBLIC protobuf::libprotobuf PkgConfig::GRP
 
 add_library(bacuri-vms-control-support STATIC src/control/support.cpp)
 target_link_libraries(bacuri-vms-control-support PUBLIC bacuri-vms-domain PkgConfig::SODIUM PkgConfig::GIO)
-pkg_check_modules(GST REQUIRED IMPORTED_TARGET gstreamer-app-1.0>=1.22 gstreamer-rtp-1.0 gstreamer-rtsp-1.0)
+pkg_check_modules(GST REQUIRED IMPORTED_TARGET gstreamer-app-1.0>=1.22 gstreamer-rtp-1.0 gstreamer-rtsp-1.0 gstreamer-video-1.0)
 add_library(bacuri-vms-ingest STATIC src/recorder/frame_clock.cpp src/recorder/frame_queue.cpp
     src/recorder/ingest.cpp src/recorder/rtsp_session.cpp src/recorder/audio.cpp)
 target_link_libraries(bacuri-vms-ingest PUBLIC bacuri-vms-domain PRIVATE PkgConfig::GST PkgConfig::GIO)
@@ -96,9 +96,11 @@ target_link_libraries(bacuri-vms-recorder PRIVATE bacuri-vms-control-support bac
 add_library(bacuri-vms-media-auth STATIC src/media/lease.cpp)
 target_link_libraries(bacuri-vms-media-auth PUBLIC bacuri-vms-control-support bacuri-vms-rpc)
 pkg_check_modules(WEBRTC REQUIRED IMPORTED_TARGET gstreamer-webrtc-1.0>=1.22 gstreamer-sdp-1.0)
+add_library(bacuri-video-transform STATIC src/archive/clip.cpp src/media/privacy.cpp)
+target_link_libraries(bacuri-video-transform PUBLIC PkgConfig::GST bacuri-vms-evidence)
 add_executable(bacuri-vms-media src/media/main.cpp src/media/live.cpp src/media/webrtc.cpp)
 target_compile_definitions(bacuri-vms-media PRIVATE GST_USE_UNSTABLE_API)
-target_link_libraries(bacuri-vms-media PRIVATE PkgConfig::WEBRTC PkgConfig::GST)
+target_link_libraries(bacuri-vms-media PRIVATE bacuri-video-transform PkgConfig::WEBRTC PkgConfig::GST)
 target_link_libraries(bacuri-vms-media PRIVATE bacuri-vms-media-auth bacuri-vms-archive Boost::headers)
 add_executable(bacuri-vms-observation-source src/control/observation_source.cpp)
 target_link_libraries(bacuri-vms-observation-source PRIVATE bacuri-vms-rpc bacuri-vms-control-support)
@@ -121,9 +123,9 @@ add_executable(bacuri-vms-core src/core/main.cpp
     src/control/inventory/configuration.cpp src/control/access/configuration.cpp src/control/maps/configuration.cpp src/control/recordings/configuration.cpp
     src/control/configuration_snapshot.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/inventory/batches.cpp src/control/registry.cpp src/control/inventory/audio.cpp src/control/onvif.cpp src/control/camera_events.cpp src/control/inventory/telemetry.cpp src/control/maps/orientation.cpp src/control/maps/georeference.cpp
     src/control/observations.cpp src/control/alert_work.cpp src/control/alerts.cpp src/control/alert_socket.cpp
-    src/archive/clip.cpp src/control/export.cpp src/control/media_authority.cpp src/control/playback.cpp
+    src/control/export.cpp src/control/media_authority.cpp src/control/playback.cpp src/control/media_sessions/layouts.cpp
     src/control/webauthn.cpp src/control/session.cpp src/control/server.cpp src/control/https.cpp src/control/maps.cpp src/control/map_import.cpp src/control/maps/packages.cpp src/control/maps/transfers.cpp src/control/delivery.cpp src/control/archive_catalog.cpp)
-target_link_libraries(bacuri-vms-core PRIVATE LibArchive::LibArchive PkgConfig::MAP_CURL PkgConfig::FIDO bacuri-vms-evidence bacuri-vms-media-auth PNG::PNG PkgConfig::GST)
+target_link_libraries(bacuri-vms-core PRIVATE bacuri-video-transform LibArchive::LibArchive PkgConfig::MAP_CURL PkgConfig::FIDO bacuri-vms-evidence bacuri-vms-media-auth PNG::PNG PkgConfig::GST)
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-control-support bacuri-vms-rpc
     LibXml2::LibXml2 PostgreSQL::PostgreSQL Boost::headers OpenSSL::SSL PkgConfig::GIO nlohmann_json::nlohmann_json)
 target_compile_definitions(bacuri-vms-core PRIVATE BACURI_VMS_VERSION="${PROJECT_VERSION}")

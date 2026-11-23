@@ -12,6 +12,9 @@ import type {
   Feed,
   Entry,
   AlertLink,
+  PtzCommand,
+  CameraControls,
+  Layout,
 } from "../src/contracts/workspace";
 import { HttpFailure } from "../src/adapters/api";
 import { pause } from "../src/workflows/pause";
@@ -52,6 +55,16 @@ const initialAlerts: AlertItem[] = [82, 132, 236, 301].map((n, i) => ({
   uncertainty_us: "0",
 }));
 export function fixture(condition = "normal"): Services {
+  let layouts: Layout[] = [];
+  const cameraHistory: CameraControls["history"] = [
+    {
+      actor: "Оператор",
+      command: "zoom_in",
+      target: "",
+      outcome: "unknown",
+      at: utc(0),
+    },
+  ];
   let cameras: Camera[] =
     condition === "empty"
       ? []
@@ -319,22 +332,61 @@ export function fixture(condition = "normal"): Services {
       request.mode === "archive"
         ? Promise.reject(new HttpFailure(404, "camera_audio_missing"))
         : Promise.resolve({}),
+    layouts: () => Promise.resolve(structuredClone(layouts)),
+    saveLayout: (_site, id, draft) => {
+      const current = layouts.find((l) => l.id === id);
+      if (draft.revision !== (current?.revision ?? "0"))
+        return Promise.reject(new HttpFailure(409, "revision_conflict"));
+      const revision = String(Number(draft.revision) + 1);
+      layouts = [
+        ...layouts.filter((l) => l.id !== id),
+        { ...draft, id, revision, editable: true },
+      ];
+      return Promise.resolve({ id, revision });
+    },
+    deleteLayout: (_site, id) => {
+      layouts = layouts.filter((l) => l.id !== id);
+      return Promise.resolve();
+    },
     cameraControls: () =>
       Promise.resolve({
         device_id: "camera",
-        actions: [{ command: "preset_goto", target: "gate", label: "Ворота" }],
+        actions: [
+          { command: "preset_goto", target: "gate", label: "Ворота" },
+          { command: "preset_goto", target: "dock", label: "Погрузочная зона" },
+          { command: "tour_start", target: "perimeter", label: "Периметр" },
+          { command: "tour_stop", target: "perimeter", label: "Периметр" },
+          ...(
+            [
+              "focus_near",
+              "focus_far",
+              "focus_stop",
+              "light_on",
+              "light_off",
+              "wiper_on",
+              "wiper_off",
+              "relay_on",
+              "relay_off",
+            ] as const
+          ).map((command) => ({
+            command,
+            target: command.startsWith("relay") ? "1" : "",
+            label: command.startsWith("relay") ? "1" : "",
+          })),
+        ] satisfies CameraControls["actions"],
         inputs: [{ token: "1", active: false }],
-        history: [
-          {
-            actor: "Оператор",
-            command: "zoom_in",
-            target: "",
-            outcome: "unknown",
-            at: utc(0),
-          },
-        ],
+        history: [...cameraHistory],
       }),
-    ptz: () => Promise.resolve(),
+    ptz: (_site, _point, _device, command, target) => {
+      cameraHistory.unshift({
+        actor: "Оператор",
+        command,
+        target: target ?? "",
+        outcome: "acknowledged",
+        at: new Date().toISOString(),
+      });
+      return Promise.resolve();
+    },
     points: () =>
       Promise.resolve([
         {
@@ -344,7 +396,15 @@ export function fixture(condition = "normal"): Services {
             ? {
                 ptz: {
                   device_id: "camera",
-                  commands: ["zoom_in" as const, "stop" as const],
+                  commands: [
+                    "left",
+                    "right",
+                    "up",
+                    "down",
+                    "zoom_in",
+                    "zoom_out",
+                    "stop",
+                  ] satisfies PtzCommand[],
                 },
                 audio: {
                   device_id: "camera",
@@ -358,7 +418,17 @@ export function fixture(condition = "normal"): Services {
           connection: "online",
           recording: "current",
         },
-        ...(condition === "catalog"
+        ...(condition === "multiview"
+          ? [
+              {
+                id: "ramp",
+                name: "Рампа",
+                connection: "online" as const,
+                recording: "current" as const,
+              },
+            ]
+          : []),
+        ...(condition === "catalog" || condition === "multiview"
           ? [
               {
                 id: "storage-point-0",
@@ -453,7 +523,13 @@ export function fixture(condition = "normal"): Services {
         subscribers.delete(publish);
       };
     },
-    attach: async (video, _, target, signal) => {
+    attach: async (video, _, target, signal, _fail, format) => {
+      if (condition === "multiview" && target.mode === "live")
+        format?.(
+          target.quality === "main"
+            ? "Основной · H.264 · 1280×720"
+            : "Дополнительный · H.264 · 640×360",
+        );
       signal.throwIfAborted();
       const response = await fetch(
         target.mode === "live" ? liveClip : archiveClip,

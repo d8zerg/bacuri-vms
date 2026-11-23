@@ -22,6 +22,10 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Monitor: Story = { name: "Мониторинг" };
+export const Multiview: Story = {
+  name: "Многоканальный эфир",
+  args: { initial: "/monitor?grid=1", condition: "multiview" },
+};
 export const Catalog: Story = {
   name: "Каталог подключённых устройств",
   args: { initial: "/cameras", condition: "catalog" },

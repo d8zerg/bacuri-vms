@@ -68,7 +68,7 @@ Description parse(const std::string& sdp)
     }
     return Description{gst_webrtc_session_description_new(GST_WEBRTC_SDP_TYPE_OFFER, message.release())};
 }
-int h264_payload(const GstSDPMedia* track)
+int video_payload(const GstSDPMedia* track, bool hevc)
 {
     for (guint i = 0; i < gst_sdp_media_formats_len(track); ++i) {
         std::string_view fmt{gst_sdp_media_get_format(track, i)};
@@ -82,6 +82,11 @@ int h264_payload(const GstSDPMedia* track)
             continue;
         }
         const auto* fields = gst_caps_get_structure(caps.get(), 0);
+        if (hevc) {
+            if (g_strcmp0(gst_structure_get_string(fields, "encoding-name"), "H265") == 0)
+                return pt;
+            continue;
+        }
         const auto* profile = gst_structure_get_string(fields, "profile-level-id");
         if (g_strcmp0(gst_structure_get_string(fields, "encoding-name"), "H264") == 0 &&
             g_strcmp0(gst_structure_get_string(fields, "packetization-mode"), "1") == 0 &&
@@ -89,26 +94,41 @@ int h264_payload(const GstSDPMedia* track)
             return pt;
         }
     }
-    throw std::invalid_argument("Expected H.264 baseline with packetization mode 1");
+    throw std::invalid_argument("No compatible video codec in the SDP offer");
 }
 } // namespace
 
-WebRtcPeer::WebRtcPeer(const std::string& offer) : offer_{parse(offer)}
+WebRtcPeer::WebRtcPeer(const std::string& offer, std::string_view source, std::string_view output,
+                       std::string_view regions)
+    : mask_{regions}, offer_{parse(offer)}
 {
-    auto pt = std::to_string(h264_payload(gst_sdp_message_get_media(offer_->sdp, 0)));
-    auto launch =
-        "appsrc name=input is-live=true do-timestamp=true format=time "
-        "caps=video/x-h264,stream-format=byte-stream,alignment=au ! h264parse ! rtph264pay config-interval=-1 "
-        "aggregate-mode=zero-latency pt=" +
-        pt +
-        " ! application/x-rtp,media=video,encoding-name=H264,clock-rate=90000,"
-        "packetization-mode=(string)1,payload=(int)" +
-        pt + " ! webrtcbin name=peer bundle-policy=max-bundle";
+    const bool hevc = output == "h265";
+    auto pt = std::to_string(video_payload(gst_sdp_message_get_media(offer_->sdp, 0), hevc));
+    std::string launch = "appsrc name=input is-live=true do-timestamp=true format=time caps=";
+    launch += source == "h265" ? "video/x-h265,stream-format=byte-stream,alignment=au ! h265parse "
+                               : "video/x-h264,stream-format=byte-stream,alignment=au ! h264parse ";
+    if (source != output || !mask_.empty()) {
+        if (output != "h264")
+            throw std::invalid_argument("Unsupported video transform");
+        launch += source == "h265" ? "! avdec_h265 " : "! avdec_h264 ";
+        launch +=
+            "max-threads=2 ! videoconvert ! video/x-raw,format=I420 ! x264enc name=encoder bitrate=2000 threads=2 "
+            "tune=zerolatency speed-preset=ultrafast key-int-max=25 ! video/x-h264,profile=baseline ! h264parse ";
+    }
+    launch += hevc ? "! rtph265pay " : "! rtph264pay ";
+    launch += "config-interval=-1 aggregate-mode=zero-latency pt=" + pt +
+              " ! application/x-rtp,media=video,clock-rate=90000,";
+    launch += hevc ? "encoding-name=H265," : "encoding-name=H264,packetization-mode=(string)1,";
+    launch += "payload=(int)" + pt + " ! webrtcbin name=peer bundle-policy=max-bundle";
     GError* raw_error = nullptr;
     pipeline_.reset(gst_parse_launch(launch.c_str(), &raw_error));
     GstHandle<GError, g_error_free> error{raw_error};
     if (!pipeline_ || error) {
         throw std::runtime_error("WebRTC pipeline unavailable");
+    }
+    if (!mask_.empty()) {
+        GstHandle<GstElement, gst_object_unref> encoder{gst_bin_get_by_name(GST_BIN(pipeline_.get()), "encoder")};
+        mask_.attach(encoder.get());
     }
     rtc_.reset(gst_bin_get_by_name(GST_BIN(pipeline_.get()), "peer"));
     input_.reset(gst_bin_get_by_name(GST_BIN(pipeline_.get()), "input"));
@@ -126,7 +146,7 @@ WebRtcPeer::WebRtcPeer(const std::string& offer) : offer_{parse(offer)}
     }
     g_object_set(ice.get(), "ice-tcp", FALSE, nullptr);
     g_object_set(agent.get(), "upnp", FALSE, nullptr);
-    const auto limit = ingest::limits(ingest::Profile::secondary);
+    const auto limit = ingest::limits(ingest::Profile::main);
     gst_app_src_set_max_bytes(GST_APP_SRC(input_.get()), limit.bytes);
     gst_app_src_set_max_buffers(GST_APP_SRC(input_.get()), limit.frames);
     GstHandle<GstPad, gst_object_unref> pad{gst_element_get_static_pad(rtc_.get(), "sink_0")};
@@ -196,6 +216,10 @@ std::string WebRtcPeer::answer(Clock::time_point deadline)
 
 GstWebRTCPeerConnectionState WebRtcPeer::state() const
 {
+    GstHandle<GstBus, gst_object_unref> bus{gst_element_get_bus(pipeline_.get())};
+    GstHandle<GstMessage, gst_message_unref> failure{gst_bus_pop_filtered(bus.get(), GST_MESSAGE_ERROR)};
+    if (failure)
+        return GST_WEBRTC_PEER_CONNECTION_STATE_FAILED;
     GstWebRTCPeerConnectionState value{};
     g_object_get(rtc_.get(), "connection-state", &value, nullptr);
     return value;
@@ -204,7 +228,7 @@ GstWebRTCPeerConnectionState WebRtcPeer::state() const
 void WebRtcPeer::push(std::string_view bytes, bool keyframe)
 {
     auto* input = GST_APP_SRC(input_.get());
-    const auto limit = ingest::limits(ingest::Profile::secondary);
+    const auto limit = ingest::limits(ingest::Profile::main);
     if (bytes.size() > limit.bytes || gst_app_src_get_current_level_buffers(input) >= limit.frames ||
         gst_app_src_get_current_level_bytes(input) > limit.bytes - bytes.size()) {
         need_keyframe_ = true;

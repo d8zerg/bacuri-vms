@@ -39,6 +39,7 @@ class Device:
         self.source = "main"
         self.sources = {}
         self.discoverable_peers = []
+        self.media2 = False
         self.disconnected = set()
         self.brightness = {}
         self.image_writes = []
@@ -106,6 +107,29 @@ class Device:
                 child(service, "tt:XAddr", self.base + (self.media_path if name == "Media" else "/" + name.lower()))
                 if name == "Events":
                     child(service, "tt:WSPullPointSupport", "true")
+        elif self.media2 and body.tag == tag("tds:GetServices"):
+            service=child(result,"tds:Service")
+            child(service,"tds:Namespace",NS["tr2"])
+            child(service,"tds:XAddr",self.base+"/media2")
+        elif self.media2 and path == "/media2" and body.tag == tag("tr2:GetProfiles"):
+            if required(body,"tr2:Type")!="All":
+                raise ValueError("profile configurations required")
+            for index,(token,(width,height)) in enumerate(self.tokens.items()):
+                profile=child(result,"tr2:Profiles",token=token)
+                child(profile,"tr2:Name",token)
+                configs=child(profile,"tr2:Configurations")
+                source=self.sources.get(token,self.source)
+                child(child(configs,"tr2:VideoSource",token=source),"tt:SourceToken",source)
+                enc=child(configs,"tr2:VideoEncoder",token=token)
+                child(enc,"tt:Encoding","H264" if index else "H265")
+                size=child(enc,"tt:Resolution")
+                child(size,"tt:Width",str(width))
+                child(size,"tt:Height",str(height))
+        elif self.media2 and path=="/media2" and body.tag==tag("tr2:GetStreamUri"):
+            token=required(body,"tr2:ProfileToken")
+            if required(body,"tr2:Protocol")!="RTSP" or token not in self.tokens:
+                raise ValueError("unsupported media profile")
+            child(result,"tr2:Uri","rtsps://localhost:8554/"+self.stream_paths.get(token,token))
         elif body.tag == tag("trt:GetProfiles"):
             for token, (width, height) in self.tokens.items():
                 profile = child(result, "trt:Profiles", token=token)

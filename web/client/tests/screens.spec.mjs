@@ -831,7 +831,11 @@ for (const route of ["monitor", "installer"])
         style:
           "video::-webkit-media-controls {display:none} video {pointer-events:none}",
       };
-      await expect(page).toHaveScreenshot(filename, capture);
+      // Native video compositing can round a few high-contrast edge pixels differently.
+      await expect(page).toHaveScreenshot(filename, {
+        ...capture,
+        ...(route === "monitor" ? { maxDiffPixels: 16 } : {}),
+      });
       const shot = info.outputPath(filename);
       await page.screenshot({ ...capture, path: shot });
       await info.attach(filename, { path: shot, contentType: "image/png" });
@@ -1376,15 +1380,74 @@ test("Session lookup can recover from an outage without entering credentials aga
   await expectRouteName(page, "Мониторинг");
 });
 
+test("PTZ panel sends scoped keyboard and equipment commands and stays with fullscreen video", async ({
+  page,
+}) => {
+  await open(page, "intercom");
+  const desk = page.getByRole("group", { name: "Управление PTZ", exact: true });
+  const press = (name) => desk.getByRole("button", { name, exact: true });
+  await press("Вверх").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(desk.getByRole("status")).toContainText("Камера подтвердила");
+  await page.keyboard.press("Escape");
+  await expect(desk.getByRole("status")).toContainText("остановки");
+  const left = press("Влево");
+  const box = await left.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(left).toHaveAttribute("data-held", "true");
+  await page.mouse.up();
+  await expect(left).toHaveAttribute("data-held", "false");
+  await expect(desk.getByRole("status")).toContainText("остановки");
+  await press("Фокус ближе").click();
+  await press("Перейти к позиции Ворота").click();
+  await press("Запустить патруль Периметр").click();
+  await press("Остановить патруль Периметр").click();
+  await press("Оборудование и входы").click();
+  await press("Включить подсветку").click();
+  await press("Отключить выход 1").click();
+  await expect(desk.getByText("Вход 1")).toBeVisible();
+  await press("Журнал команд").click();
+  for (const label of [
+    "Вправо",
+    "Остановить",
+    "Фокус ближе",
+    "Перейти к позиции gate",
+    "Запустить патруль perimeter",
+    "Включить подсветку",
+    "Отключить выход 1",
+  ])
+    await expect(desk.getByText(label, { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "На весь экран" }).click();
+  await expect(page.locator(":fullscreen .camera-console")).toBeVisible();
+  await page.getByRole("button", { name: "Выйти из полного экрана" }).click();
+  await expect(page.locator(":fullscreen")).toHaveCount(0);
+  await press("Поворот, объектив и позиции").click();
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(desk).toBeVisible();
+    expect(await desk.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+      true,
+    );
+    for (const key of await desk.getByRole("button").all()) {
+      const box = await key.boundingBox();
+      expect(Math.round(box.width)).toBeGreaterThanOrEqual(44);
+      expect(Math.round(box.height)).toBeGreaterThanOrEqual(44);
+    }
+  }
+  await checkAccessibility(page, ".camera-console");
+});
 test("Camera controls retain an unknown result and separate audio directions", async ({
   page,
 }) => {
   await open(page, "camera-controls");
-  await page.getByText("Позиции и оборудование", { exact: true }).click();
+
   await expect(
     page.getByRole("button", { name: "Перейти к позиции Ворота" }),
   ).toBeVisible();
-  await page.getByText("Журнал команд", { exact: true }).click();
+  await page
+    .getByRole("button", { name: "Журнал команд", exact: true })
+    .click();
   await expect(page.getByText(/Исход неизвестен/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Говорить" })).toHaveCount(0);
   await page.getByRole("button", { name: "Записать звук" }).click();
@@ -1395,4 +1458,39 @@ test("Camera controls retain an unknown result and separate audio directions", a
   await expect(
     page.getByRole("button", { name: "Записать звук" }),
   ).toHaveAttribute("aria-pressed", "false");
+});
+
+test("Operator can save a four-camera layout, change the stream and return to the grid", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page, "multiview");
+  const grid = page.getByRole("region", { name: "Многоканальный эфир" });
+  const tile = grid.locator(".mw-tile:visible");
+  await expect(tile).toHaveCount(4);
+  await expect(tile.first().getByText("Эфир подключён")).toBeVisible();
+  await tile.first().getByRole("button", { name: "Развернуть камеру" }).click();
+  await expect(tile).toHaveCount(1);
+  await tile
+    .first()
+    .getByRole("combobox", { name: "Качество эфира" })
+    .selectOption("main");
+  await expect(tile.first()).toContainText("1280×720");
+  await page.keyboard.press("Escape");
+  await expect(tile).toHaveCount(4);
+  await grid.getByRole("button", { name: "Создать раскладку" }).click();
+  const editor = page.getByRole("dialog");
+  await editor.getByLabel("Название раскладки").fill("Смена");
+  await editor.getByRole("button", { name: "Сохранить", exact: true }).click();
+  await expect(
+    grid.getByRole("combobox", { name: "Раскладка", exact: true }),
+  ).toHaveValue(/[a-f0-9-]{36}/);
+  await expect(tile).toHaveCount(4);
+  await checkAccessibility(page, ".mw-workspace");
+  if (info.project.name === "chromium-light")
+    await page.screenshot({ path: "/results/monitor-grid-1440.png" });
+  await page.setViewportSize({ width: 320, height: 900 });
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+    .toBe(320);
 });

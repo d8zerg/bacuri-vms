@@ -45,7 +45,7 @@ async def scenario(binary, host):
                 binary, pass_fds=(child.fileno(),),
                 env={**os.environ, "BACURI_TEST_RTSP_BASE": f"rtsp://127.0.0.1:{port}",
                      "BACURI_TEST_LINK_FD": str(child.fileno()),
-                     **({"BACURI_TEST_JPEG": "1"} if host == "rtsp-camera" else {})})
+                     **({"BACURI_TEST_FIXTURE_CODECS": "1"} if host == "rtsp-camera" else {})})
             child.close()
             loop = asyncio.get_running_loop()
             try:

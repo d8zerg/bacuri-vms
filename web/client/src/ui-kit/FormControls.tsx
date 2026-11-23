@@ -32,12 +32,61 @@ export function Button({
   );
 }
 
+export type ControlIcon =
+  | "monitor-play"
+  | "monitor"
+  | "layers"
+  | "expand"
+  | "collapse"
+  | "chevron-up"
+  | "chevron-down"
+  | "chevron-left"
+  | "chevron-right"
+  | "ptz-stop"
+  | "minus"
+  | "plus"
+  | "lens-focus"
+  | "focus-near"
+  | "focus-far"
+  | "bookmark"
+  | "tour"
+  | "wiper"
+  | "relay"
+  | "input"
+  | "power-on"
+  | "power-off"
+  | "headphones"
+  | "mic"
+  | "record-sound"
+  | "history"
+  | "search"
+  | "circle-x"
+  | "rotate-cw"
+  | "file-down"
+  | "move"
+  | "settings-2"
+  | "sun"
+  | "play"
+  | "clock-alert"
+  | "circle-check"
+  | "triangle-alert"
+  | "user-round"
+  | "cctv"
+  | "scan-line";
+export function ControlGlyph({ icon }: { icon: ControlIcon }) {
+  return (
+    <svg aria-hidden="true" focusable="false">
+      <use href={icons + "#i-" + icon} />
+    </svg>
+  );
+}
+
 export function IconButton({
   icon,
   label,
   ...props
 }: Omit<ButtonProps, "children"> & {
-  icon: "search" | "circle-x" | "rotate-cw" | "file-down";
+  icon: ControlIcon;
   label: string;
 }) {
   return (
@@ -47,9 +96,7 @@ export function IconButton({
       title={label}
       aria-label={label}
     >
-      <svg aria-hidden="true" focusable="false">
-        <use href={icons + "#i-" + icon} />
-      </svg>
+      <ControlGlyph icon={icon} />
     </Button>
   );
 }
