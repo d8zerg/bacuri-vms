@@ -147,3 +147,8 @@ advance_retention:
   rpc: ArchiveCatalog.AdvanceRetention
   request: { site_id: *site, recording_node_id: 70000000-0000-4000-8000-000000000001 }
   response: { cutoff_us: '2592000000000', days: 30, reserve_percent: 20 }
+
+camera_audio:
+  rpc: RecorderControl.ExchangeAudio
+  request: { site_id: *site, point_id: *point, device_id: 40000000-0000-4000-8000-000000000001, mode: LISTEN }
+  response: { start_us: '1000000', pcm: AAA= }

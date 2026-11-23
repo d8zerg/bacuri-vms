@@ -315,12 +315,46 @@ export function fixture(condition = "normal"): Services {
       return Promise.resolve();
     },
     refreshOnvif: (_site, camera) => Promise.resolve(camera),
+    audio: (_site, _point, request) =>
+      request.mode === "archive"
+        ? Promise.reject(new HttpFailure(404, "camera_audio_missing"))
+        : Promise.resolve({}),
+    cameraControls: () =>
+      Promise.resolve({
+        device_id: "camera",
+        actions: [{ command: "preset_goto", target: "gate", label: "Ворота" }],
+        inputs: [{ token: "1", active: false }],
+        history: [
+          {
+            actor: "Оператор",
+            command: "zoom_in",
+            target: "",
+            outcome: "unknown",
+            at: utc(0),
+          },
+        ],
+      }),
     ptz: () => Promise.resolve(),
     points: () =>
       Promise.resolve([
         {
           id: point,
           name: "Погрузочные ворота 02",
+          ...(condition === "controls" || condition === "intercom"
+            ? {
+                ptz: {
+                  device_id: "camera",
+                  commands: ["zoom_in" as const, "stop" as const],
+                },
+                audio: {
+                  device_id: "camera",
+                  listen: true,
+                  talk: condition === "intercom",
+                  record: true,
+                  archive: true,
+                },
+              }
+            : {}),
           connection: "online",
           recording: "current",
         },

@@ -420,7 +420,7 @@ def main():
         site.wait()
         ledger = "bacuri_meta" if query(cmd, "SELECT to_regclass('bacuri_meta.schema_migrations') IS NOT NULL") == "t" else "bacuri_inventory"
         source_schema = int(query(cmd, f"SELECT max(version) FROM {ledger}.schema_migrations"))
-        assert source_schema in (14, 15, 16, 17, 18, 19, 20, 21), source_schema
+        assert source_schema in (14, 15, 16, 17, 18, 19, 20, 21, 22), source_schema
         old_id = site.enroll(cmd, code)
         a = site.login()
         s, _, camera = site.api(
@@ -458,6 +458,9 @@ def main():
             lock_table = "bacuri_maps.floor_plans"
             blocked_statement = "ALTER TABLE bacuri_maps.floor_plans"
         lock_mode = "ACCESS SHARE"
+        if source_schema == 22:
+            lock_table = "bacuri_inventory.ptz_commands"
+            blocked_statement = "ALTER TABLE bacuri_inventory.ptz_commands"
         if source_schema == 21:
             lock_table = "bacuri_inventory.sites"
             blocked_statement = "CREATE TABLE bacuri_inventory.camera_batch_items"
@@ -504,7 +507,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
         cmd(
             "test ! -f /var/lib/bacuri-maintenance/pending; systemctl is-active --quiet bacuri-core bacuri-media bacuri-recorder"
         )
-        assert query(cmd, "SELECT max(version) FROM bacuri_meta.schema_migrations") == "22"
+        assert query(cmd, "SELECT max(version) FROM bacuri_meta.schema_migrations") == "24"
         forbidden = (
             password,
             code,
@@ -632,7 +635,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
             {
                 "status": "passed",
                 "source_schema": source_schema,
-                "target_schema": 22,
+                "target_schema": 24,
                 "interrupted_migration_retried": True,
                 "rollback_schema": source_schema,
                 "independent_root": True,

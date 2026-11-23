@@ -20,7 +20,9 @@ type Group = Schema["AccessGroup"];
 type Grant = Schema["AccessGrant"];
 const actions = {
   view: "Просмотр видео",
-  audio: "Звук",
+  audio: "Прослушивание звука",
+  audio_record: "Запись звука",
+  audio_talk: "Передача речи",
   ptz: "Управление PTZ",
   configure: "Настройка камеры",
   protect: "Защита записи",

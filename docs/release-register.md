@@ -56,7 +56,8 @@
 | identity | REST | createSession, verifyAdminFactor, getSession, revokeSession, getIdentityProvider, setIdentityProvider, bindExternalIdentity, unbindExternalIdentity, getLoginMethods, beginCorporateLogin, completeCorporateLogin |
 | access | REST | listPoints, listSiteUsers, createSiteUser, updateSiteUser, listResourceGroups, createResourceGroup, updateResourceGroup, listGrants, setGrant, deleteGrant, listPrivacyPolicies, setPrivacyPolicy, searchAccessAudit |
 | inventory | REST | discoverCameras, inspectCamera, listCameras, getCamera, registerCamera, updateCamera, getCameraStreamIssues, previousRecording, listCameraBatches, getCameraBatch, previewCameraBatchItem, changeCameraBatchItem, listCameraTemplates, saveCameraTemplate |
-| ptz | REST | controlPointPtz |
+| audio | REST | exchangeCameraAudio |
+| ptz | REST | controlPointPtz, getCameraControls |
 | media | REST | createMediaSession, revokeMediaSession, negotiateLiveMedia, getPlaybackManifest, readPlaybackPart |
 | search | REST | searchArchive |
 | evidence | REST | exportFragment |

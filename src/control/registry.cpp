@@ -3,6 +3,7 @@
 #include "control/inventory/enrollment.hpp"
 #include "control/inventory/operations.hpp"
 #include "control/recordings/operations.hpp"
+#include "control/events/operations.hpp"
 #include "control/access/operations.hpp"
 #include "control/api.hpp"
 #include "control/onvif.hpp"
@@ -293,40 +294,95 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
     Database db;
     db.exec("BEGIN");
     access::lock_policy(db, site, true);
-    auto user = sessions_.authenticate(db, req, true);
+    const bool write = req.method() == http::verb::post;
+    auto user = sessions_.authenticate(db, req, write, write);
     auto role = site_role(db, user, site);
     const bool visible = role == "administrator" ? inventory::lock_point(db, site, point)
                                                  : access::lock_point_grant(db, site, point, user.user);
     if (!visible)
         throw Failure{404, "not_found"};
-    if (!access::allowed(db, site, user.user, point, "ptz"))
+    if (!access::allowed(db, site, user.user, point, "ptz")) {
+        if (write) {
+            events::record_camera_control(db, site, point, user.user, "denied", "forbidden", {});
+            db.exec("COMMIT");
+        }
         throw Failure{403, "forbidden"};
-    auto body = object_body(req, {"device_id", "command"});
-    auto device = string_field(body, "device_id", 36);
-    auto command = string_field(body, "command", 16);
+    }
+    const auto body = write ? object_body(req, {"device_id", "command", "target"}) : Json::object();
+    const auto expected = write ? string_field(body, "device_id", 36) : "";
+    const auto command = write ? string_field(body, "command", 16) : "";
+    const auto target = body.contains("target") ? string_field(body, "target", 256, true) : "";
     const std::string request_key{req["Idempotency-Key"]};
-    if (!canonical_id(device) || !canonical_id(request_key))
+    if (write && (!canonical_id(expected) || !canonical_id(request_key)))
         throw Failure{400, "invalid_request"};
-    auto rows = db.exec(R"sql(
-        SELECT v.settings->'onvif_control', r.secret_revision, r.sealed_credentials
+    auto binding_sql = std::string{R"sql(
+        SELECT v.settings->'onvif_control', r.secret_revision, r.sealed_credentials,r.device_id,p.desired_revision
         FROM bacuri_inventory.camera_registry r JOIN bacuri_inventory.configuration_progress p USING(site_id,device_id)
         JOIN bacuri_inventory.configuration_versions v ON (v.site_id,v.device_id,v.revision)=(r.site_id,r.device_id,p.desired_revision)
-        WHERE r.site_id=$1 AND r.point_id=$2 AND r.device_id=$3 FOR UPDATE OF r
-    )sql",
-                        {site, point, device});
-    if (!rows.size())
+        WHERE r.site_id=$1 AND r.point_id=$2
+    )sql"} + (write ? " FOR NO KEY UPDATE OF r" : " FOR KEY SHARE OF r");
+    auto rows = db.exec(binding_sql.c_str(), {site, point});
+    if (!rows.size() || (write && rows.get(0, 3) != expected))
         throw Failure{409, "camera_binding_conflict"};
+    const auto device = rows.get(0, 3);
+    if (!write) {
+        if (rows.get(0).empty() || rows.get(0, 2).empty())
+            throw Failure{422, "camera_ptz_unsupported"};
+        auto credentials = Json::parse(unseal(rows.get(0, 2), key_, site + "/" + device + "/" + rows.get(0, 1)));
+        Json catalog{{"actions", Json::array()}, {"inputs", Json::array()}};
+        try {
+            catalog = read_camera_controls(networks_, Json::parse(rows.get(0)), credentials);
+        } catch (const Failure& e) {
+            catalog["capability_error"] = e.code;
+        }
+        for (auto& item : catalog["actions"]) {
+            item.erase("amount");
+            item.erase("mode");
+            item.erase("duration");
+        }
+        auto states = db.exec("SELECT token,active,observed_at FROM bacuri_inventory.digital_input_states "
+                              "WHERE site_id=$1 AND device_id=$2 AND revision=$3",
+                              {site, device, rows.get(0, 4)});
+        for (auto& input : catalog["inputs"])
+            for (int n = 0; n < states.size(); ++n)
+                if (input.at("token") == states.get(n)) {
+                    input["active"] = states.get(n, 1) == "t";
+                    input["observed_at"] = states.get(n, 2);
+                }
+        catalog["device_id"] = device;
+        auto history = db.exec("SELECT user_id,command,target,priority,lease_until>clock_timestamp(),"
+                               "lease_until,CASE WHEN status=204 THEN 'acknowledged' WHEN status IS NULL OR "
+                               "failure_code='camera_ptz_unknown' "
+                               "THEN 'unknown' ELSE 'rejected' END,started_at FROM bacuri_inventory.ptz_commands "
+                               "WHERE site_id=$1 AND device_id=$2 ORDER BY started_at DESC LIMIT 20",
+                               {site, device});
+        catalog["history"] = Json::array();
+        for (int i = 0; i < history.size(); ++i) {
+            auto actor = access::display_name(db, history.get(i));
+            catalog["history"].push_back({{"actor", actor},
+                                          {"command", history.get(i, 1)},
+                                          {"target", history.get(i, 2)},
+                                          {"outcome", history.get(i, 6)},
+                                          {"at", history.get(i, 7)}});
+            if (i == 0 && history.get(i, 4) == "t")
+                catalog["owner"] = {
+                    {"name", actor}, {"priority", std::stoi(history.get(i, 3))}, {"until", history.get(i, 5)}};
+        }
+        db.exec("COMMIT");
+        return respond(res, catalog);
+    }
     // Keep the binding locked while a separate transaction records dispatch before touching the device.
     Database journal;
-    journal.exec("DELETE FROM bacuri_inventory.ptz_commands WHERE started_at<now()-interval '24 hours'");
+
     auto replay = [&] {
         auto saved = journal.exec(
-            "SELECT device_id,point_id,command,status,failure_code FROM bacuri_inventory.ptz_commands "
+            "SELECT device_id,point_id,command,status,failure_code,target FROM bacuri_inventory.ptz_commands "
             "WHERE site_id=$1 AND user_id=$2 AND request_key=$3",
             {site, user.user, request_key});
         if (!saved.size())
             return false;
-        if (saved.get(0) != device || saved.get(0, 1) != point || saved.get(0, 2) != command)
+        if (saved.get(0) != device || saved.get(0, 1) != point || saved.get(0, 2) != command ||
+            saved.get(0, 5) != target)
             throw Failure{409, "idempotency_conflict"};
         if (saved.get(0, 3).empty())
             throw Failure{502, "camera_ptz_unknown"};
@@ -340,41 +396,80 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
             throw Failure{422, "camera_ptz_unsupported"};
         auto control = Json::parse(rows.get(0));
         const auto& allowed = control.at("directions");
-        if (std::ranges::find(allowed, Json(command)) == allowed.end())
-            throw Failure{422, "camera_ptz_unsupported"};
         auto credentials = Json::parse(unseal(rows.get(0, 2), key_, site + "/" + device + "/" + rows.get(0, 1)));
+        Json action;
+        if (std::ranges::find(allowed, Json(command)) == allowed.end() || !target.empty()) {
+            auto catalog = read_camera_controls(networks_, control, credentials);
+            for (const auto& entry : catalog.at("actions"))
+                if (entry.at("command") == command && entry.at("target") == target) {
+                    action = entry;
+                    break;
+                }
+            if (action.is_null())
+                throw Failure{422, "camera_ptz_unsupported"};
+        }
+        const int lease = command == "stop" || command == "focus_stop" || command == "tour_stop" ? 0
+                          : action.is_object() ? action.value("duration", 1)
+                                               : 1;
         auto owner = journal.exec("SELECT user_id,lease_until>clock_timestamp() FROM "
                                   "bacuri_inventory.ptz_commands WHERE site_id=$1 AND device_id=$2 "
                                   "ORDER BY started_at DESC LIMIT 1",
                                   {site, device});
         if (owner.size() && owner.get(0, 1) == "t" && owner.get(0) != user.user && role != "administrator")
             throw Failure{409, "camera_ptz_busy"};
-        auto created = journal.exec(
-            "INSERT INTO bacuri_inventory.ptz_commands(site_id,user_id,request_key,device_id,point_id,command) "
-            "VALUES "
-            "($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING 1",
-            {site, user.user, request_key, device, point, command});
+        journal.exec("BEGIN");
+        auto created = journal.exec("INSERT INTO "
+                                    "bacuri_inventory.ptz_commands(site_id,user_id,request_key,device_id,point_id,"
+                                    "command,target,priority,lease_until)"
+                                    " "
+                                    "VALUES "
+                                    "($1,$2,$3,$4,$5,$6,$7,$8,clock_timestamp()+$9::int*interval '1 second') ON "
+                                    "CONFLICT DO NOTHING RETURNING 1",
+                                    {site, user.user, request_key, device, point, command, target,
+                                     role == "administrator" ? "2" : "1", std::to_string(lease)});
+        if (created.size()) {
+            if (action.is_object() && action.value("mode", std::string{}) == "Continuous")
+                journal.exec("UPDATE bacuri_inventory.ptz_commands SET "
+                             "focus_revision=$4,stop_after=clock_timestamp()+interval '1 second' "
+                             "WHERE site_id=$1 AND user_id=$2 AND request_key=$3",
+                             {site, user.user, request_key, rows.get(0, 4)});
+            events::record_camera_control(journal, site, point, user.user, "dispatched", command, target);
+        }
+        journal.exec("COMMIT");
         if (created.size()) {
             inventory::refresh_position(journal, site, device);
             try {
-                move_onvif(networks_, control, credentials, command);
+                if (action.is_null())
+                    move_onvif(networks_, control, credentials, command);
+                else
+                    operate_camera(
+                        networks_, control, credentials,
+                        {command, target, action.value("mode", std::string{}), action.value("amount", 0.0)});
             } catch (const Failure& e) {
                 // A missing SOAP acknowledgement leaves the outcome unknown even when the request reached the
                 // device.
                 const auto failure = (e.code == "camera_unavailable" || e.code == "camera_protocol_error")
                                          ? Failure{e.status, "camera_ptz_unknown"}
                                          : e;
+                journal.exec("BEGIN");
+                events::record_camera_control(journal, site, point, user.user,
+                                              failure.code == "camera_ptz_unknown" ? "unknown" : "rejected",
+                                              command, target);
                 journal.exec("UPDATE bacuri_inventory.ptz_commands SET status=$4,failure_code=$5 WHERE site_id=$1 "
                              "AND user_id=$2 "
                              "AND request_key=$3",
                              {site, user.user, request_key, std::to_string(failure.status), failure.code});
+                journal.exec("COMMIT");
                 throw failure;
             }
-            journal.exec(
-                "UPDATE bacuri_inventory.ptz_commands SET status=204,lease_until=clock_timestamp()+CASE WHEN "
-                "command='stop' THEN interval '0 seconds' "
-                "ELSE interval '1 second' END WHERE site_id=$1 AND user_id=$2 AND request_key=$3",
-                {site, user.user, request_key});
+            journal.exec("BEGIN");
+            events::record_camera_control(journal, site, point, user.user, "applied", command, target);
+            journal.exec("UPDATE bacuri_inventory.ptz_commands SET "
+                         "status=204,stop_after=NULL,lease_until=clock_timestamp()+$4::int*interval '1 second' "
+                         "WHERE site_id=$1 "
+                         "AND user_id=$2 AND request_key=$3",
+                         {site, user.user, request_key, std::to_string(lease)});
+            journal.exec("COMMIT");
         } else if (!replay())
             throw Failure{503, "dependency_unavailable"};
     }
@@ -394,7 +489,15 @@ void CameraRegistry::points(const Request& req, Response& res, const std::string
               'connection','unknown','recording','unknown') ||
               CASE WHEN p.point_id=ANY($3::uuid[])
               THEN jsonb_build_object('can_export',true) ELSE '{}'::jsonb END ||
-              CASE WHEN ($4::boolean OR p.point_id=ANY($5::uuid[])) AND r.sealed_credentials IS NOT NULL AND jsonb_array_length(cfg.settings->'onvif_control'->'directions')>0
+              CASE WHEN ($4::boolean OR p.point_id=ANY($6::uuid[]) OR p.point_id=ANY($7::uuid[]) OR p.point_id=ANY($8::uuid[]))
+                 AND r.device_id IS NOT NULL
+              THEN jsonb_build_object('audio',jsonb_build_object('device_id',r.device_id,
+                  'listen',coalesce((cfg.settings#>>'{onvif_control,audio_input}')::boolean,false) AND ($4::boolean OR p.point_id=ANY($6::uuid[])),
+                  'archive',$4::boolean OR p.point_id=ANY($6::uuid[]),
+                  'record',coalesce((cfg.settings#>>'{onvif_control,audio_input}')::boolean,false) AND ($4::boolean OR p.point_id=ANY($7::uuid[])),
+                  'talk',coalesce((cfg.settings#>>'{onvif_control,audio_output}')::boolean,false) AND ($4::boolean OR p.point_id=ANY($8::uuid[]))))
+              ELSE '{}'::jsonb END ||
+              CASE WHEN ($4::boolean OR p.point_id=ANY($5::uuid[])) AND r.sealed_credentials IS NOT NULL AND (jsonb_array_length(cfg.settings->'onvif_control'->'directions')>0 OR cfg.settings->'onvif_control' ?| ARRAY['Imaging','DeviceIO'] OR (cfg.settings#>>'{onvif_control,ptz_profile}')::boolean)
               THEN jsonb_build_object('ptz',jsonb_build_object('device_id',r.device_id,'commands',cfg.settings->'onvif_control'->'directions'))
               ELSE '{}'::jsonb END ORDER BY p.point_id),'[]')
             FROM bacuri_inventory.observation_points p LEFT JOIN bacuri_inventory.camera_registry r USING(site_id,point_id)
@@ -404,7 +507,10 @@ void CameraRegistry::points(const Request& req, Response& res, const std::string
         )sql",
         {site, admin ? "{}" : array_parameter(access::granted_point_ids(db, site, identity.user, "view", true)),
          array_parameter(access::export_point_ids(db, site, identity.user)), admin ? "true" : "false",
-         array_parameter(access::granted_point_ids(db, site, identity.user, "ptz"))});
+         array_parameter(access::granted_point_ids(db, site, identity.user, "ptz")),
+         array_parameter(access::granted_point_ids(db, site, identity.user, "audio")),
+         array_parameter(access::granted_point_ids(db, site, identity.user, "audio_record")),
+         array_parameter(access::granted_point_ids(db, site, identity.user, "audio_talk"))});
     db.exec("COMMIT");
     respond(res, Json::parse(rows.get(0)));
 }

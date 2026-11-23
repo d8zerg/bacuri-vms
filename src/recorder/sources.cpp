@@ -70,6 +70,14 @@ std::shared_ptr<FrameQueue> Sources::preview(const std::string& point)
     return {};
 }
 
+std::shared_ptr<CameraAudio> Sources::audio(const std::string& point, const std::string& device)
+{
+    for (auto& [key, entry] : streams_)
+        if (key.point == point && key.device == device && key.profile == Profile::main)
+            return entry.audio;
+    return {};
+}
+
 v1::CameraIssues Sources::issues(const std::string& device) const
 {
     v1::CameraIssues result;
@@ -145,19 +153,23 @@ void Sources::apply(const v1::ApplyConfigurationRequest& assignment)
             key.profile, endpoint, [this](const std::string& url) { return networks_.stream_url(url); },
             std::move(report)});
         std::unique_ptr<archive::Writer> writer;
+        std::shared_ptr<CameraAudio> audio;
         if (key.profile == Profile::main) {
+            auto pinned = networks_.stream_url(endpoint.url);
+            if (pinned)
+                audio = std::make_shared<CameraAudio>(Endpoint{*pinned, endpoint.username, endpoint.password});
             if (key.binding > 0) {
                 archive::Origin origin{.point = key.point,
                                        .device = key.device,
                                        .channel = key.channel,
                                        .profile = key.main_profile,
                                        .binding = key.binding};
-                writer = std::make_unique<archive::Writer>(volume_, std::move(origin), stream->subscribe());
+                writer = std::make_unique<archive::Writer>(volume_, std::move(origin), stream->subscribe(), audio);
             } else {
                 std::fprintf(stderr, "archive awaiting binding for point %s\n", key.point.c_str());
             }
         }
-        streams_.emplace(key, Entry{endpoint, std::move(writer), std::move(stream)});
+        streams_.emplace(key, Entry{endpoint, audio, std::move(writer), std::move(stream)});
     }
 }
 

@@ -13,6 +13,9 @@ TEST(CameraNetworks, RequiresAnAllowedAddressAndStreamUri)
     EXPECT_FALSE(networks.permits("rtsp://10.0.0.5:8554/main"));
     const CameraNetworks legacy{"10.0.0.0/24", {.addresses = "10.0.0.5,10.0.1.2"}};
     EXPECT_TRUE(legacy.permits("rtsp://10.0.0.5/main"));
+    const std::string profile = "rtsp://10.0.0.5/main?transmode=unicast&profile=video_main";
+    EXPECT_EQ(legacy.stream_url(profile), profile);
+    EXPECT_FALSE(legacy.permits(profile + "&password=x"));
     EXPECT_FALSE(legacy.permits("rtsp://10.0.0.6/main"));
     EXPECT_FALSE(legacy.permits("rtsp://10.0.1.2/main"));
     EXPECT_TRUE(networks.permits("rtsps://[2001:db8::1]/video"));
@@ -21,6 +24,13 @@ TEST(CameraNetworks, RequiresAnAllowedAddressAndStreamUri)
     EXPECT_FALSE(networks.permits("rtsp://username@10.0.0.5/main"));
     EXPECT_FALSE(networks.permits("rtsp://10.0.0.5/main?token=x"));
     EXPECT_THROW(CameraNetworks{"10.0.0.0/64"}, std::invalid_argument);
+}
+
+TEST(CameraNetworks, SendsDirectedDiscoveryOnlyToIndividualIpv4Hosts)
+{
+    const CameraNetworks networks{
+        "10.0.0.0/24,10.0.2.9/32,10.0.2.9/32,2001:db8::1/128,0.0.0.0/32,239.0.0.1/32,255.255.255.255/32"};
+    EXPECT_EQ(networks.discovery_hosts(), std::vector<std::string>{"10.0.2.9"});
 }
 
 TEST(SealedConfiguration, AuthenticatesOwnerRevisionAndKey)

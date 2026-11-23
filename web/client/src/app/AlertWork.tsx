@@ -13,12 +13,14 @@ import type {
   AuditEntry,
   AuditFilter,
   Point,
+  PtzCommand,
   Services,
 } from "../contracts/workspace";
 import { HttpFailure } from "../adapters/api";
 import { formatUtc } from "../ui-kit/utc";
 import { Button } from "../ui-kit/FormControls";
 import "./alert-work.css";
+import { ptzLabels } from "./cameraCommands";
 
 import { alertStates as states } from "../ui-kit/alertLabels";
 const actions = {
@@ -33,9 +35,13 @@ const events = {
   delegate: "Выдача поручения",
   revoke: "Отзыв поручения",
   export: "Экспорт фрагмента",
+  camera_control: "Управление камерой",
 };
 const outcomes = {
   applied: "Выполнено",
+  dispatched: "Отправка команды",
+  unknown: "Исход неизвестен",
+  rejected: "Команда отклонена",
   denied: "Отказ в доступе",
   conflict: "Конфликт",
 };
@@ -82,14 +88,20 @@ function Entries({
           e.actor_kind === "service"
             ? "Сервис " + e.service + " по поручению " + e.initiator
             : e.initiator;
+        const [command = "", ...target] = e.reason.split(" / ");
         const result =
-          e.outcome !== "applied"
-            ? (reasons[e.reason] ?? e.reason)
-            : e.action === "export" ||
-                e.action === "delegate" ||
-                e.action === "revoke"
-              ? ""
-              : e.reason;
+          e.action === "camera_control"
+            ? [
+                ptzLabels[command as PtzCommand] ?? reasons[command] ?? command,
+                ...target,
+              ].join(" / ")
+            : e.outcome !== "applied"
+              ? (reasons[e.reason] ?? e.reason)
+              : e.action === "export" ||
+                  e.action === "delegate" ||
+                  e.action === "revoke"
+                ? ""
+                : e.reason;
         return (
           <li key={e.id}>
             <details>
@@ -113,7 +125,11 @@ function Entries({
               </summary>
               <dl>
                 <dt>Результат действия</dt>
-                <dd>{outcomes[e.outcome]}</dd>
+                <dd>
+                  {e.action === "camera_control" && e.outcome === "applied"
+                    ? "Камера подтвердила команду"
+                    : outcomes[e.outcome]}
+                </dd>
                 {e.from_state && e.to_state && e.from_state !== e.to_state && (
                   <>
                     <dt>Состояние</dt>

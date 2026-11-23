@@ -24,6 +24,14 @@
     "begin_utc_us": { "$ref": "#/$defs/i64" },
     "end_utc_us": { "$ref": "#/$defs/i64" },
     "time": { "$ref": "#/$defs/time" },
+    "audio": {
+      "type": "object", "additionalProperties": false, "required": ["start_us", "size_bytes", "sha256"],
+      "properties": {
+        "start_us": { "$ref": "#/$defs/i64" },
+        "size_bytes": { "type": "integer", "minimum": 2, "maximum": 256000, "multipleOf": 2 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
     "media": { "$ref": "#/$defs/media" }
   },
   "$defs": {

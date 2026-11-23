@@ -120,8 +120,9 @@ void mux(const fs::path& path, const Frames& frames, const std::vector<SampleTim
     throw std::runtime_error("Archive muxer failed to finalize media");
 }
 } // namespace
-Writer::Writer(Volume& volume, Origin origin, std::shared_ptr<ingest::FrameQueue> queue)
-    : volume_{volume}, origin_{std::move(origin)}, queue_{std::move(queue)},
+Writer::Writer(Volume& volume, Origin origin, std::shared_ptr<ingest::FrameQueue> queue,
+               std::shared_ptr<ingest::CameraAudio> audio)
+    : volume_{volume}, origin_{std::move(origin)}, queue_{std::move(queue)}, audio_{std::move(audio)},
       worker_{[this](std::stop_token stop) { run(stop); }}
 {
 }
@@ -147,9 +148,17 @@ void Writer::finish()
             volume_.report_gap(*storage_gap_);
             storage_gap_.reset();
         }
-        volume_.publish(
-            {origin_, batch.front()->time, end}, [&](const fs::path& path) { mux(path, batch, times); }, {},
-            payload_bytes);
+        const auto received = batch.front()->time.received_at().time_since_epoch().count();
+        auto sound =
+            audio_ ? audio_->recorded(received, domain::Microseconds{end_us - begin_us}) : ingest::Sound{};
+        auto start = begin_us + (sound.start_us - received);
+        if (!sound.pcm.empty() && start >= begin_us && start < end_us)
+            sound.pcm.resize(std::min<std::size_t>(sound.pcm.size(), (end_us - start) / 125 * 2));
+        else
+            sound.pcm.clear();
+        volume_.publish({origin_, batch.front()->time, end},
+                        [&](const fs::path& path) { mux(path, batch, times); }, {}, payload_bytes,
+                        {start, sound.pcm});
     } catch (const std::exception& error) {
         if (storage_gap_) {
             storage_gap_->begin = std::min(storage_gap_->begin, begin_us);

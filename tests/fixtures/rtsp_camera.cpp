@@ -1,5 +1,8 @@
 #include <glib-unix.h>
 #include <gst/rtsp-server/rtsp-server.h>
+#include <gst/rtsp-server/rtsp-onvif-server.h>
+#include <gst/rtsp-server/rtsp-onvif-media-factory.h>
+#include <gst/rtsp-server/rtsp-onvif-media.h>
 
 #include <csignal>
 #include <cstdio>
@@ -38,8 +41,22 @@ constexpr StreamProfile sub_stream{
 
 void mount_stream(GstRTSPMountPoints* mounts, const StreamProfile& profile)
 {
-    auto* factory = gst_rtsp_media_factory_new();
-    gst_rtsp_media_factory_set_launch(factory, profile.pipeline);
+    const bool audio = !g_strcmp0(g_getenv("BACURI_TEST_AUDIO"), "1") && std::string_view(profile.path) == "/main";
+    auto* factory = audio ? gst_rtsp_onvif_media_factory_new() : gst_rtsp_media_factory_new();
+    std::string launch{profile.pipeline};
+    if (audio) {
+        gst_rtsp_media_factory_set_media_gtype(factory, GST_TYPE_RTSP_ONVIF_MEDIA);
+        gst_rtsp_onvif_media_factory_set_backchannel_launch(
+            GST_RTSP_ONVIF_MEDIA_FACTORY(factory),
+            "( capsfilter name=depay_backchannel "
+            "caps=application/x-rtp,media=audio,encoding-name=PCMA,clock-rate=8000,payload=8 "
+            "! rtppcmadepay ! alawdec ! audio/x-raw,format=S16LE ! filesink location=speaker.pcm append=true "
+            "buffer-mode=unbuffered async=false sync=false )");
+        launch.insert(launch.rfind(')'),
+                      " audiotestsrc is-live=true freq=440 ! audioconvert ! audioresample ! "
+                      "audio/x-raw,rate=8000,channels=1 ! alawenc ! rtppcmapay name=pay1 pt=8 ");
+    }
+    gst_rtsp_media_factory_set_launch(factory, launch.c_str());
     gst_rtsp_media_factory_set_shared(factory, TRUE);
     gst_rtsp_media_factory_add_role(factory, "viewer", GST_RTSP_PERM_MEDIA_FACTORY_ACCESS, G_TYPE_BOOLEAN, TRUE,
                                     GST_RTSP_PERM_MEDIA_FACTORY_CONSTRUCT, G_TYPE_BOOLEAN, TRUE, nullptr);
@@ -92,7 +109,8 @@ gboolean capture_message(GstBus*, GstMessage* message, gpointer data)
 
 int run_camera(bool webcam, const char* certificate_file)
 {
-    const std::unique_ptr<GstRTSPServer, decltype(&g_object_unref)> server{gst_rtsp_server_new(), g_object_unref};
+    const std::unique_ptr<GstRTSPServer, decltype(&g_object_unref)> server{gst_rtsp_onvif_server_new(),
+                                                                           g_object_unref};
     const std::unique_ptr<GstRTSPMountPoints, decltype(&g_object_unref)> mounts{
         gst_rtsp_server_get_mount_points(server.get()), g_object_unref};
     const std::unique_ptr<GMainLoop, decltype(&g_main_loop_unref)> loop{g_main_loop_new(nullptr, FALSE),

@@ -30,7 +30,7 @@ std::string uuid()
 
 void validate_manifest(const Json& m)
 {
-    require(m.is_object() && m.size() == 15 &&
+    require(m.is_object() && m.size() == (m.contains("audio") ? 16u : 15u) &&
             number(m.at("manifest_version")) == domain::BlockManifestV1::version);
     for (const auto key : {"site_id", "recording_node_id", "block_id", "recording_epoch_id", "point_id",
                            "device_id", "channel_id", "profile_id"}) {
@@ -42,6 +42,14 @@ void validate_manifest(const Json& m)
     require(domain::UtcInterval::make(domain::UtcTime{domain::Microseconds{begin}},
                                       domain::UtcTime{domain::Microseconds{end}})
                 .has_value());
+    if (m.contains("audio")) {
+        const auto& a = m.at("audio");
+        const auto start = number(a.at("start_us")), bytes = number(a.at("size_bytes"));
+        const auto& hash = a.at("sha256").get_ref<const std::string&>();
+        require(a.is_object() && a.size() == 3 && start >= begin && start < end && bytes > 0 && bytes % 2 == 0 &&
+                bytes <= 256000 && bytes / 2 <= (end - start) / 125 && hash.size() == 64 &&
+                hash.find_first_not_of("0123456789abcdef") == hash.npos);
+    }
     const auto& t = m.at("time");
     require(t.is_object() && t.size() == 5);
     auto received = number(t.at("received_at_utc_us"));

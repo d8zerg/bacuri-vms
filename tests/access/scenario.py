@@ -228,7 +228,7 @@ def run():
                 "POST",
                 "/execute/sync",
                 {
-                    "script": "Array.from(document.querySelectorAll('nav button')).find(e=>e.textContent==='Группы').click()",
+                    "script": "document.querySelector('.ws-submenu button[aria-label=Группы]').click()",
                     "args": [],
                 },
             )

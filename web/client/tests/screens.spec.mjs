@@ -1375,3 +1375,24 @@ test("Session lookup can recover from an outage without entering credentials aga
     .press("Enter");
   await expectRouteName(page, "Мониторинг");
 });
+
+test("Camera controls retain an unknown result and separate audio directions", async ({
+  page,
+}) => {
+  await open(page, "camera-controls");
+  await page.getByText("Позиции и оборудование", { exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Перейти к позиции Ворота" }),
+  ).toBeVisible();
+  await page.getByText("Журнал команд", { exact: true }).click();
+  await expect(page.getByText(/Исход неизвестен/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Говорить" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Записать звук" }).click();
+  await expect(
+    page.getByRole("button", { name: "Остановить запись звука" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Остановить запись звука" }).click();
+  await expect(
+    page.getByRole("button", { name: "Записать звук" }),
+  ).toHaveAttribute("aria-pressed", "false");
+});

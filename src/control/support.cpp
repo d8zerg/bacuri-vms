@@ -175,6 +175,24 @@ bool CameraNetworks::permits(const std::string& url) const
     return stream_url(url).has_value();
 }
 
+std::vector<std::string> CameraNetworks::discovery_hosts() const
+{
+    std::vector<std::string> hosts;
+    for (const auto& mask : masks_) {
+        auto* address = g_inet_address_mask_get_address(mask.get());
+        if (g_inet_address_get_family(address) == G_SOCKET_FAMILY_IPV4 &&
+            g_inet_address_mask_get_length(mask.get()) == 32 && !g_inet_address_get_is_multicast(address) &&
+            !g_inet_address_get_is_any(address)) {
+            std::unique_ptr<gchar, decltype(&g_free)> host{g_inet_address_to_string(address), g_free};
+            if (std::string_view(host.get()) != "255.255.255.255")
+                hosts.emplace_back(host.get());
+        }
+    }
+    std::ranges::sort(hosts);
+    hosts.erase(std::unique(hosts.begin(), hosts.end()), hosts.end());
+    return hosts;
+}
+
 bool CameraNetworks::contains(GInetAddress* address) const
 {
     return std::ranges::any_of(
@@ -183,7 +201,7 @@ bool CameraNetworks::contains(GInetAddress* address) const
 
 std::optional<std::string> CameraNetworks::stream_url(const std::string& url) const
 {
-    if (url.size() > 2048 || url.find_first_of(" \t\r\n\\?#") != url.npos || url.contains('\0') ||
+    if (url.size() > 2048 || url.find_first_of(" \t\r\n\\#") != url.npos || url.contains('\0') ||
         !(url.starts_with("rtsp://") || url.starts_with("rtsps://"))) {
         return std::nullopt;
     }
@@ -192,6 +210,12 @@ std::optional<std::string> CameraNetworks::stream_url(const std::string& url) co
     if (!uri || g_uri_get_userinfo(uri.get()) || !g_uri_get_host(uri.get()) || g_uri_get_port(uri.get()) == 0) {
         return std::nullopt;
     }
+    if (const auto* query = g_uri_get_query(uri.get());
+        query &&
+        !g_regex_match_simple(
+            "^(transmode=unicast&profile=[a-zA-Z0-9._-]{1,64}|profile=[a-zA-Z0-9._-]{1,64}(&transmode=unicast)?)$",
+            query, G_REGEX_DEFAULT, G_REGEX_MATCH_DEFAULT))
+        return std::nullopt;
     std::unique_ptr<GResolver, decltype(&g_object_unref)> resolver{g_resolver_get_default(), g_object_unref};
     std::unique_ptr<GList, decltype(&g_resolver_free_addresses)> addresses{
         g_resolver_lookup_by_name(resolver.get(), g_uri_get_host(uri.get()), nullptr, nullptr),
@@ -208,7 +232,7 @@ std::optional<std::string> CameraNetworks::stream_url(const std::string& url) co
             return url;
         std::unique_ptr<gchar, decltype(&g_free)> explicit_port{
             g_uri_join(G_URI_FLAGS_ENCODED, "rtsps", nullptr, g_uri_get_host(uri.get()), 322,
-                       g_uri_get_path(uri.get()), nullptr, nullptr),
+                       g_uri_get_path(uri.get()), g_uri_get_query(uri.get()), nullptr),
             g_free};
         return std::string{explicit_port.get()};
     }
@@ -218,10 +242,10 @@ std::optional<std::string> CameraNetworks::stream_url(const std::string& url) co
                                                  g_free};
     if (std::ranges::find(legacy_, ip.get()) == legacy_.end())
         return std::nullopt;
-    std::unique_ptr<gchar, decltype(&g_free)> pinned{g_uri_join(G_URI_FLAGS_ENCODED, "rtsp", nullptr, ip.get(),
-                                                                g_uri_get_port(uri.get()),
-                                                                g_uri_get_path(uri.get()), nullptr, nullptr),
-                                                     g_free};
+    std::unique_ptr<gchar, decltype(&g_free)> pinned{
+        g_uri_join(G_URI_FLAGS_ENCODED, "rtsp", nullptr, ip.get(), g_uri_get_port(uri.get()),
+                   g_uri_get_path(uri.get()), g_uri_get_query(uri.get()), nullptr),
+        g_free};
     return std::string{pinned.get()};
 }
 } // namespace bacuri::vms::control

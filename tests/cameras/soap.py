@@ -16,6 +16,7 @@ NS = {
     "d": "http://schemas.xmlsoap.org/ws/2005/04/discovery",
     "dn": "http://www.onvif.org/ver10/network/wsdl",
     "tds": "http://www.onvif.org/ver10/device/wsdl",
+    "tio": "http://www.onvif.org/ver10/deviceIO/wsdl",
     "timg": "http://www.onvif.org/ver20/imaging/wsdl",
     "trt": "http://www.onvif.org/ver10/media/wsdl",
     "tt": "http://www.onvif.org/ver10/schema",
@@ -77,8 +78,15 @@ def discover(host, port, expected_url):
         root = ET.fromstring(sock.recv(65535))
     if required(root, "s:Header/wa:RelatesTo") != mid:
         raise ValueError("uncorrelated discovery response")
+    expected = endpoint(expected_url, host, "https")
     for match in root.findall("s:Body/d:ProbeMatches/d:ProbeMatch", NS):
-        if expected_url in required(match, "d:XAddrs").split():
+        urls = required(match, "d:XAddrs").split()
+        secure = [url for url in urls if url.startswith("https://")]
+        standard_http = [urlsplit(url) for url in urls if url.startswith("http://")]
+        same_service = not secure and expected.port in (None, 443) and any(
+            url.hostname == host and url.port in (None, 80) and url.username is None and url.password is None
+            and not url.fragment and url.path == expected.path and url.query == expected.query for url in standard_http)
+        if expected_url in secure or same_service:
             return required(match, "wa:EndpointReference/wa:Address")
     raise ValueError("configured device service missing from ProbeMatches")
 

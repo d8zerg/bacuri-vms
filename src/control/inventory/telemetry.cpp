@@ -1,5 +1,6 @@
 #include "control/inventory/telemetry.hpp"
 #include "control/onvif.hpp"
+#include "control/events/operations.hpp"
 #include <thread>
 
 namespace bacuri::vms::control::inventory
@@ -44,6 +45,61 @@ void refresh_position(Database& db, const std::string& site, const std::string& 
 }
 namespace
 {
+void stop_pending_focus(Database& db, const std::string& site, const CameraNetworks& networks, const Key& key)
+{
+    db.exec("BEGIN");
+    auto row = db.exec(R"sql(
+        SELECT c.user_id,c.request_key,r.device_id,r.secret_revision,r.sealed_credentials,cfg.settings->'onvif_control'
+        FROM bacuri_inventory.ptz_commands c
+        JOIN bacuri_inventory.camera_registry r USING(site_id,device_id,point_id)
+        JOIN bacuri_inventory.configuration_progress p USING(site_id,device_id)
+        JOIN bacuri_inventory.configuration_versions cfg ON (cfg.site_id,cfg.device_id,cfg.revision)=(r.site_id,r.device_id,p.desired_revision)
+        WHERE c.site_id=$1 AND c.stop_after<=clock_timestamp() AND c.focus_revision=p.desired_revision
+        ORDER BY c.stop_after LIMIT 1 FOR UPDATE OF r,c SKIP LOCKED
+    )sql",
+                       {site});
+    if (row.size()) {
+        auto credentials =
+            Json::parse(unseal(row.get(0, 4), key, site + "/" + row.get(0, 2) + "/" + row.get(0, 3)));
+        bool stopped = true;
+        try {
+            operate_camera(networks, Json::parse(row.get(0, 5)), credentials, {.command = "focus_stop"});
+        } catch (const Failure&) {
+            stopped = false;
+        }
+        db.exec("UPDATE bacuri_inventory.ptz_commands SET stop_after=CASE WHEN $4::boolean THEN NULL ELSE "
+                "clock_timestamp()+interval '4 seconds' END "
+                "WHERE site_id=$1 AND user_id=$2 AND request_key=$3",
+                {site, row.get(0), row.get(0, 1), stopped ? "true" : "false"});
+    }
+    db.exec("COMMIT");
+}
+void reconcile_commands(Database& db, const std::string& site)
+{
+    db.exec("BEGIN");
+    // A live dispatcher holds the camera row until its outcome is durable.
+    auto orphaned = db.exec(R"sql(
+        UPDATE bacuri_inventory.ptz_commands c SET status=502,failure_code='camera_ptz_unknown'
+        WHERE site_id=$1 AND status IS NULL AND started_at<now()-interval '2 minutes'
+          AND (NOT EXISTS (SELECT FROM bacuri_inventory.camera_registry r WHERE r.site_id=c.site_id AND r.device_id=c.device_id)
+               OR EXISTS (SELECT FROM bacuri_inventory.camera_registry r WHERE r.site_id=c.site_id AND r.device_id=c.device_id
+                          FOR UPDATE SKIP LOCKED))
+        RETURNING point_id,user_id,command,target
+    )sql",
+                            {site});
+    for (int i = 0; i < orphaned.size(); ++i)
+        events::record_camera_control(db, site, orphaned.get(i), orphaned.get(i, 1), "unknown", orphaned.get(i, 2),
+                                      orphaned.get(i, 3));
+    db.exec(R"sql(
+        DELETE FROM bacuri_inventory.ptz_commands c
+        WHERE c.site_id=$1 AND c.status IS NOT NULL AND c.started_at<now()-interval '24 hours'
+          AND (c.stop_after IS NULL OR NOT EXISTS (
+            SELECT FROM bacuri_inventory.configuration_progress p
+            WHERE p.site_id=c.site_id AND p.device_id=c.device_id AND p.desired_revision=c.focus_revision))
+    )sql",
+            {site});
+    db.exec("COMMIT");
+}
 bool poll_one(Database& db, const std::string& site, const CameraNetworks& networks, const Key& key)
 {
     db.exec("BEGIN");
@@ -110,7 +166,17 @@ void track_positions(std::stop_token stop, const CameraNetworks& networks, const
     while (!stop.stop_requested()) {
         try {
             Database db;
+            auto next_cleanup = std::chrono::steady_clock::now();
+            auto next_stop = next_cleanup;
             while (!stop.stop_requested()) {
+                if (std::chrono::steady_clock::now() >= next_cleanup) {
+                    reconcile_commands(db, site);
+                    next_cleanup = std::chrono::steady_clock::now() + 1min;
+                }
+                if (std::chrono::steady_clock::now() >= next_stop) {
+                    stop_pending_focus(db, site, networks, key);
+                    next_stop = std::chrono::steady_clock::now() + 500ms;
+                }
                 if (!poll_one(db, site, networks, key))
                     std::this_thread::sleep_for(400ms);
             }

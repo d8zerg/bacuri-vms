@@ -3,6 +3,8 @@ from pathlib import Path
 import base64
 from datetime import datetime, timezone
 import json
+import math
+import struct
 import subprocess
 import time
 import uuid
@@ -108,6 +110,126 @@ def map_orientation(call, device, cam, admin, viewer, move):
     print("PTZ map calibration, command, external motion, zoom, stale and unknown states verified",flush=True)
 
 
+def advanced_controls(device, cam, admin, viewer):
+    root = f"sites/{c.SITE}/points/{cam['point_id']}"
+
+    def get_controls():
+        code, _, result = c.http("GET", root + "/ptz", headers=admin)
+        assert code == 200, (code, result.get("code"))
+        return result
+
+    def command(name, target=""):
+        return c.http(
+            "POST", root + "/ptz", {"device_id": cam["id"], "command": name, "target": target},
+            {**admin, "Idempotency-Key": str(uuid.uuid4())},
+        )
+
+    catalog = get_controls()
+    commands = {action["command"] for action in catalog["actions"]}
+    assert commands >= {
+        "focus_near", "focus_far", "focus_stop", "preset_goto", "tour_start", "tour_stop",
+        "light_on", "light_off", "wiper_on", "wiper_off", "relay_on", "relay_off",
+    }
+    assert [item["token"] for item in catalog["inputs"]] == ["contact"]
+    assert command("preset_goto", "unknown")[0] == 422
+    for item in catalog["actions"]:
+        name = item["command"]
+        code, _, response = command(name, item["target"])
+        assert code == 204, (name, code, response)
+        if name.startswith("focus_"):
+            assert not device.focus
+        elif name == "preset_goto":
+            assert device.preset == "door" and device.feedback()[0] == 0.2
+        elif name.startswith("tour_"):
+            assert device.touring == (name == "tour_start")
+        elif name.startswith("wiper_"):
+            assert device.wiper == (name == "wiper_on")
+        elif name.startswith("light_"):
+            assert device.light == (name == "light_on")
+        elif name.startswith("relay_"):
+            active = name == "relay_on"
+            assert device.relay == active
+            c.wait_for(lambda: get_controls()["inputs"][0].get("active") == active, "digital input feedback")
+
+    assert any(row["outcome"] == "acknowledged" and row["command"] == "relay_off"
+               for row in get_controls()["history"])
+    assert command("tour_start", "round")[0] == 204
+    c.wait_for(lambda: not device.touring, "device-side patrol duration")
+    device.miss_focus_stop = True
+    code, _, reply = command("focus_near")
+    assert code == 502 and reply["code"] == "camera_ptz_unknown"
+    c.wait_for(lambda: not device.focus, "deferred focus stop after acknowledgement loss")
+    print("Preset, bounded patrol, focus pulse and stop, auxiliary devices, relay feedback and command journal verified",
+          flush=True)
+    return {"commands": sorted(commands), "input_count": len(catalog["inputs"]), **check_audio(cam, admin, viewer)}
+
+
+def check_audio(cam, admin, viewer):
+    point = cam["point_id"]
+    root = f"sites/{c.SITE}/points/{point}/audio"
+
+    def audio(action, who=admin, **fields):
+        return c.http("POST", root, {"mode": action, "device_id": cam["id"], **fields}, who)
+
+    def recorded():
+        return c.query("SELECT manifest->'audio'->>'start_us' FROM bacuri_archive.blocks "
+                       f"WHERE point_id='{point}' AND manifest ? 'audio' ORDER BY begin_utc_us DESC LIMIT 1")
+
+    for action in ("listen", "record", "talk"):
+        assert audio(action, viewer)[0] == 403
+    code, _, data = audio("listen")
+    assert code == 200 and len(base64.b64decode(data["pcm"])) > 80, (code, data.get("code"))
+    assert audio("record")[0] == 200
+    time.sleep(0.9)
+    assert audio("record")[0] == 200
+    time.sleep(0.8)
+    assert audio("record_stop")[0] == 200
+    at = int(c.wait_for(recorded, "registered sound attached to recorded video"))
+    code, _, clip = audio("archive", at_us=at)
+    assert code == 200 and len(base64.b64decode(clip["pcm"])) > 100, (code, clip.get("code"))
+    assert audio("archive", viewer, at_us=at)[0] == 403
+
+    speech = str(uuid.uuid4())
+    samples = [round(3200 * math.sin(2 * math.pi * 800 * i / 8000)) for i in range(1600)]
+    packet = base64.b64encode(struct.pack("<1600h", *samples)).decode()
+    code, _, reply = audio("talk", session=speech, sequence=0, pcm=packet)
+    assert code == 200, (code, reply)
+    assert audio("talk", session=speech, sequence=0, pcm=packet)[0] == 409
+    speaker = Path(c.ROOT) / "speaker.pcm"
+    c.wait_for(lambda: speaker.exists() and speaker.stat().st_size >= 3200, "decoded speech on the camera output")
+    actual = struct.unpack("<1600h", speaker.read_bytes()[-3200:])
+    error = sum(abs(a - b) for a, b in zip(actual, samples)) / len(samples)
+    assert error < 80, error
+    assert audio("mute", session=speech)[0] == 200
+    end = speaker.stat().st_size
+    assert audio("listen")[0] == 200 and speaker.stat().st_size == end
+    assert audio("talk", session=speech, sequence=1, pcm=packet)[0] == 409
+
+    def grant(method, grant_id, action):
+        base = f"sites/{c.SITE}/"
+        _, _, users = c.http("GET", base + "users", headers=admin)
+        user = next(row["id"] for row in users["data"] if row["username"] == "viewer")
+        data = {"user_id": user, "point_id": point, "action": action} if method == "PUT" else None
+        headers = {**admin, "If-Match": '"' + users["revision"] + '"'}
+        code, _, result = c.http(method, base + "grants/" + grant_id, data, headers)
+        assert code == 200, (code, result)
+
+    listen_grant, talk_grant = str(uuid.uuid4()), str(uuid.uuid4())
+    grant("PUT", listen_grant, "audio")
+    grant("PUT", talk_grant, "audio_talk")
+    other = str(uuid.uuid4())
+    assert audio("talk", viewer, session=other, sequence=0, pcm=packet)[0] == 200
+    grant("DELETE", talk_grant, "audio_talk")
+    assert audio("talk", viewer, session=other, sequence=1, pcm=packet)[0] == 403
+    assert audio("mute", viewer, session=other)[0] == 200
+    assert audio("listen", viewer)[0] == 200
+    grant("DELETE", listen_grant, "audio")
+    print("Separate audio authorization, input samples, persisted archive sound, backchannel and microphone stop verified",
+          flush=True)
+    return {"archive_samples": len(base64.b64decode(clip["pcm"])) // 2,
+            "speaker_samples": len(actual), "speaker_mean_absolute_error": error}
+
+
 def exercise(call, device, cam, admin):
     point = cam["point_id"]
     viewer = c.login("viewer")
@@ -124,7 +246,7 @@ def exercise(call, device, cam, admin):
     points = c.http("GET", root, headers=viewer)[2]
     visible, = [row for row in points if row["id"] == point]
     commands = visible["ptz"]["commands"]
-    assert visible["ptz"]["device_id"] == cam["id"] and set(commands) == {"left", "right", "stop"}
+    assert visible["ptz"]["device_id"] == cam["id"] and set(commands) == {"left", "right", "zoom_in", "zoom_out", "stop"}
     assert move(viewer, "up") == 422 and not device.feedback()[2]
     navigate(call, viewer, "/monitor?point=" + point)
     button(call, "Вправо")
@@ -136,6 +258,18 @@ def exercise(call, device, cam, admin):
     assert device.feedback()[0] == stopped
     assert not js(call, "return [...document.querySelectorAll('.ws-ptz button')].some(b=>b.textContent==='Вверх')")
 
+    button(call, "Приблизить")
+    def zoom_position():
+        device.feedback()
+        return device.zoom
+    c.wait_for(lambda: zoom_position() > 0.03, "zoom position changed")
+    previous_stops = device.stops
+    button(call, "Остановить")
+    c.wait_for(lambda: device.stops > previous_stops and device.zoom_speed == 0, "camera stopped its zoom motor")
+    assert device.position == stopped
+    assert move(admin, "zoom_out") == 204
+    c.wait_for(lambda: zoom_position() == 0 and device.zoom_speed == 0, "bounded zoom returned to wide")
+    tested_controls = advanced_controls(device,cam,admin,viewer)
     request_key = str(uuid.uuid4())
     assert move(admin, "left", request_key) == 204 and device.feedback()[2]
     deadline = device.deadline
@@ -149,7 +283,11 @@ def exercise(call, device, cam, admin):
     assert move(viewer, "left", request_key) == 502 and device.feedback()[2]
     deadline = device.deadline
     assert move(viewer, "left", request_key) == 502 and device.deadline == deadline
+    code, _, audit = c.http("POST", f"sites/{c.SITE}/alert-audit/search", {"query":"left"}, admin)
+    assert code == 200 and any(row["action"] == "camera_control" and row["outcome"] == "unknown" for row in audit["items"])
     device.online = False
+    code, _, saved = c.http("GET", root + "/" + point + "/ptz", headers=admin)
+    assert code == 200 and any(row["outcome"] == "unknown" for row in saved["history"])
     assert move(viewer, "stop") in (502, 504)
     c.wait_for(lambda: not device.feedback()[2], "device-side timeout while offline")
     c.wait_for(lambda: device.subscriptions > 0, "PullPoint allocated")
@@ -202,6 +340,7 @@ def exercise(call, device, cam, admin):
     evidence = {
         "model": cam["model"], "firmware": cam["firmware"], "video_source": "videotestsrc", "device_id": cam["id"],
         "point_id": point, "binding_revision": cam["binding_revision"], "ptz": commands,
+        "camera_controls": tested_controls,
         "explicit_stop_position": stopped, "timeout_seconds": 1, "lost_connection": True,
         "lost_move_reply_replayed_without_resending": True, "pullpoint_reconnected": True, "subscription_renewed": True,
         "foreign_point_denied": True, "motion_deliveries": 2, "observations": [observation], "alerts": [item["id"]],

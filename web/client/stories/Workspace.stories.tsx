@@ -26,6 +26,14 @@ export const Catalog: Story = {
   name: "Каталог подключённых устройств",
   args: { initial: "/cameras", condition: "catalog" },
 };
+export const CameraControls: Story = {
+  name: "Управление и звук камеры",
+  args: { initial: "/monitor?point=dock&mode=live", condition: "controls" },
+};
+export const Intercom: Story = {
+  name: "Передача речи",
+  args: { initial: "/monitor?point=dock&mode=live", condition: "intercom" },
+};
 export const Installer: Story = {
   name: "Подключение камеры",
   args: { initial: "/cameras?setup=manual", condition: "slow" },

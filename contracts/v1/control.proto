@@ -9,9 +9,27 @@ service RecorderControl {
   // Persist the accepted configuration before returning APPLIED.
   // A replay of the same site, node and revision returns the recorded decision.
   rpc ApplyConfiguration(ApplyConfigurationRequest) returns (ApplyConfigurationResult);
+  rpc ExchangeAudio(AudioRequest) returns (AudioChunk);
   rpc GetCameraIssues(CameraIssueQuery) returns (CameraIssues);
   rpc ListPending(PendingQuery) returns (PendingIntervals);
 }
+
+message AudioRequest {
+  string site_id = 1;
+  string point_id = 2;
+  string device_id = 3;
+  enum Mode { UNSPECIFIED = 0; LISTEN = 1; RECORD = 2; TALK = 3; MUTE = 4; ARCHIVE = 5; RECORD_STOP = 6; }
+  Mode mode = 4;
+  int64 at_us = 5;
+  bytes pcm = 6;
+  string block_id = 7;
+  string sha256 = 8;
+  uint32 length = 9;
+  string operator_id = 10;
+  string talk_session_id = 11;
+  uint32 talk_ttl_ms = 12;
+}
+message AudioChunk { int64 start_us = 1; bytes pcm = 2; }
 
 message CameraIssueQuery {
   string site_id = 1;

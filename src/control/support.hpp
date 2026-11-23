@@ -36,6 +36,7 @@ class CameraNetworks
     {
         return legacy_;
     }
+    std::vector<std::string> discovery_hosts() const;
     bool contains(GInetAddress* address) const;
     std::optional<std::string> stream_url(const std::string& url) const;
     bool permits(const std::string& url) const;

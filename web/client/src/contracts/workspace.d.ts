@@ -3,6 +3,8 @@ import type { CameraDraft, StreamCheck } from "../ui-kit/CameraConnectionForm";
 export type { CameraDraft };
 type Schema = components["schemas"];
 export type Session = Schema["BrowserSession"];
+export type AudioRequest = Schema["AudioRequest"];
+export type CameraControls = Schema["CameraControls"];
 export type PtzCommand = Schema["PtzCommand"];
 export type Point = Schema["Point"];
 export type AlertItem = Schema["Alert"];
@@ -104,11 +106,23 @@ export interface Services {
   ): Promise<Session>;
   logout(): Promise<void>;
   points(site: string, signal: AbortSignal): Promise<Point[]>;
+  audio(
+    site: string,
+    point: string,
+    request: AudioRequest,
+    signal?: AbortSignal,
+  ): Promise<Schema["AudioResult"]>;
+  cameraControls(
+    site: string,
+    point: string,
+    signal: AbortSignal,
+  ): Promise<CameraControls>;
   ptz(
     site: string,
     point: string,
     device: string,
     command: PtzCommand,
+    target?: string,
   ): Promise<void>;
   discover(site: string, signal: AbortSignal): Promise<DiscoveredCamera[]>;
   inspect(

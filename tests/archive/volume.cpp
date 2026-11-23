@@ -183,6 +183,31 @@ TEST(ArchiveVolume, FailedPublicationPreservesPreviousBlockAndResumes)
     EXPECT_TRUE(volume.pending());
 }
 
+TEST(ArchiveVolume, ValidatesRecordedSoundOnReadAndRestart)
+{
+    TempVolume fixture;
+    auto block = example();
+    std::string pcm(320, 'x');
+    std::string id, hash;
+    {
+        Volume volume{fixture.root, fixture.owner};
+        volume.publish(block, write_sample, {}, 0, {100, pcm});
+        auto pending = volume.pending();
+        if (!pending)
+            FAIL() << "Expected a published block with audio";
+        auto manifest = Json::parse(pending->manifest);
+        id = manifest.at("block_id");
+        hash = manifest.at("audio").at("sha256");
+        EXPECT_EQ(volume.read_audio({id, hash, 20, 100}), pcm.substr(20, 100));
+        EXPECT_THROW(volume.read_audio({id, std::string(64, '0'), 20, 100}), std::invalid_argument);
+        EXPECT_EQ(archive_status(fixture.root).at("media_bytes").get<std::size_t>(),
+                  manifest["media"]["size_bytes"].get<std::size_t>() + pcm.size());
+    }
+    ASSERT_TRUE(fs::remove(fixture.root / "blocks" / id / "audio.pcm"));
+    Volume restarted{fixture.root, fixture.owner};
+    EXPECT_EQ(archive_status(fixture.root).at("corrupt"), 1);
+}
+
 TEST(ArchiveManifest, ValidatesTimeAndIdentityBeforePublication)
 {
     const Identity identity{{uuid(), uuid()}, uuid(), 1};

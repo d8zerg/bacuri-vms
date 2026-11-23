@@ -146,6 +146,27 @@ struct StopPipeline {
 
 } // namespace
 
+bool configure_rtsp_source(GstElement* source, const Endpoint& endpoint)
+{
+    Handle<GUri, g_uri_unref> origin{g_uri_parse(endpoint.url.c_str(), G_URI_FLAGS_ENCODED, nullptr)};
+    if (!origin || !g_uri_get_host(origin.get())) {
+        return false;
+    }
+    g_signal_connect_data(
+        source, "before-send", G_CALLBACK(same_origin), origin.release(),
+        +[](gpointer uri, GClosure*) { g_uri_unref(static_cast<GUri*>(uri)); }, G_CONNECT_DEFAULT);
+    g_object_set(source, "location", endpoint.url.c_str(), "user-id", endpoint.username.c_str(), "user-pw",
+                 endpoint.password.c_str(), nullptr);
+    const auto* trust = g_getenv("BACURI_CAMERA_CA_FILE");
+    if (endpoint.url.starts_with("rtsps://") && trust && *trust) {
+        Handle<GTlsDatabase, g_object_unref> ca{g_tls_file_database_new(trust, nullptr)};
+        if (!ca)
+            return false;
+        g_object_set(source, "tls-database", ca.get(), nullptr);
+    }
+    return true;
+}
+
 std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const Receive& receive)
 {
     gst_init(nullptr, nullptr);
@@ -153,10 +174,6 @@ std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const R
     FrameClock clock;
     Selection selection;
     std::atomic<bool> certificate_rejected{};
-    Handle<GUri, g_uri_unref> origin{g_uri_parse(endpoint.url.c_str(), G_URI_FLAGS_ENCODED, nullptr)};
-    if (!origin || !g_uri_get_host(origin.get())) {
-        return "invalid_address";
-    }
     GError* error{};
     std::unique_ptr<GstElement, StopPipeline> pipeline{
         gst_parse_launch("rtspsrc name=source protocols=tcp latency=250 drop-on-latency=true tcp-timeout=3000000 "
@@ -191,16 +208,8 @@ std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const R
                      }),
                      &certificate_rejected);
     g_signal_connect(source.get(), "select-stream", G_CALLBACK(select_h264), &selection);
-    g_signal_connect(source.get(), "before-send", G_CALLBACK(same_origin), origin.get());
-    g_object_set(source.get(), "location", endpoint.url.c_str(), "user-id", endpoint.username.c_str(), "user-pw",
-                 endpoint.password.c_str(), nullptr);
-    const auto* trust = g_getenv("BACURI_CAMERA_CA_FILE");
-    if (endpoint.url.starts_with("rtsps://") && trust && *trust) {
-        Handle<GTlsDatabase, g_object_unref> ca{g_tls_file_database_new(trust, nullptr)};
-        if (!ca)
-            return "certificate_error";
-        g_object_set(source.get(), "tls-database", ca.get(), nullptr);
-    }
+    if (!configure_rtsp_source(source.get(), endpoint))
+        return "certificate_error";
     if (gst_element_set_state(pipeline.get(), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
         return certificate_rejected ? "certificate_error" : "pipeline_error";
     }

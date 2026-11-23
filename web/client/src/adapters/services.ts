@@ -227,7 +227,24 @@ export function createServices(): Services {
         }),
       );
     },
-    async ptz(siteId, pointId, device, command) {
+    async audio(siteId, pointId, body, signal) {
+      return data(
+        await api.POST("/sites/{siteId}/points/{pointId}/audio", {
+          params: { path: { siteId, pointId }, header: auth() },
+          body,
+          ...(signal && { signal }),
+        }),
+      );
+    },
+    async cameraControls(siteId, pointId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/points/{pointId}/ptz", {
+          params: { path: { siteId, pointId } },
+          signal,
+        }),
+      );
+    },
+    async ptz(siteId, pointId, device, command, target) {
       const { response, error } = await api.POST(
         "/sites/{siteId}/points/{pointId}/ptz",
         {
@@ -235,7 +252,7 @@ export function createServices(): Services {
             path: { siteId, pointId },
             header: { ...auth(), "Idempotency-Key": crypto.randomUUID() },
           },
-          body: { device_id: device, command },
+          body: { device_id: device, command, ...(target && { target }) },
         },
       );
       if (!response.ok)

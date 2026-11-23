@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import type {
   AlertLink,
+  CameraControls,
   Entry,
   Feed,
   Interval,
@@ -22,8 +23,9 @@ import {
 
 import { milliseconds } from "../ui-kit/utc";
 import { alertStates } from "../ui-kit/alertLabels";
-import { Button } from "../ui-kit/FormControls";
+import { Button, IconButton } from "../ui-kit/FormControls";
 import { SubsectionMenu } from "./SubsectionMenu";
+import { CameraAudio } from "./CameraAudio";
 import { cameraError } from "./cameraError";
 const ArchiveTimeline = lazy(() =>
   import("../ui-kit/ArchiveTimeline").then((m) => ({
@@ -45,33 +47,114 @@ const recordingLabels = {
   stopped: "Запись остановлена",
   unknown: "Состояние записи неизвестно",
 };
-const ptzLabels: Record<PtzCommand, string> = {
-  left: "Влево",
-  right: "Вправо",
-  up: "Вверх",
-  down: "Вниз",
-  stop: "Остановить",
-};
+import { ptzLabels } from "./cameraCommands";
+function CameraActionList({
+  actions,
+  move,
+}: {
+  actions: CameraControls["actions"];
+  move: (command: PtzCommand, target?: string) => Promise<void>;
+}) {
+  const [selected, setSelected] = useState<Partial<Record<PtzCommand, string>>>(
+    {},
+  );
+  return (
+    <div className="ws-camera-actions">
+      {Array.from(new Set(actions.map((item) => item.command))).map(
+        (command) => {
+          const items = actions.filter((item) => item.command === command);
+          const current =
+            items.find((item) => item.target === selected[command]) ?? items[0];
+          if (!current) return null;
+          return (
+            <div key={command}>
+              {items.length > 1 && (
+                <select
+                  aria-label={ptzLabels[command]}
+                  value={current.target}
+                  onChange={(event) =>
+                    setSelected({ ...selected, [command]: event.target.value })
+                  }
+                >
+                  {items.map((item) => (
+                    <option key={item.target} value={item.target}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <Button onClick={() => void move(command, current.target)}>
+                {ptzLabels[command]}
+                {items.length === 1 &&
+                [
+                  "preset_goto",
+                  "tour_start",
+                  "tour_stop",
+                  "relay_on",
+                  "relay_off",
+                ].includes(command)
+                  ? " " + current.label
+                  : ""}
+              </Button>
+            </div>
+          );
+        },
+      )}
+    </div>
+  );
+}
 function PtzControls({
   commands,
-  send,
+  services,
+  site,
+  point,
+  device,
 }: {
   commands: PtzCommand[];
-  send: (command: PtzCommand) => Promise<void>;
+  services: Services;
+  site: string;
+  point: string;
+  device: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmed, setConfirmed] = useState("");
-  async function move(command: PtzCommand) {
+  const [expanded, setExpanded] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const [catalog, setCatalog] = useState<CameraControls>();
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!expanded) return;
+    const controller = new AbortController();
+    setLoading(true);
+    services
+      .cameraControls(site, point, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        if (result.device_id !== device) throw new Error("changed");
+        setCatalog(result);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setCatalog(undefined);
+          setError("Не удалось прочитать состояние камеры.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [services, site, point, device, expanded, revision]);
+  async function move(command: PtzCommand, target?: string) {
     setBusy(true);
     setError("");
     setConfirmed("");
     try {
-      await send(command);
+      await services.ptz(site, point, device, command, target);
       setConfirmed(
         command === "stop"
           ? "Камера подтвердила команду остановки."
-          : "Камера подтвердила движение на одну секунду.",
+          : "Камера подтвердила команду.",
       );
     } catch (e) {
       setError(
@@ -80,16 +163,92 @@ function PtzControls({
       );
     } finally {
       setBusy(false);
+      setRevision((value) => value + 1);
     }
   }
   return (
     <fieldset className="ws-ptz" disabled={busy}>
-      <legend>Поворот камеры</legend>
+      <legend>Управление PTZ</legend>
       {commands.map((command) => (
         <Button key={command} onClick={() => void move(command)}>
           {ptzLabels[command]}
         </Button>
       ))}
+      <details
+        className="ws-camera-equipment"
+        open={expanded}
+        onToggle={(event) => setExpanded(event.currentTarget.open)}
+      >
+        <summary>Позиции и оборудование</summary>
+        <IconButton
+          icon="rotate-cw"
+          label="Обновить состояние камеры"
+          onClick={() => setRevision((value) => value + 1)}
+        />
+        {loading && <span role="status">Получение состояния…</span>}
+        {catalog && (
+          <>
+            {catalog.owner &&
+              new Date(catalog.owner.until).getTime() > Date.now() && (
+                <p>
+                  Управляет {catalog.owner.name} до{" "}
+                  {new Date(catalog.owner.until).toLocaleTimeString()} ·
+                  приоритет {catalog.owner.priority}
+                </p>
+              )}
+            <CameraActionList actions={catalog.actions} move={move} />
+            {!!catalog.inputs.length && (
+              <ul>
+                {catalog.inputs.map((input) => (
+                  <li key={input.token}>
+                    Вход {input.token} ·{" "}
+                    {input.active === undefined
+                      ? "Состояние неизвестно"
+                      : input.active
+                        ? "Активен"
+                        : "Неактивен"}{" "}
+                    {input.observed_at && (
+                      <time dateTime={input.observed_at}>
+                        {new Date(input.observed_at).toLocaleTimeString()}
+                      </time>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {catalog.capability_error && (
+              <p role="status">
+                Связь с камерой недоступна. Показан сохранённый журнал.
+              </p>
+            )}
+            {!catalog.capability_error &&
+              !catalog.actions.length &&
+              !catalog.inputs.length && (
+                <p>Профиль не объявил дополнительных функций.</p>
+              )}
+            {!!catalog.history.length && (
+              <details>
+                <summary>Журнал команд</summary>
+                <ul>
+                  {catalog.history.map((row, i) => (
+                    <li key={i}>
+                      {new Date(row.at).toLocaleTimeString()} · {row.actor} ·{" "}
+                      {ptzLabels[row.command]} {row.target} ·{" "}
+                      {
+                        {
+                          acknowledged: "Подтверждена",
+                          unknown: "Исход неизвестен",
+                          rejected: "Отклонена",
+                        }[row.outcome]
+                      }
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </>
+        )}
+      </details>
       {confirmed && <span role="status">{confirmed}</span>}
       {error && <span role="alert">{error}</span>}
     </fieldset>
@@ -293,13 +452,24 @@ function View({
           />
         </Suspense>
       )}
+      {point.audio && (
+        <CameraAudio
+          key={[point.audio.device_id, archive ? ms : "live"].join("/")}
+          services={services}
+          site={site}
+          point={point.id}
+          capabilities={point.audio}
+          position={archive ? ms * 1000 : undefined}
+        />
+      )}
       {!archive && point.ptz && (
         <PtzControls
           key={point.ptz.device_id}
           commands={point.ptz.commands}
-          send={(command) =>
-            services.ptz(site, point.id, point.ptz!.device_id, command)
-          }
+          services={services}
+          site={site}
+          point={point.id}
+          device={point.ptz.device_id}
         />
       )}
       {archive && (

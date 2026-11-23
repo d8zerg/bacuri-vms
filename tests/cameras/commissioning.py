@@ -156,6 +156,16 @@ def run():
         with serve(cert, key, multicast=True) as (device, _):
             configure(device)
             address = device.base
+            plain = "http://localhost:80" + device.device_path
+            device.discovery_urls = [plain]
+            code, devices = post(SITE + "/onvif/discovery", None, admin)
+            assert code == 200 and [row["device_service"] for row in devices] == ["https://localhost" + device.device_path]
+            device.discovery_urls = [plain, address + device.device_path]
+            code, devices = post(SITE + "/onvif/discovery", None, admin)
+            assert code == 200 and [row["device_service"] for row in devices] == [address + device.device_path]
+            device.discovery_urls.clear()
+            device.services.extend(["Imaging","DeviceIO"])
+            device.zoom_range = (0, 1)
             device.base = address.replace("localhost", "127.0.0.1")
             expect(profiles(admin, discover(admin), device.password), 502, "camera_tls_error")
             device.base = address
@@ -175,7 +185,7 @@ def run():
             assert code == 200 and [p["token"] for p in info["profiles"]] == ["enc-high-47", "enc-low-83"], code
             assert info["ptz"] and info["events"]
             print("Discovery, authenticated service traversal and HTTPS rejection checks passed", flush=True)
-            stack.enter_context(streams(cert, key, c.BIN / "tests/fixtures"))
+            stack.enter_context(streams(cert, key, c.BIN / "tests/fixtures", audio=True))
             recorder_env = {**os.environ, "BACURI_KEY_FILE": str(c.ROOT / "recorder.key")}
             recorder = start([c.RECORDER], env=recorder_env)
             start([playback.MEDIA])
@@ -184,11 +194,18 @@ def run():
                 decode(call, 1280, "first-binding")
                 first, = cameras(admin)
                 assert first["binding_revision"] == "1" and first["serial"] == device.serial
+                code, _, points = c.http("GET", SITE + "/points", headers=admin)
+                assert code == 200
+                point = next(row for row in points if row["id"] == first["point_id"])
+                assert "zoom_in" in point["ptz"]["commands"] and "zoom_out" not in point["ptz"]["commands"]
+                expect(post(SITE + "/points/" + point["id"] + "/ptz", {"command": "zoom_out", "device_id": first["id"]},
+                            admin, str(uuid.uuid4())), 422, "camera_ptz_unsupported")
                 duplicate = {k: first[k] for k in ("name", "main_url", "secondary_url")}
                 duplicate["onvif_selection"] = info["selection"]
                 expect(post(CAMERAS, dict(duplicate,onvif_selection="invalid"), admin, str(uuid.uuid4())), 400, "camera_selection_expired")
                 expect(post(CAMERAS, duplicate, admin, str(uuid.uuid4())), 409, "camera_already_registered")
                 device.tilt_range = (0, 0)
+                device.zoom_range = (-1, 1)
                 button(call, "Поиск ONVIF и замена камеры")
                 button(call, "Найти камеры ONVIF")
                 field(call, "camera_user", "fixture")

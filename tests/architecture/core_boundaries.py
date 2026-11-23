@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 OBJECTS = {
     "inventory": """sites observation_points devices channels stream_profiles point_bindings configuration_versions
         configuration_progress camera_registry recorder_delivery recorder_attempt registration_requests configuration_audit
-        camera_templates camera_batch_items camera_configuration_state camera_state camera_transport_audit record_camera_transport_policy ptz_commands ptz_telemetry""",
+        camera_templates camera_batch_items camera_configuration_state camera_state camera_transport_audit record_camera_transport_policy ptz_commands ptz_telemetry digital_input_states camera_talk_sessions""",
     "access": """local_users site_roles point_grants browser_sessions login_attempts export_grants webauthn_credentials
         webauthn_enrollment webauthn_challenges credential_audit resource_groups group_points scoped_grants effective_grants privacy_policies identity_providers
         external_identities oidc_requests policy_versions access_audit can_use audit_policy_change invalidate_role_sessions audit_credential_binding""",

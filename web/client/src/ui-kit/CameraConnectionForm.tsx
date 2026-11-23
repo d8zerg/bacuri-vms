@@ -48,7 +48,14 @@ function streamError(value: string) {
     return "Начните адрес с rtsps:// или rtsp://.";
   if (/^rtsps?:\/\/[^/?#]*@/.test(value))
     return "Удалите учётные данные из адреса.";
-  if (/[?#]/.test(value)) return "Удалите параметры запроса и фрагмент адреса.";
+  if (
+    value.includes("#") ||
+    (value.includes("?") &&
+      !/^(transmode=unicast&profile=[a-zA-Z0-9._-]{1,64}|profile=[a-zA-Z0-9._-]{1,64}(&transmode=unicast)?)$/.test(
+        value.slice(value.indexOf("?") + 1),
+      ))
+  )
+    return "Удалите параметры запроса и фрагмент адреса.";
   if (/[\p{Cc}\s\\]/u.test(value) || /%(?![\da-f]{2})/i.test(value))
     return "Проверьте символы в адресе потока.";
   const url = URL.parse(value);

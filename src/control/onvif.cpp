@@ -18,6 +18,7 @@
 #include "control/playback_time.hpp"
 #include <set>
 #include <sstream>
+#include <thread>
 #include <utility>
 
 namespace bacuri::vms::control
@@ -31,6 +32,7 @@ constexpr std::string_view addressing = "http://schemas.xmlsoap.org/ws/2004/08/a
 constexpr std::string_view discovery = "http://schemas.xmlsoap.org/ws/2005/04/discovery";
 constexpr std::string_view device = "http://www.onvif.org/ver10/device/wsdl";
 constexpr std::string_view media = "http://www.onvif.org/ver10/media/wsdl";
+constexpr std::string_view device_io = "http://www.onvif.org/ver10/deviceIO/wsdl";
 constexpr std::string_view imaging = "http://www.onvif.org/ver20/imaging/wsdl";
 constexpr std::string_view schema = "http://www.onvif.org/ver10/schema";
 constexpr std::string_view ptz = "http://www.onvif.org/ver20/ptz/wsdl";
@@ -38,6 +40,9 @@ constexpr std::string_view events = "http://www.onvif.org/ver10/events/wsdl";
 constexpr std::string_view wsn = "http://docs.oasis-open.org/wsn/b-2";
 constexpr std::string_view wsa = "http://www.w3.org/2005/08/addressing";
 constexpr std::string_view velocity_space = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace";
+constexpr std::string_view zoom_velocity_space = "http://www.onvif.org/ver10/tptz/ZoomSpaces/VelocityGenericSpace";
+constexpr std::string_view relative_pan = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/TranslationGenericSpace";
+constexpr std::string_view relative_zoom = "http://www.onvif.org/ver10/tptz/ZoomSpaces/TranslationGenericSpace";
 using Doc = std::unique_ptr<xmlDoc, decltype(&xmlFreeDoc)>;
 template <class T> using Object = std::unique_ptr<T, decltype(&g_object_unref)>;
 using Uri = std::unique_ptr<GUri, decltype(&g_uri_unref)>;
@@ -91,7 +96,7 @@ std::string uuid()
 
 std::string envelope(const std::string& header, const std::string& body)
 {
-    return R"(<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://www.w3.org/2005/08/addressing" xmlns:w="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dn="http://www.onvif.org/ver10/network/wsdl" xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:timg="http://www.onvif.org/ver20/imaging/wsdl" xmlns:tptz="http://www.onvif.org/ver20/ptz/wsdl" xmlns:tev="http://www.onvif.org/ver10/events/wsdl" xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2" xmlns:tt="http://www.onvif.org/ver10/schema"><s:Header>)" +
+    return R"(<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://www.w3.org/2005/08/addressing" xmlns:w="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dn="http://www.onvif.org/ver10/network/wsdl" xmlns:tio="http://www.onvif.org/ver10/deviceIO/wsdl" xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:timg="http://www.onvif.org/ver20/imaging/wsdl" xmlns:tptz="http://www.onvif.org/ver20/ptz/wsdl" xmlns:tev="http://www.onvif.org/ver10/events/wsdl" xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2" xmlns:tt="http://www.onvif.org/ver10/schema"><s:Header>)" +
            header + "</s:Header><s:Body>" + body + "</s:Body></s:Envelope>";
 }
 
@@ -159,6 +164,7 @@ struct CameraClient {
     const Json& credentials;
     std::string ip, host;
     Clock::time_point deadline;
+    bool actuator{};
     Doc call(const std::string& url, std::string_view ns, const std::string& operation,
              const std::string& params = {}, const AddressingHeaders& headers = {}) const
     {
@@ -174,7 +180,7 @@ struct CameraClient {
         Object<GSocketConnection> tcp{
             g_socket_client_connect_to_host(client.get(), ip.c_str(), port, nullptr, nullptr), g_object_unref};
         if (!tcp)
-            throw Failure{502, "camera_unavailable"};
+            throw Failure{502, actuator ? "camera_command_unsent" : "camera_unavailable"};
         Object<GSocketConnectable> name{g_network_address_new(host.c_str(), port), g_object_unref};
         Object<GIOStream> tls{g_tls_client_connection_new(G_IO_STREAM(tcp.get()), name.get(), nullptr),
                               g_object_unref};
@@ -186,16 +192,37 @@ struct CameraClient {
             if (!ca)
                 throw Failure{502, "camera_tls_error"};
             g_tls_connection_set_database(G_TLS_CONNECTION(tls.get()), ca.get());
+            // A provisioned leaf can anchor one camera when its private issuer is unavailable.
+            g_signal_connect(
+                tls.get(), "accept-certificate",
+                G_CALLBACK(+[](GTlsConnection* connection, GTlsCertificate* peer, GTlsCertificateFlags errors,
+                               gpointer file) -> gboolean {
+                    if (errors != G_TLS_CERTIFICATE_UNKNOWN_CA)
+                        return false;
+                    auto* identity =
+                        g_tls_client_connection_get_server_identity(G_TLS_CLIENT_CONNECTION(connection));
+                    if (!identity ||
+                        (g_tls_certificate_verify(peer, identity, nullptr) & ~G_TLS_CERTIFICATE_UNKNOWN_CA))
+                        return false;
+                    auto* list = g_tls_certificate_list_new_from_file(static_cast<const char*>(file), nullptr);
+                    bool trusted = false;
+                    for (auto* n = list; n; n = n->next)
+                        trusted |= g_tls_certificate_is_same(peer, G_TLS_CERTIFICATE(n->data));
+                    g_list_free_full(list, g_object_unref);
+                    return trusted;
+                }),
+                const_cast<char*>(path));
         }
         if (!g_tls_connection_handshake(G_TLS_CONNECTION(tls.get()), nullptr, nullptr))
             throw Failure{502, "camera_tls_error"};
         const std::string action = headers.action.empty() ? std::string{ns} + "/" + operation : headers.action;
-        const std::string element = (ns == device    ? "tds:"
-                                     : ns == media   ? "trt:"
-                                     : ns == imaging ? "timg:"
-                                     : ns == ptz     ? "tptz:"
-                                     : ns == events  ? "tev:"
-                                                     : "wsnt:") +
+        const std::string element = (ns == device      ? "tds:"
+                                     : ns == media     ? "trt:"
+                                     : ns == device_io ? "tio:"
+                                     : ns == imaging   ? "timg:"
+                                     : ns == ptz       ? "tptz:"
+                                     : ns == events    ? "tev:"
+                                                       : "wsnt:") +
                                     operation;
         auto body = envelope("<a:MessageID>" + uuid() + "</a:MessageID><a:To>" + escape(url) +
                                  "</a:To><a:Action>" + action +
@@ -252,6 +279,8 @@ struct CameraClient {
             auto* code = child(child(child(fault, soap, "Code"), soap, "Subcode"), soap, "Value");
             if (code && value(code).ends_with("NotAuthorized"))
                 throw Failure{422, "camera_authentication_failed"};
+            if (actuator)
+                throw Failure{422, "camera_command_rejected"};
         }
         if (response.result_int() != 200 || !named(root, soap, "Envelope") ||
             !child(content, ns, operation + "Response"))
@@ -299,42 +328,46 @@ Json directions(const CameraClient& client, const std::string& url, const std::s
     auto* opts = child(response(doc, ptz, "GetConfigurationOptionsResponse"), ptz, "PTZConfigurationOptions");
     auto* timeout = child(opts, schema, "PTZTimeout");
     Json result = Json::array();
-    if (!timeout)
-        return result;
-    auto min = seconds(value(child(timeout, schema, "Min")));
-    auto max = seconds(value(child(timeout, schema, "Max")));
-    if (!(min >= 0 && min <= 1 && max >= 1))
-        return result;
+    const auto min = timeout ? seconds(value(child(timeout, schema, "Min"))) : -1;
+    const auto max = timeout ? seconds(value(child(timeout, schema, "Max"))) : -1;
+    const bool relative = !(min >= 0 && min <= 1 && max >= 1);
+    const double step = relative ? 0.03 : 0.5;
     auto* spaces = child(opts, schema, "Spaces");
-    for (auto* n = spaces ? spaces->children : nullptr; n; n = n->next) {
-        if (!named(n, schema, "ContinuousPanTiltVelocitySpace") ||
-            value(child(n, schema, "URI")) != velocity_space)
-            continue;
-        auto range = [&](const char* axis, const char* bound) {
-            auto raw = value(child(child(n, schema, axis), schema, bound));
+    auto bounds = [](xmlNode* range) {
+        auto bound = [&](const char* field) {
+            auto raw = value(child(range, schema, field));
             char* end{};
             auto number = g_ascii_strtod(raw.c_str(), &end);
             if (*end || !std::isfinite(number))
                 throw Failure{502, "camera_protocol_error"};
             return number;
         };
-        auto xmin = range("XRange", "Min"), xmax = range("XRange", "Max"), ymin = range("YRange", "Min"),
-             ymax = range("YRange", "Max");
-        if (xmin <= 0 && xmax >= 0 && ymin <= 0 && ymax >= 0) {
-            if (xmin <= -0.5)
-                result.push_back("left");
-            if (xmax >= 0.5)
-                result.push_back("right");
-            if (ymin <= -0.5)
-                result.push_back("down");
-            if (ymax >= 0.5)
-                result.push_back("up");
+        return std::pair{bound("Min"), bound("Max")};
+    };
+    auto add_axis = [&](const auto& limits, const std::pair<const char*, const char*> names) {
+        const auto [negative, positive] = names;
+        const auto [low, high] = limits;
+        if (low <= -step && high >= -step && std::ranges::find(result, Json(negative)) == result.end())
+            result.push_back(negative);
+        if (low <= step && high >= step && std::ranges::find(result, Json(positive)) == result.end())
+            result.push_back(positive);
+    };
+    for (auto* n = spaces ? spaces->children : nullptr; n; n = n->next) {
+        if (named(n, schema, relative ? "RelativePanTiltTranslationSpace" : "ContinuousPanTiltVelocitySpace") &&
+            value(child(n, schema, "URI")) == (relative ? relative_pan : velocity_space)) {
+            const auto x = bounds(child(n, schema, "XRange")), y = bounds(child(n, schema, "YRange"));
+            if (y.first <= 0 && y.second >= 0)
+                add_axis(x, {"left", "right"});
+            if (x.first <= 0 && x.second >= 0)
+                add_axis(y, {"down", "up"});
         }
-        break;
+        if (named(n, schema, relative ? "RelativeZoomTranslationSpace" : "ContinuousZoomVelocitySpace") &&
+            value(child(n, schema, "URI")) == (relative ? relative_zoom : zoom_velocity_space))
+            add_axis(bounds(child(n, schema, "XRange")), {"zoom_out", "zoom_in"});
     }
     if (!result.empty())
         result.push_back("stop");
-    return result;
+    return {{"directions", result}, {"relative_move", relative}};
 }
 
 CameraClient control_client(const CameraNetworks& networks, const Json& control, const Json& credentials)
@@ -362,18 +395,33 @@ void matches(Json& found, std::set<std::string>& seen, const Doc& doc, const std
             continue;
         auto id = value(child(child(m, addressing, "EndpointReference"), addressing, "Address"));
         std::istringstream urls(value(child(m, discovery, "XAddrs")));
+        std::string candidate;
         for (std::string url; urls >> url;) {
-            if (!url.starts_with("https://"))
+            try {
+                if (url.starts_with("https://")) {
+                    https_uri(url);
+                    candidate = url;
+                    break;
+                }
+                if (!candidate.empty() || !url.starts_with("http://"))
+                    continue;
+                auto uri = https_uri("https" + url.substr(4));
+                if (g_uri_get_port(uri.get()) > 0 && g_uri_get_port(uri.get()) != 80)
+                    continue;
+                // Some devices advertise only their HTTP address even when the same service accepts TLS.
+                Chars secure{g_uri_join(G_URI_FLAGS_ENCODED, "https", nullptr, g_uri_get_host(uri.get()), -1,
+                                        g_uri_get_path(uri.get()), g_uri_get_query(uri.get()), nullptr),
+                             g_free};
+                candidate = secure.get();
+            } catch (const Failure&) {
                 continue;
-            auto uri = https_uri(url);
-            if (!seen.insert(id).second)
-                break;
+            }
+        }
+        if (!candidate.empty() && seen.insert(id).second)
             found.push_back(
                 {{"endpoint_id", id},
-                 {"device_service", url},
-                 {"selection", ticket(key, "probe/" + site, {{"id", id}, {"url", url}, {"ip", ip.get()}})}});
-            break;
-        }
+                 {"device_service", candidate},
+                 {"selection", ticket(key, "probe/" + site, {{"id", id}, {"url", candidate}, {"ip", ip.get()}})}});
     }
 }
 } // namespace
@@ -411,6 +459,11 @@ Json discover_onvif(const CameraNetworks& networks, const Key& key, const std::s
         if (!networks.contains(ip.get()))
             continue;
         if (setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF, &address, sizeof address) == 0 &&
+            sendto(fd, probe.data(), probe.size(), 0, reinterpret_cast<sockaddr*>(&dest), sizeof dest) > 0)
+            sent = true;
+    }
+    for (const auto& host : networks.discovery_hosts()) {
+        if (inet_pton(AF_INET, host.c_str(), &dest.sin_addr) == 1 &&
             sendto(fd, probe.data(), probe.size(), 0, reinterpret_cast<sockaddr*>(&dest), sizeof dest) > 0)
             sent = true;
     }
@@ -475,6 +528,34 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         if (auto* address = child(child(services, schema, name), schema, "XAddr"))
             control[name] = value(address);
     }
+    if (auto* address = child(child(child(services, schema, "Extension"), schema, "DeviceIO"), schema, "XAddr"))
+        control["DeviceIO"] = value(address);
+    bool audio_output = false;
+    try {
+        auto list = client.call(url, device, "GetServices", "<tds:IncludeCapability>true</tds:IncludeCapability>");
+        auto* root = response(list, device, "GetServicesResponse");
+        for (auto* item = root->children; item; item = item->next) {
+            if (!named(item, device, "Service"))
+                continue;
+            const auto ns = value(child(item, device, "Namespace")), address = value(child(item, device, "XAddr"));
+            if (ns == device_io) {
+                auto* io = child(child(item, device, "Capabilities"), device_io, "Capabilities");
+                audio_output = g_ascii_strtoull(attribute(io, "AudioOutputs").c_str(), nullptr, 10) > 0;
+            }
+            for (auto [name, space] :
+                 {std::pair{"Events", events}, {"Imaging", imaging}, {"PTZ", ptz}, {"DeviceIO", device_io}}) {
+                if (space != ns || !address.starts_with("https://"))
+                    continue;
+                auto endpoint = https_uri(address);
+                if (!g_ascii_strcasecmp(client.host.c_str(), g_uri_get_host(endpoint.get())))
+                    control[name] = address;
+            }
+        }
+    } catch (const Failure& error) {
+        // Earlier devices only implement GetCapabilities.
+        if (error.code != "camera_protocol_error")
+            throw;
+    }
     if (control.contains("PTZ")) {
         try {
             auto reply = client.call(control.at("PTZ"), ptz, "GetServiceCapabilities");
@@ -527,6 +608,12 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         if (!addresses.insert(address).second)
             continue;
         Json selected{{"profile", id}, {"directions", Json::array()}};
+        selected["audio_input"] = child(p, schema, "AudioSourceConfiguration") != nullptr;
+        auto* io = child(child(services, schema, "Extension"), schema, "DeviceIO");
+        selected["audio_output"] =
+            audio_output || child(child(p, schema, "Extension"), schema, "AudioOutputConfiguration") ||
+            (child(io, schema, "AudioOutputs") &&
+             g_ascii_strtoull(value(child(io, schema, "AudioOutputs")).c_str(), nullptr, 10) > 0);
         auto* source = child(p, schema, "VideoSourceConfiguration");
         selected["source"] = attribute(source, "token");
         auto* physical_source = child(source, schema, "SourceToken");
@@ -536,6 +623,8 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         selected["ptz_profile"] = !config.empty();
         if (!config.empty() && control.contains("PTZ")) {
             auto* cfg = child(p, schema, "PTZConfiguration");
+            if (auto* node = child(cfg, schema, "NodeToken"))
+                selected["node"] = value(node);
             for (auto [field, element] : {std::pair{"pan_space", "DefaultAbsolutePantTiltPositionSpace"},
                                           std::pair{"zoom_space", "DefaultAbsoluteZoomPositionSpace"}})
                 if (auto* node = child(cfg, schema, element))
@@ -544,10 +633,10 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
                 try {
                     ptz_options[config] = directions(client, control.at("PTZ"), config);
                 } catch (const Failure&) {
-                    ptz_options[config] = Json::array();
+                    ptz_options[config] = {{"directions", Json::array()}};
                 }
             }
-            selected["directions"] = ptz_options.at(config);
+            selected.update(ptz_options.at(config));
         }
         Json option{{"token", id},
                     {"name", value(child(p, schema, "Name"))},
@@ -709,8 +798,18 @@ Json read_ptz_position(const CameraNetworks& networks, const Json& control, cons
     Json sample{{"pan", *x}, {"space", space}};
     if (auto tilt = number(pan, "y"))
         sample["tilt"] = *tilt;
-    if (auto* motion = child(child(status, schema, "MoveStatus"), schema, "PanTilt"))
-        sample["moving"] = value(motion) == "MOVING";
+    auto* motion = child(status, schema, "MoveStatus");
+    bool moving = false, idle = false, unknown = false;
+    for (const auto* axis : {"PanTilt", "Zoom"}) {
+        if (auto* state = child(motion, schema, axis)) {
+            const auto reported = value(state);
+            moving |= reported == "MOVING";
+            idle |= reported == "IDLE";
+            unknown |= reported != "IDLE" && reported != "MOVING";
+        }
+    }
+    if (moving || (idle && !unknown))
+        sample["moving"] = moving;
     if (auto fov = number(child(status, schema, "FieldOfView"), "hfov"); fov && *fov > 0 && *fov < 180)
         sample["hfov"] = *fov;
     auto* zoom = child(position, schema, "Zoom");
@@ -728,22 +827,247 @@ Json read_ptz_position(const CameraNetworks& networks, const Json& control, cons
     return sample;
 }
 
+namespace
+{
+std::string parameter(const std::string& name, const std::string& text)
+{
+    return "<" + name + ">" + escape(text) + "</" + name + ">";
+}
+
+std::string source_parameter(const Json& control)
+{
+    return parameter("timg:VideoSourceToken", control.at("channel"));
+}
+
+std::string profile_parameter(const Json& control)
+{
+    return parameter("tptz:ProfileToken", control.at("profile"));
+}
+
+std::optional<double> range_limit(xmlNode* range, const char* tag)
+{
+    auto* field = child(range, schema, tag);
+    if (!field)
+        return {};
+    auto text = value(field);
+    char* end = nullptr;
+    double n = g_ascii_strtod(text.c_str(), &end);
+    return *end || !std::isfinite(n) ? std::nullopt : std::optional(n);
+}
+} // namespace
+
+Json read_camera_controls(const CameraNetworks& networks, const Json& control, const Json& credentials)
+{
+    auto client = control_client(networks, control, credentials);
+    client.deadline = Clock::now() + 12s;
+    Json actions = Json::array(), inputs = Json::array();
+    auto add = [&](std::string_view command, const std::string& target = {}, std::string title = {}) -> Json& {
+        return actions.emplace_back(
+            Json{{"command", command}, {"target", target}, {"label", title.empty() ? target : title}});
+    };
+    auto optional = [&](const char* service, std::string_view ns, const char* op, const std::string& params,
+                        const auto& consume, const AddressingHeaders& headers = {}) {
+        if (!control.contains(service))
+            return;
+        try {
+            auto doc = client.call(control.at(service), ns, op, params, headers);
+            consume(response(doc, ns, (std::string(op) + "Response").c_str()));
+        } catch (const Failure& error) {
+            // An optional service may not implement an operation. Transport and trust failures are actionable.
+            if (error.code != "camera_protocol_error")
+                throw;
+        }
+    };
+    if (control.value("imaging_source", false)) {
+        optional("Imaging", imaging, "GetMoveOptions", source_parameter(control), [&](xmlNode* root) {
+            auto* options = child(root, imaging, "MoveOptions");
+            for (const auto* mode : {"Relative", "Continuous"}) {
+                const bool relative = std::string_view(mode) == "Relative";
+                auto* range = child(child(options, schema, mode), schema, relative ? "Distance" : "Speed");
+                auto low = range_limit(range, "Min"), high = range_limit(range, "Max");
+                if (!low || !high || *low > *high || *low > 0 || *high < 0 || *low == *high)
+                    continue;
+                for (bool near : {true, false}) {
+                    const double speed = (near ? *low : *high) * (relative ? 0.05 : 0.3);
+                    if (speed == 0)
+                        continue;
+                    auto& action = add(near ? "focus_near" : "focus_far");
+                    action["mode"] = mode;
+                    action["amount"] = speed;
+                }
+                add("focus_stop");
+                break;
+            }
+        });
+    }
+    if (control.value("ptz_profile", false)) {
+        const auto profile = profile_parameter(control);
+        optional("PTZ", ptz, "GetPresets", profile, [&](xmlNode* root) {
+            for (auto* n = root->children; n; n = n->next) {
+                const auto token = attribute(n, "token");
+                if (named(n, ptz, "Preset") && !token.empty())
+                    add("preset_goto", token, child(n, schema, "Name") ? value(child(n, schema, "Name")) : token);
+            }
+        });
+        optional("PTZ", ptz, "GetPresetTours", profile, [&](xmlNode* root) {
+            for (auto* n = root->children; n; n = n->next) {
+                const auto token = attribute(n, "token");
+                if (!named(n, ptz, "PresetTour") || token.empty())
+                    continue;
+                const auto title = child(n, schema, "Name") ? value(child(n, schema, "Name")) : token;
+                auto* duration = child(child(n, schema, "StartingCondition"), schema, "RecurringDuration");
+                const auto limit = duration ? seconds(value(duration)) : 0;
+                const bool bounded =
+                    limit > 0 && limit <= 60 && child(child(n, schema, "TourSpot"), schema, "PresetDetail");
+                if (bounded)
+                    add("tour_start", token, title)["duration"] = static_cast<int>(std::ceil(limit));
+                auto* state = child(child(n, schema, "Status"), schema, "State");
+                if (bounded || (state && (value(state) == "Touring" || value(state) == "Paused")))
+                    add("tour_stop", token, title);
+            }
+        });
+        if (control.contains("node"))
+            optional("PTZ", ptz, "GetNode", parameter("tptz:NodeToken", control.at("node")), [&](xmlNode* root) {
+                auto* node = child(root, ptz, "PTZNode");
+                if (attribute(node, "token") != control.at("node").get_ref<const std::string&>())
+                    return;
+                for (auto* n = node->children; n; n = n->next) {
+                    if (!named(n, schema, "AuxiliaryCommands"))
+                        continue;
+                    const auto token = value(n);
+                    for (const auto& [name, command] : {std::pair{"tt:Wiper|On", "wiper_on"},
+                                                        {"tt:Wiper|Off", "wiper_off"},
+                                                        {"tt:IRLamp|On", "light_on"},
+                                                        {"tt:IRLamp|Off", "light_off"},
+                                                        {"LightOn", "light_on"},
+                                                        {"LightOff", "light_off"}})
+                        if (token == name)
+                            add(command, token);
+                }
+            });
+    }
+    optional("DeviceIO", device, "GetRelayOutputs", {},
+             [&](xmlNode* root) {
+                 for (auto* n = root->children; n; n = n->next) {
+                     const auto token = attribute(n, "token");
+                     if (named(n, device, "RelayOutputs") && !token.empty()) {
+                         add("relay_on", token);
+                         add("relay_off", token);
+                     }
+                 }
+             },
+             {"http://www.onvif.org/ver10/deviceio/wsdl/GetRelayOutputs", {}});
+    optional("DeviceIO", device_io, "GetDigitalInputs", {},
+             [&](xmlNode* root) {
+                 for (auto* n = root->children; n && inputs.size() < 64; n = n->next)
+                     if (const auto token = attribute(n, "token");
+                         named(n, device_io, "DigitalInputs") && !token.empty())
+                         inputs.push_back({{"token", token}});
+             },
+             {"http://www.onvif.org/ver10/deviceio/wsdl/GetDigitalInputs", {}});
+    return {{"actions", actions}, {"inputs", inputs}};
+}
+
+void operate_camera(const CameraNetworks& networks, const Json& control, const Json& credentials,
+                    const CameraAction& action)
+{
+    auto client = control_client(networks, control, credentials);
+    client.actuator = true;
+    const auto& cmd = action.command;
+    const auto& target = action.target;
+    if (cmd.starts_with("focus_")) {
+        const auto source = source_parameter(control);
+        auto stop = [&] {
+            client.deadline = Clock::now() + 3s;
+            client.call(control.at("Imaging"), imaging, "Stop", source);
+        };
+        if (cmd == "focus_stop") {
+            stop();
+            return;
+        }
+        const auto& mode = action.mode;
+        const bool pulse = mode == "Continuous";
+        const auto movement = "<timg:Focus><tt:" + mode + ">" +
+                              parameter(pulse ? "tt:Speed" : "tt:Distance", Json(action.amount).dump()) +
+                              "</tt:" + mode + "></timg:Focus>";
+        try {
+            client.call(control.at("Imaging"), imaging, "Move", source + movement);
+        } catch (const Failure&) {
+            if (pulse) {
+                try {
+                    stop();
+                } catch (const Failure&) {
+                    throw Failure{502, "camera_ptz_unknown"};
+                }
+            }
+            throw;
+        }
+        if (pulse) {
+            std::this_thread::sleep_for(200ms);
+            try {
+                stop();
+            } catch (const Failure&) {
+                throw Failure{502, "camera_ptz_unknown"};
+            }
+        }
+        return;
+    }
+    if (cmd.starts_with("relay_")) {
+        client.call(control.at("DeviceIO"), device, "SetRelayOutputState",
+                    parameter("tds:RelayOutputToken", target) +
+                        parameter("tds:LogicalState", cmd == "relay_on" ? "active" : "inactive"),
+                    {"http://www.onvif.org/ver10/deviceio/wsdl/SetRelayOutputState", {}});
+        return;
+    }
+    auto profile = profile_parameter(control);
+    if (cmd == "preset_goto")
+        client.call(control.at("PTZ"), ptz, "GotoPreset", profile + parameter("tptz:PresetToken", target));
+    else if (cmd == "tour_start" || cmd == "tour_stop")
+        client.call(control.at("PTZ"), ptz, "OperatePresetTour",
+                    profile + parameter("tptz:PresetTourToken", target) +
+                        parameter("tptz:Operation", cmd == "tour_start" ? "Start" : "Stop"));
+    else
+        client.call(control.at("PTZ"), ptz, "SendAuxiliaryCommand",
+                    profile + parameter("tptz:AuxiliaryData", target));
+}
+
 void move_onvif(const CameraNetworks& networks, const Json& control, const Json& credentials,
                 const std::string& command)
 {
     auto client = control_client(networks, control, credentials);
+    client.actuator = true;
     auto profile = "<tptz:ProfileToken>" + escape(control.at("profile").get_ref<const std::string&>()) +
                    "</tptz:ProfileToken>";
     auto url = control.at("PTZ").get<std::string>();
     if (command == "stop") {
-        client.call(url, ptz, "Stop", profile + "<tptz:PanTilt>true</tptz:PanTilt><tptz:Zoom>false</tptz:Zoom>");
-    } else {
-        auto x = command == "left" ? "-0.5" : command == "right" ? "0.5" : "0";
-        auto y = command == "down" ? "-0.5" : command == "up" ? "0.5" : "0";
-        client.call(url, ptz, "ContinuousMove",
-                    profile + "<tptz:Velocity><tt:PanTilt space=\"" + std::string{velocity_space} + "\" x=\"" + x +
-                        "\" y=\"" + y + "\"/></tptz:Velocity><tptz:Timeout>PT1S</tptz:Timeout>");
+        const auto& commands = control.at("directions");
+        const auto supports = [&](const char* name) {
+            return std::ranges::find(commands, Json(name)) != commands.end();
+        };
+        const bool pan = supports("left") || supports("right") || supports("up") || supports("down");
+        const bool zoom = supports("zoom_in") || supports("zoom_out");
+        client.call(url, ptz, "Stop",
+                    profile + "<tptz:PanTilt>" + (pan ? "true" : "false") + "</tptz:PanTilt><tptz:Zoom>" +
+                        (zoom ? "true" : "false") + "</tptz:Zoom>");
+        return;
     }
+    const bool relative = control.value("relative_move", false);
+    const std::string amount = relative ? "0.03" : "0.5";
+    std::string axes;
+    if (command == "zoom_in" || command == "zoom_out") {
+        axes = "<tt:Zoom space=\"" + std::string{relative ? relative_zoom : zoom_velocity_space} + "\" x=\"" +
+               (command == "zoom_in" ? amount : "-" + amount) + "\"/>";
+    } else {
+        auto x = command == "left" ? "-" + amount : command == "right" ? amount : "0";
+        auto y = command == "down" ? "-" + amount : command == "up" ? amount : "0";
+        axes = "<tt:PanTilt space=\"" + std::string{relative ? relative_pan : velocity_space} + "\" x=\"" + x +
+               "\" y=\"" + y + "\"/>";
+    }
+    if (relative)
+        client.call(url, ptz, "RelativeMove", profile + "<tptz:Translation>" + axes + "</tptz:Translation>");
+    else
+        client.call(url, ptz, "ContinuousMove",
+                    profile + "<tptz:Velocity>" + axes + "</tptz:Velocity><tptz:Timeout>PT1S</tptz:Timeout>");
 }
 
 namespace
@@ -801,19 +1125,35 @@ std::optional<MotionNotice> motion_notice(xmlNode* notification, const Json& con
         return {};
     auto path = value(topic);
     auto colon = path.find(':');
-    if (colon == path.npos || path.substr(colon + 1) != "RuleEngine/CellMotionDetector/Motion")
+    const bool digital = colon != path.npos && path.substr(colon + 1) == "Device/Trigger/DigitalInput";
+    if (colon == path.npos || (!digital && path.substr(colon + 1) != "RuleEngine/CellMotionDetector/Motion"))
         return {};
     auto* ns = xmlSearchNs(topic->doc, topic, BAD_CAST path.substr(0, colon).c_str());
     if (!ns || std::string_view{reinterpret_cast<const char*>(ns->href)} != "http://www.onvif.org/ver10/topics")
         return {};
     auto* message = child(child(notification, wsn, "Message"), schema, "Message");
-    if (attribute(message, "PropertyOperation") != "Changed")
+    const auto operation = attribute(message, "PropertyOperation");
+    if (operation != "Changed" && !(digital && operation == "Initialized"))
         return {};
     Json source = Json::object();
     auto* items = child(message, schema, "Source");
     for (auto* item = items ? items->children : nullptr; item; item = item->next)
         if (named(item, schema, "SimpleItem"))
             source[attribute(item, "Name")] = attribute(item, "Value");
+    if (digital) {
+        auto token = source.value("InputToken", std::string{});
+        auto* data = child(message, schema, "Data");
+        for (auto* n = data ? data->children : nullptr; n && !token.empty(); n = n->next) {
+            if (!named(n, schema, "SimpleItem") || attribute(n, "Name") != "LogicalState")
+                continue;
+            const auto state = attribute(n, "Value");
+            if (state != "1" && state != "true" && state != "0" && state != "false")
+                continue;
+            auto t = camera_time(attribute(message, "UtcTime"));
+            return MotionNotice{source, t.utc, t.precision, {}, token, state == "1" || state == "true"};
+        }
+        return {};
+    }
     if (!source.contains("VideoSourceConfigurationToken") ||
         source.at("VideoSourceConfigurationToken") != control.at("source"))
         return {};
@@ -824,7 +1164,7 @@ std::optional<MotionNotice> motion_notice(xmlNode* notification, const Json& con
         auto state = attribute(item, "Value");
         if (state == "true" || state == "1") {
             auto t = camera_time(attribute(message, "UtcTime"));
-            return MotionNotice{source, t.utc, t.precision, {}};
+            return MotionNotice{source, t.utc, t.precision, {}, {}, false};
         }
     }
     return {};
@@ -853,6 +1193,17 @@ void read_motion(std::stop_token stop, const CameraNetworks& networks, const Jso
         }
     };
     try {
+        if (control.contains("DeviceIO")) {
+            try {
+                client.call(
+                    url, events, "SetSynchronizationPoint", {},
+                    {std::string{events} + "/PullPointSubscription/SetSynchronizationPointRequest", headers});
+            } catch (const Failure& error) {
+                // Devices without property synchronization still publish subsequent changes.
+                if (error.code != "camera_protocol_error")
+                    throw;
+            }
+        }
         while (!stop.stop_requested()) {
             client.deadline = Clock::now() + 4s;
             auto before = g_get_real_time();

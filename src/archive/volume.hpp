@@ -27,6 +27,15 @@ struct Pending {
     std::string directory, manifest, unavailable;
 };
 
+struct RecordedSound {
+    std::int64_t start_us{};
+    std::string_view pcm{};
+};
+struct AudioSlice {
+    std::string block, hash;
+    std::size_t offset, count;
+};
+
 class Volume
 {
   public:
@@ -36,7 +45,8 @@ class Volume
     Volume(const fs::path& root, Owner owner, const InvalidBlock& invalid = {});
     void visit_inventory(const std::function<void(const Json&, const std::string&)>& visit);
     void publish(const Block&, const MediaWriter&, const Observer& observer = {},
-                 std::uintmax_t expected_bytes = 0);
+                 std::uintmax_t expected_bytes = 0, RecordedSound sound = {});
+    std::string read_audio(const AudioSlice& slice);
     using RetirementObserver = std::function<void(RetirementStage)>;
     void apply_retention(const RetentionPolicy& policy, const RetirementObserver& observer = {});
     void reclaim_authorized();

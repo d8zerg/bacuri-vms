@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 import hashlib
 import json
+import os
 from pathlib import Path
 import socket
 import ssl
@@ -39,10 +40,11 @@ def equipment_complete(inventory, rows):
 
 
 @contextmanager
-def streams(cert, key, binaries=BIN):
+def streams(cert, key, binaries=BIN, audio=False):
     bundle = cert.parent / "server.pem"
     bundle.write_bytes(cert.read_bytes() + key.read_bytes())
-    process = subprocess.Popen([binaries / "bacuri-vms-test-rtsp-camera", "--tls", bundle])
+    process = subprocess.Popen([(binaries / "bacuri-vms-test-rtsp-camera").resolve(), "--tls", bundle.resolve()],
+                               cwd=cert.parent, env={**os.environ, "BACURI_TEST_AUDIO": "1" if audio else "0"})
     try:
         for _ in range(50):
             need(process.poll() is None, "RTSP emulator exited")

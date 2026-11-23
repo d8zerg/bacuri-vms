@@ -26,6 +26,17 @@ void listen(std::stop_token stop, const CameraNetworks& networks, const Key& key
     auto accept = [&](const MotionNotice& notice) {
         if (notice.utc + notice.uncertainty < camera.bound_since && notice.uncertainty <= 5000000)
             return;
+        if (!notice.input.empty()) {
+            Database db;
+            db.exec("INSERT INTO bacuri_inventory.digital_input_states AS "
+                    "previous(site_id,device_id,revision,token,active,source_time) "
+                    "VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(site_id,device_id,revision,token) DO UPDATE SET "
+                    "active=excluded.active,source_time=excluded.source_time,observed_at=clock_timestamp() "
+                    "WHERE excluded.source_time>=previous.source_time",
+                    {camera.site, camera.device, std::to_string(camera.revision), notice.input,
+                     notice.active ? "true" : "false", std::to_string(notice.utc)});
+            return;
+        }
         auto hash = fingerprint(key, "onvif-motion",
                                 Json::array({camera.device, camera.binding, notice.source, notice.utc}).dump());
         v1::SubmitObservationRequest q;

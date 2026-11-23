@@ -62,6 +62,51 @@ class Recorder final : public v1::RecorderControl::Service
         return point.site_id() == site_ ? sources_.preview(point.point_id()) : nullptr;
     }
 
+    grpc::Status ExchangeAudio(grpc::ServerContext*, const v1::AudioRequest* q, v1::AudioChunk* out) override
+    {
+        if (q->site_id() != site_ || !canonical_id(q->point_id()))
+            return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid audio scope"};
+        try {
+            if (q->mode() == v1::AudioRequest::ARCHIVE) {
+                if (q->at_us() < 0 || q->at_us() > 256000 || !q->pcm().empty())
+                    return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid audio position"};
+                out->set_pcm(volume_.read_audio(
+                    {q->block_id(), q->sha256(), static_cast<std::size_t>(q->at_us()), q->length()}));
+                return grpc::Status::OK;
+            }
+            std::shared_ptr<ingest::CameraAudio> audio;
+            {
+                std::scoped_lock lock{mutex_};
+                audio = sources_.audio(q->point_id(), q->device_id());
+            }
+            if (!audio)
+                return {grpc::StatusCode::FAILED_PRECONDITION, "Camera binding changed"};
+            switch (q->mode()) {
+            case v1::AudioRequest::LISTEN: {
+                auto sound = audio->listen(q->at_us());
+                out->set_start_us(sound.start_us);
+                out->set_pcm(std::move(sound.pcm));
+                break;
+            }
+            case v1::AudioRequest::RECORD:
+            case v1::AudioRequest::RECORD_STOP:
+                audio->record(q->operator_id(), q->mode() == v1::AudioRequest::RECORD);
+                break;
+            case v1::AudioRequest::TALK:
+                audio->speak(q->talk_session_id(), std::chrono::milliseconds{q->talk_ttl_ms()}, q->pcm());
+                break;
+            case v1::AudioRequest::MUTE:
+                audio->mute(q->talk_session_id());
+                break;
+            default:
+                return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid audio direction"};
+            }
+            return grpc::Status::OK;
+        } catch (const std::exception&) {
+            return {grpc::StatusCode::UNAVAILABLE, "Audio channel unavailable"};
+        }
+    }
+
     grpc::Status GetCameraIssues(grpc::ServerContext*, const v1::CameraIssueQuery* query,
                                  v1::CameraIssues* result) override
     {

@@ -6,7 +6,13 @@ const failures: Record<string, string> = {
   camera_image_unconfirmed: "Камера не подтвердила значение яркости.",
   camera_batch_limit: "В одну партию можно включить до 64 каналов.",
   camera_authentication_failed: "Камера отклонила имя или пароль.",
+  camera_audio_missing: "В выбранный момент звук не записан.",
+  camera_audio_unavailable:
+    "Камера не подтвердила доступность звукового канала.",
+  camera_audio_unsupported: "Камера не поддерживает это направление звука.",
   camera_ptz_busy: "Камерой управляет другой оператор.",
+  camera_command_unsent: "Соединение недоступно. Команда не отправлена.",
+  camera_command_rejected: "Камера отклонила команду.",
   camera_ptz_unknown:
     "Нет подтверждения камеры. Проверьте её положение в эфире.",
   camera_ptz_unsupported: "Профиль камеры не поддерживает эту команду.",

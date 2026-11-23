@@ -204,8 +204,12 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
             const auto operation = path.substr(slash + 1);
             if (operation == "exports")
                 return export_fragment(req, res, sessions, key, site, point);
-            if (operation == "ptz") {
+            if (operation == "audio") {
                 allow(req, res, {http::verb::post});
+                return registry.audio(req, res, site, point);
+            }
+            if (operation == "ptz") {
+                allow(req, res, {http::verb::get, http::verb::post});
                 return registry.ptz(req, res, site, point);
             }
             if (operation == "archive" || operation == "media-sessions") {

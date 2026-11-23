@@ -46,6 +46,14 @@ class Device:
         self.report_position = True
         self.hfov = 64.0
         self.zoom = 0.0
+        self.zoom_speed = 0.0
+        self.miss_focus_stop = False
+        self.focus = self.relay = self.light = self.wiper = False
+        self.tour_deadline = 0.0
+        self.preset = None
+        self.inputs = []
+        self.zoom_range = None
+        self.discovery_urls = []
         self.position = 0.0
         self.active = False
         self.notifications = []
@@ -57,15 +65,21 @@ class Device:
         self.stream_uris = {}
         self.tokens = {"main": (1280, 720), "sub": (640, 360)}
 
+    @property
+    def touring(self):
+        return monotonic() < self.tour_deadline
+
     def feedback(self):
         with self.lock:
             now = monotonic()
             elapsed = max(0.0, min(now, self.deadline) - self.updated)
             self.position = max(-1, min(1, self.position + self.velocity[0] * elapsed))
             self.tilt = max(-1, min(1, self.tilt + self.velocity[1] * elapsed))
+            self.zoom = max(0, min(1, self.zoom + self.zoom_speed * elapsed))
             self.updated = now
             if now >= self.deadline:
                 self.velocity = (0.0, 0.0)
+                self.zoom_speed = 0.0
             return self.position, self.tilt, any(self.velocity)
 
     def respond(self, request, path):
@@ -73,7 +87,7 @@ class Device:
         if body is None:
             raise ValueError("empty body")
         action = body.tag.split("}")[-1]
-        if body.tag.startswith("{" + NS["tds"] + "}") and path != self.device_path:
+        if body.tag.startswith("{" + NS["tds"] + "}") and path != self.device_path and path != "/deviceio":
             raise ValueError("unknown device service")
         if body.tag.startswith("{" + NS["trt"] + "}") and path != self.media_path:
             raise ValueError("unknown media service")
@@ -85,7 +99,10 @@ class Device:
         elif body.tag == tag("tds:GetCapabilities"):
             capabilities = child(result, "tds:Capabilities")
             for name in self.services:
-                service = child(capabilities, "tt:" + name)
+                parent = child(capabilities, "tt:Extension") if name=="DeviceIO" else capabilities
+                service = child(parent, "tt:" + name)
+                if name=="DeviceIO":
+                    child(service,"tt:AudioOutputs","1")
                 child(service, "tt:XAddr", self.base + (self.media_path if name == "Media" else "/" + name.lower()))
                 if name == "Events":
                     child(service, "tt:WSPullPointSupport", "true")
@@ -102,7 +119,50 @@ class Device:
                 child(resolution, "tt:Width", str(width))
                 child(resolution, "tt:Height", str(height))
                 if "PTZ" in self.services:
-                    child(profile, "tt:PTZConfiguration", token="ptz")
+                    child(child(profile, "tt:PTZConfiguration", token="ptz"),"tt:NodeToken","head")
+                if "DeviceIO" in self.services:
+                    child(profile,"tt:AudioSourceConfiguration",token="audio-main")
+        elif path == "/imaging" and action == "GetMoveOptions":
+            options = child(result, "timg:MoveOptions")
+            bounds = child(child(options, "tt:Continuous"), "tt:Speed")
+            child(bounds, "tt:Min", "-1")
+            child(bounds, "tt:Max", "1")
+        elif path == "/imaging" and action == "Move":
+            self.focus = float(required(body, "timg:Focus/tt:Continuous/tt:Speed"))
+        elif path == "/imaging" and action == "Stop":
+            if self.miss_focus_stop:
+                self.miss_focus_stop = False
+                raise ValueError("focus stop temporarily unavailable")
+            self.focus = False
+        elif path == "/ptz" and action == "GetNode":
+            head = child(result, "tptz:PTZNode", token="head")
+            for auxiliary in ("tt:Wiper|On", "tt:Wiper|Off", "tt:IRLamp|On", "tt:IRLamp|Off"):
+                child(head, "tt:AuxiliaryCommands", auxiliary)
+        elif path == "/ptz" and action == "GetPresets":
+            child(child(result, "tptz:Preset", token="door"), "tt:Name", "Door")
+        elif path == "/ptz" and action == "GetPresetTours":
+            tour = child(result, "tptz:PresetTour", token="round")
+            child(child(tour, "tt:StartingCondition"), "tt:RecurringDuration", "PT2S")
+            detail = child(child(tour, "tt:TourSpot"), "tt:PresetDetail")
+            child(detail, "tt:PresetToken", "door")
+        elif path == "/ptz" and action == "GotoPreset":
+            self.preset = required(body, "tptz:PresetToken")
+            self.position = 0.2
+        elif path == "/ptz" and action == "OperatePresetTour":
+            self.tour_deadline = monotonic() + 2 if required(body, "tptz:Operation") == "Start" else 0.0
+        elif path == "/ptz" and action == "SendAuxiliaryCommand":
+            auxiliary = required(body, "tptz:AuxiliaryData")
+            if "Wiper" in auxiliary:
+                self.wiper = auxiliary.endswith("|On")
+            else:
+                self.light = auxiliary.endswith("|On")
+        elif path == "/deviceio" and action == "GetDigitalInputs":
+            child(result, "tio:DigitalInputs", token="contact")
+        elif path == "/deviceio" and action == "GetRelayOutputs":
+            child(result, "tds:RelayOutputs", token="relay")
+        elif path == "/deviceio" and action == "SetRelayOutputState":
+            self.relay = required(body, "tds:LogicalState") == "active"
+            self.inputs.append(self.relay)
         elif body.tag == tag("trt:GetStreamUri"):
             token = required(body, "trt:ProfileToken")
             if token not in self.tokens or self.sources.get(token) in self.disconnected:
@@ -138,12 +198,19 @@ class Device:
             if path != "/ptz" or required(body, "tptz:ConfigurationToken") != "ptz":
                 raise ValueError("unknown PTZ configuration")
             options = child(result, "tptz:PTZConfigurationOptions")
-            space = child(child(options, "tt:Spaces"), "tt:ContinuousPanTiltVelocitySpace")
+            spaces = child(options, "tt:Spaces")
+            space = child(spaces, "tt:ContinuousPanTiltVelocitySpace")
             child(space, "tt:URI", "http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace")
             for name, limits in [("XRange", self.pan_range), ("YRange", self.tilt_range)]:
                 bounds = child(space, "tt:" + name)
                 for field, limit in zip(["Min", "Max"], limits, strict=True):
                     child(bounds, "tt:" + field, str(limit))
+            if self.zoom_range:
+                zoom = child(spaces, "tt:ContinuousZoomVelocitySpace")
+                child(zoom, "tt:URI", "http://www.onvif.org/ver10/tptz/ZoomSpaces/VelocityGenericSpace")
+                bounds = child(zoom, "tt:XRange")
+                child(bounds, "tt:Min", str(self.zoom_range[0]))
+                child(bounds, "tt:Max", str(self.zoom_range[1]))
             timeout = child(options, "tt:PTZTimeout")
             child(timeout, "tt:Min", "PT0.1S")
             child(timeout, "tt:Max", "PT5S")
@@ -156,13 +223,24 @@ class Device:
                 self.position = max(-1, min(1, self.position + float(pan.attrib["x"])))
             elif action == "ContinuousMove":
                 velocity = body.find("tptz:Velocity/tt:PanTilt", NS)
-                if required(body, "tptz:Timeout") != "PT1S" or velocity is None:
-                    raise ValueError("unbounded movement")
-                self.velocity = (float(velocity.attrib["x"]), float(velocity.attrib["y"]))
+                zoom = body.find("tptz:Velocity/tt:Zoom", NS)
+                if required(body, "tptz:Timeout") != "PT1S" or (velocity is None) == (zoom is None):
+                    raise ValueError("expected one bounded movement")
+                if zoom is not None:
+                    speed = float(zoom.attrib["x"])
+                    if (not self.zoom_range or not self.zoom_range[0] <= speed <= self.zoom_range[1] or
+                            zoom.get("space") != "http://www.onvif.org/ver10/tptz/ZoomSpaces/VelocityGenericSpace"):
+                        raise ValueError("unsupported zoom speed")
+                    self.zoom_speed = speed
+                else:
+                    self.velocity = (float(velocity.attrib["x"]), float(velocity.attrib["y"]))
                 self.deadline = monotonic() + 1
             elif action == "Stop":
                 self.stops += 1
-                self.velocity = (0.0, 0.0)
+                if body.findtext("tptz:PanTilt", default="true", namespaces=NS) == "true":
+                    self.velocity = (0.0, 0.0)
+                if body.findtext("tptz:Zoom", default="true", namespaces=NS) == "true":
+                    self.zoom_speed = 0.0
             elif action == "GetStatus":
                 status = child(result, "tptz:PTZStatus")
                 if self.report_position:
@@ -171,7 +249,10 @@ class Device:
                           space="http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace")
                     child(position, "tt:Zoom", x=str(self.zoom),
                           space="http://www.onvif.org/ver10/tptz/ZoomSpaces/PositionGenericSpace")
-                child(child(status, "tt:MoveStatus"), "tt:PanTilt", "MOVING" if any(self.velocity) else "IDLE")
+                motion = child(status, "tt:MoveStatus")
+                child(motion, "tt:PanTilt", "MOVING" if any(self.velocity) else "IDLE")
+                if self.zoom_range:
+                    child(motion, "tt:Zoom", "MOVING" if self.zoom_speed else "IDLE")
                 child(status, "tt:UtcTime", utc())
                 if self.hfov is not None:
                     child(status, "tt:FieldOfView", hfov=str(self.hfov), vfov="40")
@@ -200,6 +281,9 @@ class Device:
                 self.lease_end = monotonic() + 60
                 child(result, "wsnt:TerminationTime", utc(60))
                 return result
+            if body.tag==tag("tev:SetSynchronizationPoint"):
+                self.inputs.append(self.relay)
+                return result
             if body.tag != tag("tev:PullMessages") or required(request, "s:Header/a:Action") != NS["tev"] + "/PullPointSubscription/PullMessagesRequest":
                 raise ValueError("unknown subscription operation")
             self.polls += 1
@@ -214,6 +298,13 @@ class Device:
                 msg = child(child(notification, "wsnt:Message"), "tt:Message", UtcTime=instant, PropertyOperation=operation)
                 child(child(msg, "tt:Source"), "tt:SimpleItem", Name="VideoSourceConfigurationToken", Value=source)
                 child(child(msg, "tt:Data"), "tt:SimpleItem", Name="IsMotion", Value=state)
+            for state in self.inputs:
+                n=child(result,"wsnt:NotificationMessage")
+                child(n,"wsnt:Topic","tns1:Device/Trigger/DigitalInput",**{"xmlns:tns1":"http://www.onvif.org/ver10/topics"})
+                msg=child(child(n,"wsnt:Message"),"tt:Message",UtcTime=utc(),PropertyOperation="Changed")
+                child(child(msg,"tt:Source"),"tt:SimpleItem",Name="InputToken",Value="contact")
+                child(child(msg,"tt:Data"),"tt:SimpleItem",Name="LogicalState",Value="true" if state else "false")
+            self.inputs.clear()
             self.notifications.clear()
         else:
             raise ValueError("unsupported operation")
@@ -286,7 +377,7 @@ class Discovery(BaseRequestHandler):
             match = child(matches, "d:ProbeMatch", **{"xmlns:dn": NS["dn"]})
             child(child(match, "wa:EndpointReference"), "wa:Address", peer.serial)
             child(match, "d:Types", "dn:NetworkVideoTransmitter")
-            child(match, "d:XAddrs", peer.base + peer.device_path)
+            child(match, "d:XAddrs", " ".join(peer.discovery_urls) or peer.base + peer.device_path)
             child(match, "d:MetadataVersion", "1")
         headers = [node("wa:RelatesTo", required(root, "s:Header/wa:MessageID")),
                    node("wa:Action", NS["d"] + "/ProbeMatches"), node("wa:MessageID", message_id())]

@@ -25,6 +25,10 @@ camera_batch_preview:
     image: { min: 0, max: 100, value: 30 }
     brightness: 45
     state: prepared
+ptz_zoom:
+  operation: controlPointPtz
+  request: { device_id: 40000000-0000-4000-8000-000000000001, command: zoom_in }
+  status: 204
 ptz_command:
   operation: controlPointPtz
   request: { device_id: 40000000-0000-4000-8000-000000000001, command: stop }
@@ -290,3 +294,13 @@ search_alert_result:
 revoke_alert_work:
   operation: revokeAlertDelegation
   status: 204
+
+camera_controls:
+  operation: getCameraControls
+  status: 200
+  response: { device_id: 40000000-0000-4000-8000-000000000001, actions: [], inputs: [], history: [] }
+camera_audio:
+  operation: exchangeCameraAudio
+  request: { mode: record, device_id: 40000000-0000-4000-8000-000000000001 }
+  status: 200
+  response: {}

@@ -75,6 +75,7 @@ void finish_removal(int blocks, const std::string& name)
         return;
     }
     File dir{openat(blocks, name.c_str(), O_CLOEXEC | O_NOFOLLOW | O_DIRECTORY | O_RDONLY)};
+    unlink_if_present(dir.fd, "audio.pcm");
     unlink_if_present(dir.fd, "media.mp4");
     unlink_if_present(dir.fd, "manifest.json");
     unlink_if_present(blocks, name.c_str(), AT_REMOVEDIR);
@@ -143,7 +144,8 @@ Json archive_status(const fs::path& root)
                         "'missing',count(*) FILTER (WHERE unavailable_reason='missing'),"
                         "'corrupt',count(*) FILTER (WHERE unavailable_reason='corrupt'),"
                         "'rejected',count(catalog_error),'last_commit_utc_us',max(committed_at_utc_us),"
-                        "'media_bytes',coalesce(sum(manifest_json->>'$.media.size_bytes') FILTER (WHERE "
+                        "'media_bytes',coalesce(sum((manifest_json->>'$.media.size_bytes') + "
+                        "coalesce(manifest_json->>'$.audio.size_bytes',0)) FILTER (WHERE "
                         "unavailable_reason IS NULL),0)) FROM committed_blocks");
     next(row.get());
     auto result = Json::parse(column(row.get(), 0));
@@ -159,7 +161,8 @@ Json archive_status(const fs::path& root)
     const auto floor = reserved(space, percent);
     const auto free = space.available > floor ? space.available - floor : 0;
     const auto blocked = static_cast<std::uintmax_t>(sqlite3_column_int64(policy.get(), 4));
-    auto rate = db.query("SELECT sum(manifest_json->>'$.media.size_bytes')*1000000.0/"
+    auto rate = db.query("SELECT sum((manifest_json->>'$.media.size_bytes') + "
+                         "coalesce(manifest_json->>'$.audio.size_bytes',0))*1000000.0/"
                          "max(1000000,?1-min(manifest_json->>'$.time.received_at_utc_us')) FROM committed_blocks "
                          "WHERE (manifest_json->>'$.time.received_at_utc_us') BETWEEN ?1-300000000 AND ?1 AND "
                          "unavailable_reason IS NULL");
@@ -287,14 +290,15 @@ void Volume::record(const std::string& relative, const Json& m)
 }
 
 void Volume::publish(const Block& block, const MediaWriter& write_media, const Observer& observer,
-                     std::uintmax_t expected_bytes)
+                     std::uintmax_t expected_bytes, RecordedSound sound)
 {
+    const auto [audio_start, pcm] = sound;
     const auto id = uuid();
     const auto blocks = root_ / "blocks";
     const auto temp = blocks / (".partial-" + id);
     {
         std::scoped_lock guard{mutex_};
-        require_space(expected_bytes, 0);
+        require_space(expected_bytes + pcm.size(), 0);
     }
     if (!fs::create_directory(temp)) {
         throw std::runtime_error("Duplicate archive staging directory");
@@ -305,6 +309,25 @@ void Volume::publish(const Block& block, const MediaWriter& write_media, const O
         sync_path(media, O_RDONLY);
         notify(observer, CommitStage::media_synced);
         auto manifest = make_manifest(identity_, id, block, digest_file(media));
+        if (!pcm.empty()) {
+            File audio{temp / "audio.pcm", O_RDWR | O_CREAT | O_EXCL};
+            std::size_t offset = 0;
+            while (offset < pcm.size()) {
+                auto count = write(audio.fd, pcm.data() + offset, pcm.size() - offset);
+                if (count < 0 && errno == EINTR)
+                    continue;
+                if (count <= 0)
+                    throw std::runtime_error("Cannot store archive sound");
+                offset += count;
+            }
+            system_check(fsync(audio.fd));
+            if (lseek(audio.fd, 0, SEEK_SET) < 0)
+                system_check(-1);
+            auto digest = digest_media(audio.fd);
+            manifest["audio"] = {
+                {"start_us", audio_start}, {"size_bytes", digest.bytes}, {"sha256", digest.sha256}};
+            validate_manifest(manifest);
+        }
         const auto manifest_path = temp / "manifest.json";
         {
             std::ofstream file;
@@ -320,7 +343,7 @@ void Volume::publish(const Block& block, const MediaWriter& write_media, const O
         auto relative = "blocks/" + id;
         std::scoped_lock guard{mutex_};
         journal_published();
-        require_space(0, manifest.at("media").at("size_bytes"));
+        require_space(0, manifest.at("media").at("size_bytes").get<std::uintmax_t>() + pcm.size());
         system_check(renameat2(AT_FDCWD, temp.c_str(), AT_FDCWD, (blocks / id).c_str(), RENAME_NOREPLACE));
         published_.emplace(std::move(relative), std::move(manifest));
         notify(observer, CommitStage::renamed);
@@ -330,6 +353,26 @@ void Volume::publish(const Block& block, const MediaWriter& write_media, const O
         fs::remove_all(temp, ignored);
         throw;
     }
+}
+
+std::string Volume::read_audio(const AudioSlice& slice)
+{
+    const auto& [block, hash, offset, count] = slice;
+    if (!control::canonical_id(block) || count > 16000 || offset > 256000)
+        throw std::invalid_argument("Invalid audio interval");
+    File dir{root_ / "blocks" / block, O_RDONLY | O_DIRECTORY};
+    File file{openat(dir.fd, "audio.pcm", O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW)};
+    struct stat info{};
+    system_check(fstat(file.fd, &info));
+    if (!S_ISREG(info.st_mode) || info.st_size <= 0 || info.st_size > 256000)
+        throw std::invalid_argument("Invalid archive audio file");
+    auto digest = digest_media(file.fd);
+    if (digest.sha256 != hash || offset + count > static_cast<std::size_t>(digest.bytes))
+        throw std::invalid_argument("Invalid audio content");
+    std::string pcm(count, '\0');
+    if (pread(file.fd, pcm.data(), count, static_cast<off_t>(offset)) != static_cast<ssize_t>(count))
+        throw std::runtime_error("Archive audio unavailable");
+    return pcm;
 }
 
 std::int64_t Volume::retired_through()
@@ -491,6 +534,16 @@ void Volume::recover_directory(const fs::directory_entry& entry, const InvalidBl
         auto digest = digest_file(media);
         if (m.at("media").at("size_bytes") != digest.bytes || m.at("media").at("sha256") != digest.sha256) {
             throw std::invalid_argument("Archive checksum mismatch");
+        }
+        if (m.contains("audio")) {
+            const auto path = entry.path() / "audio.pcm";
+            if (!fs::is_regular_file(fs::symlink_status(path)) ||
+                fs::file_size(path) != m["audio"]["size_bytes"].get<std::uintmax_t>())
+                throw std::invalid_argument("Invalid archive audio");
+            File audio{path, O_RDONLY | O_NONBLOCK};
+            const auto digest = digest_media(audio.fd);
+            if (m["audio"]["size_bytes"] != digest.bytes || m["audio"]["sha256"] != digest.sha256)
+                throw std::invalid_argument("Archive audio checksum mismatch");
         }
         verified = std::move(m);
     } catch (const Json::exception&) {

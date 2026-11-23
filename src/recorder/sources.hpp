@@ -19,6 +19,7 @@ class Sources
     }
     ~Sources();
     v1::CameraIssues issues(const std::string& device) const;
+    std::shared_ptr<CameraAudio> audio(const std::string& point, const std::string& device);
     void apply(const v1::ApplyConfigurationRequest& assignment);
     std::shared_ptr<FrameQueue> preview(const std::string& point);
 
@@ -33,6 +34,7 @@ class Sources
     };
     struct Entry {
         Endpoint endpoint;
+        std::shared_ptr<CameraAudio> audio;
         std::unique_ptr<archive::Writer> writer;
         std::unique_ptr<Stream> stream;
     };
