@@ -3,6 +3,16 @@
 
 namespace bacuri::vms::control::inventory
 {
+std::map<std::string, std::int64_t> recording_bindings(Database& db, const std::string& site)
+{
+    auto rows = db.exec("SELECT point_id,max(binding_revision) FROM bacuri_inventory.point_bindings WHERE "
+                        "site_id=$1 GROUP BY point_id",
+                        {site});
+    std::map<std::string, std::int64_t> result;
+    for (int i = 0; i < rows.size(); ++i)
+        result.emplace(rows.get(i), std::stoll(rows.get(i, 1)));
+    return result;
+}
 bool lock_point(Database& db, const std::string& site, const std::string& point)
 {
     return db

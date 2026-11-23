@@ -18,6 +18,7 @@ class CameraAudio
     ~CameraAudio();
     Sound listen(std::int64_t after);
     void record(const std::string& owner, bool enable);
+    void policy_record(bool enable);
     Sound recorded(std::int64_t from, std::chrono::microseconds duration);
     void speak(const std::string& session, std::chrono::milliseconds ttl, const std::string& pcm);
     void mute(const std::string& session);
@@ -38,6 +39,7 @@ class CameraAudio
     std::deque<std::string> speech_;
     std::string talk_session_;
     Clock::time_point listen_until_{}, record_until_{}, talk_until_{};
+    bool policy_recording_{};
     bool output_ready_{}, output_failed_{}, input_failed_{};
     std::jthread capture_, transmit_;
 };

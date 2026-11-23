@@ -1,6 +1,7 @@
 #include "control/inventory/registry.hpp"
 #include "control/access/operations.hpp"
 #include "control/recordings/operations.hpp"
+#include "control/recordings/policies.hpp"
 #include "media/lease.hpp"
 #include <sodium.h>
 
@@ -40,6 +41,8 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
                                                : "audio",
                                       surface, begin, end))
         throw Failure{403, "forbidden"};
+    if (mode == "record" && recordings::recording_plan(db, site).contains(point))
+        throw Failure{409, "recording_policy_managed"};
     v1::AudioRequest q;
     q.set_operator_id(user.user);
     q.set_site_id(site);

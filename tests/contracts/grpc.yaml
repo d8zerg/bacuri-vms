@@ -160,3 +160,8 @@ camera_audio:
   rpc: RecorderControl.ExchangeAudio
   request: { site_id: *site, point_id: *point, device_id: 40000000-0000-4000-8000-000000000001, mode: LISTEN }
   response: { start_us: '1000000', pcm: AAA= }
+
+storage_status:
+  rpc: RecorderControl.GetStorageStatus
+  request: { site_id: *site, recording_node_id: 70000000-0000-4000-8000-000000000001 }
+  response: { status_json: '{"state":"normal"}' }

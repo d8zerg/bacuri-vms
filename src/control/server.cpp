@@ -2,6 +2,7 @@
 #include "control/inventory/registry.hpp"
 #include "control/export.hpp"
 #include "control/api.hpp"
+#include "control/recordings/policies.hpp"
 #include "control/access/admin.hpp"
 #include "control/access/oidc.hpp"
 #include "control/maps.hpp"
@@ -165,6 +166,13 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     path.remove_prefix(separator + 1);
     if (access::administration(req, res, sessions, key, site, path))
         return;
+    if (path == "recording-policies")
+        return recordings::policies(req, res, sessions, site, {});
+    constexpr std::string_view recording_prefix = "recording-policies/";
+    if (path.starts_with(recording_prefix) && canonical_id(path.substr(recording_prefix.size())))
+        return recordings::policies(req, res, sessions, site, std::string{path.substr(recording_prefix.size())});
+    if (path == "storage/volumes")
+        return recordings::volumes(req, res, sessions, site);
     if (path == "monitor-layouts")
         return playback.layouts(req, res, site, {});
     if (path.starts_with("monitor-layouts/") && canonical_id(path.substr(16)))
@@ -206,6 +214,8 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
         const std::string point{path.substr(0, slash)};
         if (slash != path.npos && canonical_id(point)) {
             const auto operation = path.substr(slash + 1);
+            if (operation == "recording")
+                return recordings::manual_recording(req, res, sessions, site, point);
             if (operation == "exports")
                 return export_fragment(req, res, sessions, key, site, point);
             if (operation == "audio") {

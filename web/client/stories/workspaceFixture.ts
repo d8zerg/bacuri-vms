@@ -56,6 +56,65 @@ const initialAlerts: AlertItem[] = [82, 132, 236, 301].map((n, i) => ({
 }));
 export function fixture(condition = "normal"): Services {
   let layouts: Layout[] = [];
+  const capture: import("../src/contracts/workspace").CapturePolicies = {
+    policies: [],
+    effective: {},
+  };
+  let storage: import("../src/contracts/workspace").CaptureStorage = {
+    days: 30,
+    reserve_percent: 20,
+    revision: "1",
+    volume: { state: "normal", available_bytes: 400e9, capacity_bytes: 1000e9 },
+    points: [],
+  };
+  function resolveCapture() {
+    const policy =
+      capture.policies.find((p) => p.scope === "point" && p.target === point) ??
+      capture.policies.find(
+        (p) => p.scope === "group" && p.target === "dock-group",
+      );
+    capture.effective = policy
+      ? {
+          [point]: {
+            id: policy.id,
+            revision: Number(policy.revision),
+            since: policy.since,
+            rule: policy.rule,
+            windows: [],
+          },
+        }
+      : {};
+  }
+  if (condition === "recording") {
+    const now = Date.now() * 1000;
+    capture.policies.push({
+      id: "dock-policy",
+      target: "dock-group",
+      scope: "group",
+      priority: 50,
+      revision: "1",
+      since: now,
+      rule: {
+        continuous: false,
+        manual: true,
+        event: true,
+        pre: 5,
+        post: 10,
+        audio: false,
+        days: 14,
+        zone: "Europe/Moscow",
+        schedule: [1, 2, 3, 4, 5].map((day) => ({
+          day,
+          start: 480,
+          end: 1080,
+        })),
+      },
+    });
+    resolveCapture();
+    storage.points = [{ point, oldest_us: now - 13 * 86400e6, newest_us: now }];
+    if (storage.volume) storage.volume.point_states = { [point]: "selected" };
+  }
+  let recording = false;
   const cameraHistory: CameraControls["history"] = [
     {
       actor: "Оператор",
@@ -332,6 +391,46 @@ export function fixture(condition = "normal"): Services {
       request.mode === "archive"
         ? Promise.reject(new HttpFailure(404, "camera_audio_missing"))
         : Promise.resolve({}),
+    capturePolicies: () => Promise.resolve(structuredClone(capture)),
+    captureGroups: () =>
+      Promise.resolve([
+        { id: "dock-group", name: "Погрузочные ворота", points: [point] },
+      ]),
+    saveCapture: (_site, id, body) => {
+      const revision = String(Number(body.revision) + 1),
+        since = Date.now() * 1000;
+      capture.policies = capture.policies.filter((p) => p.id !== id);
+      capture.policies.push({ ...body, id, revision, since });
+      resolveCapture();
+      return Promise.resolve({ id, revision });
+    },
+    deleteCapture: (_site, id) => {
+      capture.policies = capture.policies.filter((p) => p.id !== id);
+      resolveCapture();
+      return Promise.resolve();
+    },
+    captureStorage: () => Promise.resolve(structuredClone(storage)),
+    setCaptureStorage: (_site, days, reserve_percent) =>
+      Promise.resolve(
+        (storage = {
+          ...storage,
+          days,
+          reserve_percent,
+          revision: String(Number(storage.revision) + 1),
+        }),
+      ),
+    manualRecording: () =>
+      Promise.resolve({
+        enabled: true,
+        active: recording,
+        until_us: recording ? (Date.now() + 900000) * 1000 : null,
+      }),
+    setManualRecording: (_site, _point, active) =>
+      Promise.resolve({
+        enabled: true,
+        active: (recording = active),
+        until_us: active ? (Date.now() + 900000) * 1000 : null,
+      }),
     layouts: () => Promise.resolve(structuredClone(layouts)),
     saveLayout: (_site, id, draft) => {
       const current = layouts.find((l) => l.id === id);

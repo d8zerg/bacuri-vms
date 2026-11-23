@@ -35,6 +35,9 @@ const events = {
   delegate: "Выдача поручения",
   revoke: "Отзыв поручения",
   export: "Экспорт фрагмента",
+  recording_policy: "Политика записи",
+  manual_recording: "Ручная запись",
+  recording_storage: "Хранение архива",
   camera_control: "Управление камерой",
 };
 const outcomes = {

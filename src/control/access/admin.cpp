@@ -153,7 +153,7 @@ Json grants(Database& db, const Request& req, const std::string& site, const std
     require(req.method() == http::verb::put);
     auto body = object_body(req, {"user_id", "action", "point_id", "group_id", "interval"});
     auto user = identifier(body, "user_id"), action = string_field(body, "action", 16);
-    const std::set<std::string> actions{"view", "audio",     "audio_record", "audio_talk",
+    const std::set<std::string> actions{"view", "audio",     "audio_record", "record", "audio_talk",
                                         "ptz",  "configure", "protect",      "export"};
     require(actions.contains(action) && body.contains("point_id") != body.contains("group_id"));
     member(db, site, user);

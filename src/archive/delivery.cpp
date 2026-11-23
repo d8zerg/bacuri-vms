@@ -26,11 +26,14 @@ void deliver_blocks(std::stop_token stop, Volume& volume, const std::string& soc
                 query.set_site_id(volume.owner().site);
                 query.set_recording_node_id(volume.owner().node);
                 v1::RetentionPolicy policy;
-                if (catalog->AdvanceRetention(&context, query, &policy).ok())
+                if (catalog->AdvanceRetention(&context, query, &policy).ok()) {
+                    volume.update_recording_plan(policy.has_recording_plan_json() ? policy.recording_plan_json()
+                                                                                  : "{}");
+                    volume.remember_cutoffs({policy.point_cutoffs().begin(), policy.point_cutoffs().end()});
                     volume.apply_retention({.cutoff_us = policy.cutoff_us(),
                                             .days = policy.days(),
                                             .reserve_percent = policy.reserve_percent()});
-                else
+                } else
                     volume.reclaim_authorized();
             } catch (const std::exception& error) {
                 std::fprintf(stderr, "archive retention pending: %s\n", error.what());

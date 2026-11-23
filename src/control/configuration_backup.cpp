@@ -90,13 +90,16 @@ void restore_configuration(std::istream& input)
     auto data = Json::parse(unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site)));
     data.erase("webauthn_credentials");
     for (const auto* table :
-         {"monitor_layouts", "camera_templates", "camera_batch_items", "credential_audit",
+         {"recording_policies", "monitor_layouts", "camera_templates", "camera_batch_items", "credential_audit",
           "camera_transport_audit", "floor_plans", "point_placements", "archive_retention", "export_grants",
           "map_catalog_settings", "resource_groups", "group_points", "scoped_grants", "privacy_policies",
           "identity_providers", "external_identities", "policy_versions", "access_audit"}) {
         if (!data.contains(table))
             data[table] = Json::array();
     }
+    for (auto& row : data.at("archive_retention"))
+        if (!row.contains("revision"))
+            row["revision"] = 1;
     for (auto& role : data.at("site_roles"))
         if (!role.contains("enabled"))
             role["enabled"] = true;

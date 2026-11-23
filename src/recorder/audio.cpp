@@ -21,6 +21,7 @@ template <class T, auto Release> using Ref = std::unique_ptr<T, Deleter<T, Relea
 struct Pipeline {
     explicit Pipeline(const char* launch)
     {
+        gst_init(nullptr, nullptr);
         GError* error{};
         element.reset(gst_parse_launch(launch, &error));
         Ref<GError, g_error_free> failure{error};
@@ -142,6 +143,16 @@ void CameraAudio::record(const std::string& owner, bool enable)
         input_failed_)
         throw std::runtime_error("Audio recording unavailable");
 }
+void CameraAudio::policy_record(bool enable)
+{
+    std::scoped_lock guard(mutex_);
+    if (policy_recording_ == enable)
+        return;
+    policy_recording_ = enable;
+    if (enable && !capture_.joinable())
+        capture_ = std::jthread([this](std::stop_token stop) { capture(stop); });
+    ready_.notify_all();
+}
 Sound CameraAudio::recorded(std::int64_t from, std::chrono::microseconds duration)
 {
     const auto until = from + duration.count();
@@ -168,7 +179,8 @@ void CameraAudio::capture(std::stop_token stop)
 {
     while (!stop.stop_requested()) {
         std::unique_lock lock(mutex_);
-        ready_.wait(lock, stop, [&] { return std::max(record_until_, listen_until_) > Clock::now(); });
+        ready_.wait(lock, stop,
+                    [&] { return policy_recording_ || std::max(record_until_, listen_until_) > Clock::now(); });
         if (stop.stop_requested())
             break;
         lock.unlock();
@@ -192,7 +204,7 @@ void CameraAudio::capture(std::stop_token stop)
             while (!stop.stop_requested()) {
                 {
                     std::scoped_lock guard(mutex_);
-                    if (Clock::now() >= std::max(record_until_, listen_until_))
+                    if (!policy_recording_ && Clock::now() >= std::max(record_until_, listen_until_))
                         break;
                 }
                 Ref<GstSample, gst_sample_unref> sample{
@@ -217,7 +229,7 @@ void CameraAudio::capture(std::stop_token stop)
                 next += length;
                 std::scoped_lock guard(mutex_);
                 input_failed_ = false;
-                samples_.push_back({std::move(sound), Clock::now() < record_until_});
+                samples_.push_back({std::move(sound), policy_recording_ || Clock::now() < record_until_});
                 while (!samples_.empty() &&
                        (next - samples_.front().sound.start_us > 18000000 || samples_.size() > 2048))
                     samples_.pop_front();

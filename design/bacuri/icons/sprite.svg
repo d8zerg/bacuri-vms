@@ -162,4 +162,4 @@ SOFTWARE.</metadata><symbol id="i-monitor-play" viewBox="0 0 24 24" fill="none" 
 <symbol id="i-record-sound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9v6m4-10v14m4-11v8m4-6v4m2 4a2.5 2.5 0 1 0 5 0 2.5 2.5 0 1 0-5 0"/></symbol>
 <symbol id="i-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4v5h5M4 8a9 9 0 1 1-1 7m9-9v6l4 2"/></symbol>
 <symbol id="i-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v6H3m12-6v6h6M3 15h6v6m12-6h-6v6"/></symbol>
-</svg>
+<symbol id="i-record-video" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></symbol></svg>

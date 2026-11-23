@@ -20,6 +20,75 @@ export function createServices(): Services {
   const operations = new WeakMap<object, Registration>();
   const auth = () => ({ "X-CSRF-Token": csrf });
   return {
+    async capturePolicies(siteId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/recording-policies", {
+          params: { path: { siteId } },
+          signal,
+        }),
+      );
+    },
+    async captureGroups(siteId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/resource-groups", {
+          params: { path: { siteId } },
+          signal,
+        }),
+      ).data;
+    },
+    async saveCapture(siteId, policyId, body) {
+      return data(
+        await api.PUT("/sites/{siteId}/recording-policies/{policyId}", {
+          params: { path: { siteId, policyId }, header: auth() },
+          body,
+        }),
+      );
+    },
+    async deleteCapture(siteId, policyId, revision) {
+      const res = await api.DELETE(
+        "/sites/{siteId}/recording-policies/{policyId}",
+        {
+          params: {
+            path: { siteId, policyId },
+            header: { ...auth(), "If-Match": '"' + revision + '"' },
+          },
+        },
+      );
+      if (!res.response.ok)
+        throw new HttpFailure(res.response.status, res.error?.code ?? "");
+    },
+    async captureStorage(siteId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/storage/volumes", {
+          params: { path: { siteId } },
+          signal,
+        }),
+      );
+    },
+    async setCaptureStorage(siteId, days, reserve_percent, revision) {
+      return data(
+        await api.PUT("/sites/{siteId}/storage/volumes", {
+          params: { path: { siteId }, header: auth() },
+          body: { days, reserve_percent, revision },
+        }),
+      );
+    },
+    async manualRecording(siteId, pointId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/points/{pointId}/recording", {
+          params: { path: { siteId, pointId } },
+          signal,
+        }),
+      );
+    },
+    async setManualRecording(siteId, pointId, active) {
+      return data(
+        await api.PUT("/sites/{siteId}/points/{pointId}/recording", {
+          params: { path: { siteId, pointId }, header: auth() },
+          body: { active },
+        }),
+      );
+    },
     async layouts(siteId, signal) {
       return data(
         await api.GET("/sites/{siteId}/monitor-layouts", {

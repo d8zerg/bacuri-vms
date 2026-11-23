@@ -26,6 +26,7 @@ import { IconButton } from "../ui-kit/FormControls";
 const MonitorGrid = lazy(() =>
   import("./MonitorGrid").then((m) => ({ default: m.MonitorGrid })),
 );
+const ManualCapture = lazy(() => import("./ManualCapture"));
 const CameraConsole = lazy(() =>
   import("./CameraConsole").then((m) => ({ default: m.CameraConsole })),
 );
@@ -241,6 +242,16 @@ function View({
             }
           : {})}
       />
+      {!archive && point.can_record && (
+        <Suspense fallback={null}>
+          <ManualCapture
+            key={site + point.id}
+            services={services}
+            site={site}
+            point={point.id}
+          />
+        </Suspense>
+      )}
       {alert && (
         <Suspense fallback={<p role="status">Загрузка карточки…</p>}>
           <AlertWorkPanel

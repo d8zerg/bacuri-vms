@@ -10,7 +10,19 @@ class Writer
 
   private:
     void run(std::stop_token);
+    struct Segment {
+        std::vector<ingest::FramePtr> frames;
+        std::size_t bytes;
+        ingest::Sound audio;
+        std::string policy;
+        std::int64_t revision;
+    };
     void finish();
+    void drain(bool stopping);
+    void publish(Segment segment, std::size_t first, std::size_t last);
+    std::deque<Segment> buffered_;
+    std::size_t buffered_bytes_{};
+    std::shared_ptr<const CaptureRule> rule_;
     Volume& volume_;
     Origin origin_;
     std::shared_ptr<ingest::FrameQueue> queue_;

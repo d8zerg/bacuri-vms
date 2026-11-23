@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include <map>
+#include <cstdint>
 
 namespace bacuri::vms::control
 {
@@ -9,6 +11,7 @@ class Database;
 
 namespace bacuri::vms::control::inventory
 {
+std::map<std::string, std::int64_t> recording_bindings(Database&, const std::string& site);
 bool lock_point(Database&, const std::string& site, const std::string& point);
 bool lock_site(Database&, const std::string& site);
 void ensure_site(Database&, const std::string& site);

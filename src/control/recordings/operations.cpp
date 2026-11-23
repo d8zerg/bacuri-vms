@@ -27,7 +27,7 @@ std::int64_t export_lifetime_ms(Database& db, const std::string& site, const std
 {
     auto r = db.exec(R"sql(
         SELECT least(1000,floor((min(b.end_utc_us)::numeric-bacuri_archive.retention_now_us()+
-            (SELECT days FROM bacuri_archive.archive_retention WHERE site_id=$1)*86400000000::bigint)/1000))::bigint
+            least((SELECT days FROM bacuri_archive.archive_retention WHERE site_id=$1),(SELECT days FROM bacuri_archive.point_retention WHERE site_id=$1 AND point_id=$2))*86400000000::bigint)/1000))::bigint
         FROM jsonb_each_text($3::jsonb) source
         LEFT JOIN bacuri_archive.retained_blocks b ON b.site_id=$1 AND b.point_id=$2 AND b.block_id=source.key::uuid
             AND b.manifest#>>'{media,sha256}'=source.value AND b.unavailable_reason IS NULL
@@ -59,9 +59,9 @@ std::vector<CoverageInterval> coverage(Database& db, const std::string& site, co
     return intervals;
 }
 
-std::int64_t retention_cutoff(Database& db, const std::string& site)
+std::int64_t retention_cutoff(Database& db, const std::string& site, const std::string& point)
 {
-    return std::stoll(db.exec("SELECT bacuri_archive.retention_cutoff($1)", {site}).get(0));
+    return std::stoll(db.exec("SELECT bacuri_archive.point_cutoff($1,$2)", {site, point}).get(0));
 }
 
 bool bind_playback_parts(Database& db, const std::string& session, const std::string& site,
@@ -126,14 +126,16 @@ std::vector<RecordedInterval> blocks_at(Database& db, const std::string& site, c
     return blocks;
 }
 
-std::optional<std::int64_t> delivery_lifetime_ms(Database& db, const std::string& site, std::int64_t end)
+std::optional<std::int64_t> delivery_lifetime_ms(Database& db, const std::string& site, const std::string& point,
+                                                 std::int64_t end)
 {
     auto r = db.exec(
         "SELECT least(5000,floor(($2::bigint::numeric-bacuri_archive.retention_now_us()+"
-        "(SELECT days FROM bacuri_archive.archive_retention WHERE site_id=$1)*86400000000::bigint)/1000))::bigint "
-        "WHERE $2::bigint>bacuri_archive.retention_cutoff($1) AND NOT EXISTS(SELECT FROM "
+        "least((SELECT days FROM bacuri_archive.archive_retention WHERE site_id=$1),(SELECT days FROM "
+        "bacuri_archive.point_retention WHERE site_id=$1 AND point_id=$3))*86400000000::bigint)/1000))::bigint "
+        "WHERE $2::bigint>bacuri_archive.point_cutoff($1,$3) AND NOT EXISTS(SELECT FROM "
         "bacuri_archive.archive_recovery WHERE site_id=$1)",
-        {site, std::to_string(end)});
+        {site, std::to_string(end), point});
     if (!r.size())
         return {};
     return std::stoll(r.get(0));
@@ -148,13 +150,18 @@ std::string recovery_status(Database& db, const std::string& site)
 void set_retention(Database& db, const std::string& site, int days, int reserve)
 {
     db.exec("BEGIN");
+    change_retention(db, site, days, reserve);
+    db.exec("COMMIT");
+}
+void change_retention(Database& db, const std::string& site, int days, int reserve)
+{
     db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,1))", {site});
     db.exec("SELECT bacuri_archive.advance_cutoff($1)", {site});
     db.exec("INSERT INTO bacuri_archive.archive_retention(site_id,days,reserve_percent) VALUES($1,$2,$3) "
-            "ON CONFLICT(site_id) DO UPDATE SET days=excluded.days,reserve_percent=excluded.reserve_percent",
+            "ON CONFLICT(site_id) DO UPDATE SET "
+            "days=excluded.days,reserve_percent=excluded.reserve_percent,revision=archive_retention.revision+1",
             {site, std::to_string(days), std::to_string(reserve)});
     db.exec("SELECT bacuri_archive.advance_cutoff($1)", {site});
-    db.exec("COMMIT");
 }
 
 void await_verification(Database& db, const std::string& site)

@@ -15,6 +15,11 @@ export type BoundRecording = Schema["BoundRecording"];
 export type Interval = Schema["UtcInterval"];
 export type Entry = Schema["ArchiveEntry"];
 export type AlertLink = Schema["AlertArchive"];
+export type CaptureRule = Schema["RecordingRule"];
+export type CapturePolicy = Schema["RecordingPolicy"];
+export type CapturePolicies = Schema["RecordingPolicyList"];
+export type CaptureStorage = Schema["RecordingStorage"];
+export type ManualRecording = Schema["RecordingManualState"];
 export type Layout = Schema["MonitorLayout"];
 export type LayoutDraft = Schema["MonitorLayoutDraft"];
 export type Quality = "auto" | "main" | "secondary";
@@ -51,6 +56,34 @@ export type AlertCommand = Schema["AlertCommand"];
 export type AuditEntry = Schema["AuditEntry"];
 export type AuditFilter = Schema["AuditFilter"];
 export interface Services {
+  capturePolicies(site: string, signal: AbortSignal): Promise<CapturePolicies>;
+  captureGroups(
+    site: string,
+    signal: AbortSignal,
+  ): Promise<{ id: string; name: string; points: string[] }[]>;
+  saveCapture(
+    site: string,
+    id: string,
+    body: Schema["RecordingPolicyDraft"],
+  ): Promise<{ id: string; revision: string }>;
+  deleteCapture(site: string, id: string, revision: string): Promise<void>;
+  captureStorage(site: string, signal: AbortSignal): Promise<CaptureStorage>;
+  setCaptureStorage(
+    site: string,
+    days: number,
+    reserve: number,
+    revision: string,
+  ): Promise<CaptureStorage>;
+  manualRecording(
+    site: string,
+    point: string,
+    signal: AbortSignal,
+  ): Promise<ManualRecording>;
+  setManualRecording(
+    site: string,
+    point: string,
+    active: boolean,
+  ): Promise<ManualRecording>;
   layouts(site: string, signal: AbortSignal): Promise<Layout[]>;
   saveLayout(
     site: string,

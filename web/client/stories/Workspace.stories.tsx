@@ -38,6 +38,10 @@ export const Intercom: Story = {
   name: "Передача речи",
   args: { initial: "/monitor?point=dock&mode=live", condition: "intercom" },
 };
+export const RecordingPolicies: Story = {
+  name: "Запись и хранение",
+  args: { initial: "/cameras?setup=recording", condition: "recording" },
+};
 export const Installer: Story = {
   name: "Подключение камеры",
   args: { initial: "/cameras?setup=manual", condition: "slow" },

@@ -22,6 +22,7 @@ class Sources
     std::shared_ptr<CameraAudio> audio(const std::string& point, const std::string& device);
     void apply(const v1::ApplyConfigurationRequest& assignment);
     std::shared_ptr<FrameQueue> preview(const std::string& point, Profile profile);
+    archive::Json recording_states();
     v1::VideoProfiles video_profiles(const std::string& point) const;
 
   private:

@@ -13,6 +13,7 @@ class Database;
 
 namespace bacuri::vms::control::access
 {
+std::map<std::string, std::vector<std::string>> group_memberships(Database&, const std::string& site);
 void lock_policy(Database&, const std::string& site, bool shared = false);
 std::string scope_revision(Database&, const std::string& site);
 enum class RoleLock { read, shared };

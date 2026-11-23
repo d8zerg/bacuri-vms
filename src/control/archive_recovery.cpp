@@ -76,6 +76,27 @@ void rebuild_archive(Database& db, std::ostream& output, StorageLayout layout)
         db.exec("INSERT INTO bacuri_archive.retired_through VALUES($1,$2) ON CONFLICT(site_id) DO UPDATE SET "
                 "end_us=greatest(retired_through.end_us,excluded.end_us)",
                 {owner.site, std::to_string(local_cutoff)});
+    std::map<std::string, std::int64_t> retired_points;
+    if (!legacy && db.exec("SELECT to_regclass('bacuri_archive.point_retention') IS NOT NULL").get(0) == "t") {
+        for (const auto& [point, end] : volume.point_cutoffs())
+            db.exec("INSERT INTO bacuri_archive.point_retention(site_id,point_id,cutoff_us) VALUES($1,$2,$3) ON "
+                    "CONFLICT(site_id,point_id) DO UPDATE SET "
+                    "cutoff_us=greatest(point_retention.cutoff_us,excluded.cutoff_us)",
+                    {owner.site, point, std::to_string(end)});
+        auto per_point = db.exec("SELECT point_id,bacuri_archive.point_cutoff(site_id,point_id) FROM "
+                                 "bacuri_archive.point_retention WHERE site_id=$1",
+                                 {owner.site});
+        for (int i = 0; i < per_point.size(); ++i)
+            retired_points[per_point.get(i)] = std::stoll(per_point.get(i, 1));
+        db.exec("DELETE FROM bacuri_archive.blocks b USING bacuri_archive.point_retention p WHERE "
+                "(b.site_id,b.point_id)=(p.site_id,p.point_id) AND p.site_id=$1 AND "
+                "b.end_utc_us<=bacuri_archive.point_cutoff(p.site_id,p.point_id)",
+                {owner.site});
+        db.exec("DELETE FROM bacuri_archive.gaps g USING bacuri_archive.point_retention p WHERE "
+                "(g.site_id,g.point_id)=(p.site_id,p.point_id) AND p.site_id=$1 AND "
+                "g.end_utc_us<=bacuri_archive.point_cutoff(p.site_id,p.point_id)",
+                {owner.site});
+    }
     db.exec("SELECT bacuri_archive.advance_cutoff($1)", {owner.site});
     auto cutoff = std::stoll(db.exec("SELECT coalesce((SELECT end_us FROM bacuri_archive.retired_through WHERE "
                                      "site_id=$1),'-9223372036854775808'::bigint)",
@@ -85,12 +106,16 @@ void rebuild_archive(Database& db, std::ostream& output, StorageLayout layout)
             {owner.site, std::to_string(cutoff)});
     db.exec("DELETE FROM bacuri_archive.gaps WHERE site_id=$1 AND end_utc_us<=$2",
             {owner.site, std::to_string(cutoff)});
+    const auto expired = [&](const std::string& point, std::int64_t end) {
+        auto p = retired_points.find(point);
+        return end <= cutoff || (p != retired_points.end() && end <= p->second);
+    };
     volume.visit_inventory([&](const Json& m, const std::string& reason) {
         archive::validate_manifest(m);
         if (m.at("site_id") != owner.site || m.at("recording_node_id") != owner.node) {
             throw std::runtime_error("Foreign archive journal entry");
         }
-        if (m.at("end_utc_us").get<std::int64_t>() <= cutoff)
+        if (expired(m.at("point_id"), m.at("end_utc_us")))
             return;
         if (!reason.empty()) {
             mark_unavailable(db, owner, m, reason);
@@ -112,7 +137,7 @@ void rebuild_archive(Database& db, std::ostream& output, StorageLayout layout)
         ++verified;
     });
     volume.visit_gaps([&](const archive::Gap& gap) {
-        if (gap.end <= cutoff)
+        if (expired(gap.point, gap.end))
             return;
         db.exec("INSERT INTO bacuri_archive.gaps VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING",
                 {owner.site, gap.point, std::to_string(gap.binding), std::to_string(gap.begin),

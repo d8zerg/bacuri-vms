@@ -128,6 +128,22 @@ class Recorder final : public v1::RecorderControl::Service
         return grpc::Status::OK;
     }
 
+    grpc::Status GetStorageStatus(grpc::ServerContext*, const v1::RetentionQuery* q,
+                                  v1::StorageStatus* out) override
+    {
+        if (q->site_id() != site_ || q->recording_node_id() != node_)
+            return {grpc::StatusCode::PERMISSION_DENIED, "Different volume"};
+        try {
+            auto status = volume_.status();
+            std::scoped_lock guard{mutex_};
+            status["point_states"] = sources_.recording_states();
+            out->set_status_json(status.dump());
+            return grpc::Status::OK;
+        } catch (const std::exception&) {
+            return {grpc::StatusCode::UNAVAILABLE, "Volume unavailable"};
+        }
+    }
+
     grpc::Status ListPending(grpc::ServerContext*, const v1::PendingQuery* q,
                              v1::PendingIntervals* result) override
     {

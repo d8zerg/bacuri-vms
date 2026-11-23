@@ -1,5 +1,6 @@
 #pragma once
-#include "archive/manifest.hpp"
+#include "archive/recording_policy.hpp"
+#include <map>
 #include "storage/sqlite.hpp"
 #include <optional>
 #include <functional>
@@ -49,6 +50,14 @@ class Volume
     std::string read_audio(const AudioSlice& slice);
     using RetirementObserver = std::function<void(RetirementStage)>;
     void apply_retention(const RetentionPolicy& policy, const RetirementObserver& observer = {});
+    void update_recording_plan(const std::string& payload);
+    std::shared_ptr<const CaptureRule> recording_rule(const std::string& point);
+    std::map<std::string, std::int64_t> point_cutoffs();
+    void remember_cutoffs(const std::map<std::string, std::int64_t>& cutoffs);
+    Json status() const
+    {
+        return archive_status(root_);
+    }
     void reclaim_authorized();
     std::int64_t retired_through();
     void confirm_inventory();
@@ -87,7 +96,9 @@ class Volume
     Lock lock_;
     storage::Sqlite db_;
     Identity identity_;
-    std::mutex mutex_;
+    std::mutex mutex_, plan_mutex_;
+    std::string plan_payload_;
+    std::map<std::string, std::shared_ptr<const CaptureRule>> recording_rules_;
     std::optional<std::pair<std::string, Json>> published_;
     void reap(const RetirementObserver& observer);
     void require_space(std::uintmax_t expected_bytes, std::uintmax_t staged_bytes);

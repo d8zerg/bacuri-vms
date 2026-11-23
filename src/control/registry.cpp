@@ -1,5 +1,6 @@
 #include "control/inventory/telemetry.hpp"
 #include "control/inventory/registry.hpp"
+#include "control/recordings/policies.hpp"
 #include "control/inventory/enrollment.hpp"
 #include "control/inventory/operations.hpp"
 #include "control/recordings/operations.hpp"
@@ -483,10 +484,21 @@ void CameraRegistry::points(const Request& req, Response& res, const std::string
     db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const auto identity = sessions_.authenticate(db, req, false, false);
     const bool admin = access::site_role(db, site, identity.user, access::RoleLock::read) == "administrator";
+    auto grants = access::granted_point_ids(db, site, identity.user, "record");
+    const auto sound_grants = access::granted_point_ids(db, site, identity.user, "audio_record");
+    std::vector<std::string> manual;
+    const auto plan = recordings::recording_plan(db, site);
+    for (const auto& [id, entry] : plan.items())
+        if (entry.at("rule").at("manual") == true &&
+            (admin || (std::ranges::find(grants, id) != grants.end() &&
+                       (entry.at("rule").at("audio") == false ||
+                        std::ranges::find(sound_grants, id) != sound_grants.end()))))
+            manual.push_back(id);
     auto rows = db.exec(
         R"sql(
             SELECT coalesce(jsonb_agg(jsonb_build_object('id',p.point_id,'name',p.name,
               'connection','unknown','recording','unknown') ||
+              CASE WHEN p.point_id=ANY($9::uuid[]) THEN jsonb_build_object('can_record',true) ELSE '{}'::jsonb END ||
               CASE WHEN p.point_id=ANY($3::uuid[])
               THEN jsonb_build_object('can_export',true) ELSE '{}'::jsonb END ||
               CASE WHEN ($4::boolean OR p.point_id=ANY($6::uuid[]) OR p.point_id=ANY($7::uuid[]) OR p.point_id=ANY($8::uuid[]))
@@ -510,9 +522,14 @@ void CameraRegistry::points(const Request& req, Response& res, const std::string
          array_parameter(access::granted_point_ids(db, site, identity.user, "ptz")),
          array_parameter(access::granted_point_ids(db, site, identity.user, "audio")),
          array_parameter(access::granted_point_ids(db, site, identity.user, "audio_record")),
-         array_parameter(access::granted_point_ids(db, site, identity.user, "audio_talk"))});
+         array_parameter(access::granted_point_ids(db, site, identity.user, "audio_talk")),
+         array_parameter(manual)});
     db.exec("COMMIT");
-    respond(res, Json::parse(rows.get(0)));
+    auto points = Json::parse(rows.get(0));
+    for (auto& point : points)
+        if (point.contains("audio") && plan.contains(point.at("id").get<std::string>()))
+            point["audio"]["record"] = false;
+    respond(res, points);
 }
 
 void CameraRegistry::cameras(const Request& req, Response& res, const std::string& site, std::string device) const

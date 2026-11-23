@@ -12,6 +12,7 @@ service RecorderControl {
   rpc ExchangeAudio(AudioRequest) returns (AudioChunk);
   rpc GetVideoProfiles(PointKey) returns (VideoProfiles);
   rpc GetCameraIssues(CameraIssueQuery) returns (CameraIssues);
+  rpc GetStorageStatus(RetentionQuery) returns (StorageStatus);
   rpc ListPending(PendingQuery) returns (PendingIntervals);
 }
 
@@ -186,7 +187,10 @@ message RetentionQuery {
   string recording_node_id = 2;
 }
 
+message StorageStatus { string status_json = 1; }
 message RetentionPolicy {
+  optional string recording_plan_json = 4;
+  map<string,sint64> point_cutoffs = 5;
   sint64 cutoff_us = 1;
   int32 days = 2;
   int32 reserve_percent = 3;

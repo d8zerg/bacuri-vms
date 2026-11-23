@@ -61,6 +61,8 @@ int schema_for(std::string v)
         return 21;
     if (v == "0.1.8-1")
         return 22;
+    if (v == "0.1.11-1")
+        return 26;
     if (v == "0.1.10-1")
         return 25;
     if (v == "0.1.9-1")

@@ -4,6 +4,19 @@
 
 namespace bacuri::vms::control::access
 {
+std::map<std::string, std::vector<std::string>> group_memberships(Database& db, const std::string& site)
+{
+    auto rows = db.exec("SELECT g.group_id,p.point_id FROM bacuri_access.resource_groups g LEFT JOIN "
+                        "bacuri_access.group_points p USING(site_id,group_id) WHERE g.site_id=$1",
+                        {site});
+    std::map<std::string, std::vector<std::string>> result;
+    for (int i = 0; i < rows.size(); ++i) {
+        auto& points = result[rows.get(i)];
+        if (!rows.get(i, 1).empty())
+            points.push_back(rows.get(i, 1));
+    }
+    return result;
+}
 void lock_policy(Database& db, const std::string& site, bool shared)
 {
     db.exec(shared ? "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,41))"

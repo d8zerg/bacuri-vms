@@ -1,12 +1,291 @@
 openapi: 3.1.0
 info:
   title: Bacuri VMS API
-  version: 1.4.0
+  version: 1.5.0
 servers:
   - url: /api/v1
 security:
   - browserSession: []
 paths:
+  /sites/{siteId}/recording-policies:
+    parameters:
+    - $ref: '#/components/parameters/Site'
+    get:
+      operationId: listRecordingPolicies
+      responses:
+        '200':
+          description: Operation completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingPolicyList'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '409':
+          description: Configuration or current recording state changed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /sites/{siteId}/recording-policies/{policyId}:
+    parameters:
+    - $ref: '#/components/parameters/Site'
+    - name: policyId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    get:
+      operationId: getRecordingPolicy
+      responses:
+        '200':
+          description: Operation completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingPolicy'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '409':
+          description: Configuration or current recording state changed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    put:
+      operationId: saveRecordingPolicy
+      responses:
+        '200':
+          description: Operation completed.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                - id
+                - revision
+                properties:
+                  id:
+                    $ref: '#/components/schemas/Id'
+                  revision:
+                    type: string
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '409':
+          description: Configuration or current recording state changed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordingPolicyDraft'
+    delete:
+      operationId: deleteRecordingPolicy
+      responses:
+        '204':
+          description: Operation completed.
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '409':
+          description: Configuration or current recording state changed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - $ref: '#/components/parameters/Csrf'
+      - name: If-Match
+        in: header
+        required: true
+        schema:
+          type: string
+  /sites/{siteId}/storage/volumes:
+    parameters:
+    - $ref: '#/components/parameters/Site'
+    get:
+      operationId: getRecordingStorage
+      responses:
+        '200':
+          description: Operation completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingStorage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '409':
+          description: Configuration or current recording state changed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    put:
+      operationId: setRecordingStorage
+      responses:
+        '200':
+          description: Operation completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingStorage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '409':
+          description: Configuration or current recording state changed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - days
+              - reserve_percent
+              - revision
+              properties:
+                revision: { type: string, pattern: '^[0-9]+$' }
+                days:
+                  type: integer
+                  minimum: 1
+                  maximum: 36500
+                reserve_percent:
+                  type: integer
+                  minimum: 1
+                  maximum: 90
+  /sites/{siteId}/points/{pointId}/recording:
+    parameters:
+    - $ref: '#/components/parameters/Site'
+    - $ref: '#/components/parameters/Point'
+    get:
+      operationId: getManualRecording
+      responses:
+        '200':
+          description: Operation completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingManualState'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '409':
+          description: Configuration or current recording state changed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    put:
+      operationId: setManualRecording
+      responses:
+        '200':
+          description: Operation completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingManualState'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '409':
+          description: Configuration or current recording state changed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - active
+              properties:
+                active:
+                  type: boolean
+                seconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
   /sites/{siteId}/users:
     parameters:
     - $ref: '#/components/parameters/Site'
@@ -2183,6 +2462,246 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
   schemas:
+    RecordingRule:
+      type: object
+      additionalProperties: false
+      required:
+      - continuous
+      - manual
+      - event
+      - audio
+      - zone
+      - schedule
+      - pre
+      - post
+      - days
+      properties:
+        continuous:
+          type: boolean
+        manual:
+          type: boolean
+        event:
+          type: boolean
+        audio:
+          type: boolean
+        zone:
+          type: string
+          maxLength: 96
+        schedule:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - day
+            - start
+            - end
+            properties:
+              day:
+                type: integer
+                minimum: 1
+                maximum: 7
+              start:
+                type: integer
+                minimum: 0
+                maximum: 1439
+              end:
+                type: integer
+                minimum: 1
+                maximum: 1440
+          maxItems: 56
+        pre:
+          type: integer
+          minimum: 0
+          maximum: 30
+        post:
+          type: integer
+          minimum: 1
+          maximum: 300
+        days:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+          maximum: 36500
+    RecordingPolicyDraft:
+      type: object
+      additionalProperties: false
+      required:
+      - scope
+      - target
+      - priority
+      - rule
+      - revision
+      properties:
+        scope:
+          type: string
+          enum:
+          - point
+          - group
+        target:
+          $ref: '#/components/schemas/Id'
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 100
+        rule:
+          $ref: '#/components/schemas/RecordingRule'
+        revision:
+          type: string
+          pattern: ^[0-9]+$
+    RecordingPolicy:
+      type: object
+      additionalProperties: false
+      required:
+      - scope
+      - target
+      - priority
+      - rule
+      - revision
+      - id
+      - since
+      properties:
+        scope:
+          type: string
+          enum:
+          - point
+          - group
+        target:
+          $ref: '#/components/schemas/Id'
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 100
+        rule:
+          $ref: '#/components/schemas/RecordingRule'
+        revision:
+          type: string
+          pattern: ^[0-9]+$
+        id:
+          $ref: '#/components/schemas/Id'
+        since:
+          type: integer
+          format: int64
+    RecordingPolicyList:
+      type: object
+      additionalProperties: false
+      required:
+      - policies
+      - effective
+      properties:
+        policies:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecordingPolicy'
+        effective:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: false
+            required:
+            - id
+            - revision
+            - since
+            - rule
+            - windows
+            properties:
+              id:
+                $ref: '#/components/schemas/Id'
+              revision:
+                type: integer
+              since:
+                type: integer
+                format: int64
+              rule:
+                $ref: '#/components/schemas/RecordingRule'
+              windows:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: integer
+                    format: int64
+    RecordingManualState:
+      type: object
+      additionalProperties: false
+      required:
+      - enabled
+      - active
+      - until_us
+      properties:
+        enabled:
+          type: boolean
+        active:
+          type: boolean
+        until_us:
+          type:
+          - integer
+          - 'null'
+    RecordingStorage:
+      type: object
+      additionalProperties: false
+      required:
+      - days
+      - reserve_percent
+      - revision
+      - points
+      - volume
+      properties:
+        revision: { type: string, pattern: '^[0-9]+$' }
+        days:
+          type:
+          - integer
+          - 'null'
+        reserve_percent:
+          type: integer
+          minimum: 1
+          maximum: 90
+        points:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - point
+            - oldest_us
+            - newest_us
+            properties:
+              point:
+                $ref: '#/components/schemas/Id'
+              oldest_us:
+                type: integer
+                format: int64
+              newest_us:
+                type: integer
+                format: int64
+        volume:
+          type:
+          - object
+          - 'null'
+          required:
+          - state
+          - available_bytes
+          - capacity_bytes
+          properties:
+            state:
+              type: string
+              enum:
+              - normal
+              - low_space
+              - recording_stopped
+            available_bytes:
+              type: integer
+            point_states:
+              type: object
+              additionalProperties: {type: string}
+            capacity_bytes:
+              type: integer
+            removed_blocks:
+              type: integer
+            media_bytes:
+              type: integer
+          additionalProperties: true
     AccessUser:
       type: object
       additionalProperties: false
@@ -2296,6 +2815,7 @@ components:
           - audio
           - audio_talk
           - audio_record
+          - record
           - configure
           - protect
           - export
@@ -2337,6 +2857,7 @@ components:
           - audio
           - audio_talk
           - audio_record
+          - record
           - configure
           - protect
           - export
@@ -2560,7 +3081,7 @@ components:
         service: { type: [string, 'null'] }
         delegated_action: { enum: [claim, record_result, close, null] }
         expires_at: { type: [string, 'null'], format: date-time }
-        action: { enum: [claim, record_result, close, delegate, revoke, export, camera_control] }
+        action: { enum: [claim, record_result, close, delegate, revoke, export, camera_control, recording_policy, manual_recording, recording_storage] }
         outcome: { enum: [applied, denied, conflict, dispatched, unknown, rejected] }
         reason: { type: string }
         owner: { type: [string, 'null'] }
@@ -3274,6 +3795,7 @@ components:
             archive: { type: boolean }
             record: { type: boolean }
             talk: { type: boolean }
+        can_record: { type: boolean }
         can_export: { type: boolean }
         last_recorded_at: { $ref: '#/components/schemas/UtcTime' }
     ArchivePage:
@@ -3488,6 +4010,8 @@ components:
             - not_found
             - idempotency_conflict
             - revision_conflict
+            - recording_policy_managed
+            - manual_recording_disabled
             - precondition_required
             - media_session_closed
             - recording_gap

@@ -5,11 +5,13 @@ import { SubsectionMenu } from "./SubsectionMenu";
 const CameraCatalog = lazy(() => import("./CameraCatalog"));
 const Connection = lazy(() => import("./CameraConnection"));
 const CameraSelection = lazy(() => import("./CameraSelection"));
+const RecordingPolicies = lazy(() => import("./RecordingPolicies"));
 const CameraBatch = lazy(() => import("./CameraBatch"));
 const empty = { name: "", main_url: "", secondary_url: "" };
 export function cameraSetup(requested: string | null) {
   return requested === "manual" ||
     requested === "onvif" ||
+    requested === "recording" ||
     requested === "batch"
     ? requested
     : null;
@@ -50,16 +52,22 @@ export function Installer({
             select: () => select(null),
           },
           {
+            label: "Запись и хранение",
+            icon: "history",
+            active: method === "recording",
+            select: () => select("recording"),
+          },
+          {
             label: "Подключение",
             icon: "link-2",
-            active: !!method,
+            active: !!method && method !== "recording",
             select: () => {
-              if (!method) select("manual");
+              if (!method || method === "recording") select("manual");
             },
           },
         ]}
       />
-      {method && (
+      {method && method !== "recording" && (
         <SubsectionMenu
           nested
           label="Способы подключения"
@@ -91,6 +99,14 @@ export function Installer({
         />
       )}
       <Suspense fallback={<p role="status">Загрузка…</p>}>
+        {method === "recording" && (
+          <RecordingPolicies
+            key={site}
+            services={services}
+            site={site}
+            points={points ?? []}
+          />
+        )}
         {!method &&
           (points ? (
             <CameraCatalog services={services} site={site} points={points} />
@@ -115,7 +131,7 @@ export function Installer({
           ) : (
             <p role="status">{connectionNotice}</p>
           ))}
-        {method && (
+        {method && method !== "recording" && (
           <div
             hidden={method !== "manual"}
             ref={(node) => {

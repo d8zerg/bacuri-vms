@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bacuri-vms VERSION 0.1.10 LANGUAGES CXX)
+project(bacuri-vms VERSION 0.1.11 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -51,6 +51,7 @@ archive_sql(archive_upgrade storage/sqlite/migrations/0002_archive.sql)
 archive_sql(archive_coverage storage/sqlite/migrations/0003_coverage.sql)
 archive_sql(archive_gap_history storage/sqlite/migrations/0004_gap_history.sql)
 archive_sql(archive_retention storage/sqlite/migrations/0005_retention.sql)
+archive_sql(archive_policies storage/sqlite/migrations/0006_recording_policies.sql)
 archive_sql(archive_insert storage/postgresql/insert-block.sql)
 archive_sql(archive_read storage/postgresql/read-block-manifest.sql)
 archive_sql(archive_search storage/postgresql/search-archive.sql)
@@ -77,9 +78,9 @@ target_link_libraries(bacuri-vms-ingest PUBLIC bacuri-vms-domain PRIVATE PkgConf
 target_compile_options(bacuri-vms-ingest PRIVATE -Wall -Wextra -Wpedantic)
 add_library(bacuri-vms-manifest STATIC src/archive/manifest.cpp)
 target_link_libraries(bacuri-vms-manifest PUBLIC bacuri-vms-control-support nlohmann_json::nlohmann_json)
-add_library(bacuri-vms-volume STATIC src/archive/volume.cpp src/archive/mp4.cpp)
+add_library(bacuri-vms-volume STATIC src/archive/volume.cpp src/archive/mp4.cpp src/archive/recording_policy.cpp)
 target_include_directories(bacuri-vms-volume PRIVATE "${generated_dir}")
-target_link_libraries(bacuri-vms-volume PUBLIC bacuri-vms-manifest SQLite::SQLite3 PRIVATE Boost::headers)
+target_link_libraries(bacuri-vms-volume PUBLIC bacuri-vms-manifest SQLite::SQLite3 PRIVATE Boost::headers PkgConfig::GIO)
 add_library(bacuri-vms-evidence STATIC src/archive/evidence.cpp)
 target_link_libraries(bacuri-vms-evidence PUBLIC bacuri-vms-volume)
 add_executable(bacuri-vms-verify-export src/archive/verify_export.cpp)
@@ -119,7 +120,7 @@ add_executable(bacuri-vms src/core/site_admin.cpp)
 target_link_libraries(bacuri-vms PRIVATE bacuri-vms-control-support OpenSSL::Crypto)
 add_executable(bacuri-vms-core src/core/main.cpp
     src/control/access/admin.cpp src/control/access/oidc.cpp src/control/access/operations.cpp src/control/inventory/operations.cpp src/control/events/operations.cpp
-    src/control/recordings/operations.cpp src/control/media_sessions/operations.cpp
+    src/control/recordings/operations.cpp src/control/recordings/policies.cpp src/control/media_sessions/operations.cpp
     src/control/inventory/configuration.cpp src/control/access/configuration.cpp src/control/maps/configuration.cpp src/control/recordings/configuration.cpp
     src/control/configuration_snapshot.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/inventory/batches.cpp src/control/registry.cpp src/control/inventory/audio.cpp src/control/onvif.cpp src/control/camera_events.cpp src/control/inventory/telemetry.cpp src/control/maps/orientation.cpp src/control/maps/georeference.cpp
     src/control/observations.cpp src/control/alert_work.cpp src/control/alerts.cpp src/control/alert_socket.cpp
@@ -136,8 +137,8 @@ if(BUILD_TESTING)
     include(GoogleTest)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(NAME core-module-boundaries COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tests/architecture/core_boundaries.py)
-    add_executable(bacuri-vms-archive-test tests/archive/volume.cpp)
-    target_link_libraries(bacuri-vms-archive-test PRIVATE bacuri-vms-archive GTest::gtest_main)
+    add_executable(bacuri-vms-archive-test tests/archive/volume.cpp tests/archive/recording_policy.cpp)
+    target_link_libraries(bacuri-vms-archive-test PRIVATE bacuri-vms-archive PkgConfig::GST GTest::gtest_main)
     gtest_discover_tests(bacuri-vms-archive-test DISCOVERY_MODE PRE_TEST)
     add_executable(bacuri-vms-frame-queue-test tests/ingest/frame_queue.cpp)
     target_link_libraries(bacuri-vms-frame-queue-test PRIVATE bacuri-vms-ingest GTest::gmock_main)

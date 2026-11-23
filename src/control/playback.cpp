@@ -92,7 +92,7 @@ Json search(Database& db, const Key& key, const PointAccess& access, Json params
     q.mutable_point()->set_point_id(access.point);
     q.set_begin_us(position);
     q.set_end_us(bounds.end);
-    q.set_retention_cutoff_us(recordings::retention_cutoff(db, access.site));
+    q.set_retention_cutoff_us(recordings::retention_cutoff(db, access.site, access.point));
     if (binding) {
         q.set_binding_revision(*binding);
     }

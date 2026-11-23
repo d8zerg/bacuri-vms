@@ -46,7 +46,7 @@ std::vector<CoverageInterval> coverage(Database&, const std::string& site, const
                                        const std::string& begin, const std::string& end,
                                        const std::string& pending, const std::string& revision);
 
-std::int64_t retention_cutoff(Database&, const std::string& site);
+std::int64_t retention_cutoff(Database&, const std::string& site, const std::string& point);
 
 bool bind_playback_parts(Database& db, const std::string& session, const std::string& site,
                          const std::string& point, const std::string& begin, const std::string& end,
@@ -59,10 +59,12 @@ std::optional<DeliveryPart> playback_part(Database& db, const std::string& sessi
 std::vector<RecordedInterval> blocks_at(Database& db, const std::string& site, const std::string& point,
                                         const std::string& begin, const std::string& end);
 
-std::optional<std::int64_t> delivery_lifetime_ms(Database&, const std::string& site, std::int64_t end);
+std::optional<std::int64_t> delivery_lifetime_ms(Database&, const std::string& site, const std::string& point,
+                                                 std::int64_t end);
 
 std::string recovery_status(Database&, const std::string& site);
 
+void change_retention(Database&, const std::string& site, int days, int reserve);
 void set_retention(Database& db, const std::string& site, int days, int reserve);
 
 void await_verification(Database& db, const std::string& site);

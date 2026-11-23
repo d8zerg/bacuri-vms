@@ -21,7 +21,7 @@ for scenario in control archive playback live alerts; do
 done
 "${run[@]}" dev sh tests/check-control.sh gcc-coverage monitoring
 
-for scenario in commissioning batches; do
+for scenario in policies commissioning batches; do
     "${run[@]}" -e "BACURI_WORKSPACE_RESULTS=/workspace/$report/$scenario" \
         dev sh tests/check-control.sh gcc-coverage "$scenario"
 done

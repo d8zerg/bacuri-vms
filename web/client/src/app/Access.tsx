@@ -21,6 +21,7 @@ type Grant = Schema["AccessGrant"];
 const actions = {
   view: "Просмотр видео",
   audio: "Прослушивание звука",
+  record: "Ручная запись видео",
   audio_record: "Запись звука",
   audio_talk: "Передача речи",
   ptz: "Управление PTZ",

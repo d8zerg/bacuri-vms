@@ -103,7 +103,10 @@ def main():
             ).fetchall()
         timeline = c.http("GET", point + "/archive?" + urlencode(interval(0, 2)), headers=user)[2]
         assert [entry["state"] for entry in timeline["items"]] == ["unavailable", "recorded"], timeline
-        configure(30, 20)
+        volume_path = f"sites/{c.SITE}/storage/volumes"
+        revision = c.http("GET", volume_path, headers=user)[2]["revision"]
+        code, _, configured = c.http("PUT", volume_path, {"days": 30, "reserve_percent": 20, "revision": revision}, user)
+        assert code == 200 and configured["days"] == 30 and configured["reserve_percent"] == 20
         c.wait_for(lambda: status()["retention_days"] == 30, "longer retention applied")
         assert binary(old_url, user)[0] == 404
         c.wait_for(
@@ -133,6 +136,8 @@ def main():
             )
             measurements["recording_stopped"] = status()
             assert measurements["recording_stopped"]["state"] == "recording_stopped"
+            code, _, capacity = c.http("GET", volume_path, headers=user)
+            assert code == 200 and capacity["volume"]["state"] == "recording_stopped" and capacity["points"]
             assert binary(live_url, user)[1] == reference
             protected = ROOT / "blocks" / live["block_id"] / "media.mp4"
             assert hashlib.sha256(protected.read_bytes()).hexdigest() == live["media"]["sha256"]
@@ -142,6 +147,7 @@ def main():
             lambda: status()["state"] == "normal" and status()["last_commit_utc_us"] > latest,
             "recording resumed",
         )
+        assert c.http("GET", volume_path, headers=user)[2]["volume"]["state"] == "normal"
         measurements["resumed"] = status()
         resumed = measurements["resumed"]
         assert 0 < resumed["estimated_depth_seconds"] <= 30 * 86400

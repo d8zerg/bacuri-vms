@@ -1,5 +1,6 @@
 #include "control/inventory/operations.hpp"
 #include "control/observations.hpp"
+#include "control/recordings/policies.hpp"
 #include "control/playback_time.hpp"
 #include <grpcpp/grpcpp.h>
 #include <sys/stat.h>
@@ -120,26 +121,27 @@ grpc::Status store_observation(const RequestData& q, v1::RegistrationResult& res
             SELECT $1,$2,$3,$4,1,nullif($5,'')::uuid,nullif($6,'')::bigint,$11,
                 CASE WHEN $8='' THEN t ELSE nullif($7,'')::bigint END,t,nullif($7,'')::bigint,
                 CASE WHEN $8='' THEN 'reception' ELSE 'source_clock' END,nullif($8,'')::uuid,nullif($9,'')::bigint,$10::jsonb FROM stamp
-            ON CONFLICT(site_id,source_id,observation_id) DO NOTHING RETURNING observation_id
+            ON CONFLICT(site_id,source_id,observation_id) DO NOTHING RETURNING observed_at_utc_us
         )sql",
-                                      args)
-                                  .size() != 0;
-        if (!inserted && !db.exec(R"sql(
+                                      args);
+        if (!inserted.size() && !db.exec(R"sql(
             SELECT 1 FROM bacuri_events.observations WHERE site_id=$1 AND source_id=$2 AND observation_id=$3 AND type=$4
             AND schema_version=1 AND point_id IS NOT DISTINCT FROM nullif($5,'')::uuid
             AND binding_revision IS NOT DISTINCT FROM nullif($6,'')::bigint AND source_time_us IS NOT DISTINCT FROM nullif($7,'')::bigint
             AND origin=$11 AND ($11='onvif' OR (clock_epoch_id IS NOT DISTINCT FROM nullif($8,'')::uuid AND uncertainty_us IS NOT DISTINCT FROM nullif($9,'')::bigint))
             AND attributes=$10::jsonb
         )sql",
-                                  args)
-                              .size()) {
+                                         args)
+                                     .size()) {
             return {grpc::StatusCode::ALREADY_EXISTS, "Observation identity has different content"};
         }
-        if (inserted && q.type() == "motion") {
+        if (inserted.size() && q.type() == "motion") {
+            recordings::motion_recording(db, q.site_id(), point, q.binding().revision(),
+                                         std::stoll(inserted.get(0)));
             publish(db, q);
         }
         db.exec("COMMIT");
-        result.set_state(inserted ? v1::REGISTRATION_STATE_COMMITTED : v1::REGISTRATION_STATE_REPLAYED);
+        result.set_state(inserted.size() ? v1::REGISTRATION_STATE_COMMITTED : v1::REGISTRATION_STATE_REPLAYED);
         return grpc::Status::OK;
     } catch (const std::exception&) {
         return {grpc::StatusCode::UNAVAILABLE, "Observation journal unavailable"};

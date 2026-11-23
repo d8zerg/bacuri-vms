@@ -366,6 +366,7 @@ function Workspace({ services }: { services: Services }) {
         manual: "Подключение камеры",
         onvif: "Поиск ONVIF и замена камеры",
         batch: "Массовое подключение",
+        recording: "Запись и хранение",
         catalog: "Каталог подключённых устройств",
       }[cameraSetup(params.get("setup")) ?? "catalog"],
     }[path] ?? "Мониторинг";

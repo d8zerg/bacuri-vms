@@ -134,9 +134,57 @@ void Writer::finish()
     if (frames_.empty()) {
         return;
     }
-    auto batch = std::exchange(frames_, {});
-    const auto payload_bytes = std::exchange(bytes_, 0);
-    const auto times = sample_times(batch);
+    auto frames = std::exchange(frames_, {});
+    auto bytes = std::exchange(bytes_, 0);
+    if (!rule_)
+        return;
+    auto sound = audio_ && rule_->audio != RecordingAudio::disabled
+                     ? audio_->recorded(frames.front()->time.received_at().time_since_epoch().count(),
+                                        frames.back()->time.utc() - frames.front()->time.utc() +
+                                            std::chrono::ceil<domain::Microseconds>(
+                                                std::chrono::nanoseconds{duration(frames, frames.size() - 1)}))
+                     : ingest::Sound{};
+    buffered_bytes_ += bytes;
+    buffered_.push_back({std::move(frames), bytes, std::move(sound), rule_->id, rule_->revision});
+    drain(false);
+}
+void Writer::drain(bool stopping)
+{
+    if (!rule_)
+        return;
+    const auto now = std::chrono::time_point_cast<domain::Microseconds>(std::chrono::system_clock::now());
+    while (!buffered_.empty()) {
+        const auto& item = buffered_.front();
+        const auto& frames = item.frames;
+        const auto age = now - frames.back()->time.received_at();
+        const bool matching = item.policy == rule_->id && item.revision == rule_->revision;
+        if (matching && !stopping && !rule_->continuous && (rule_->manual || rule_->event) &&
+            age < std::chrono::seconds{(rule_->event ? rule_->pre : 0) + 3} &&
+            buffered_bytes_ <= 128uz * 1024 * 1024)
+            break;
+        auto segment = std::move(buffered_.front());
+        buffered_.pop_front();
+        buffered_bytes_ -= segment.bytes;
+        if (!matching)
+            continue;
+        std::size_t first = segment.frames.size(), last = 0;
+        for (std::size_t i = 0; i < segment.frames.size(); ++i) {
+            if (rule_->selects(segment.frames[i]->time.utc().time_since_epoch().count(), origin_.binding)) {
+                first = std::min(first, i);
+                last = i + 1;
+            }
+        }
+        if (last)
+            publish(std::move(segment), first, last);
+    }
+}
+void Writer::publish(Segment segment, std::size_t first, std::size_t last)
+{
+    auto& batch = segment.frames;
+    auto times = sample_times(batch);
+    batch.resize(last);
+    times.resize(last);
+    const auto payload_bytes = segment.bytes;
     std::uint64_t length{};
     for (const auto& sample : times) {
         length = std::max(length, sample.pts + sample.duration);
@@ -151,9 +199,23 @@ void Writer::finish()
             storage_gap_.reset();
         }
         const auto received = batch.front()->time.received_at().time_since_epoch().count();
-        auto sound =
-            audio_ ? audio_->recorded(received, domain::Microseconds{end_us - begin_us}) : ingest::Sound{};
+        auto& sound = segment.audio;
         auto start = begin_us + (sound.start_us - received);
+        // Audio may only cover a contiguous selection, even when decoding video needs its preceding keyframe.
+        std::size_t audio_end = first + 1;
+        while (audio_end < last &&
+               rule_->selects(batch[audio_end]->time.utc().time_since_epoch().count(), origin_.binding))
+            ++audio_end;
+        const auto audio_begin = batch[first]->time.utc().time_since_epoch().count();
+        const auto until = audio_end == last ? end_us : batch[audio_end]->time.utc().time_since_epoch().count();
+        if (!sound.pcm.empty() && start < audio_begin) {
+            const auto skip = std::min<std::int64_t>((audio_begin - start + 124) / 125, sound.pcm.size() / 2);
+            sound.pcm.erase(0, skip * 2);
+            start += skip * 125;
+        }
+        if (!sound.pcm.empty())
+            sound.pcm.resize(
+                std::min<std::size_t>(sound.pcm.size(), std::max<std::int64_t>(0, until - start) / 125 * 2));
         if (!sound.pcm.empty() && start >= begin_us && start < end_us)
             sound.pcm.resize(std::min<std::size_t>(sound.pcm.size(), (end_us - start) / 125 * 2));
         else
@@ -187,6 +249,27 @@ void Writer::run(std::stop_token stop)
     using Clock = std::chrono::steady_clock;
     auto last = Clock::now();
     for (;;) {
+        auto current = volume_.recording_rule(origin_.point);
+        if (current != rule_) {
+            if (rule_ && (!current || current->id != rule_->id || current->revision != rule_->revision ||
+                          current->since != rule_->since)) {
+                auto previous = std::make_shared<CaptureRule>(*rule_);
+                previous->until = current && current->since > rule_->since
+                                      ? current->since
+                                      : std::chrono::duration_cast<domain::Microseconds>(
+                                            std::chrono::system_clock::now().time_since_epoch())
+                                            .count();
+                rule_ = std::move(previous);
+                finish();
+                drain(true);
+            } else if (!rule_) {
+                frames_.clear();
+                bytes_ = 0;
+            }
+            rule_ = std::move(current);
+            if (audio_)
+                audio_->policy_record(rule_ && rule_->audio == RecordingAudio::enabled);
+        }
         auto frame = queue_->try_pop();
         if (!frame) {
             if (stop.stop_requested()) {
@@ -194,6 +277,7 @@ void Writer::run(std::stop_token stop)
             }
             if (Clock::now() - last >= 5s) {
                 finish();
+                drain(false);
             }
             std::this_thread::sleep_for(10ms);
             continue;
@@ -217,5 +301,8 @@ void Writer::run(std::stop_token stop)
         frames_.push_back(std::move(frame));
     }
     finish();
+    drain(true);
+    if (audio_)
+        audio_->policy_record(false);
 }
 } // namespace bacuri::vms::archive

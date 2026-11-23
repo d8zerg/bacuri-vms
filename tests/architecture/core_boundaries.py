@@ -17,7 +17,7 @@ OBJECTS = {
         webauthn_enrollment webauthn_challenges credential_audit resource_groups group_points scoped_grants effective_grants privacy_policies identity_providers
         external_identities oidc_requests policy_versions access_audit can_use audit_policy_change invalidate_role_sessions audit_credential_binding""",
     "recordings": """blocks gaps retired_through catalog_intervals timeline_intervals retained_blocks archive_retention archive_recovery
-        retention_now_us retention_cutoff advance_cutoff playback_parts""",
+        retention_now_us retention_cutoff advance_cutoff playback_parts recording_policies recording_windows point_retention point_cutoff reap_expired""",
     "media_sessions": "media_sessions monitor_layouts",
     "events": """observations feed_heads alerts alert_outbox alert_details access_versions touch_alert_scope
         alert_delegations alert_audit protect_alert_audit""",
@@ -47,7 +47,7 @@ PUBLIC = set("""
     archive_catalog.hpp maps.hpp alerts.hpp alert_work.hpp observations.hpp delivery.hpp media_authority.hpp
     playback.hpp export.hpp access/enrollment.hpp inventory/camera_events.hpp access/session.hpp inventory/registry.hpp
     access/operations.hpp access/admin.hpp access/oidc.hpp inventory/operations.hpp inventory/telemetry.hpp events/operations.hpp recordings/operations.hpp media_sessions/operations.hpp
-    access/configuration.hpp inventory/configuration.hpp recordings/configuration.hpp maps/configuration.hpp
+    access/configuration.hpp inventory/configuration.hpp recordings/policies.hpp recordings/configuration.hpp maps/configuration.hpp
     access/restore.hpp inventory/restore.hpp
 """.split())
 

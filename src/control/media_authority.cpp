@@ -61,7 +61,8 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
         }
         std::int64_t ms = std::stoll(rows.get(0));
         if (q->has_archive()) {
-            const auto limit = recordings::delivery_lifetime_ms(db, q->point().site_id(), bounds.end);
+            const auto limit =
+                recordings::delivery_lifetime_ms(db, q->point().site_id(), q->point().point_id(), bounds.end);
             if (!limit)
                 return {grpc::StatusCode::PERMISSION_DENIED, "No applicable media session"};
             ms = std::min(ms, *limit);

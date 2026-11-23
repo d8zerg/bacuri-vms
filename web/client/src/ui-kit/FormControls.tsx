@@ -57,6 +57,7 @@ export type ControlIcon =
   | "power-off"
   | "headphones"
   | "mic"
+  | "record-video"
   | "record-sound"
   | "history"
   | "search"
@@ -70,6 +71,7 @@ export type ControlIcon =
   | "clock-alert"
   | "circle-check"
   | "triangle-alert"
+  | "users-round"
   | "user-round"
   | "cctv"
   | "scan-line";

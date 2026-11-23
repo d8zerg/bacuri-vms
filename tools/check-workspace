@@ -11,4 +11,5 @@ docker compose up -d --wait playback-chrome playback-firefox
 trap 'docker compose stop playback-chrome playback-firefox' EXIT
 "${run[@]}" -e "BACURI_WORKSPACE_RESULTS=/workspace/$report" dev sh tests/check-control.sh "$1" workspace
 "${run[@]}" -e "BACURI_WORKSPACE_RESULTS=/workspace/$report" dev sh tests/check-control.sh "$1" monitoring
+"${run[@]}" -e "BACURI_WORKSPACE_RESULTS=/workspace/$report" dev sh tests/check-control.sh "$1" policies
 "${run[@]}" -v "$PWD/build/web-client:/results/client:ro" ui-kit-check node tests/workspace-coverage.mjs

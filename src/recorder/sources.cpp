@@ -116,6 +116,35 @@ v1::CameraIssues Sources::issues(const std::string& device) const
     return result;
 }
 
+archive::Json Sources::recording_states()
+{
+    auto result = Json::object();
+    for (const auto& [key, entry] : streams_) {
+        if (key.profile != Profile::main)
+            continue;
+        auto stats = entry.stream->stats();
+        auto rule = volume_.recording_rule(key.point);
+        std::string state;
+        if (!key.binding)
+            state = "unbound";
+        else if (stats.state != "receiving" || !stats.time)
+            state = "source_offline";
+        else if (!rule)
+            state = "awaiting_policy";
+        else if (rule->selects(stats.time->utc().time_since_epoch().count(), key.binding))
+            state = "selected";
+        else if (rule->event)
+            state = "waiting_event";
+        else if (!rule->schedule.empty())
+            state = "outside_schedule";
+        else if (rule->manual)
+            state = "waiting_manual";
+        else
+            state = "disabled";
+        result[key.point] = state;
+    }
+    return result;
+}
 Sources::~Sources()
 {
     for (auto& [key, entry] : streams_) {

@@ -213,7 +213,7 @@ Volume::Volume(const fs::path& root, Owner owner, const InvalidBlock& invalid)
         next(version_query.get());
         version = sqlite3_column_int(version_query.get(), 0);
     }
-    if (version < 0 || version > 5) {
+    if (version < 0 || version > 6) {
         throw std::runtime_error("Unsupported archive journal version");
     }
     if (version == 0) {
@@ -230,6 +230,13 @@ Volume::Volume(const fs::path& root, Owner owner, const InvalidBlock& invalid)
     }
     if (version < 5)
         db_.exec(sql::retention);
+    if (version < 6)
+        db_.exec(sql::policies);
+    {
+        auto saved = db_.query("SELECT payload FROM recording_plan");
+        if (next(saved.get()))
+            update_recording_plan(column(saved.get(), 0));
+    }
     db_.exec("BEGIN IMMEDIATE");
     auto previous = db_.query("SELECT 1 FROM volume_owner");
     const bool assigned = next(previous.get());
@@ -426,6 +433,60 @@ void Volume::apply_retention(const RetentionPolicy& policy, const RetirementObse
     report_capacity(fs::space(root_), sqlite3_column_int64(pressure.get(), 0));
 }
 
+void Volume::update_recording_plan(const std::string& payload)
+{
+    std::scoped_lock lock{plan_mutex_};
+    if (plan_payload_ == payload)
+        return;
+    std::map<std::string, std::shared_ptr<const CaptureRule>> next_rules;
+    auto data = Json::parse(payload);
+    for (const auto& [point, entry] : data.items()) {
+        auto rule = parse_capture_rule(entry.at("rule"));
+        rule.id = entry.at("id");
+        rule.revision = entry.at("revision");
+        rule.since = entry.at("since");
+        for (const auto& w : entry.at("windows"))
+            rule.windows.push_back({w.at(0), w.at(1), w.at(2)});
+        next_rules.emplace(point, std::make_shared<const CaptureRule>(std::move(rule)));
+    }
+    std::scoped_lock guard{mutex_};
+    auto save = db_.query("INSERT INTO recording_plan VALUES(1,?) ON CONFLICT(singleton) DO UPDATE SET "
+                          "payload=excluded.payload WHERE payload<>excluded.payload");
+    bind_text(save.get(), 1, payload);
+    next(save.get());
+    recording_rules_ = std::move(next_rules);
+    plan_payload_ = payload;
+}
+std::shared_ptr<const CaptureRule> Volume::recording_rule(const std::string& point)
+{
+    std::scoped_lock lock{plan_mutex_};
+    static const auto fallback = std::make_shared<const CaptureRule>();
+    if (plan_payload_.empty())
+        return {};
+    auto it = recording_rules_.find(point);
+    return it == recording_rules_.end() ? fallback : it->second;
+}
+std::map<std::string, std::int64_t> Volume::point_cutoffs()
+{
+    std::scoped_lock lock{mutex_};
+    auto q = db_.query("SELECT point_id,cutoff_us FROM local_point_retention");
+    std::map<std::string, std::int64_t> rows;
+    while (next(q.get()))
+        rows[column(q.get(), 0)] = sqlite3_column_int64(q.get(), 1);
+    return rows;
+}
+void Volume::remember_cutoffs(const std::map<std::string, std::int64_t>& cutoffs)
+{
+    std::scoped_lock lock{mutex_};
+    auto q = db_.query("INSERT INTO local_point_retention VALUES(?1,?2) ON CONFLICT(point_id) DO UPDATE SET "
+                       "cutoff_us=excluded.cutoff_us WHERE cutoff_us<excluded.cutoff_us");
+    for (const auto& [point, cutoff] : cutoffs) {
+        bind_text(q.get(), 1, point);
+        sqlite3_bind_int64(q.get(), 2, cutoff);
+        next(q.get());
+        sqlite3_reset(q.get());
+    }
+}
 void Volume::reclaim_authorized()
 {
     std::scoped_lock guard{mutex_};
@@ -433,9 +494,11 @@ void Volume::reclaim_authorized()
 }
 void Volume::reap(const RetirementObserver& observer)
 {
-    auto rows = db_.query("SELECT block_id,relative_directory FROM committed_blocks WHERE "
-                          "manifest_json->>'end_utc_us'<=(SELECT cutoff_us FROM retention) ORDER BY "
-                          "manifest_json->>'end_utc_us' LIMIT 512");
+    auto rows = db_.query(R"sql(SELECT block_id,relative_directory FROM committed_blocks WHERE
+      manifest_json->>'end_utc_us'<=(SELECT cutoff_us FROM retention)
+      UNION SELECT b.block_id,b.relative_directory FROM local_point_retention r CROSS JOIN committed_blocks b
+      WHERE r.cutoff_us>(SELECT cutoff_us FROM retention) AND b.manifest_json->>'point_id'=r.point_id
+        AND b.manifest_json->>'end_utc_us'<=r.cutoff_us LIMIT 512)sql");
     std::vector<std::string> ids;
     while (next(rows.get())) {
         const auto id = column(rows.get(), 0);
@@ -474,8 +537,10 @@ void Volume::reap(const RetirementObserver& observer)
             throw;
         }
     }
-    db_.exec("DELETE FROM archive_gaps WHERE id IN (SELECT id FROM archive_gaps WHERE end_us<=(SELECT cutoff_us "
-             "FROM retention) ORDER BY end_us LIMIT 512)");
+    db_.exec(
+        R"sql(DELETE FROM archive_gaps WHERE id IN (SELECT id FROM archive_gaps WHERE end_us<=(SELECT cutoff_us FROM retention)
+        UNION SELECT g.id FROM local_point_retention r CROSS JOIN archive_gaps g WHERE r.cutoff_us>(SELECT cutoff_us FROM retention)
+        AND g.point=r.point_id AND g.end_us<=r.cutoff_us LIMIT 512))sql");
 }
 
 void Volume::journal_published(const Observer& observer)
@@ -597,7 +662,7 @@ std::vector<std::pair<std::int64_t, std::int64_t>> Volume::pending_intervals(con
     storage::Sqlite journal{root_ / "journal.db", storage::OpenMode::read_only};
     auto rows = journal.query(R"sql(WITH spans AS (
             SELECT manifest_json->>'begin_utc_us' AS a,manifest_json->>'end_utc_us' AS b
-            FROM committed_blocks WHERE registered_at_utc_us IS NULL AND catalog_error IS NULL AND unavailable_reason IS NULL AND b>max(?5,(SELECT cutoff_us FROM retention))
+            FROM committed_blocks WHERE registered_at_utc_us IS NULL AND catalog_error IS NULL AND unavailable_reason IS NULL AND b>max(?5,(SELECT cutoff_us FROM retention),coalesce((SELECT cutoff_us FROM local_point_retention WHERE point_id=?1),-9223372036854775808))
             AND manifest_json->>'point_id'=?1 AND a<?2 AND b>?3
             AND (?4 IS NULL OR manifest_json->>'binding_revision'=?4)
         ), ordered AS (
@@ -622,8 +687,10 @@ std::vector<std::pair<std::int64_t, std::int64_t>> Volume::pending_intervals(con
 void Volume::visit_inventory(const std::function<void(const Json&, const std::string&)>& visit)
 {
     std::scoped_lock guard{mutex_};
-    auto rows = db_.query("SELECT manifest_json,coalesce(unavailable_reason,'') FROM committed_blocks WHERE "
-                          "manifest_json->>'end_utc_us'>(SELECT cutoff_us FROM retention)");
+    auto rows =
+        db_.query("SELECT manifest_json,coalesce(unavailable_reason,'') FROM committed_blocks WHERE "
+                  "manifest_json->>'end_utc_us'>max((SELECT cutoff_us FROM retention),coalesce((SELECT cutoff_us "
+                  "FROM local_point_retention WHERE point_id=manifest_json->>'point_id'),-9223372036854775808))");
     while (next(rows.get())) {
         visit(Json::parse(column(rows.get(), 0)), column(rows.get(), 1));
     }

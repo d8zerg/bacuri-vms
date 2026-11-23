@@ -5,6 +5,7 @@
 #include <gst/rtsp-server/rtsp-onvif-media.h>
 
 #include <csignal>
+#include <cstring>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -39,11 +40,43 @@ constexpr StreamProfile sub_stream{
                 "! video/x-h264,profile=baseline "
                 "! rtph264pay name=pay0 pt=96 config-interval=1 )"};
 
+void attach_counter(GstRTSPMediaFactory*, GstRTSPMedia* media, gpointer)
+{
+    auto* bin = gst_rtsp_media_get_element(media);
+    auto* marker = gst_bin_get_by_name_recurse_up(GST_BIN(bin), "frame_counter");
+    if (marker) {
+        auto* pad = gst_element_get_static_pad(marker, "src");
+        gst_pad_add_probe(
+            pad, GST_PAD_PROBE_TYPE_BUFFER,
+            [](GstPad*, GstPadProbeInfo* info, gpointer data) {
+                auto* counter = static_cast<guint*>(data);
+                auto* buffer = gst_buffer_make_writable(GST_PAD_PROBE_INFO_BUFFER(info));
+                GST_PAD_PROBE_INFO_DATA(info) = buffer;
+                GstMapInfo map{};
+                if (gst_buffer_map(buffer, &map, GST_MAP_WRITE)) {
+                    for (unsigned bit = 0; bit < 16; ++bit)
+                        for (unsigned y = 0; y < 16; ++y)
+                            std::memset(map.data + y * 1280 + bit * 16, (*counter & (1U << bit)) ? 235 : 16, 16);
+                    gst_buffer_unmap(buffer, &map);
+                }
+                ++*counter;
+                return GST_PAD_PROBE_OK;
+            },
+            g_new0(guint, 1), g_free);
+        gst_object_unref(pad);
+        gst_object_unref(marker);
+    }
+    gst_object_unref(bin);
+}
 void mount_stream(GstRTSPMountPoints* mounts, const StreamProfile& profile)
 {
     const bool audio = !g_strcmp0(g_getenv("BACURI_TEST_AUDIO"), "1") && std::string_view(profile.path) == "/main";
     auto* factory = audio ? gst_rtsp_onvif_media_factory_new() : gst_rtsp_media_factory_new();
     std::string launch{profile.pipeline};
+    if (std::string_view(profile.path) == "/main" && !g_strcmp0(g_getenv("BACURI_TEST_FRAME_COUNTER"), "1")) {
+        launch.insert(launch.find("x264enc"), "identity name=frame_counter ! ");
+        g_signal_connect(factory, "media-configure", G_CALLBACK(attach_counter), nullptr);
+    }
     if (audio) {
         gst_rtsp_media_factory_set_media_gtype(factory, GST_TYPE_RTSP_ONVIF_MEDIA);
         gst_rtsp_onvif_media_factory_set_backchannel_launch(

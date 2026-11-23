@@ -92,6 +92,7 @@ tasks:
       - for: [gcc-debug, clang-asan-ubsan]
         task: recovery:check
         vars: {PRESET: '{{.ITEM}}'}
+      - task: recording-policies:check
       - task: retention:check
       - task: export:check
       - task: media:check:bookworm
@@ -307,6 +308,17 @@ tasks:
       echo "Export evidence: $report"
       bash tests/workspace/isolated.sh {{.PRESET | shellQuote}} "$report" export
       {{.BUILD_RUN}} python3 tests/archive/verify_export.py {{.PRESET | shellQuote}} "$report"
+
+  recording-policies:check:
+    desc: Verify recording modes, numbered frames, audio and restart on a private camera feed
+    deps: [build, stand:up, web:build]
+    cmds:
+      - docker compose up -d --wait playback-chrome
+      - defer: docker compose stop playback-chrome
+      - |
+        report=$(sh tools/quality-report-dir recording-policies)
+        echo "Recording policy evidence: $report"
+        {{.DEV_RUN}} env BACURI_WORKSPACE_RESULTS="/workspace/$report" sh tests/check-control.sh {{.PRESET | shellQuote}} policies
 
   retention:check:
     desc: Verify retention expiry and recording capacity on a disposable 64 MiB volume

@@ -1,4 +1,5 @@
 #include "control/archive_catalog.hpp"
+#include "control/recordings/policies.hpp"
 #include "archive_sql.hpp"
 #include "control/database.hpp"
 #include "control/support.hpp"
@@ -10,11 +11,10 @@ namespace bacuri::vms::control
 namespace
 {
 // Serialize late deliveries with a committed retirement decision or a catalog rebuild.
-bool retired(Database& db, const std::string& site, std::int64_t end)
+bool retired(Database& db, const std::string& site, const std::string& point, std::int64_t end)
 {
     db.exec("SELECT pg_advisory_xact_lock_shared(hashtextextended($1,1))", {site});
-    return db.exec("SELECT FROM bacuri_archive.retired_through WHERE site_id=$1 AND end_us>=$2",
-                   {site, std::to_string(end)})
+    return db.exec("SELECT WHERE bacuri_archive.point_cutoff($1,$3)>=$2", {site, std::to_string(end), point})
                .size() != 0;
 }
 } // namespace
@@ -49,26 +49,34 @@ grpc::Status ArchiveCatalog::AdvanceRetention(grpc::ServerContext*, const v1::Re
         const auto policy =
             db.exec("SELECT days,reserve_percent FROM bacuri_archive.archive_retention WHERE site_id=$1 FOR SHARE",
                     {owner_.site});
-        if (db.exec("SELECT FROM bacuri_archive.archive_recovery WHERE site_id=$1", {owner_.site}).size())
-            return {grpc::StatusCode::UNAVAILABLE, "Archive verification in progress"};
+        const auto plan = recordings::recording_plan(db, owner_.site);
+        result->set_recording_plan_json(plan.dump());
+        result->set_days(policy.size() ? std::stoi(policy.get(0)) : 0);
+        result->set_reserve_percent(policy.size() ? std::stoi(policy.get(0, 1)) : 20);
+        if (db.exec("SELECT FROM bacuri_archive.archive_recovery WHERE site_id=$1", {owner_.site}).size()) {
+            // Continue new recordings on a replacement volume while historical blocks are verified.
+            result->set_cutoff_us(std::numeric_limits<std::int64_t>::min());
+            db.exec("COMMIT");
+            return grpc::Status::OK;
+        }
         db.exec("SELECT bacuri_archive.advance_cutoff($1)", {owner_.site});
         auto boundary =
             db.exec("SELECT end_us FROM bacuri_archive.retired_through WHERE site_id=$1", {owner_.site});
         const auto cutoff =
             boundary.size() ? std::stoll(boundary.get(0)) : std::numeric_limits<std::int64_t>::min();
-        if (boundary.size()) {
-            // Limit each transaction after shortening retention on an existing volume.
-            db.exec("DELETE FROM bacuri_archive.blocks WHERE ctid IN (SELECT ctid FROM bacuri_archive.blocks "
-                    "WHERE site_id=$1 AND end_utc_us<=$2 ORDER BY end_utc_us LIMIT 512)",
-                    {owner_.site, std::to_string(cutoff)});
-            db.exec("DELETE FROM bacuri_archive.gaps WHERE ctid IN (SELECT ctid FROM bacuri_archive.gaps "
-                    "WHERE site_id=$1 AND end_utc_us<=$2 ORDER BY end_utc_us LIMIT 512)",
-                    {owner_.site, std::to_string(cutoff)});
-        }
+        recordings::advance_point_retention(db, owner_.site, plan);
+        auto local = db.exec(
+            "SELECT point_id,cutoff_us FROM bacuri_archive.point_retention WHERE site_id=$1 AND cutoff_us>$2",
+            {owner_.site, std::to_string(cutoff)});
+        for (int i = 0; i < local.size(); ++i)
+            (*result->mutable_point_cutoffs())[local.get(i)] = std::stoll(local.get(i, 1));
+        db.exec("DELETE FROM bacuri_archive.recording_windows WHERE site_id=$1 AND "
+                "end_us<bacuri_archive.retention_now_us()-90000000",
+                {owner_.site});
+        if (boundary.size() || local.size())
+            db.exec("SELECT bacuri_archive.reap_expired($1,$2)", {owner_.site, std::to_string(cutoff)});
         db.exec("COMMIT");
         result->set_cutoff_us(cutoff);
-        result->set_days(policy.size() ? std::stoi(policy.get(0)) : 0);
-        result->set_reserve_percent(policy.size() ? std::stoi(policy.get(0, 1)) : 20);
         return grpc::Status::OK;
     } catch (const std::exception&) {
         return {grpc::StatusCode::UNAVAILABLE, "Retention catalog unavailable"};
@@ -94,7 +102,7 @@ grpc::Status ArchiveCatalog::RegisterBlock(grpc::ServerContext*, const v1::Regis
     try {
         Database db;
         db.exec("BEGIN");
-        if (retired(db, owner_.site, m.at("end_utc_us"))) {
+        if (retired(db, owner_.site, m.at("point_id"), m.at("end_utc_us"))) {
             result->set_state(v1::REGISTRATION_STATE_RETIRED);
             db.exec("COMMIT");
             return grpc::Status::OK;
@@ -139,7 +147,7 @@ grpc::Status ArchiveCatalog::RegisterGap(grpc::ServerContext*, const v1::Registe
     try {
         Database db;
         db.exec("BEGIN");
-        if (retired(db, owner_.site, q->interval().end_us())) {
+        if (retired(db, owner_.site, q->point().point_id(), q->interval().end_us())) {
             result->set_state(v1::REGISTRATION_STATE_RETIRED);
             db.exec("COMMIT");
             return grpc::Status::OK;
