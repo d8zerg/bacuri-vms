@@ -1,5 +1,6 @@
 import { useId } from "react";
 import type { ComponentPropsWithRef, ReactNode } from "react";
+import icons from "../../../../design/bacuri/icons/sprite.svg";
 import "./form-controls.css";
 
 type ButtonProps = ComponentPropsWithRef<"button"> & {
@@ -28,6 +29,28 @@ export function Button({
       }}
       data-variant={variant}
     />
+  );
+}
+
+export function IconButton({
+  icon,
+  label,
+  ...props
+}: Omit<ButtonProps, "children"> & {
+  icon: "search" | "circle-x" | "rotate-cw" | "file-down";
+  label: string;
+}) {
+  return (
+    <Button
+      {...props}
+      className={["bk-icon-button", props.className].filter(Boolean).join(" ")}
+      title={label}
+      aria-label={label}
+    >
+      <svg aria-hidden="true" focusable="false">
+        <use href={icons + "#i-" + icon} />
+      </svg>
+    </Button>
   );
 }
 

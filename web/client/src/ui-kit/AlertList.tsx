@@ -1,5 +1,6 @@
+import { FilterPanel, FilterSegments, matchesQuery } from "./FilterPanel";
 import "./media-panels.css";
-import { useMemo, type Ref } from "react";
+import { useState, useMemo, type Ref } from "react";
 import type { AlertItem, Feed, Point } from "../contracts/workspace";
 import { alertName, alertStates } from "./alertLabels";
 import { formatUtc, milliseconds } from "./utc";
@@ -13,6 +14,7 @@ export function AlertList({
   listRef,
   filter,
   onFilter,
+  search,
 }: {
   feed: Feed;
   points: Point[];
@@ -21,7 +23,11 @@ export function AlertList({
   listRef: Ref<HTMLUListElement>;
   filter: string;
   onFilter: (value: string) => void;
+  search?: { query: string; change: (value: string) => void };
 }) {
+  const [localQuery, setLocalQuery] = useState("");
+  const query = search?.query ?? localQuery,
+    setQuery = search?.change ?? setLocalQuery;
   const names = useMemo(
     () => new Map(points.map((p) => [p.id, p.name])),
     [points],
@@ -29,11 +35,20 @@ export function AlertList({
   const visible = useMemo(
     () =>
       feed.items
-        .filter((item) => !filter || item.work_state === filter)
+        .filter(
+          (item) =>
+            (!filter || item.work_state === filter) &&
+            matchesQuery(
+              query,
+              alertName(item.type),
+              names.get(item.point_id),
+              item.id,
+            ),
+        )
         .sort(
           (a, b) => milliseconds(b.observed_at) - milliseconds(a.observed_at),
         ),
-    [feed.items, filter],
+    [feed.items, filter, names, query],
   );
   return (
     <aside className="ws-panel ws-alerts" aria-labelledby="feed-heading">
@@ -45,7 +60,7 @@ export function AlertList({
           className="ws-feed-count"
           aria-label={`Показано ${visible.length} из ${feed.items.length}`}
         >
-          {filter ? visible.length + " / " : ""}
+          {filter || query ? visible.length + " / " : ""}
           {feed.items.length}
         </span>
       </header>
@@ -61,20 +76,34 @@ export function AlertList({
                   ? "Лента подключена"
                   : "Тревог пока нет"}
         </p>
-        <select
-          aria-label="Состояние тревог в ленте"
-          value={filter}
-          onChange={(event) => onFilter(event.target.value)}
+        <FilterPanel
+          label="Фильтры ленты тревог"
+          queryLabel="Тревога или точка"
+          query={query}
+          onQuery={setQuery}
+          filtered={!!filter}
+          onReset={() => {
+            setQuery("");
+            onFilter("");
+          }}
         >
-          <option value="">Все состояния</option>
-          <option value="new">Новые</option>
-          <option value="in_progress">В работе</option>
-          <option value="closed">Закрытые</option>
-        </select>
+          <FilterSegments
+            label="Состояние тревог в ленте"
+            value={filter}
+            onChange={onFilter}
+            options={[
+              { value: "new", label: "Новые" },
+              { value: "in_progress", label: "В работе" },
+              { value: "closed", label: "Закрытые" },
+            ]}
+          />
+        </FilterPanel>
       </div>
-      {feed.status === "online" && !!filter && !visible.length && (
+      {feed.status === "online" && !!(filter || query) && !visible.length && (
         <p className="ws-feed-empty" role="status">
-          В этом состоянии тревог нет.
+          {query
+            ? "Тревоги по заданным условиям не найдены."
+            : "В этом состоянии тревог нет."}
         </p>
       )}
       <ul ref={listRef}>

@@ -75,7 +75,10 @@ def check_rejected_examples(registry):
     exact_time, _, estimated_time, *_ = timeline
     alerts = read_yaml(FIXTURES / "alerts.yaml")
     interval = rest["open_archive_session"]["request"]["interval"]
+    draft = rest["camera_batch_preview"]["request"]
     invalid = [
+        (f"{API_URI}#/components/schemas/CameraBatchDraft", {**draft, "record_quality": "high"}),
+        (f"{API_URI}#/components/schemas/CameraBatchDraft", {k:v for k,v in draft.items() if k!="channel"}),
         (f"{API_URI}#/components/schemas/ArchiveEntry", {**estimated_time, "uncertainty_us": "0"}),
         (f"{API_URI}#/components/schemas/ArchiveEntry", {
             field: value for field, value in exact_time.items() if field != "uncertainty_us"

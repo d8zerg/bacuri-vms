@@ -1,3 +1,8 @@
+import {
+  FilterPanel,
+  matchesQuery,
+  needsListSearch,
+} from "../ui-kit/FilterPanel";
 import { useEffect, useRef, useState } from "react";
 import type {
   Services,
@@ -7,7 +12,7 @@ import type {
   MapMode,
   Placement,
 } from "../contracts/workspace";
-import { Button } from "../ui-kit/FormControls";
+import { Button, IconButton } from "../ui-kit/FormControls";
 
 const states = {
   paused: "На паузе",
@@ -46,6 +51,7 @@ export function MapPackages({ site, services, regions, placements }: Props) {
     [message, say] = useState(""),
     [tick, refresh] = useState(0);
   const operation = useRef<AbortController | null>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
   useEffect(() => () => operation.current?.abort(), []);
   useEffect(() => {
     const controller = new AbortController();
@@ -74,15 +80,29 @@ export function MapPackages({ site, services, regions, placements }: Props) {
     chooseMode(next);
     setBusy(false);
     setSource("");
+    setQuery("");
     setOptions([]);
     select([]);
     say("");
+  }
+  function dismiss() {
+    operation.current?.abort();
+    chooseMode(null);
+    setBusy(false);
+    say("");
+    trigger.current?.focus();
+  }
+  function toggle(next: MapMode, button: HTMLButtonElement) {
+    trigger.current = button;
+    if (mode === next) dismiss();
+    else open(next);
   }
   async function browse(file?: File) {
     operation.current?.abort();
     const ctl = new AbortController();
     operation.current = ctl;
     setBusy(true);
+    setQuery("");
     setOptions([]);
     select([]);
     setSource("");
@@ -147,6 +167,14 @@ export function MapPackages({ site, services, regions, placements }: Props) {
       if (!ctl.signal.aborted) setBusy(false);
     }
   }
+  const [jobQuery, setJobQuery] = useState("");
+  const [jobState, setJobState] = useState("");
+  const jobs = (management?.jobs ?? []).filter(
+    (j) =>
+      (!jobState || j.state === jobState) &&
+      matchesQuery(jobQuery, j.name, j.region_id, states[j.state]),
+  );
+  const [query, setQuery] = useState("");
   const available = options.filter((e) => {
     const installed = regions.find((r) => r.id === e.id);
     return mode === "install"
@@ -154,6 +182,7 @@ export function MapPackages({ site, services, regions, placements }: Props) {
       : installed &&
           Date.parse(e.source_time) > Date.parse(installed.source_time);
   });
+  const listed = available.filter((r) => matchesQuery(query, r.name, r.id));
   const selected = available.filter((e) => selection.includes(e.id));
   async function pauseDownload(id: string, paused: boolean) {
     try {
@@ -187,16 +216,20 @@ export function MapPackages({ site, services, regions, placements }: Props) {
     <section className="ws-map-packages" aria-label="Управление регионами">
       <h3>Региональные карты</h3>
       <div className="ws-map-actions">
-        <Button type="button" onClick={() => open("install")}>
+        <Button
+          aria-expanded={mode === "install"}
+          disabled={busy && !!source}
+          onClick={(e) => toggle("install", e.currentTarget)}
+        >
           Установить регионы
         </Button>
-        <Button
-          type="button"
-          disabled={!regions.length}
-          onClick={() => open("update")}
-        >
-          Обновить установленные
-        </Button>
+        <IconButton
+          icon="file-down"
+          label="Обновить установленные"
+          aria-expanded={mode === "update"}
+          disabled={!regions.length || (busy && !!source)}
+          onClick={(e) => toggle("update", e.currentTarget)}
+        />
       </div>
       {mode && (
         <fieldset>
@@ -224,7 +257,7 @@ export function MapPackages({ site, services, regions, placements }: Props) {
             </Button>
           </form>
           <label>
-            {mode === "install" ? "Установить из файла" : "Обновить из файла"}
+            {mode === "install" ? "Установить из файла" : "Файл обновления"}
             <input
               type="file"
               accept=".zip,.mbtiles"
@@ -239,18 +272,39 @@ export function MapPackages({ site, services, regions, placements }: Props) {
           {source &&
             (available.length ? (
               <>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={selected.length === available.length}
-                    onChange={(e) =>
-                      select(e.target.checked ? available.map((r) => r.id) : [])
-                    }
+                {needsListSearch(available.length, query) && (
+                  <FilterPanel
+                    label="Фильтры регионов"
+                    queryLabel="Название региона"
+                    query={query}
+                    onQuery={setQuery}
+                    onReset={() => setQuery("")}
                   />
-                  Выбрать все
-                </label>
+                )}
+                {!listed.length && <p role="status">Регионы не найдены.</p>}
+                {!!listed.length && (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={listed.every((r) => selection.includes(r.id))}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        const shown = new Set(listed.map((r) => r.id));
+                        select((prev) =>
+                          checked
+                            ? [...new Set([...prev, ...shown])]
+                            : prev.filter((id) => !shown.has(id)),
+                        );
+                      }}
+                    />
+                    {query ? "Выбрать найденные" : "Выбрать все"}
+                  </label>
+                )}
+                {query && !!selected.length && (
+                  <p>Выбрано регионов: {selected.length}</p>
+                )}
                 <ul>
-                  {available.map((r) => {
+                  {listed.map((r) => {
                     const old = regions.find((i) => i.id === r.id);
                     const inside = (bounds: number[], x: number, y: number) =>
                       x >= bounds[0]! &&
@@ -290,15 +344,21 @@ export function MapPackages({ site, services, regions, placements }: Props) {
                     );
                   })}
                 </ul>
-                <Button
-                  type="button"
-                  disabled={busy || !selected.length}
-                  onClick={() => void submit()}
-                >
-                  {mode === "install"
-                    ? "Установить выбранные"
-                    : "Обновить выбранные"}
-                </Button>
+                {mode === "install" ? (
+                  <Button
+                    disabled={busy || !selected.length}
+                    onClick={() => void submit()}
+                  >
+                    Установить выбранные
+                  </Button>
+                ) : (
+                  <IconButton
+                    icon="file-down"
+                    label="Обновить выбранные"
+                    disabled={busy || !selected.length}
+                    onClick={() => void submit()}
+                  />
+                )}
               </>
             ) : (
               <p>
@@ -307,22 +367,49 @@ export function MapPackages({ site, services, regions, placements }: Props) {
                   : "Новых версий установленных регионов нет"}
               </p>
             ))}
-          <Button
-            type="button"
-            onClick={() => {
-              operation.current?.abort();
-              chooseMode(null);
-              say("");
-            }}
-          >
-            Закрыть
+          <Button disabled={busy && !!source} onClick={dismiss}>
+            {busy && !source
+              ? "Прервать чтение списка"
+              : "Свернуть выбор регионов"}
           </Button>
         </fieldset>
       )}
       {message && <p role="status">{message}</p>}
-      {management && management.jobs.length > 0 && (
+      {(needsListSearch(management?.jobs.length ?? 0, jobQuery) ||
+        jobState) && (
+        <FilterPanel
+          label="Фильтры загрузок регионов"
+          queryLabel="Поиск региона"
+          query={jobQuery}
+          onQuery={setJobQuery}
+          filtered={!!jobState}
+          onReset={() => {
+            setJobQuery("");
+            setJobState("");
+          }}
+        >
+          <label>
+            Состояние загрузки
+            <select
+              value={jobState}
+              onChange={(e) => setJobState(e.target.value)}
+            >
+              <option value="">Все состояния</option>
+              {Object.entries(states).map(([value, text]) => (
+                <option key={value} value={value}>
+                  {text}
+                </option>
+              ))}
+            </select>
+          </label>
+        </FilterPanel>
+      )}
+      {(jobQuery || jobState) && !jobs.length && (
+        <p role="status">Загрузки не найдены.</p>
+      )}
+      {jobs.length > 0 && (
         <ul aria-label="Состояние регионов">
-          {management.jobs.map((j) => (
+          {jobs.map((j) => (
             <li key={j.id}>
               {j.name} · {states[j.state]}
               {j.state === "failed" &&

@@ -71,6 +71,7 @@
   bottom: 0;
 }
 .bt-track input {
+  touch-action: pan-y;
   appearance: none;
   display: block;
   position: relative;

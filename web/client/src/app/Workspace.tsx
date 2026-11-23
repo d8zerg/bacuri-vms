@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   NavLink,
@@ -12,8 +12,9 @@ import {
 } from "react-router";
 import type { Feed, Point, Services, Session } from "../contracts/workspace";
 import { HttpFailure } from "../adapters/api";
-import { Installer } from "./installer";
-import { Monitor } from "./monitor";
+import { SubsectionSlot } from "./SubsectionMenu";
+import { cameraSetup, Installer } from "./installer";
+import "../ui-kit/media-panels.css";
 import { ThemeSwitch, useWorkspaceTheme } from "./WorkspaceTheme";
 import { Button } from "../ui-kit/FormControls";
 import icons from "../../../../design/bacuri/icons/sprite.svg";
@@ -23,6 +24,9 @@ const Audit = lazy(() =>
   import("./AlertWork").then((m) => ({ default: m.AlertAudit })),
 );
 const Access = lazy(() => import("./Access"));
+const Monitor = lazy(() =>
+  import("./monitor").then((m) => ({ default: m.Monitor })),
+);
 const Maps = lazy(() => import("./Maps"));
 const waiting: Feed = { items: [], status: "loading" };
 function Login({
@@ -139,7 +143,9 @@ function Login({
         </Button>
       </form>
       {corporate && (
-        <a href="/api/v1/session/oidc/start">Войти через Keycloak</a>
+        <a className="bk-button" href="/api/v1/session/oidc/start">
+          Войти через Keycloak
+        </a>
       )}
       <p role="status">{notice}</p>
     </main>
@@ -228,18 +234,13 @@ function Site({
       unsubscribe();
     };
   }, [services, site, userId, admin, onExpired]);
-  useEffect(() => {
-    const available =
-      points &&
-      (cameras
-        ? admin
-        : feed.status === "online" &&
-          feed.items.some((item) =>
-            points.some((point) => point.id === item.point_id),
-          ));
-    if (available && !performance.getEntriesByName("workspace-action").length)
-      performance.mark("workspace-action");
-  }, [points, cameras, admin, feed]);
+  const visibleFeed = useMemo(() => {
+    const allowed = new Set(points?.map((point) => point.id));
+    return {
+      ...feed,
+      items: feed.items.filter((item) => allowed.has(item.point_id)),
+    };
+  }, [feed, points]);
   const notice = failed
     ? "Нет связи или доступа к площадке. Восстанавливаем подключение…"
     : "Загрузка площадки…";
@@ -248,7 +249,7 @@ function Site({
       <Installer
         services={services}
         site={site}
-        online={!!points}
+        points={points}
         connectionNotice={notice}
       />
     );
@@ -279,21 +280,48 @@ function Site({
   if (cameras)
     return <p role="status">Недостаточно прав для подключения камеры</p>;
   return (
-    <Monitor
-      services={services}
-      site={site}
-      points={points}
-      feed={{
-        ...feed,
-        items: feed.items.filter((item) =>
-          points.some((p) => p.id === item.point_id),
-        ),
-      }}
-    />
+    <Suspense fallback={<p role="status">Загрузка мониторинга…</p>}>
+      <Monitor
+        services={services}
+        site={site}
+        points={points}
+        feed={visibleFeed}
+      />
+    </Suspense>
   );
 }
+const sidebarKey = "bacuri.vms.sidebar.collapsed";
+const sections = [
+  { path: "/monitor", label: "Мониторинг", icon: "monitor-play" },
+  {
+    path: "/audit",
+    label: "Журнал",
+    detail: " действий",
+    icon: "clipboard-list",
+  },
+  { path: "/maps", label: "Карты", detail: " и планы", icon: "map" },
+  { path: "/access", label: "Доступ", icon: "shield-check", admin: true },
+  { path: "/cameras", label: "Камеры", icon: "cctv", admin: true },
+];
 function Workspace({ services }: { services: Services }) {
   const theme = useWorkspaceTheme();
+  const [submenuSlot, setSubmenuSlot] = useState<HTMLDivElement | null>(null);
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(sidebarKey) === "true";
+    } catch {
+      return false;
+    }
+  });
+  function toggleSidebar() {
+    setCollapsed(!collapsed);
+    try {
+      localStorage.setItem(sidebarKey, String(!collapsed));
+    } catch {
+      // Keep the selection for this session when browser storage is unavailable.
+    }
+  }
+  const toggleLabel = collapsed ? "Развернуть меню" : "Свернуть меню";
   const [identity, setIdentity] = useState<Session | null | undefined>(
     undefined,
   );
@@ -331,9 +359,14 @@ function Workspace({ services }: { services: Services }) {
   const section =
     {
       "/maps": "Карты и планы",
-      "/audit": "Журнал тревог",
+      "/audit": "Журнал действий",
       "/access": "Доступ и пользователи",
-      "/cameras": "Подключение камеры",
+      "/cameras": {
+        manual: "Подключение камеры",
+        onvif: "Поиск ONVIF и замена камеры",
+        batch: "Массовое подключение",
+        catalog: "Каталог подключённых устройств",
+      }[cameraSetup(params.get("setup")) ?? "catalog"],
     }[path] ?? "Мониторинг";
   useEffect(() => {
     document.title =
@@ -379,64 +412,83 @@ function Workspace({ services }: { services: Services }) {
     ? identity.site_roles.find((s) => s.site_id === params.get("site"))
     : identity.site_roles[0];
   const context = new URLSearchParams(params);
+  context.delete("setup");
   if (site) context.set("site", site.site_id);
   const query = context.size ? "?" + context.toString() : "";
   const auditQuery = new URLSearchParams(context);
   auditQuery.delete("alert_id");
   return (
-    <div className="ws-shell">
+    <div className="ws-shell" data-collapsed={collapsed || undefined}>
       <a className="ws-skip" href="#workspace">
         К содержимому
       </a>
       <header className="ws-bar">
-        <span className="ws-brand">
-          <img alt="" src={mark} />
-          Bacuri VMS
-        </span>
-        <nav aria-label="Рабочее место">
-          <NavLink to={"/monitor" + query}>
-            <svg aria-hidden="true">
-              <use href={icons + "#i-monitor-play"} />
-            </svg>
-            <span>Мониторинг</span>
-          </NavLink>
-          <NavLink
-            className="ws-audit-link"
-            aria-label="Журнал тревог"
-            to={"/audit?" + auditQuery.toString()}
+        <div className="ws-navigation">
+          <span className="ws-brand">
+            <img alt="Bacuri VMS" src={mark} />
+            <span aria-hidden="true">Bacuri VMS</span>
+          </span>
+          <nav id="workspace-navigation" aria-label="Рабочее место">
+            {sections
+              .filter(
+                (section) => !section.admin || site?.role === "administrator",
+              )
+              .map(({ path: sectionPath, label, detail, icon }) => {
+                const name = label + (detail ?? "");
+                return (
+                  <div className="ws-nav-section" key={sectionPath}>
+                    <NavLink
+                      to={
+                        sectionPath +
+                        (sectionPath === "/audit"
+                          ? "?" + auditQuery.toString()
+                          : query)
+                      }
+                      aria-label={name}
+                      title={name}
+                    >
+                      <svg aria-hidden="true">
+                        <use href={icons + "#i-" + icon} />
+                      </svg>
+                      <span>
+                        {label}
+                        {detail && (
+                          <span className="ws-nav-detail">{detail}</span>
+                        )}
+                      </span>
+                    </NavLink>
+                    {sectionPath === path && (
+                      <div className="ws-submenu-slot" ref={setSubmenuSlot} />
+                    )}
+                  </div>
+                );
+              })}
+          </nav>
+          <button
+            type="button"
+            className="ws-sidebar-toggle"
+            onClick={toggleSidebar}
+            title={toggleLabel}
+            aria-label={toggleLabel}
+            aria-expanded={!collapsed}
+            aria-controls="workspace-navigation"
           >
-            <svg aria-hidden="true">
-              <use href={icons + "#i-bell-ring"} />
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              <path d="M8 4v16" />
+              <path className="ws-sidebar-chevron" d="m16 9-3 3 3 3" />
             </svg>
-            <span>
-              Журнал<span className="ws-nav-detail"> тревог</span>
-            </span>
-          </NavLink>
-          <NavLink to={"/maps" + query} aria-label="Карты и планы">
-            <svg aria-hidden="true">
-              <use href={icons + "#i-map"} />
-            </svg>
-            <span>
-              Карты<span className="ws-nav-detail"> и планы</span>
-            </span>
-          </NavLink>
-          {site?.role === "administrator" && (
-            <NavLink to={"/access" + query}>
-              <svg aria-hidden="true">
-                <use href={icons + "#i-shield-check"} />
-              </svg>
-              <span>Доступ</span>
-            </NavLink>
-          )}
-          {site?.role === "administrator" && (
-            <NavLink to={"/cameras" + query}>
-              <svg aria-hidden="true">
-                <use href={icons + "#i-cctv"} />
-              </svg>
-              <span>Камеры</span>
-            </NavLink>
-          )}
-        </nav>
+            <span>{toggleLabel}</span>
+          </button>
+        </div>
         <div className="ws-session">
           {site && (
             <span className="ws-role">
@@ -487,52 +539,55 @@ function Workspace({ services }: { services: Services }) {
           </div>
         </div>
       </header>
-      <main id="workspace" tabIndex={-1}>
-        {message && <p role="status">{message}</p>}
-        {site && path === "/access" ? (
-          site.role === "administrator" ? (
-            <Suspense fallback={<p role="status">Загрузка прав</p>}>
-              <Access
-                key={site.site_id}
-                site={site.site_id}
-                session={identity}
-                expire={expired}
-              />
-            </Suspense>
+      <SubsectionSlot.Provider value={submenuSlot}>
+        <main id="workspace" tabIndex={-1}>
+          {site && <h1 className="ws-route-name">{section}</h1>}
+          {message && <p role="status">{message}</p>}
+          {site && path === "/access" ? (
+            site.role === "administrator" ? (
+              <Suspense fallback={<p role="status">Загрузка прав</p>}>
+                <Access
+                  key={site.site_id}
+                  site={site.site_id}
+                  session={identity}
+                  expire={expired}
+                />
+              </Suspense>
+            ) : (
+              <p role="status">Недостаточно прав</p>
+            )
+          ) : site ? (
+            <Site
+              key={site.site_id}
+              services={services}
+              site={site.site_id}
+              userId={identity.user_id}
+              admin={site.role === "administrator"}
+              cameras={cameras}
+              maps={path === "/maps"}
+              audit={path === "/audit"}
+              onExpired={expired}
+            />
           ) : (
-            <p role="status">Недостаточно прав</p>
-          )
-        ) : site ? (
-          <Site
-            key={site.site_id}
-            services={services}
-            site={site.site_id}
-            userId={identity.user_id}
-            admin={site.role === "administrator"}
-            cameras={cameras}
-            maps={path === "/maps"}
-            audit={path === "/audit"}
-            onExpired={expired}
-          />
-        ) : (
-          <div className="ws-panel ws-pad">
-            <h1>
-              {identity.site_roles.length
-                ? "Площадка недоступна"
-                : "Нет доступных площадок"}
-            </h1>
-            {identity.site_roles[0] && (
-              <Button
-                onClick={() =>
-                  void setParams({ site: identity.site_roles[0]!.site_id })
-                }
-              >
-                Открыть доступную площадку
-              </Button>
-            )}
-          </div>
-        )}
-      </main>
+            <div className="ws-panel ws-pad">
+              <h1>
+                {identity.site_roles.length
+                  ? "Площадка недоступна"
+                  : "Нет доступных площадок"}
+              </h1>
+              {identity.site_roles[0] && (
+                <Button
+                  onClick={() =>
+                    void setParams({ site: identity.site_roles[0]!.site_id })
+                  }
+                >
+                  Открыть доступную площадку
+                </Button>
+              )}
+            </div>
+          )}
+        </main>
+      </SubsectionSlot.Provider>
     </div>
   );
 }

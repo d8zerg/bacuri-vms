@@ -100,6 +100,8 @@ def map_orientation(call, device, cam, admin, viewer, move):
     device.report_position=False
     device.online=True
     c.wait_for(lambda: marker()["view"]["state"]=="unknown", "device omitted position")
+    details = wait(call, "[...document.querySelectorAll('main summary')].find(s => s.textContent === 'Параметры точки')", "selected point details")
+    call("POST", "/element/" + details["element-6066-11e4-a52e-4f735466cecf"] + "/click", {})
     wait(call, "!document.querySelector('.ws-sector') && document.body.innerText.includes('Текущее направление неизвестно')","hidden unsupported sector")
     device.report_position=True
     device.hfov=64.0
@@ -208,4 +210,4 @@ def exercise(call, device, cam, admin):
     }
     (report / "camera-operations.json").write_text(json.dumps(evidence, indent=2) + "\n")
     map_orientation(call,device,cam,admin,viewer,move)
-    navigate(call, admin, "/cameras")
+    navigate(call, admin, "/cameras?setup=manual")

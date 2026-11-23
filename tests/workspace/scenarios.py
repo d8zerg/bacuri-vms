@@ -79,6 +79,7 @@ def action_cost(browser, phase, credential, route):
 
 def installer(browser, admin, restart):
     with browser_session(browser, c.login("installer"), "/cameras", workspace_coverage=raw) as (call, _):
+        button(call, "Подключение")
         camera_name = "Workspace " + browser
         field(call, "name", camera_name)
         base = "rtsp://" + os.environ["BACURI_TEST_CAMERA_HOST"] + ":8554"
@@ -119,7 +120,8 @@ def installer(browser, admin, restart):
 
 def access_settings(browser, admin):
     with browser_session(browser, admin, "/access", workspace_coverage=raw) as (call, _):
-        wait(call, "document.body.innerText.includes('Новый пользователь')", "user management")
+        wait(call, "document.querySelectorAll('.ws-users summary').length >= 2", "user list")
+        assert not js(call, "return !!document.querySelector('.ws-users details[open]')")
         button(call, "Группы")
         name = "Workspace group " + browser
         field(call, "name", name)
@@ -127,9 +129,14 @@ def access_settings(browser, admin):
         wait(call, "Array.from(document.querySelectorAll('main select option')).some(option=>option.textContent===arguments[0])",
              "saved group", name)
         for tab, label in [("Разрешения", "Действие"), ("Приватность", "Области маски"),
-                           ("Вход", "OpenID Connect"), ("Аудит", "resource_groups.insert")]:
+                           ("Вход", "OpenID Connect"), ("Аудит", "Создана группа")]:
             button(call, tab)
             wait(call, "document.querySelector('main').innerText.includes(arguments[0])", tab, label)
+
+        assert not js(call, "return document.querySelector('.ws-access-audit').innerText.includes('resource_groups.insert')")
+        js(call, """const summary=[...document.querySelectorAll('.ws-access-audit summary')].find(s=>s.innerText.includes(arguments[0]));
+            summary.click();""", name)
+        wait(call, "document.querySelector('.ws-access-audit details[open]').innerText.includes('resource_groups.insert')", "audit source action")
 
 
 def pending_alert(call, point, viewer, on_map):
@@ -181,6 +188,7 @@ def pending_alert(call, point, viewer, on_map):
 
 
 def inspect_alert(call, browser, alert, plan, position):
+    original = js(call, "return document.getElementById('alert-'+arguments[0])", alert)
     result = "Проверка ворот " + browser
     reason = "Обход завершён " + browser
     button(call, "Взять в работу")
@@ -194,13 +202,14 @@ def inspect_alert(call, browser, alert, plan, position):
     note(reason)
     button(call, "Закрыть тревогу")
     wait(call, "document.getElementById('alert-'+arguments[0])?.innerText.includes('Закрыта')", "closed alert in feed", alert)
-    link(call, wait, '.ws-alert-work a[href^="/audit"]')
+    assert js(call, "return document.getElementById('alert-'+arguments[0])", alert) == original
+    button(call, "Открыть журнал этой тревоги")
     field(call, "query", result)
     button(call, "Найти")
     wait(call, "document.querySelectorAll('.ws-history li').length===1 && document.querySelector('.ws-history li').innerText.includes(arguments[0])", "audit search", result)
     assert "viewer" in js(call, "return document.querySelector('.ws-history li').innerText")
     capture(call, browser, "alert-audit")
-    link(call, wait, '.ws-history a[href^="/monitor"]')
+    button(call, "Открыть тревогу")
     wait(call, "document.body.innerText.includes('Кадр записи получен')", "archive from audit")
     assert js(call, "return document.querySelector('.ws-transport time').dateTime") == position
     assert js(call, "return new URLSearchParams(location.search).get('plan')") == plan
@@ -226,8 +235,8 @@ def operator(browser, cam, viewer, restart, plan):
         send(motion(point))
         alert = snapshot(viewer)["items"][-1]
         link(call, wait, 'nav a[href^="/maps"]')
-        wait(call,"[...document.querySelectorAll('option')].some(o=>o.value===arguments[0])","visible operator plan",plan)
-        js(call,"const select=document.querySelector('main select');select.value=arguments[0];select.dispatchEvent(new Event('change',{bubbles:true}))",plan)
+        button(call, "Планы")
+        wait(call, "new URLSearchParams(location.search).get('plan') === arguments[0]", "visible operator plan", plan)
         link(call, wait, "#map-point-"+point)
         wait(call,"document.querySelector('.ws-plan img')?.naturalWidth===640","operator plan image")
         wait(call, "document.querySelector('.ws-plan .ws-pin-alert')?.textContent==='1'", "new alarm on the plan")
@@ -237,18 +246,26 @@ def operator(browser, cam, viewer, restart, plan):
         send(motion(point, 1500000))
         wait(call, "document.querySelectorAll('.ws-event-row').length===2", "incoming alarm during review")
         assert js(call, "return document.querySelector('.ws-event-row[aria-expanded=true]').id") == "map-alert-" + alert["id"]
-        link(call, wait, '.ws-event-preview a[href*="alert="]')
+        button(call, "Открыть тревогу в мониторинге")
         wait(call, "document.querySelector('.ws-watch .ws-transport')?.innerText.includes('Кадр записи получен')", "archive ready")
         position = js(call, "return document.querySelector('.ws-transport time').dateTime")
         assert position == alert["observed_at"], (position, alert)
         frame = archive_frame_pattern(call)
         assert frame == 16, (browser, frame)
         url = js(call, "return location.pathname+location.search")
+        js(call, "window.previousVideo = document.querySelector('.ws-player video'); return true")
+        button(call, "Эфир")
+        wait(call, "document.querySelector('.ws-player video')?.videoWidth===640 && !document.querySelector('.bt-timeline')", "live without archive timeline")
+        assert js(call, "return !previousVideo.isConnected && previousVideo.paused && !previousVideo.getAttribute('src')")
+        js(call, "window.previousVideo = document.querySelector('.ws-player video'); return true")
+        button(call, "Архив")
+        wait(call, "document.querySelector('.bt-track input') && document.querySelector('.ws-player')?.innerText.includes('Кадр записи получен')", "archive and timeline")
+        assert js(call, "return !previousVideo.isConnected && previousVideo.paused && !previousVideo.srcObject")
         capture(call, browser, "operator")
         link(call,wait,'nav a[href^="/maps"]')
         wait(call,"document.activeElement?.id==='map-alert-'+arguments[0]", "restored event focus", alert["id"])
         assert js(call,"return new URLSearchParams(location.search).get('plan')")==plan
-        link(call,wait,'main a[href*="mode=archive"]')
+        button(call, "Архив")
         wait(call, "document.querySelector('.ws-watch .ws-transport')?.innerText.includes('Кадр записи получен')", "restored archive frame")
         assert js(call, "return document.querySelector('.ws-transport time').dateTime") == position
         inspect_alert(call, browser, alert["id"], plan, position)
@@ -300,7 +317,7 @@ def operator(browser, cam, viewer, restart, plan):
         )
         cutoff = time.monotonic() - began
         assert cutoff <= 5, cutoff
-        link(call, wait, '.ws-audit-link')
+        link(call, wait, 'nav a[href^="/audit"]')
         field(call, "alert", alert["id"])
         button(call, "Найти")
         wait(call, "document.body.innerText.includes('Записи не найдены')", "audit after point access revocation")

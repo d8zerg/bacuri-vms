@@ -1,6 +1,12 @@
+import {
+  FilterPanel,
+  matchesQuery,
+  needsListSearch,
+} from "../ui-kit/FilterPanel";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
+import { RouteButton } from "./RouteButton";
 import type {
   AlertCommand,
   AlertWork,
@@ -70,61 +76,136 @@ function Entries({
   }
   return (
     <ol className="ws-history">
-      {items.map((e) => (
-        <li key={e.id}>
-          <strong>
-            {events[e.action]} ·{" "}
-            {e.action === "export" && e.outcome === "denied"
-              ? "В выдаче отказано"
-              : outcomes[e.outcome]}
-          </strong>
-          <time dateTime={e.recorded_at}>{formatUtc(e.recorded_at)}</time>
-          <span>
-            Исполнитель ·{" "}
-            {e.actor_kind === "service"
-              ? "Сервис " + e.service + " по поручению " + e.initiator
-              : e.initiator}
-          </span>
-          {e.from_state && e.to_state && (
-            <span>
-              {states[e.from_state]} {"->"} {states[e.to_state]}
-            </span>
-          )}
-          {e.owner && <span>Ответственный · {e.owner}</span>}
-          {e.delegated_action && e.expires_at && (
-            <span>
-              Поручение · {e.service} · {actions[e.delegated_action]} · до{" "}
-              {formatUtc(e.expires_at)}
-            </span>
-          )}
-          {points && e.point_id && (
-            <span>
-              Точка ·{" "}
-              {points.find((p) => p.id === e.point_id)?.name ?? e.point_id}
-            </span>
-          )}
-          {points && e.alert_id && <span>Тревога · {e.alert_id}</span>}
-          {e.export && (
-            <>
-              <span>Комплект · {e.export.id}</span>
-              <span>
-                Интервал · {e.export.interval.start} / {e.export.interval.end}
-              </span>
-            </>
-          )}
-          {e.outcome !== "applied" ? (
-            <span>{reasons[e.reason] ?? e.reason}</span>
-          ) : (
-            e.action !== "export" &&
-            e.action !== "revoke" &&
-            e.action !== "delegate" && <span>{e.reason}</span>
-          )}
-          {points && e.alert_id && e.point_id && (
-            <Link to={monitorUrl(e.alert_id, e.point_id)}>Открыть тревогу</Link>
-          )}
-        </li>
-      ))}
+      {items.map((e) => {
+        const pointName = points?.find((p) => p.id === e.point_id)?.name;
+        const actor =
+          e.actor_kind === "service"
+            ? "Сервис " + e.service + " по поручению " + e.initiator
+            : e.initiator;
+        const result =
+          e.outcome !== "applied"
+            ? (reasons[e.reason] ?? e.reason)
+            : e.action === "export" ||
+                e.action === "delegate" ||
+                e.action === "revoke"
+              ? ""
+              : e.reason;
+        return (
+          <li key={e.id}>
+            <details>
+              <summary>
+                <strong>
+                  {events[e.action]}
+                  {e.outcome !== "applied" &&
+                    " · " +
+                      (e.action === "export" && e.outcome === "denied"
+                        ? "В выдаче отказано"
+                        : outcomes[e.outcome])}
+                </strong>
+                <span className="ws-history-meta">
+                  <time dateTime={e.recorded_at}>
+                    {formatUtc(e.recorded_at)}
+                  </time>{" "}
+                  · {actor}
+                  {pointName && " · " + pointName}
+                </span>
+                {result && <span className="ws-history-result">{result}</span>}
+              </summary>
+              <dl>
+                <dt>Результат действия</dt>
+                <dd>{outcomes[e.outcome]}</dd>
+                {e.from_state && e.to_state && e.from_state !== e.to_state && (
+                  <>
+                    <dt>Состояние</dt>
+                    <dd>
+                      {states[e.from_state]} {"->"} {states[e.to_state]}
+                    </dd>
+                  </>
+                )}
+                {e.owner && (
+                  <>
+                    <dt>Ответственный</dt>
+                    <dd>{e.owner}</dd>
+                  </>
+                )}
+                {e.delegated_action && e.expires_at && (
+                  <>
+                    <dt>Поручение</dt>
+                    <dd>
+                      {e.service} · {actions[e.delegated_action]} · до{" "}
+                      {formatUtc(e.expires_at)}
+                    </dd>
+                  </>
+                )}
+                {e.point_id && (
+                  <>
+                    <dt>Точка</dt>
+                    <dd>{e.point_id}</dd>
+                  </>
+                )}
+                {e.alert_id && (
+                  <>
+                    <dt>Тревога</dt>
+                    <dd>{e.alert_id}</dd>
+                  </>
+                )}
+                {e.export && (
+                  <>
+                    <dt>Комплект</dt>
+                    <dd>{e.export.id}</dd>
+                    <dt>Интервал</dt>
+                    <dd>
+                      {formatUtc(e.export.interval.start)} -{" "}
+                      {formatUtc(e.export.interval.end)}
+                    </dd>
+                  </>
+                )}
+              </dl>
+            </details>
+            {points && e.alert_id && e.point_id && (
+              <RouteButton to={monitorUrl(e.alert_id, e.point_id)}>
+                Открыть тревогу
+              </RouteButton>
+            )}
+          </li>
+        );
+      })}
     </ol>
+  );
+}
+
+function AlertHistory({ work, site }: { work: AlertWork; site: string }) {
+  const [query, setQuery] = useState("");
+  const rows = work.history.filter((e) =>
+    matchesQuery(
+      query,
+      events[e.action],
+      outcomes[e.outcome],
+      e.initiator,
+      e.owner,
+      e.service,
+      reasons[e.reason] ?? e.reason,
+    ),
+  );
+  return (
+    <>
+      {needsListSearch(work.history.length, query) && (
+        <FilterPanel
+          label="Фильтры истории тревоги"
+          queryLabel="Действие, исполнитель или результат"
+          query={query}
+          onQuery={setQuery}
+          onReset={() => setQuery("")}
+        />
+      )}
+      {rows.length ? (
+        <Entries items={rows} site={site} />
+      ) : (
+        <p role="status">
+          {query ? "Действия не найдены." : "Действий пока нет"}
+        </p>
+      )}
+    </>
   );
 }
 
@@ -134,6 +215,10 @@ function Delegations({
   work,
   refresh,
 }: { work: AlertWork; refresh: () => void } & Context) {
+  const [query, setQuery] = useState("");
+  const shown = work.delegations.filter((d) =>
+    matchesQuery(query, d.service, actions[d.action]),
+  );
   const [secret, setSecret] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
@@ -223,7 +308,17 @@ function Delegations({
           <input readOnly value={secret} autoComplete="off" />
         </label>
       )}
-      {work.delegations.map((d) => (
+      {needsListSearch(work.delegations.length, query) && (
+        <FilterPanel
+          label="Фильтры поручений"
+          queryLabel="Сервис или действие"
+          query={query}
+          onQuery={setQuery}
+          onReset={() => setQuery("")}
+        />
+      )}
+      {query && !shown.length && <p role="status">Поручения не найдены.</p>}
+      {shown.map((d) => (
         <div key={d.id}>
           {d.service} · {actions[d.action]} · до {formatUtc(d.expires_at)}{" "}
           <Button disabled={busy} onClick={() => void revoke(d.id)}>
@@ -371,14 +466,10 @@ export function AlertWorkPanel({
             )}
           </div>
           <h3>История тревоги</h3>
-          {work.history.length ? (
-            <Entries items={work.history} site={site} />
-          ) : (
-            <p>Действий пока нет</p>
-          )}
-          <Link to={"/audit?" + auditParams.toString()}>
+          <AlertHistory key={alert} work={work} site={site} />
+          <RouteButton to={"/audit?" + auditParams.toString()}>
             Открыть журнал этой тревоги
-          </Link>
+          </RouteButton>
           <Delegations
             services={services}
             site={site}
@@ -447,93 +538,92 @@ export function AlertAudit({
       clearInterval(interval);
     };
   }, [search, site, services]);
-  function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fields = new FormData(e.currentTarget),
-      id = fields.get("alert"),
-      q = fields.get("query");
+  const [query, setQuery] = useState("");
+  const [alertId, setAlertId] = useState(initial);
+  function apply(query: string, id: string) {
     setPrevious([]);
     setSearch({
-      ...(typeof q === "string" && q.trim() ? { query: q.trim() } : {}),
-      ...(typeof id === "string" && id.trim() ? { alert_id: id.trim() } : {}),
+      ...(query.trim() ? { query: query.trim() } : {}),
+      ...(id.trim() ? { alert_id: id.trim() } : {}),
     });
   }
   return (
     <>
-      <div className="ws-title">
-        <h1>Журнал тревог</h1>
-      </div>
       <section
         className="ws-panel ws-pad ws-alert-work ws-audit"
-        aria-label="Поиск по журналу"
+        aria-label="Записи журнала"
       >
-        <form
-          onSubmit={submit}
-          onReset={(e) => {
-            e.preventDefault();
-            const form = e.currentTarget;
-            form.querySelectorAll("input").forEach((input) => {
-              input.value = "";
-            });
-            setPrevious([]);
-            setSearch({});
-            form.querySelector("input")?.focus();
+        <FilterPanel
+          label="Поиск и фильтры журнала"
+          queryLabel="Результат или основание"
+          query={query}
+          onQuery={setQuery}
+          maxLength={256}
+          filtered={!!(alertId || search.query || search.alert_id)}
+          onApply={() => apply(query, alertId)}
+          onReset={() => {
+            setQuery("");
+            setAlertId("");
+            apply("", "");
           }}
         >
           <label>
             Идентификатор тревоги
-            <input name="alert" defaultValue={initial} maxLength={36} />
+            <input
+              name="alert"
+              value={alertId}
+              onChange={(e) => setAlertId(e.target.value)}
+              maxLength={36}
+            />
           </label>
-          <label>
-            Результат или основание
-            <input name="query" maxLength={256} />
-          </label>
-          <div className="ws-work-actions">
-            <Button type="submit" variant="primary">
-              Найти
-            </Button>
-            <Button type="reset">Сбросить</Button>
-          </div>
-        </form>
-        {page ? (
-          page.items.length ? (
-            <Entries items={page.items} site={site} points={points} />
+        </FilterPanel>
+        <div role="region" aria-label="Результаты поиска">
+          {page ? (
+            page.items.length ? (
+              <Entries items={page.items} site={site} points={points} />
+            ) : (
+              <p role="status">
+                {search.alert_id || search.query || search.before
+                  ? "Записи не найдены"
+                  : "Действий пока нет. Когда оператор возьмёт тревогу в работу, здесь появится запись."}
+              </p>
+            )
           ) : (
-            <p role="status">Записи не найдены</p>
-          )
-        ) : (
-          <p role="status">
-            {error ? "Не удалось получить записи журнала" : "Загрузка журнала…"}
-          </p>
-        )}
-        {(previous.length > 0 || page?.next_cursor) && (
-          <div
-            className="ws-work-actions"
-            role="group"
-            aria-label="Страницы журнала"
-          >
-            {previous.length > 0 && (
-              <Button
-                onClick={() => {
-                  setSearch(previous[previous.length - 1]!);
-                  setPrevious(previous.slice(0, -1));
-                }}
-              >
-                Предыдущая страница
-              </Button>
-            )}
-            {page?.next_cursor && (
-              <Button
-                onClick={() => {
-                  setPrevious([...previous, search]);
-                  setSearch({ ...search, before: page.next_cursor! });
-                }}
-              >
-                Следующая страница
-              </Button>
-            )}
-          </div>
-        )}
+            <p role="status">
+              {error
+                ? "Не удалось получить записи журнала"
+                : "Загрузка журнала…"}
+            </p>
+          )}
+          {(previous.length > 0 || page?.next_cursor) && (
+            <div
+              className="ws-work-actions"
+              role="group"
+              aria-label="Страницы журнала"
+            >
+              {previous.length > 0 && (
+                <Button
+                  onClick={() => {
+                    setSearch(previous[previous.length - 1]!);
+                    setPrevious(previous.slice(0, -1));
+                  }}
+                >
+                  Предыдущая страница
+                </Button>
+              )}
+              {page?.next_cursor && (
+                <Button
+                  onClick={() => {
+                    setPrevious([...previous, search]);
+                    setSearch({ ...search, before: page.next_cursor! });
+                  }}
+                >
+                  Следующая страница
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </section>
     </>
   );

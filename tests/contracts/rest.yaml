@@ -1,3 +1,30 @@
+camera_batch_template:
+  operation: saveCameraTemplate
+  request: { name: Entry, record_quality: high, brightness: 45, expected_revision: '0' }
+  status: 200
+  response: { id: 40000000-0000-4000-8000-000000000002, revision: '1', name: Entry, record_quality: high, brightness: 45 }
+camera_batch_preview:
+  operation: previewCameraBatchItem
+  request:
+    name: Door
+    username: fixture
+    password: example
+    selection: enrollment-ticket
+    channel: sensor-1
+    template_id: 40000000-0000-4000-8000-000000000002
+    template_revision: '1'
+  status: 200
+  response:
+    item_id: 40000000-0000-4000-8000-000000000003
+    expected_revision: null
+    revision: null
+    before: null
+    after: { name: Door, main_url: 'rtsps://camera.invalid/main', secondary_url: 'rtsps://camera.invalid/sub', point_id: '' }
+    current: null
+    camera: { endpoint_id: fixture, manufacturer: Fixture, model: Encoder, firmware: '1', serial: unit-1, channel_token: sensor-1, ptz: false, events: true }
+    image: { min: 0, max: 100, value: 30 }
+    brightness: 45
+    state: prepared
 ptz_command:
   operation: controlPointPtz
   request: { device_id: 40000000-0000-4000-8000-000000000001, command: stop }

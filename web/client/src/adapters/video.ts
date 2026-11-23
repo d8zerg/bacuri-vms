@@ -42,6 +42,7 @@ export async function attach(
   signal: AbortSignal,
   fail: (reason: string) => void,
 ) {
+  signal.throwIfAborted();
   const session = data(
     await api.POST("/sites/{siteId}/points/{pointId}/media-sessions", {
       params: {
@@ -62,6 +63,18 @@ export async function attach(
     }),
   );
   const path = { mediaSessionId: session.id };
+  function releaseSession() {
+    void api
+      .DELETE("/media-sessions/{mediaSessionId}", {
+        params: { path, header },
+        keepalive: true,
+      })
+      .catch(() => {});
+  }
+  if (signal.aborted) {
+    releaseSession();
+    signal.throwIfAborted();
+  }
   let peer: RTCPeerConnection | undefined, player: ArchivePlayer | undefined;
   const expire = setTimeout(
     () => fail("Время просмотра истекло. Откройте видео снова."),
@@ -80,16 +93,7 @@ export async function attach(
     player?.stop();
     video.pause();
     video.srcObject = null;
-    void api
-      .DELETE("/media-sessions/{mediaSessionId}", {
-        params: { path, header },
-        keepalive: true,
-      })
-      .catch(() => {});
-  }
-  if (signal.aborted) {
-    stop();
-    signal.throwIfAborted();
+    releaseSession();
   }
   signal.addEventListener("abort", stop, { once: true });
   video.addEventListener("error", () => fail("Ошибка декодирования видео"), {

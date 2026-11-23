@@ -22,9 +22,13 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Monitor: Story = { name: "Мониторинг" };
+export const Catalog: Story = {
+  name: "Каталог подключённых устройств",
+  args: { initial: "/cameras", condition: "catalog" },
+};
 export const Installer: Story = {
   name: "Подключение камеры",
-  args: { initial: "/cameras", condition: "slow" },
+  args: { initial: "/cameras?setup=manual", condition: "slow" },
 };
 export const EmptyFeed: Story = {
   name: "Пустая лента",
@@ -32,7 +36,7 @@ export const EmptyFeed: Story = {
 };
 export const Offline: Story = {
   name: "Ошибка связи с камерой",
-  args: { initial: "/cameras", condition: "offline" },
+  args: { initial: "/cameras?setup=manual", condition: "offline" },
 };
 
 export const Plan: Story = {

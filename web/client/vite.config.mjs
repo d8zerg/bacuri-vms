@@ -8,6 +8,7 @@ export default defineConfig({
         "camera-connection-form": "src/ui-kit/CameraConnectionForm.tsx",
         "media-panel": "src/ui-kit/MediaPanel.tsx",
         "alert-list": "src/ui-kit/AlertList.tsx",
+        "filter-panel": "src/ui-kit/FilterPanel.tsx",
         "form-controls": "src/ui-kit/FormControls.tsx",
         "camera-connection-check": "src/workflows/useCameraConnectionCheck.ts",
       },

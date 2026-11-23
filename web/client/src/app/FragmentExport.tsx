@@ -121,6 +121,7 @@ export default function FragmentExport({
         {error && <p role="alert">{error}</p>}
         {url && (
           <a
+            className="bk-button"
             ref={download}
             href={url}
             download={`bacuri-${point}-${start}.tar`}

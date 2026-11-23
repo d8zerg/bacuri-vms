@@ -6,43 +6,20 @@ import type {
   DiscoveredCamera,
   Services,
 } from "../contracts/workspace";
-import { HttpFailure } from "../adapters/api";
-import { Button } from "../ui-kit/FormControls";
+import { DiscoveredDeviceSelect } from "./DiscoveredDeviceSelect";
+import { cameraError } from "./cameraError";
+import { Button, IconButton } from "../ui-kit/FormControls";
 
-const failures: Record<string, string> = {
-  camera_authentication_failed: "Камера отклонила имя или пароль.",
-  camera_ptz_busy: "Камерой управляет другой оператор.",
-  camera_ptz_unknown:
-    "Нет подтверждения камеры. Проверьте её положение в эфире.",
-  camera_ptz_unsupported: "Профиль камеры не поддерживает эту команду.",
-  camera_tls_error: "Проверьте имя камеры и доверенный сертификат.",
-  camera_incompatible_profiles:
-    "Для подключения нужны два разных профиля H.264.",
-  camera_transport_denied:
-    "Адрес или транспорт камеры запрещён настройками площадки.",
-  camera_protocol_error: "Камера вернула неподдерживаемый ответ ONVIF.",
-  camera_already_registered: "Эта камера уже подключена на площадке.",
-  camera_binding_conflict: "Камера точки изменилась. Выберите точку заново.",
-  camera_selection_expired: "Повторите обнаружение и выбор профилей.",
-  camera_discovery_unavailable:
-    "Нет доступного интерфейса в разрешённом сегменте камер.",
-  camera_unavailable: "Камера не ответила вовремя.",
-};
-export function cameraError(error: unknown) {
-  return error instanceof HttpFailure ? failures[error.code] : undefined;
-}
-
-export function CameraSelection({
+export default function CameraSelection({
   services,
   site,
   onChoose,
-  onCancel,
 }: {
   services: Services;
   site: string;
   onChoose: (draft: CameraDraft) => void;
-  onCancel: () => void;
 }) {
+  const [deviceQuery, setDeviceQuery] = useState("");
   const [found, setFound] = useState<DiscoveredCamera[]>([]);
   const [registered, setRegistered] = useState<Camera[]>([]);
   const [selection, select] = useState("");
@@ -54,10 +31,8 @@ export function CameraSelection({
     [sub, setSub] = useState("");
   const [notice, tell] = useState("");
   const [busy, setBusy] = useState(false);
-  const title = useRef<HTMLHeadingElement>(null);
   const active = useRef<AbortController | null>(null);
   useEffect(() => {
-    title.current?.focus();
     const ctl = new AbortController();
     void services
       .cameras(site, ctl.signal)
@@ -92,9 +67,14 @@ export function CameraSelection({
         setCamera(info);
         setMain(info.profiles[0]!.url);
         setSub(
-          info.profiles.find((p) => p.url !== info.profiles[0]!.url)?.url ?? "",
+          info.profiles.find(
+            (p) =>
+              p.channel === info.profiles[0]!.channel &&
+              p.url !== info.profiles[0]!.url,
+          )?.url ?? "",
         );
       } else {
+        setDeviceQuery("");
         setFound([]);
         select("");
         user("");
@@ -120,8 +100,15 @@ export function CameraSelection({
     }
   }
   const previous = registered.find((c) => c.id === old);
+  const source = camera?.profiles.find((p) => p.url === main)?.channel;
+  const compatible = camera?.profiles.filter((p) => p.channel === source);
   const existing =
-    camera && registered.find((c) => c.endpoint_id === camera.endpoint_id);
+    camera &&
+    registered.find(
+      (c) =>
+        c.endpoint_id === camera.endpoint_id &&
+        (!c.channel_token || c.channel_token === source),
+    );
   async function refresh() {
     if (!existing || !camera || active.current) return;
     const ctl = new AbortController();
@@ -175,12 +162,7 @@ export function CameraSelection({
     onChoose(draft);
   }
   return (
-    <section className="bc-camera">
-      <header>
-        <h2 tabIndex={-1} ref={title}>
-          Выбор камеры
-        </h2>
-      </header>
+    <section className="bc-camera" aria-label="Выбор камеры">
       <fieldset className="bc-fields ws-camera-fields" disabled={busy}>
         <label className="bk-field">
           Точка наблюдения
@@ -195,24 +177,18 @@ export function CameraSelection({
         </label>
         <Button onClick={() => void run(false)}>Найти камеры ONVIF</Button>
         {!!found.length && (
-          <label className="bk-field">
-            Обнаруженная камера
-            <select
-              value={selection}
-              onChange={(e) => {
-                select(e.target.value);
-                setCamera(undefined);
-                user("");
-                pass("");
-              }}
-            >
-              {found.map((d) => (
-                <option value={d.selection} key={d.endpoint_id}>
-                  {d.device_service}
-                </option>
-              ))}
-            </select>
-          </label>
+          <DiscoveredDeviceSelect
+            devices={found}
+            query={deviceQuery}
+            setQuery={setDeviceQuery}
+            value={selection}
+            onSelect={(id) => {
+              select(id);
+              setCamera(undefined);
+              user("");
+              pass("");
+            }}
+          />
         )}
         <label className="bk-field">
           Пользователь камеры
@@ -240,7 +216,10 @@ export function CameraSelection({
           />
         </label>
         {!!found.length && (
-          <Button disabled={!username} onClick={() => void run(true)}>
+          <Button
+            disabled={!username || !selection}
+            onClick={() => void run(true)}
+          >
             Получить профили
           </Button>
         )}
@@ -260,37 +239,58 @@ export function CameraSelection({
                 {role === "main" ? "Профиль записи" : "Профиль эфира"}
                 <select
                   value={role === "main" ? main : sub}
-                  onChange={(e) =>
-                    (role === "main" ? setMain : setSub)(e.target.value)
-                  }
+                  onChange={(e) => {
+                    const url = e.target.value;
+                    if (role === "sub") setSub(url);
+                    else {
+                      setMain(url);
+                      const group = camera.profiles.filter(
+                        (p) =>
+                          p.channel ===
+                            camera.profiles.find((p) => p.url === url)
+                              ?.channel && p.url !== url,
+                      );
+                      if (!group.some((p) => p.url === sub))
+                        setSub(group[0]?.url ?? "");
+                    }
+                  }}
                 >
-                  {camera.profiles.map((p) => (
-                    <option key={p.token} value={p.url}>
-                      {p.name} · {p.url}
-                    </option>
-                  ))}
+                  {(role === "main" ? camera.profiles : (compatible ?? [])).map(
+                    (p) => (
+                      <option key={p.token} value={p.url}>
+                        {p.name} · {p.url}
+                      </option>
+                    ),
+                  )}
                 </select>
               </label>
             ))}
             {main === sub && (
               <p role="status">Выберите разные профили для записи и эфира.</p>
             )}
-            <Button
-              variant="primary"
-              disabled={!sub || main === sub}
-              onClick={() => (existing ? void refresh() : pick(true))}
-            >
-              {existing
-                ? "Обновить подключённую камеру"
-                : "Использовать профили"}
-            </Button>
+            {existing ? (
+              <IconButton
+                icon="rotate-cw"
+                label="Обновить подключённую камеру"
+                variant="primary"
+                disabled={!sub || main === sub}
+                onClick={() => void refresh()}
+              />
+            ) : (
+              <Button
+                variant="primary"
+                disabled={!sub || main === sub}
+                onClick={() => pick(true)}
+              >
+                Использовать профили
+              </Button>
+            )}
           </>
         )}
         <Button onClick={() => pick(false)}>Ввести адреса вручную</Button>
       </fieldset>
-      <div className="ws-actions ws-camera-footer">
-        <Button onClick={onCancel}>Отмена</Button>
-        <span role="status">{busy ? "Ожидаем ответ…" : notice}</span>
+      <div role="status" className="ws-camera-footer">
+        {busy ? "Ожидаем ответ…" : notice}
       </div>
     </section>
   );

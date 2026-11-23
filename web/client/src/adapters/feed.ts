@@ -3,7 +3,7 @@ import { api, data } from "./api";
 type Frame =
   | { type: "upsert"; cursor: string; alert: AlertItem }
   | { type: "remove"; cursor: string; alert_id: string }
-  | { type: "resync_required" };
+  | { type: "resync_required"; reason: string };
 export function subscribe(siteId: string, publish: (feed: Feed) => void) {
   const ctl = new AbortController();
   let items: AlertItem[] = [],
@@ -50,7 +50,13 @@ export function subscribe(siteId: string, publish: (feed: Feed) => void) {
         try {
           const msg = JSON.parse(event.data) as Frame;
           if (msg.type === "resync_required") {
-            reset();
+            cursor = null;
+            if (
+              !["work_changed", "client_lag", "cursor_expired"].includes(
+                msg.reason,
+              )
+            )
+              items = [];
             emit("reconnecting");
             ws.close();
             return;

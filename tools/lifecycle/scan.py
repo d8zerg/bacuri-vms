@@ -222,7 +222,7 @@ def capture(report, offline_from):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--offline-from", type=Path)
+    parser.add_argument("--offline-from", type=Path, default=os.environ.get("BACURI_ADVISORY_SNAPSHOT") or None)
     args = parser.parse_args()
     report = Path(output("sh", "tools/quality-report-dir", "dependencies")).resolve()
     print(f"Dependency evidence: {report}", flush=True)

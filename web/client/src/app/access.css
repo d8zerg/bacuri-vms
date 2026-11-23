@@ -1,4 +1,11 @@
-.ws-access nav,
+.ws-access .ws-submenu button {
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-inline: 0.125rem;
+}
+.ws-access .ws-submenu button span {
+  white-space: nowrap;
+}
 .ws-access label,
 .ws-access form {
   display: flex;
@@ -6,14 +13,15 @@
   flex-wrap: wrap;
   align-items: center;
 }
-.ws-access nav button[aria-pressed="true"] {
-  font-weight: bold;
-  text-decoration: underline;
-}
 .ws-access fieldset {
   min-width: 0;
   margin-block: 1rem;
   padding: 1rem;
+}
+.ws-access > fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 .ws-access form {
   margin-block: 1rem;
@@ -30,4 +38,145 @@
 .ws-access li {
   margin-block: 0.5rem;
   overflow-wrap: anywhere;
+}
+.ws-access > p:empty {
+  display: none;
+}
+.ws-access summary {
+  cursor: pointer;
+  padding-block: var(--space-2);
+}
+.ws-users,
+.ws-access-audit {
+  list-style: none;
+  padding: 0;
+  margin-block: var(--space-2);
+}
+.ws-access .ws-users li,
+.ws-access .ws-access-audit li {
+  margin: 0;
+  border-top: 1px solid var(--line);
+}
+.ws-users summary {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr) minmax(7rem, 0.7fr) minmax(7rem, 0.5fr)
+    auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ws-users summary::after {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border: solid var(--muted);
+  border-width: 0 2px 2px 0;
+  transform: rotate(-45deg);
+  margin-inline-end: var(--space-1);
+}
+.ws-users details[open] summary::after {
+  transform: rotate(45deg);
+}
+.ws-users summary span,
+.ws-access-audit summary span {
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+.ws-access-audit summary span {
+  display: block;
+  margin-top: var(--space-1);
+}
+.ws-access-audit dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-3);
+}
+.ws-access-audit dd {
+  margin: 0;
+}
+.ws-access .ws-privacy {
+  display: grid;
+  gap: var(--space-3);
+  align-items: start;
+  justify-items: start;
+}
+.ws-privacy > *,
+.ws-privacy details {
+  max-width: 100%;
+  min-width: 0;
+}
+.ws-privacy fieldset {
+  margin: 0;
+}
+.ws-privacy-effect {
+  margin: 0;
+  font-weight: 650;
+}
+.ws-privacy-effect strong {
+  display: block;
+  margin-top: var(--space-1);
+}
+.ws-privacy details p {
+  max-width: 56ch;
+}
+.ws-mask-frame {
+  position: relative;
+  width: min(100%, 30rem);
+  aspect-ratio: 16/9;
+  background: var(--raised);
+  outline: 1px solid var(--control);
+  touch-action: none;
+  cursor: crosshair;
+  margin-block: var(--space-3);
+}
+.ws-mask-frame span {
+  position: absolute;
+  background: var(--selected);
+  border: 2px solid var(--action);
+  box-sizing: border-box;
+  pointer-events: none;
+  overflow: hidden;
+}
+.ws-mask-coordinates {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.ws-access .ws-mask-coordinates label {
+  display: grid;
+}
+.ws-mask-coordinates input {
+  width: 6rem;
+}
+@media (max-width: 38rem) {
+  .ws-users summary {
+    grid-template-columns: 1fr auto auto;
+  }
+  .ws-users summary strong {
+    grid-column: 1 / 3;
+  }
+  .ws-users summary::after {
+    grid-column: 3;
+    grid-row: 1 / 3;
+  }
+}
+.ws-privacy-outputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+.ws-privacy-outputs label {
+  min-block-size: 2.75rem;
+  cursor: pointer;
+}
+.ws-access input[type="checkbox"] {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  flex: none;
+  margin: 0;
+}
+
+.ws-access :is(label, form)[hidden] {
+  display: none;
 }

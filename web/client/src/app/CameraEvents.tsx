@@ -1,5 +1,10 @@
+import {
+  FilterPanel,
+  matchesQuery,
+  needsListSearch,
+} from "../ui-kit/FilterPanel";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
-import { Link } from "react-router";
+import { RouteButton } from "./RouteButton";
 import type {
   AlertItem,
   AlertLink,
@@ -107,9 +112,9 @@ function EventPreview({
         attempt={attempt}
         {...(canRetry ? { retry: retryPreview } : {})}
       />
-      <Link className="ws-event-open" to={monitor}>
+      <RouteButton className="ws-event-open" to={monitor}>
         Открыть тревогу в мониторинге
-      </Link>
+      </RouteButton>
     </>
   );
 }
@@ -133,6 +138,7 @@ export function CameraEvents({
   monitor: (id: string) => string;
 }) {
   const [limit, setLimit] = useState(pageSize);
+  const [query, setQuery] = useState("");
   const heading = useId();
   const events = useMemo(
     () =>
@@ -143,7 +149,15 @@ export function CameraEvents({
         ),
     [feed.items, point.id],
   );
-  const visible = events.filter(
+  const matching = events.filter((e) =>
+    matchesQuery(
+      query,
+      alertName(e.type),
+      e.work_state && alertStates[e.work_state],
+      formatUtc(e.observed_at),
+    ),
+  );
+  const visible = matching.filter(
     (item, index) => index < limit || item.id === review,
   );
   const status =
@@ -159,6 +173,21 @@ export function CameraEvents({
   return (
     <section className="ws-camera-events" aria-labelledby={heading}>
       <h3 id={heading}>События камеры</h3>
+      {needsListSearch(events.length, query) && (
+        <FilterPanel
+          label="Фильтры событий камеры"
+          queryLabel="Поиск событий"
+          query={query}
+          onQuery={(value) => {
+            setQuery(value);
+            setLimit(pageSize);
+          }}
+          onReset={() => setQuery("")}
+        />
+      )}
+      {query && !matching.length && !status && (
+        <p role="status">События не найдены.</p>
+      )}
       {status && <p role="status">{status}</p>}
       {feed.status !== "denied" && visible.length > 0 && (
         <>
@@ -216,9 +245,9 @@ export function CameraEvents({
               );
             })}
           </ol>
-          {events.length > visible.length && (
+          {matching.length > visible.length && (
             <Button onClick={() => setLimit((n) => n + pageSize)}>
-              Показать ещё ({events.length - visible.length})
+              Показать ещё ({matching.length - visible.length})
             </Button>
           )}
         </>

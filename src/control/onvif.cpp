@@ -31,6 +31,7 @@ constexpr std::string_view addressing = "http://schemas.xmlsoap.org/ws/2004/08/a
 constexpr std::string_view discovery = "http://schemas.xmlsoap.org/ws/2005/04/discovery";
 constexpr std::string_view device = "http://www.onvif.org/ver10/device/wsdl";
 constexpr std::string_view media = "http://www.onvif.org/ver10/media/wsdl";
+constexpr std::string_view imaging = "http://www.onvif.org/ver20/imaging/wsdl";
 constexpr std::string_view schema = "http://www.onvif.org/ver10/schema";
 constexpr std::string_view ptz = "http://www.onvif.org/ver20/ptz/wsdl";
 constexpr std::string_view events = "http://www.onvif.org/ver10/events/wsdl";
@@ -90,7 +91,7 @@ std::string uuid()
 
 std::string envelope(const std::string& header, const std::string& body)
 {
-    return R"(<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://www.w3.org/2005/08/addressing" xmlns:w="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dn="http://www.onvif.org/ver10/network/wsdl" xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:tptz="http://www.onvif.org/ver20/ptz/wsdl" xmlns:tev="http://www.onvif.org/ver10/events/wsdl" xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2" xmlns:tt="http://www.onvif.org/ver10/schema"><s:Header>)" +
+    return R"(<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://www.w3.org/2005/08/addressing" xmlns:w="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dn="http://www.onvif.org/ver10/network/wsdl" xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:timg="http://www.onvif.org/ver20/imaging/wsdl" xmlns:tptz="http://www.onvif.org/ver20/ptz/wsdl" xmlns:tev="http://www.onvif.org/ver10/events/wsdl" xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2" xmlns:tt="http://www.onvif.org/ver10/schema"><s:Header>)" +
            header + "</s:Header><s:Body>" + body + "</s:Body></s:Envelope>";
 }
 
@@ -189,11 +190,12 @@ struct CameraClient {
         if (!g_tls_connection_handshake(G_TLS_CONNECTION(tls.get()), nullptr, nullptr))
             throw Failure{502, "camera_tls_error"};
         const std::string action = headers.action.empty() ? std::string{ns} + "/" + operation : headers.action;
-        const std::string element = (ns == device   ? "tds:"
-                                     : ns == media  ? "trt:"
-                                     : ns == ptz    ? "tptz:"
-                                     : ns == events ? "tev:"
-                                                    : "wsnt:") +
+        const std::string element = (ns == device    ? "tds:"
+                                     : ns == media   ? "trt:"
+                                     : ns == imaging ? "timg:"
+                                     : ns == ptz     ? "tptz:"
+                                     : ns == events  ? "tev:"
+                                                     : "wsnt:") +
                                     operation;
         auto body = envelope("<a:MessageID>" + uuid() + "</a:MessageID><a:To>" + escape(url) +
                                  "</a:To><a:Action>" + action +
@@ -468,8 +470,8 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
     result["events"] = child(services, schema, "Events") != nullptr;
     auto profiles = client.call(service, media, "GetProfiles");
     Json options = Json::array();
-    Json control{{"ip", ip}, {"host", client.host}};
-    for (const auto* name : {"PTZ", "Events"}) {
+    Json control{{"ip", ip}, {"host", client.host}, {"device_service", url}, {"media_service", service}};
+    for (const auto* name : {"PTZ", "Events", "Imaging"}) {
         if (auto* address = child(child(services, schema, name), schema, "XAddr"))
             control[name] = value(address);
     }
@@ -527,6 +529,9 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         Json selected{{"profile", id}, {"directions", Json::array()}};
         auto* source = child(p, schema, "VideoSourceConfiguration");
         selected["source"] = attribute(source, "token");
+        auto* physical_source = child(source, schema, "SourceToken");
+        selected["channel"] = physical_source ? value(physical_source) : selected.at("source").get<std::string>();
+        selected["imaging_source"] = physical_source != nullptr;
         auto config = attribute(child(p, schema, "PTZConfiguration"), "token");
         selected["ptz_profile"] = !config.empty();
         if (!config.empty() && control.contains("PTZ")) {
@@ -544,22 +549,132 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
             }
             selected["directions"] = ptz_options.at(config);
         }
+        Json option{{"token", id},
+                    {"name", value(child(p, schema, "Name"))},
+                    {"url", address},
+                    {"channel", selected.at("channel")}};
+        if (auto* resolution = child(enc, schema, "Resolution")) {
+            auto dimension = [&](const char* name) {
+                const auto s = value(child(resolution, schema, name));
+                char* end = nullptr;
+                auto n = g_ascii_strtoull(s.c_str(), &end, 10);
+                if (*end || n == 0 || n > 65535)
+                    throw Failure{502, "camera_protocol_error"};
+                return n;
+            };
+            option["width"] = dimension("Width");
+            option["height"] = dimension("Height");
+        }
+        selected["stream_url"] = address;
+        selected["pixels"] = option.value("width", 0LL) * option.value("height", 0LL);
         controls[fingerprint(key, "onvif-stream", address)] = std::move(selected);
-        options.push_back({{"token", id}, {"name", value(child(p, schema, "Name"))}, {"url", address}});
+        options.push_back(std::move(option));
     }
     if (options.size() < 2)
         throw Failure{422, denied_transport ? "camera_transport_denied" : "camera_incompatible_profiles"};
     Json enrollment = result;
     enrollment["control"] = std::move(control);
     enrollment["profiles"] = std::move(controls);
-    for (const auto& option : options)
-        enrollment["stream_ids"].push_back(
-            fingerprint(key, "onvif-stream", option.at("url").get_ref<const std::string&>()));
     result["profiles"] = std::move(options);
     result["selection"] = ticket(key, "camera/" + site, std::move(enrollment));
     if (result.at("selection").get_ref<const std::string&>().size() > 24576)
         throw Failure{502, "camera_protocol_error"};
     return result;
+}
+
+void verify_camera_channel(const CameraNetworks& networks, const Json& config)
+{
+    const auto& control = config.at("onvif_control");
+    auto client = control_client(networks, control, config.at("credentials"));
+    auto info = client.call(control.at("device_service"), device, "GetDeviceInformation");
+    auto* identity = response(info, device, "GetDeviceInformationResponse");
+    const auto& expected = config.at("onvif");
+    if (value(child(identity, device, "SerialNumber")) != expected.at("serial").get_ref<const std::string&>() ||
+        value(child(identity, device, "Model")) != expected.at("model").get_ref<const std::string&>() ||
+        value(child(identity, device, "FirmwareVersion")) != expected.at("firmware").get_ref<const std::string&>())
+        throw Failure{409, "camera_binding_conflict"};
+    auto profiles = client.call(control.at("media_service"), media, "GetProfiles");
+    std::set<std::string> compatible;
+    for (auto* p = response(profiles, media, "GetProfilesResponse")->children; p; p = p->next) {
+        if (!named(p, media, "Profiles"))
+            continue;
+        auto* enc = child(p, schema, "VideoEncoderConfiguration");
+        if (!enc || value(child(enc, schema, "Encoding")) != "H264")
+            continue;
+        auto* source = child(p, schema, "VideoSourceConfiguration");
+        auto* token = child(source, schema, "SourceToken");
+        if ((token ? value(token) : attribute(source, "token")) ==
+            control.at("channel").get_ref<const std::string&>())
+            compatible.insert(attribute(p, "token"));
+    }
+    for (auto [profile, url] :
+         {std::pair{"profile", "main_url"}, std::pair{"secondary_profile", "secondary_url"}}) {
+        if (!compatible.contains(control.at(profile).get_ref<const std::string&>()))
+            throw Failure{409, "camera_binding_conflict"};
+        auto reply =
+            client.call(control.at("media_service"), media, "GetStreamUri",
+                        "<trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</"
+                        "tt:Protocol></tt:Transport></trt:StreamSetup><trt:ProfileToken>" +
+                            escape(control.at(profile).get_ref<const std::string&>()) + "</trt:ProfileToken>");
+        auto uri =
+            value(child(child(response(reply, media, "GetStreamUriResponse"), media, "MediaUri"), schema, "Uri"));
+        if (uri != config.at(url).get_ref<const std::string&>() || !networks.permits(uri))
+            throw Failure{409, "camera_binding_conflict"};
+    }
+}
+
+Json camera_brightness(const CameraNetworks& networks, const Json& control, const Json& credentials)
+{
+    if (!control.contains("Imaging") || !control.value("imaging_source", false))
+        return nullptr;
+    auto client = control_client(networks, control, credentials);
+    const auto source = "<timg:VideoSourceToken>" + escape(control.at("channel").get_ref<const std::string&>()) +
+                        "</timg:VideoSourceToken>";
+    auto options = client.call(control.at("Imaging"), imaging, "GetOptions", source);
+    auto* range = child(child(response(options, imaging, "GetOptionsResponse"), imaging, "ImagingOptions"), schema,
+                        "Brightness");
+    if (!range)
+        return nullptr;
+    auto read = [](xmlNode* n) {
+        auto raw = value(n);
+        char* end = nullptr;
+        auto v = g_ascii_strtod(raw.c_str(), &end);
+        if (*end || !std::isfinite(v))
+            throw Failure{502, "camera_protocol_error"};
+        return v;
+    };
+    auto settings = client.call(control.at("Imaging"), imaging, "GetImagingSettings", source);
+    auto* values = child(response(settings, imaging, "GetImagingSettingsResponse"), imaging, "ImagingSettings");
+    return {{"min", read(child(range, schema, "Min"))},
+            {"max", read(child(range, schema, "Max"))},
+            {"value", read(child(values, schema, "Brightness"))}};
+}
+
+double apply_camera_brightness(const CameraNetworks& networks, const Json& config, BrightnessChange change)
+{
+    const auto& control = config.at("onvif_control");
+    const auto& credentials = config.at("credentials");
+    auto matches = [](const Json& value, double target) {
+        return value.get<float>() == static_cast<float>(target);
+    };
+    auto current = camera_brightness(networks, control, credentials);
+    if (current.is_null() || change.requested < current.at("min").get<double>() ||
+        change.requested > current.at("max").get<double>())
+        throw Failure{422, "camera_image_unsupported"};
+    if (matches(current.at("value"), change.requested))
+        return current.at("value").get<double>();
+    if (!matches(current.at("value"), change.expected))
+        throw Failure{409, "revision_conflict"};
+    auto client = control_client(networks, control, credentials);
+    client.call(control.at("Imaging"), imaging, "SetImagingSettings",
+                "<timg:VideoSourceToken>" + escape(control.at("channel").get_ref<const std::string&>()) +
+                    "</timg:VideoSourceToken><timg:ImagingSettings><tt:Brightness>" +
+                    Json(change.requested).dump() +
+                    "</tt:Brightness></timg:ImagingSettings><timg:ForcePersistence>true</timg:ForcePersistence>");
+    auto actual = camera_brightness(networks, control, credentials);
+    if (actual.is_null() || !matches(actual.at("value"), change.requested))
+        throw Failure{502, "camera_image_unconfirmed"};
+    return actual.at("value").get<double>();
 }
 
 Json read_ptz_position(const CameraNetworks& networks, const Json& control, const Json& credentials)

@@ -30,6 +30,24 @@
   background: var(--surface);
   cursor: wait;
 }
+.bk-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  flex: none;
+  justify-self: start;
+}
+.bk-icon-button svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+a.bk-button {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
 .bk-button:focus-visible,
 .bk-field input:focus-visible {
   outline: 2px solid var(--focus);

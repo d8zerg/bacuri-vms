@@ -72,13 +72,13 @@ case "${2:-control}" in
         PYTHONDONTWRITEBYTECODE=1 python3 tests/recovery/scenarios.py "$test_dir" ;;
     retention) PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/retention.py "$test_dir" ;;
     archive) PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/recording.py "$test_dir" ;;
-    playback|live|alerts|workspace|maps|commissioning|export)
+    playback|live|alerts|workspace|maps|commissioning|batches|export)
         export BACURI_LISTEN=0.0.0.0 BACURI_ORIGIN="https://$(hostname -i | awk '{print $1}'):8443"
-        if [ "$2" = commissioning ]; then
+        if [ "$2" = commissioning ] || [ "$2" = batches ]; then
             export BACURI_CAMERA_NETWORKS="127.0.0.0/8,::1/128,$fixture_ip/32"
             export BACURI_CAMERA_CA_FILE="$BACURI_TLS_CERT"
             export BACURI_LEGACY_RTSP_ADDRESSES="$fixture_ip"
-            PYTHONDONTWRITEBYTECODE=1 python3 tests/cameras/commissioning.py "$test_dir"
+            PYTHONDONTWRITEBYTECODE=1 python3 "tests/cameras/$2.py" "$test_dir"
         elif [ "$2" = export ]; then
             PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/export.py "$test_dir"
         elif [ "$2" = workspace ] || [ "$2" = maps ]; then

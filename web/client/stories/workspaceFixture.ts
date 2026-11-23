@@ -8,6 +8,8 @@ import type {
   Services,
   Session,
   AlertItem,
+  Camera,
+  Feed,
   Entry,
   AlertLink,
 } from "../src/contracts/workspace";
@@ -34,7 +36,7 @@ const rows: Entry[] = [
   },
   { state: "pending_catalog", interval: range(260, 360) },
 ];
-const alerts: AlertItem[] = [82, 132, 236, 301].map((n, i) => ({
+const initialAlerts: AlertItem[] = [82, 132, 236, 301].map((n, i) => ({
   id: "event-" + i,
   point_id: point,
   work_state: "new",
@@ -50,6 +52,47 @@ const alerts: AlertItem[] = [82, 132, 236, 301].map((n, i) => ({
   uncertainty_us: "0",
 }));
 export function fixture(condition = "normal"): Services {
+  let cameras: Camera[] =
+    condition === "empty"
+      ? []
+      : [
+          {
+            id: "previous",
+            point_id: point,
+            name: "Ворота",
+            binding_revision: "1",
+            main_url: "rtsps://previous/main",
+            secondary_url: "rtsps://previous/sub",
+            has_credentials: true,
+            desired_revision: "1",
+            applied_revision: "1",
+            state: "applied",
+          },
+        ];
+  if (condition === "catalog") {
+    const device = {
+      endpoint_id: "warehouse-encoder",
+      model: "Энкодер склада",
+      serial: "WH-204",
+      firmware: "2.1",
+      manufacturer: "Bacuri",
+    };
+    for (const [index, name] of ["Разгрузка", "Склад"].entries()) {
+      cameras.push({
+        ...cameras[0]!,
+        ...device,
+        id: "storage-" + index,
+        point_id: "storage-point-" + index,
+        name,
+        channel_token: "channel" + (index + 1),
+        desired_revision: "2",
+        applied_revision: index === 0 ? "2" : null,
+        state: index === 0 ? "applied" : "applying",
+      });
+    }
+  }
+  let alerts = condition === "empty" ? [] : initialAlerts;
+  const subscribers = new Set<(feed: Feed) => void>();
   const session: Session = {
     user_id: "installer",
     csrf_token: "fixture",
@@ -177,7 +220,13 @@ export function fixture(condition = "normal"): Services {
   }
   return {
     exportFragment: () => Promise.reject(new HttpFailure(403, "forbidden")),
-    ...alertWorkFixture(point, utc(150)),
+    ...alertWorkFixture(point, utc(150), (id, state) => {
+      alerts = alerts.map((item) =>
+        item.id === id ? { ...item, work_state: state } : item,
+      );
+      for (const publish of subscribers)
+        publish({ status: "online", items: alerts });
+    }),
     maps: () =>
       condition === "map-error"
         ? Promise.reject(Error("503"))
@@ -275,6 +324,22 @@ export function fixture(condition = "normal"): Services {
           connection: "online",
           recording: "current",
         },
+        ...(condition === "catalog"
+          ? [
+              {
+                id: "storage-point-0",
+                name: "Разгрузка",
+                connection: "online" as const,
+                recording: "current" as const,
+              },
+              {
+                id: "storage-point-1",
+                name: "Склад",
+                connection: "offline" as const,
+                recording: "stopped" as const,
+              },
+            ]
+          : []),
       ]),
     discover: () =>
       Promise.resolve([
@@ -284,21 +349,7 @@ export function fixture(condition = "normal"): Services {
           selection: "discovered-device",
         },
       ]),
-    cameras: () =>
-      Promise.resolve([
-        {
-          id: "previous",
-          point_id: point,
-          name: "Ворота",
-          binding_revision: "1",
-          main_url: "rtsps://previous/main",
-          secondary_url: "rtsps://previous/sub",
-          has_credentials: true,
-          desired_revision: "1",
-          applied_revision: "1",
-          state: "applied",
-        },
-      ]),
+    cameras: () => Promise.resolve(structuredClone(cameras)),
     inspect: (_, __, username, password) =>
       username === "viewer" && password === "demo"
         ? Promise.resolve({
@@ -328,21 +379,25 @@ export function fixture(condition = "normal"): Services {
       await pause(160, signal);
       if (condition === "offline" && ++attempt === 1)
         throw new Error("offline");
-      return {
-        ...draft,
-        id: "device",
+      const registered: Camera = {
+        name: draft.name,
+        main_url: draft.main_url,
+        secondary_url: draft.secondary_url,
+        id: draft.replace_device_id || crypto.randomUUID(),
         binding_revision: draft.replace_device_id ? "2" : "1",
         point_id: point,
         applied_revision: String(++revision),
         desired_revision: String(revision),
         state: "applied",
-        has_credentials: false,
+        has_credentials: !!draft.credentials,
       };
+      cameras = [...cameras.filter((c) => c.id !== registered.id), registered];
+      return registered;
     },
     archive: () => Promise.resolve(rows),
     resolve: (_, id) => {
-      const i = alerts.findIndex((a) => a.id === id),
-        item = alerts[i]!;
+      const i = initialAlerts.findIndex((a) => a.id === id),
+        item = initialAlerts[i]!;
       const base = { point_id: point, archive_interval: range(0, 360) };
       const link: AlertLink =
         i === 1
@@ -358,8 +413,11 @@ export function fixture(condition = "normal"): Services {
       return Promise.resolve(link);
     },
     subscribe: (_, publish) => {
-      publish({ status: "online", items: condition === "empty" ? [] : alerts });
-      return () => {};
+      subscribers.add(publish);
+      publish({ status: "online", items: alerts });
+      return () => {
+        subscribers.delete(publish);
+      };
     },
     attach: async (video, _, target, signal) => {
       signal.throwIfAborted();

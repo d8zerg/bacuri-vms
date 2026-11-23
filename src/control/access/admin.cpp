@@ -235,7 +235,8 @@ bool administration(const Request& req, Response& res, const Sessions& sessions,
         throw Failure{403, "forbidden"};
     std::string id{slash == path.npos ? std::string_view{} : path.substr(slash + 1)};
     if (write) {
-        auto tag = "\"" + scope_revision(db, site) + "\"";
+        const auto revision = scope_revision(db, site);
+        const auto tag = "\"" + revision + "\"";
         res.set("ETag", tag);
         if (req.count("If-Match") != 1)
             throw Failure{428, "precondition_required"};

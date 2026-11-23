@@ -11,7 +11,6 @@ import type {
   Target,
 } from "../contracts/workspace";
 import { AlertList } from "../ui-kit/AlertList";
-import { ArchiveTimeline } from "../ui-kit/ArchiveTimeline";
 import type { TimelineData } from "../ui-kit/ArchiveTimeline";
 import {
   SessionPlayer,
@@ -24,7 +23,13 @@ import {
 import { milliseconds } from "../ui-kit/utc";
 import { alertStates } from "../ui-kit/alertLabels";
 import { Button } from "../ui-kit/FormControls";
-import { cameraError } from "./CameraSelection";
+import { SubsectionMenu } from "./SubsectionMenu";
+import { cameraError } from "./cameraError";
+const ArchiveTimeline = lazy(() =>
+  import("../ui-kit/ArchiveTimeline").then((m) => ({
+    default: m.ArchiveTimeline,
+  })),
+);
 const FragmentExport = lazy(() => import("./FragmentExport"));
 const AlertWorkPanel = lazy(() =>
   import("./AlertWork").then((m) => ({ default: m.AlertWorkPanel })),
@@ -100,7 +105,6 @@ function View({
   archive,
   restoredWindow,
   returnFocus,
-  onMode,
   onSeek,
   onBack,
 }: {
@@ -110,7 +114,6 @@ function View({
   alert: string | null;
   at: string | null;
   archive: boolean;
-  onMode: (mode: "live" | "archive") => void;
   onSeek: (utc: number) => void;
   restoredWindow: Interval | null;
   returnFocus: string | null;
@@ -127,6 +130,7 @@ function View({
     if (alert) heading.current?.focus();
   }, [alert]);
   useEffect(() => {
+    if (!archive) return;
     const ctl = new AbortController();
     async function load() {
       const link = alert
@@ -141,14 +145,25 @@ function View({
         window,
         ctl.signal,
       );
-      if (!ctl.signal.aborted)
+      if (!ctl.signal.aborted) {
+        setFailed(false);
         setLoaded({ entries, window, ...(link ? { link } : {}) });
+      }
     }
     void load().catch(() => {
       if (!ctl.signal.aborted) setFailed(true);
     });
     return () => ctl.abort();
-  }, [services, site, point.id, alert, anchor, attempt, restoredWindow]);
+  }, [
+    archive,
+    services,
+    site,
+    point.id,
+    alert,
+    anchor,
+    attempt,
+    restoredWindow,
+  ]);
   useEffect(() => {
     if (!returnFocus || (!loaded && !failed)) return;
     const row = document.getElementById("alert-" + returnFocus);
@@ -176,17 +191,13 @@ function View({
     (e) =>
       milliseconds(e.interval.start) <= ms && ms < milliseconds(e.interval.end),
   );
-  const block =
-    link && !at
-      ? link.state === "ready"
-        ? link.interval
-        : undefined
-      : entry?.state === "recorded"
-        ? entry.interval
-        : undefined;
+  const alertInterval = link?.state === "ready" && !at ? link.interval : null;
+  const playable = link && !at ? !!alertInterval : entry?.state === "recorded";
+  const start = alertInterval?.start,
+    end = alertInterval?.end;
   const playbackWindow = useMemo(
-    () => (link?.state === "ready" && !at ? link.interval : windowAround(ms)),
-    [link, at, ms],
+    () => (start && end ? { start, end } : windowAround(ms)),
+    [start, end, ms],
   );
   const liveTarget = useMemo<Target>(
     () => ({ mode: "live", point: point.id }),
@@ -194,7 +205,7 @@ function View({
   );
   const archiveTarget = useMemo<Target | null>(
     () =>
-      block
+      playable
         ? {
             mode: "archive",
             point: point.id,
@@ -202,7 +213,7 @@ function View({
             position,
           }
         : null,
-    [block, point.id, playbackWindow, position],
+    [playable, point.id, playbackWindow, position],
   );
   const target = archive ? archiveTarget : liveTarget;
   let notice = failed
@@ -236,6 +247,7 @@ function View({
   return (
     <div className="ws-watch">
       <SessionPlayer
+        key={archive ? "archive" : "live"}
         attempt={attempt}
         headingRef={heading}
         services={services}
@@ -244,7 +256,6 @@ function View({
         title={point.name}
         mode={archive ? "archive" : "live"}
         notice={notice}
-        onMode={onMode}
         retry={retry}
         {...(archive ? { position } : {})}
         {...(alert
@@ -291,12 +302,16 @@ function View({
           }
         />
       )}
-      <ArchiveTimeline
-        data={data}
-        positionMs={ms}
-        onRefresh={retry}
-        onPositionChange={onSeek}
-      />
+      {archive && (
+        <Suspense fallback={null}>
+          <ArchiveTimeline
+            data={data}
+            positionMs={ms}
+            onRefresh={retry}
+            onPositionChange={onSeek}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
@@ -311,6 +326,15 @@ export function Monitor({
   points: Point[];
   feed: Feed;
 }) {
+  useEffect(() => {
+    if (
+      feed.status === "online" &&
+      feed.items.length &&
+      !performance.getEntriesByName("workspace-action").length
+    )
+      performance.mark("workspace-action");
+  }, [feed]);
+  const [feedQuery, setFeedQuery] = useState("");
   const [params, set] = useSearchParams();
   useEffect(() => {
     if (
@@ -366,26 +390,57 @@ export function Monitor({
   const filter = Object.hasOwn(alertStates, requestedFilter)
     ? requestedFilter
     : "";
+  const archive =
+    params.get("mode") === "archive" ||
+    (!!alert && params.get("mode") !== "live");
   const validAt = at && Number.isFinite(Date.parse(at)) ? at : null;
   return (
     <>
-      <div className="ws-title">
-        <div>
-          <h1>Мониторинг</h1>
-          {point && (
-            <div className="ws-point-health">
-              <span data-state={point.connection}>
-                {connectionLabels[point.connection]}
-              </span>
-              <span data-state={point.recording}>
-                {recordingLabels[point.recording]}
-              </span>
-            </div>
-          )}
-        </div>
-        <a className="ws-feed-jump" href="#feed-heading">
-          К тревогам
-        </a>
+      <SubsectionMenu
+        label="Подразделы мониторинга"
+        items={[
+          {
+            label: "Эфир",
+            icon: "radio",
+            active: !archive,
+            disabled: !point,
+            select: () => {
+              if (archive) update({ mode: "live" });
+            },
+          },
+          {
+            label: "Архив",
+            icon: "archive",
+            active: archive,
+            disabled: !point,
+            select: () => {
+              if (!archive) {
+                if (!alert && !validAt && !restoredWindow) {
+                  const now = Date.now();
+                  const window = windowAround(now);
+                  update({
+                    mode: "archive",
+                    at: new Date(now).toISOString(),
+                    from: window.start,
+                    to: window.end,
+                  });
+                } else update({ mode: "archive" });
+              }
+            },
+          },
+          {
+            label: "К тревогам",
+            icon: "bell-ring",
+            className: "ws-feed-jump",
+            select: () => {
+              const heading = document.getElementById("feed-heading");
+              heading?.focus({ preventScroll: true });
+              heading?.scrollIntoView({ block: "start" });
+            },
+          },
+        ]}
+      />
+      <div className="ws-point-toolbar">
         <label>
           Точка наблюдения{" "}
           <select
@@ -415,6 +470,16 @@ export function Monitor({
             ))}
           </select>
         </label>
+        {point && (
+          <div className="ws-point-health">
+            <span data-state={point.connection}>
+              {connectionLabels[point.connection]}
+            </span>
+            <span data-state={point.recording}>
+              {recordingLabels[point.recording]}
+            </span>
+          </div>
+        )}
       </div>
       <div className="ws-monitor">
         {point ? (
@@ -425,17 +490,15 @@ export function Monitor({
             point={point}
             alert={alert}
             at={validAt}
-            archive={
-              params.get("mode") === "archive" ||
-              (!!alert && params.get("mode") !== "live")
-            }
+            archive={archive}
             restoredWindow={restoredWindow}
             returnFocus={alert ? null : focus}
-            onMode={(mode) => update({ mode })}
             onSeek={(ms) =>
               update({ at: new Date(ms).toISOString(), mode: "archive" }, true)
             }
-            onBack={(at, window) =>
+            onBack={(at, window) => {
+              if (alert && !document.getElementById("alert-" + alert))
+                setFeedQuery("");
               update({
                 focus: alert,
                 state:
@@ -449,8 +512,8 @@ export function Monitor({
                 at,
                 from: window.start,
                 to: window.end,
-              })
-            }
+              });
+            }}
           />
         ) : (
           <p className="ws-panel ws-pad" role="status">
@@ -460,6 +523,7 @@ export function Monitor({
           </p>
         )}
         <AlertList
+          search={{ query: feedQuery, change: setFeedQuery }}
           feed={feed}
           points={points}
           selected={alert ?? focus}

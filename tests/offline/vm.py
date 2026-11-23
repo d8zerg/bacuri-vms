@@ -246,6 +246,12 @@ def exercise(line, send):
             out.append(value)
         return out
 
+    send("suite")
+    suite = line()
+    expected_suite = os.environ.get("BACURI_TEST_SUITE")
+    if expected_suite and suite != expected_suite:
+        raise AssertionError(f"Expected {expected_suite} guest, booted {suite}")
+    result["debian_suite"] = suite
     installed = {(p.split()[0], p.split()[1]): p.split()[2] for p in rows("packages")}
     assets = {path: sha for sha, path in (p.split(maxsplit=1) for p in rows("assets"))}
     sbom = json.loads((report / "bundle/sbom.json").read_text())

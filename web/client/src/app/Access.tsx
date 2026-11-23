@@ -1,9 +1,17 @@
+import {
+  FilterPanel,
+  matchesQuery,
+  needsListSearch,
+} from "../ui-kit/FilterPanel";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import type { components } from "../../../../build/contracts/api";
 import type { Point, Session } from "../contracts/workspace";
 import { api, data } from "../adapters/api";
+import { SubsectionMenu } from "./SubsectionMenu";
 import { Button } from "../ui-kit/FormControls";
+import { AccessAudit } from "./AccessAudit";
+import { PrivacyEditor } from "./PrivacyEditor";
 import "./access.css";
 
 type Schema = components["schemas"];
@@ -19,21 +27,15 @@ const actions = {
   export: "Экспорт оригинала",
   view_ptz: "Просмотр и PTZ",
 };
-const outputs = {
-  live: "Эфир",
-  archive: "Архив",
-  thumbnail: "Миниатюры",
-  export: "Экспорт",
-};
 const tabs = [
-  "Пользователи",
-  "Группы",
-  "Разрешения",
-  "Приватность",
-  "Вход",
-  "Аудит",
+  ["Пользователи", "user-round"],
+  ["Группы", "users-round"],
+  ["Разрешения", "key-round"],
+  ["Приватность", "eye-off"],
+  ["Вход", "log-in"],
+  ["Аудит", "clipboard-list"],
 ] as const;
-type Tab = (typeof tabs)[number];
+type Tab = (typeof tabs)[number][0];
 interface Policy {
   revision: string;
   users: User[];
@@ -127,6 +129,7 @@ export default function Access({
   expire: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("Пользователи");
+  const [loading, setLoading] = useState(true);
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [attempt, setAttempt] = useState(0),
     [busy, setBusy] = useState(false),
@@ -135,6 +138,7 @@ export default function Access({
     [point, setPoint] = useState("");
   useEffect(() => {
     const ctl = new AbortController();
+    setLoading(true);
     void load(site, session.csrf_token, ctl.signal)
       .then((p) => {
         if (!ctl.signal.aborted) setPolicy(p);
@@ -146,6 +150,9 @@ export default function Access({
           expire();
         else
           setMessage("Не удалось получить актуальные права. Обновите данные.");
+      })
+      .finally(() => {
+        if (!ctl.signal.aborted) setLoading(false);
       });
     return () => ctl.abort();
   }, [site, session.csrf_token, attempt, expire]);
@@ -226,101 +233,219 @@ export default function Access({
       action(new FormData(e.currentTarget));
     };
   }
+  const [query, setQuery] = useState("");
+  const [pointQuery, setPointQuery] = useState("");
+  const [auditMethod, setAuditMethod] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+  function resetFilters() {
+    setQuery("");
+    setPointQuery("");
+    setAuditMethod("");
+    setRoleFilter("");
+    setActionFilter("");
+  }
+  const users = policy?.users.filter(
+    (u) =>
+      (!roleFilter || u.role === roleFilter) &&
+      matchesQuery(query, u.username, u.enabled ? "Активна" : "Заблокирована"),
+  );
+  const grants = policy?.grants.filter(
+    (g) =>
+      (!actionFilter || g.action === actionFilter) &&
+      matchesQuery(
+        query,
+        policy.users.find((u) => u.id === g.user_id)?.username,
+        actions[g.action],
+        policy.points.find((p) => p.id === g.point_id)?.name,
+        policy.groups.find((r) => r.id === g.group_id)?.name,
+      ),
+  );
+  const identities = policy?.users.filter((u) => u.subject);
+  const shownIdentities = identities?.filter((u) =>
+    matchesQuery(query, u.username, u.issuer, u.subject),
+  );
+  const refresh = {
+    label: "Обновить данные",
+    busy: loading,
+    disabled: busy,
+    run: () => {
+      setMessage("");
+      setAttempt((n) => n + 1);
+    },
+  };
+  const matchingGroups = policy?.groups.filter((g) =>
+    matchesQuery(query, g.name),
+  );
+  const matchingPoints = policy?.points.filter((p) =>
+    matchesQuery(query, p.name),
+  );
   const selected = policy?.groups.find((g) => g.id === group);
   const selectedPoint = point || policy?.points[0]?.id || "";
   const privacy = policy?.privacy.find((p) => p.point_id === selectedPoint);
   return (
     <section className="ws-panel ws-pad ws-access">
-      <h1>Доступ и пользователи</h1>
-      <nav aria-label="Управление доступом">
-        {tabs.map((t) => (
-          <button key={t} aria-pressed={tab === t} onClick={() => setTab(t)}>
-            {t}
-          </button>
-        ))}
-      </nav>
+      <SubsectionMenu
+        label="Управление доступом"
+        items={tabs.map(([label, icon]) => ({
+          label,
+          icon,
+          active: tab === label,
+          select: () => {
+            if (label !== tab) resetFilters();
+            setTab(label);
+            setMessage("");
+          },
+        }))}
+      />
       <p role="status">{message}</p>
-      <Button onClick={() => setAttempt((n) => n + 1)}>Обновить данные</Button>
       {!policy ? (
-        <p role="status">Ожидание данных площадки</p>
+        <>
+          <FilterPanel
+            label="Фильтры доступа"
+            queryLabel="Поиск"
+            query={query}
+            onQuery={setQuery}
+            onReset={resetFilters}
+            searchDisabled
+            refresh={refresh}
+          />
+          {loading && <p role="status">Ожидание данных площадки</p>}
+        </>
       ) : (
         <fieldset
+          aria-label={tab}
           disabled={busy}
+          onChangeCapture={() => setMessage("")}
           key={site + ":" + tab + ":" + policy.revision}
         >
-          <legend>{tab}</legend>
           {tab === "Пользователи" && (
             <>
-              <form
-                onSubmit={form(
-                  (f) =>
-                    void save("users", "POST", {
-                      username: field(f, "name"),
-                      password: field(f, "password"),
-                      role: field(f, "role"),
-                    }),
-                )}
+              <FilterPanel
+                refresh={refresh}
+                label="Фильтры пользователей"
+                queryLabel="Поиск пользователя"
+                query={query}
+                onQuery={setQuery}
+                onReset={resetFilters}
+                filtered={!!roleFilter}
               >
-                <h2>Новый пользователь</h2>
                 <label>
-                  Имя
-                  <input required name="name" maxLength={128} />
+                  Фильтр по роли
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value)}
+                  >
+                    <option value="">Все роли</option>
+                    <option value="operator">Оператор</option>
+                    <option value="administrator">Администратор</option>
+                  </select>
                 </label>
-                <label>
-                  Начальный пароль
-                  <input
-                    required
-                    type="password"
-                    autoComplete="new-password"
-                    name="password"
-                  />
-                </label>
-                <Roles />
-                <Button type="submit">Создать пользователя</Button>
-              </form>
-              {policy.users.map((u) => (
+              </FilterPanel>
+              <details className="ws-new-user" name="access-user">
+                <summary>Добавить пользователя</summary>
                 <form
-                  key={u.id}
                   onSubmit={form(
                     (f) =>
-                      void save("users/" + u.id, "PATCH", {
+                      void save("users", "POST", {
+                        username: field(f, "name"),
+                        password: field(f, "password"),
                         role: field(f, "role"),
-                        enabled: f.has("enabled"),
                       }),
                   )}
                 >
-                  <h2>{u.username}</h2>
-                  <Roles value={u.role} />
                   <label>
-                    <input
-                      type="checkbox"
-                      name="enabled"
-                      defaultChecked={u.enabled}
-                    />
-                    Учётная запись активна
+                    Имя
+                    <input required name="name" maxLength={128} />
                   </label>
-                  <Button type="submit">Сохранить пользователя</Button>
+                  <label>
+                    Начальный пароль
+                    <input
+                      required
+                      type="password"
+                      autoComplete="new-password"
+                      name="password"
+                    />
+                  </label>
+                  <Roles />
+                  <Button type="submit">Создать пользователя</Button>
                 </form>
-              ))}
+              </details>
+              {!users?.length && <p role="status">Пользователи не найдены.</p>}
+              <ul className="ws-users">
+                {users?.map((u) => (
+                  <li key={u.id}>
+                    <details name="access-user">
+                      <summary>
+                        <strong>{u.username}</strong>
+                        <span>
+                          {u.role === "administrator"
+                            ? "Администратор"
+                            : "Оператор"}
+                        </span>
+                        <span>{u.enabled ? "Активна" : "Заблокирована"}</span>
+                      </summary>
+                      <form
+                        aria-label={"Изменить пользователя " + u.username}
+                        onSubmit={form(
+                          (f) =>
+                            void save("users/" + u.id, "PATCH", {
+                              role: field(f, "role"),
+                              enabled: f.has("enabled"),
+                            }),
+                        )}
+                      >
+                        <Roles value={u.role} />
+                        <label>
+                          <input
+                            type="checkbox"
+                            name="enabled"
+                            defaultChecked={u.enabled}
+                          />
+                          Учётная запись активна
+                        </label>
+                        <Button type="submit">Сохранить пользователя</Button>
+                      </form>
+                    </details>
+                  </li>
+                ))}
+              </ul>
             </>
           )}
           {tab === "Группы" && (
             <>
-              <label>
-                Группа ресурсов
-                <select
-                  value={group}
-                  onChange={(e) => setGroup(e.target.value)}
-                >
-                  <option value="">Новая группа</option>
-                  {policy.groups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
+              <FilterPanel
+                label="Фильтры групп"
+                queryLabel="Поиск группы"
+                query={query}
+                onQuery={setQuery}
+                onReset={() => setQuery("")}
+                refresh={refresh}
+              >
+                <label>
+                  Группа ресурсов
+                  <select
+                    value={
+                      matchingGroups?.some((g) => g.id === group) ? group : ""
+                    }
+                    onChange={(e) => setGroup(e.target.value)}
+                  >
+                    <option value="">
+                      {query ? "Выберите группу" : "Новая группа"}
                     </option>
-                  ))}
-                </select>
-              </label>
+                    {matchingGroups?.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </FilterPanel>
+              {query && !matchingGroups?.length && (
+                <p role="status">Группы не найдены.</p>
+              )}
               <form
+                hidden={!!query && !matchingGroups?.some((g) => g.id === group)}
                 key={group}
                 onSubmit={form(
                   (f) =>
@@ -337,8 +462,24 @@ export default function Access({
                 </label>
                 <fieldset>
                   <legend>Точки наблюдения</legend>
+                  {needsListSearch(policy.points.length, pointQuery) && (
+                    <FilterPanel
+                      label="Фильтры точек группы"
+                      queryLabel="Поиск точки"
+                      query={pointQuery}
+                      onQuery={setPointQuery}
+                      onReset={() => setPointQuery("")}
+                    />
+                  )}
+                  {pointQuery &&
+                    !policy.points.some((p) =>
+                      matchesQuery(pointQuery, p.name),
+                    ) && <p role="status">Точки не найдены.</p>}
                   {policy.points.map((p) => (
-                    <label key={p.id}>
+                    <label
+                      key={p.id}
+                      hidden={!matchesQuery(pointQuery, p.name)}
+                    >
                       <input
                         type="checkbox"
                         name="points"
@@ -355,6 +496,58 @@ export default function Access({
           )}
           {tab === "Разрешения" && (
             <>
+              <FilterPanel
+                refresh={refresh}
+                label="Фильтры разрешений"
+                queryLabel="Пользователь, точка или группа"
+                query={query}
+                onQuery={setQuery}
+                filtered={!!actionFilter}
+                onReset={resetFilters}
+              >
+                <label>
+                  Фильтр по действию
+                  <select
+                    value={actionFilter}
+                    onChange={(e) => setActionFilter(e.target.value)}
+                  >
+                    <option value="">Все действия</option>
+                    {Object.entries(actions).map(([id, title]) => (
+                      <option key={id} value={id}>
+                        {title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </FilterPanel>
+              {!grants?.length && (
+                <p role="status">
+                  {policy.grants.length
+                    ? "Разрешения не найдены."
+                    : "Разрешений пока нет."}
+                </p>
+              )}
+              <ul>
+                {grants?.map((g) => (
+                  <li key={g.id}>
+                    {policy.users.find((u) => u.id === g.user_id)?.username} ·{" "}
+                    {actions[g.action]} ·{" "}
+                    {policy.points.find((p) => p.id === g.point_id)?.name ??
+                      policy.groups.find((r) => r.id === g.group_id)?.name}
+                    {g.begin_us &&
+                      g.end_us &&
+                      " · " +
+                        new Date(Number(g.begin_us) / 1000).toLocaleString() +
+                        " - " +
+                        new Date(Number(g.end_us) / 1000).toLocaleString()}
+                    <Button
+                      onClick={() => void save("grants/" + g.id, "DELETE")}
+                    >
+                      Отозвать
+                    </Button>
+                  </li>
+                ))}
+              </ul>
               <form
                 onSubmit={form((f) => {
                   const target = field(f, "target"),
@@ -421,127 +614,90 @@ export default function Access({
                 </label>
                 <Button type="submit">Выдать разрешение</Button>
               </form>
-              <ul>
-                {policy.grants.map((g) => (
-                  <li key={g.id}>
-                    {policy.users.find((u) => u.id === g.user_id)?.username} ·{" "}
-                    {actions[g.action]} ·{" "}
-                    {policy.points.find((p) => p.id === g.point_id)?.name ??
-                      policy.groups.find((r) => r.id === g.group_id)?.name}
-                    {g.begin_us &&
-                      g.end_us &&
-                      " · " +
-                        new Date(Number(g.begin_us) / 1000).toLocaleString() +
-                        " - " +
-                        new Date(Number(g.end_us) / 1000).toLocaleString()}
-                    <Button
-                      onClick={() => void save("grants/" + g.id, "DELETE")}
-                    >
-                      Отозвать
-                    </Button>
-                  </li>
-                ))}
-              </ul>
             </>
           )}
           {tab === "Приватность" && (
             <>
-              <label>
-                Точка
-                <select
-                  value={selectedPoint}
-                  onChange={(e) => setPoint(e.target.value)}
-                >
-                  {policy.points.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <form
-                key={selectedPoint}
-                onSubmit={form((f) => {
-                  const lines = field(f, "regions").trim();
-                  const regions = lines
-                    ? lines.split(/\r?\n/).map((line) => {
-                        const [left, top, right, bottom, ...extra] = line
-                          .trim()
-                          .split(/\s+/)
-                          .map(Number);
-                        if (
-                          extra.length ||
-                          left === undefined ||
-                          top === undefined ||
-                          right === undefined ||
-                          bottom === undefined ||
-                          ![left, top, right, bottom].every(
-                            (v) => Number.isFinite(v) && v >= 0 && v <= 1,
-                          ) ||
-                          left >= right ||
-                          top >= bottom
-                        )
-                          return null;
-                        return { left, top, right, bottom };
-                      })
-                    : [];
-                  if (regions.includes(null) || regions.length > 32) {
-                    setMessage(
-                      "Проверьте координаты областей маски. Допускается до 32 прямоугольников.",
-                    );
-                    return;
-                  }
-                  void save("privacy-policies/" + selectedPoint, "PUT", {
-                    ...Object.fromEntries(
-                      Object.keys(outputs).map((k) => [k, f.has(k)]),
-                    ),
-                    regions,
-                  });
-                })}
+              <FilterPanel
+                label="Фильтры точек приватности"
+                queryLabel="Поиск точки"
+                query={query}
+                onQuery={setQuery}
+                onReset={() => setQuery("")}
+                refresh={refresh}
               >
-                <fieldset>
-                  <legend>Закрыть выдачу изображения</legend>
-                  {(Object.keys(outputs) as (keyof typeof outputs)[]).map(
-                    (k) => (
-                      <label key={k}>
-                        <input
-                          name={k}
-                          type="checkbox"
-                          defaultChecked={privacy?.[k]}
-                        />
-                        {outputs[k]}
-                      </label>
-                    ),
-                  )}
-                </fieldset>
                 <label>
-                  Области маски (слева, сверху, справа, снизу)
-                  <textarea
-                    name="regions"
-                    aria-describedby="mask-help"
-                    defaultValue={
-                      privacy?.regions
-                        ?.map((r) =>
-                          [r.left, r.top, r.right, r.bottom].join(" "),
-                        )
-                        .join("\n") ?? ""
+                  Точка
+                  <select
+                    value={
+                      matchingPoints?.some((p) => p.id === selectedPoint)
+                        ? selectedPoint
+                        : ""
                     }
-                  />
+                    onChange={(e) => setPoint(e.target.value)}
+                  >
+                    {!matchingPoints?.some((p) => p.id === selectedPoint) && (
+                      <option value="">Выберите точку</option>
+                    )}
+                    {matchingPoints?.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
-                <p id="mask-help">
-                  Введите четыре числа от 0 до 1 через пробел. Каждый
-                  прямоугольник занимает одну строку. Пустое поле задаёт весь
-                  кадр. До подключения маскирования выбранные виды выдачи
-                  закрываются полностью.
-                </p>
-                <Button type="submit" disabled={!selectedPoint}>
-                  Применить политику
-                </Button>
-              </form>
+              </FilterPanel>
+              {query && !matchingPoints?.length && (
+                <p role="status">Точки не найдены.</p>
+              )}
+              <div
+                hidden={!matchingPoints?.some((p) => p.id === selectedPoint)}
+              >
+                <PrivacyEditor
+                  key={selectedPoint}
+                  available={!!selectedPoint && !busy}
+                  policy={privacy}
+                  save={(body) =>
+                    void save("privacy-policies/" + selectedPoint, "PUT", body)
+                  }
+                />
+              </div>
             </>
           )}
           {tab === "Вход" && (
             <>
+              <FilterPanel
+                refresh={refresh}
+                label="Фильтры внешних учётных записей"
+                queryLabel="Имя или идентификатор"
+                query={query}
+                onQuery={setQuery}
+                onReset={() => setQuery("")}
+              />
+              {!shownIdentities?.length && (
+                <p role="status">
+                  {query
+                    ? "Учётные записи не найдены."
+                    : "Привязанных учётных записей пока нет."}
+                </p>
+              )}
+              <ul>
+                {shownIdentities?.map((u) => (
+                  <li key={u.id}>
+                    {u.username} · {u.issuer} · {u.subject}{" "}
+                    <Button
+                      onClick={() =>
+                        void save(
+                          "users/" + u.id + "/external-identity",
+                          "DELETE",
+                        )
+                      }
+                    >
+                      Отвязать
+                    </Button>
+                  </li>
+                ))}
+              </ul>
               <form
                 onSubmit={form((f) => {
                   const secret = field(f, "secret");
@@ -622,38 +778,20 @@ export default function Access({
                   Привязать
                 </Button>
               </form>
-              <ul>
-                {policy.users
-                  .filter((u) => u.subject)
-                  .map((u) => (
-                    <li key={u.id}>
-                      {u.username} · {u.issuer} · {u.subject}{" "}
-                      <Button
-                        onClick={() =>
-                          void save(
-                            "users/" + u.id + "/external-identity",
-                            "DELETE",
-                          )
-                        }
-                      >
-                        Отвязать
-                      </Button>
-                    </li>
-                  ))}
-              </ul>
             </>
           )}
           {tab === "Аудит" && (
-            <ol>
-              {policy.audit.map((a) => (
-                <li key={a.id}>
-                  <time>{new Date(a.recorded_at).toLocaleString()}</time> ·{" "}
-                  {policy.users.find((u) => u.id === a.actor)?.username ??
-                    a.actor}{" "}
-                  ({a.method}) · {a.action} · {a.resource}
-                </li>
-              ))}
-            </ol>
+            <AccessAudit
+              refresh={refresh}
+              query={query}
+              onQuery={setQuery}
+              method={auditMethod}
+              onMethod={setAuditMethod}
+              events={policy.audit}
+              users={policy.users}
+              groups={policy.groups}
+              points={policy.points}
+            />
           )}
         </fieldset>
       )}

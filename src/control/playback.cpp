@@ -52,13 +52,13 @@ struct PointAccess {
 Json search(Database& db, const Key& key, const PointAccess& access, Json params,
             std::optional<std::int64_t> binding = {})
 {
-    recordings::require_available(db, access.site);
     const auto cursor = params.value("cursor", std::string{});
     const bool continued = params.erase("cursor") != 0;
     const auto bounds = window(params);
     if (!access::allowed(db, access.site, access.user, access.point, "view", "archive",
                          std::to_string(bounds.start), std::to_string(bounds.end)))
         throw Failure{404, "not_found"};
+    recordings::require_available(db, access.site);
     auto position = bounds.start;
     const auto context =
         Json::array({"archive", access.browser, access.role, access.site, access.point, bounds.start, bounds.end})
@@ -137,16 +137,16 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     const auto mode = string_field(body, "mode", 16);
     std::optional<Window> range;
     if (mode == "archive" && body.contains("interval")) {
-        recordings::require_available(db, access.site);
         range = window(body.at("interval"));
     } else if (mode != "live" || body.size() != 1) {
         throw Failure{400, "invalid_request"};
     }
     const auto begin = range ? std::to_string(range->start) : std::string{};
     const auto end = range ? std::to_string(range->end) : std::string{};
-    if (!access::allowed(db, access.site, access.user, access.point, "view", mode,
-                         range ? std::to_string(range->start) : "", range ? std::to_string(range->end) : ""))
+    if (!access::allowed(db, access.site, access.user, access.point, "view", mode, begin, end))
         throw Failure{404, "not_found"};
+    if (range)
+        recordings::require_available(db, access.site);
     Json selection{{"mode", mode}};
     std::optional<std::int64_t> binding;
     std::string revision;

@@ -10,6 +10,7 @@ import type {
 } from "../contracts/workspace";
 import { Button } from "../ui-kit/FormControls";
 import { coveringRegion } from "./mapRegions";
+import { PlanZoom } from "./PlanZoom";
 import RegionMap from "./RegionMap";
 import type { MapLabel } from "./RegionMap";
 
@@ -254,20 +255,15 @@ export default function PlanGeoreference({
                 )}
                 <div className="ws-reference-pair">
                   <div>
-                    <h3>План · ориентир {active ? "B" : "A"}</h3>
-                    <label>
-                      Масштаб изображения
-                      <select
+                    <div className="ws-plan-heading">
+                      <h3>План · ориентир {active ? "B" : "A"}</h3>
+                      <PlanZoom
+                        label="Масштаб изображения"
+                        levels={[1, 2, 4]}
                         value={scale}
-                        onChange={(e) => setScale(Number(e.target.value))}
-                      >
-                        {[1, 2, 4].map((s) => (
-                          <option key={s} value={s}>
-                            {s * 100}%
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                        onChange={setScale}
+                      />
+                    </div>
                     <div className="ws-plan-scroll">
                       <div
                         className="ws-plan"
@@ -522,7 +518,7 @@ export default function PlanGeoreference({
           </>
         )}
         <Button disabled={busy} onClick={() => close(false)}>
-          Закрыть
+          Вернуться к плану без сохранения
         </Button>
         <p role="status">{notice}</p>
       </div>

@@ -3,8 +3,6 @@ version: '3'
 vars:
   PRESET: gcc-debug
   SUITE: trixie
-  KIT_COMPOSE: 'docker compose {{if eq .SUITE "bookworm"}}-f compose.yaml -f compose.bookworm.yaml{{end}}'
-  KIT_RUN: '{{.KIT_COMPOSE}} run --rm --no-deps --user "$(id -u):$(id -g)" -T'
   COMPOSE_RUN: 'docker compose run --rm --no-deps --user "$(id -u):$(id -g)"'
   DEV_RUN: '{{.COMPOSE_RUN}} -T dev'
   BUILD_RUN: '{{.COMPOSE_RUN}} -T builder'
@@ -440,6 +438,9 @@ tasks:
 
   install:check:
     desc: Install the signed offline kit on the selected Debian release and verify reboot, WebAuthn and access rights
+    vars: &kit_commands
+      KIT_COMPOSE: 'docker compose {{if eq .SUITE "bookworm"}}-f compose.yaml -f compose.bookworm.yaml{{end}}'
+      KIT_RUN: '{{.KIT_COMPOSE}} run --rm --no-deps --user "$(id -u):$(id -g)" -T'
     requires: {vars: [{name: SUITE, enum: [bookworm, trixie]}]}
     deps:
       - web:build
@@ -451,7 +452,7 @@ tasks:
         report=$(sh tools/quality-report-dir offline-install-{{.SUITE}})
         echo "Offline installation results: $report"
         {{.KIT_RUN}} offline-packager python3 tools/offline-package.py "$report" --qualification
-        bash tools/check-offline-install "$report" "$({{.KIT_COMPOSE}} config --images install-vm)"
+        bash tools/check-offline-install "$report" "$({{.KIT_COMPOSE}} config --images install-vm)" {{.SUITE | shellQuote}}
 
   maintenance:check:
     desc: Qualify upgrade, interrupted migration, rollback and recovery with a signed predecessor
@@ -471,6 +472,7 @@ tasks:
 
   release:package:
     desc: Assemble the offline release with the supplied GnuPG home and signing fingerprint
+    vars: *kit_commands
     requires: {vars: [SIGNING_HOME, SIGNER, OUTPUT, {name: SUITE, enum: [bookworm, trixie]}]}
     deps:
       - web:build
@@ -537,6 +539,9 @@ tasks:
       - >-
         {{.DEV_RUN}} env BACURI_WORKSPACE_RESULTS="$(sh tools/quality-report-dir commissioning)"
         sh tests/check-control.sh gcc-debug commissioning
+      - >-
+        {{.DEV_RUN}} env BACURI_WORKSPACE_RESULTS="$(sh tools/quality-report-dir camera-batches)"
+        sh tests/check-control.sh gcc-debug batches
 
   camera:hardware:
     desc: Run the equipment series for the release bundle and every physical model and firmware

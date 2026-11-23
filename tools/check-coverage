@@ -20,9 +20,14 @@ for scenario in control archive playback live alerts; do
         dev sh tests/check-control.sh gcc-coverage "$scenario"
 done
 
-"${run[@]}" -e "BACURI_WORKSPACE_RESULTS=/workspace/$report/commissioning" \
-    dev sh tests/check-control.sh gcc-coverage commissioning
+for scenario in commissioning batches; do
+    "${run[@]}" -e "BACURI_WORKSPACE_RESULTS=/workspace/$report/$scenario" \
+        dev sh tests/check-control.sh gcc-coverage "$scenario"
+done
 
+mkdir -p "$report/export"
+bash tests/workspace/isolated.sh gcc-coverage "$report/export" export
+"${run[@]}" builder python3 tests/archive/verify_export.py gcc-coverage "$report/export"
 bash tests/access/isolated.sh gcc-coverage
 python3 tools/check-recovery gcc-coverage
 

@@ -16,6 +16,8 @@ void camera_configuration(ConfigurationSnapshot& snapshot)
     snapshot.section("bacuri_inventory.camera_registry");
     snapshot.section("bacuri_inventory.registration_requests");
     snapshot.section("bacuri_inventory.configuration_audit");
+    snapshot.section("bacuri_inventory.camera_batch_items");
+    snapshot.section("bacuri_inventory.camera_templates");
     snapshot.section("bacuri_inventory.camera_transport_audit");
     snapshot.section(
         "bacuri_inventory.configuration_progress",

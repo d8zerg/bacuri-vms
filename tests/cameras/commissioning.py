@@ -179,7 +179,7 @@ def run():
             recorder_env = {**os.environ, "BACURI_KEY_FILE": str(c.ROOT / "recorder.key")}
             recorder = start([c.RECORDER], env=recorder_env)
             start([playback.MEDIA])
-            with browser_session("chrome", admin, "/cameras", workspace_coverage=report / "chrome") as (call, browser_version):
+            with browser_session("chrome", admin, "/cameras?setup=manual", workspace_coverage=report / "chrome") as (call, browser_version):
                 choose(call, device, None)
                 decode(call, 1280, "first-binding")
                 first, = cameras(admin)

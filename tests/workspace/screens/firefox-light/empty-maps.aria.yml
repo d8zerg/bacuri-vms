@@ -1,8 +1,8 @@
 - main:
   - heading "Карты и планы" [level=1]
-  - text: Карта или план
-  - combobox "Карта или план":
-    - option "Карта региона" [selected]
+  - group "Подразделы карт и планов":
+    - button "Карта региона" [pressed]
+    - button "Планы" [disabled]
   - status: Карта региона не установлена
   - heading "Точки наблюдения" [level=2]
   - list:
@@ -10,4 +10,8 @@
       - button /Погрузочные ворота \d+/
   - paragraph: На карте или плане пока нет доступных точек
   - group: Добавить план
+  - region "Управление регионами":
+    - heading "Региональные карты" [level=3]
+    - button "Установить регионы"
+    - button "Обновить установленные" [disabled]
   - status

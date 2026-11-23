@@ -140,6 +140,14 @@ int run_camera(bool webcam, const char* certificate_file)
     } else {
         mount_stream(mounts.get(), main_stream);
         mount_stream(mounts.get(), sub_stream);
+        if (certificate_file) {
+            for (int channel = 1; channel <= 4; ++channel) {
+                for (const auto& profile : {main_stream, sub_stream}) {
+                    auto path = "/channel" + std::to_string(channel) + profile.path;
+                    mount_stream(mounts.get(), {path.c_str(), profile.pipeline});
+                }
+            }
+        }
         mount_stream(mounts.get(),
                      {"/jpeg", "( videotestsrc is-live=true ! video/x-raw,format=I420,width=320,height=240 "
                                "! jpegenc ! rtpjpegpay name=pay0 pt=26 )"});

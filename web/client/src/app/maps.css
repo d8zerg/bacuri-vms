@@ -76,17 +76,6 @@
   color: var(--info);
   text-underline-offset: 0.15em;
 }
-.ws-map-actions a {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--space-1);
-  background: var(--surface);
-  color: var(--ink);
-  text-decoration: none;
-}
-.ws-map-actions a:hover {
-  background: var(--selected);
-}
 .ws-maps summary {
   cursor: pointer;
 }
@@ -322,6 +311,58 @@ button.ws-map-badge {
   padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--line);
 }
+.ws-map-toolbar:empty {
+  display: none;
+}
+.ws-map-toolbar label {
+  max-width: 24rem;
+}
+.ws-plan-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.ws-plan-zoom {
+  display: inline-flex;
+  width: fit-content;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--space-2);
+  background: var(--raised);
+}
+.ws-plan-zoom label {
+  position: relative;
+}
+.ws-plan-zoom input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.ws-plan-zoom span {
+  display: grid;
+  place-items: center;
+  min-height: 2.75rem;
+  padding-inline: 0.65rem;
+  border-radius: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-control);
+  font-variant-numeric: tabular-nums;
+}
+.ws-plan-zoom :checked + span {
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: inset 0 -2px var(--action);
+}
+.ws-plan-zoom :focus-visible + span {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
 .ws-map-toolbar label,
 .ws-placement-form label {
   gap: var(--space-1);
@@ -336,9 +377,6 @@ button.ws-map-badge {
   background: var(--raised);
   border-radius: var(--space-1);
 }
-.ws-maps form a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.5rem;
-  justify-self: start;
+.ws-map-list:empty {
+  display: none;
 }

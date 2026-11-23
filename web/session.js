@@ -54,7 +54,42 @@ async function signedIn(identity) {
     if (identity.site_roles.length) await siteChanged();
 }
 export { points };
+function initializeNavigation() {
+    const nav = byId("video-navigation");
+    const toggle = document.createElement("button");
+    const label = document.createElement("span");
+    const key = "bacuri.vms.sidebar.collapsed";
+    function setCollapsed(collapsed) {
+        document.body.toggleAttribute("data-collapsed", collapsed);
+        label.textContent = collapsed ? "Развернуть меню" : "Свернуть меню";
+        toggle.title = label.textContent;
+        toggle.setAttribute("aria-label", label.textContent);
+        toggle.setAttribute("aria-expanded", String(!collapsed));
+    }
+    toggle.type = "button";
+    toggle.className = "sidebar-toggle";
+    toggle.setAttribute("aria-controls", nav.id);
+    toggle.append(label);
+    let collapsed = false;
+    try {
+        collapsed = localStorage.getItem(key) === "true";
+    } catch {
+        // The browser may disable local storage.
+    }
+    setCollapsed(collapsed);
+    toggle.onclick = () => {
+        collapsed = !collapsed;
+        setCollapsed(collapsed);
+        try {
+            localStorage.setItem(key, String(collapsed));
+        } catch {
+            // The choice still applies on this page.
+        }
+    };
+    nav.append(toggle);
+}
 export async function initialize(onSite = points, preferredSite) {
+    initializeNavigation();
     byId("login").onsubmit = action(async () => {
         const fields = Object.fromEntries(new FormData(byId("login")));
         let identity;

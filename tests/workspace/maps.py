@@ -96,6 +96,7 @@ def admin_placements(browser, admin, viewer, cam, wait, button, field, raw):
             "document.querySelector('.maplibregl-canvas') && !document.body.innerText.includes('Не удалось отобразить')",
             "local MapLibre canvas",
         )
+        js(call, "document.querySelector('.ws-placement-form').closest('details').querySelector('summary').click()")
         for label, value in (("Долгота", "7.41"), ("Широта", "43.73")):
             node = wait(
                 call,
@@ -127,6 +128,7 @@ def admin_placements(browser, admin, viewer, cam, wait, button, field, raw):
             "document.querySelector('.ws-plan img')?.naturalWidth===640 && document.querySelector('.ws-plan img')",
             "decoded customer plan",
         )
+        js(call, "document.querySelector('.ws-placement-form').closest('details').querySelector('summary').click()")
         click(call, image)
         button(call, "Сохранить положение")
         wait(call, "document.body.innerText.includes('Положение сохранено')", "saved floor position")
@@ -342,7 +344,7 @@ def offline_maps(wait, button, field, raw, capture):
                         call,
                         "const q=new URLSearchParams(location.search);return [q.get('lng'),q.get('lat'),q.get('z')]",
                     )
-                    link(call, wait, 'main a[href*="mode=archive"]')
+                    button(call, "Архив")
                     link(call, wait, 'nav a[href^="/maps"]')
                     wait(
                         call,
@@ -356,11 +358,7 @@ def offline_maps(wait, button, field, raw, capture):
                         "const q=new URLSearchParams(location.search);return [q.get('lng'),q.get('lat'),q.get('z')]",
                     )
                     capture(call, browser, "region")
-                    js(
-                        call,
-                        "const s=document.querySelector('main select');s.value=arguments[0];s.dispatchEvent(new Event('change',{bubbles:true}))",
-                        plan,
-                    )
+                    button(call, "Планы")
                     wait(call, "document.querySelector('.ws-plan img')?.naturalWidth===640", "offline plan")
                     capture(call, browser, "plan")
                     c.query(f"DELETE FROM bacuri_access.point_grants WHERE point_id='{point}'")

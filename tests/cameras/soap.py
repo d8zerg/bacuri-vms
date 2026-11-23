@@ -16,6 +16,7 @@ NS = {
     "d": "http://schemas.xmlsoap.org/ws/2005/04/discovery",
     "dn": "http://www.onvif.org/ver10/network/wsdl",
     "tds": "http://www.onvif.org/ver10/device/wsdl",
+    "timg": "http://www.onvif.org/ver20/imaging/wsdl",
     "trt": "http://www.onvif.org/ver10/media/wsdl",
     "tt": "http://www.onvif.org/ver10/schema",
     "tptz": "http://www.onvif.org/ver20/ptz/wsdl",

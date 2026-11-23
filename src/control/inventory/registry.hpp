@@ -11,6 +11,9 @@ class CameraRegistry
     {
     }
     void onvif(const Request& request, Response& response, const std::string& site, bool inspect) const;
+    void templates(const Request&, Response&, const std::string& site, const std::string& id) const;
+    void batch(const Request&, Response&, const std::string& site, const std::string& batch,
+               const std::string& item, std::string_view action) const;
     void issues(const Request&, Response&, const std::string& site, const std::string& device) const;
     void previous_recording(const Request&, Response&, const std::string& site, const std::string& device) const;
     void ptz(const Request&, Response&, const std::string& site, const std::string& point) const;

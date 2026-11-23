@@ -222,6 +222,47 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
         allow(req, res, {http::verb::post});
         return registry.onvif(req, res, site, path == "onvif/profiles");
     }
+    if (path == "camera-templates") {
+        allow(req, res, {http::verb::get});
+        return registry.templates(req, res, site, {});
+    }
+    constexpr std::string_view templates = "camera-templates/";
+    if (path.starts_with(templates)) {
+        auto id = path.substr(templates.size());
+        if (!canonical_id(id))
+            throw Failure{404, "not_found"};
+        allow(req, res, {http::verb::put});
+        return registry.templates(req, res, site, std::string{id});
+    }
+    if (path == "camera-batches") {
+        allow(req, res, {http::verb::get});
+        return registry.batch(req, res, site, {}, {}, {});
+    }
+    constexpr std::string_view batches = "camera-batches/";
+    if (path.starts_with(batches)) {
+        auto parts = path.substr(batches.size());
+        auto split = parts.find('/');
+        auto batch = parts.substr(0, split);
+        if (!canonical_id(batch))
+            throw Failure{404, "not_found"};
+        if (split == parts.npos) {
+            allow(req, res, {http::verb::get});
+            return registry.batch(req, res, site, std::string{batch}, {}, {});
+        }
+        auto member = parts.substr(split + 1);
+        split = member.find('/');
+        auto item = member.substr(0, split);
+        if (!canonical_id(item))
+            throw Failure{404, "not_found"};
+        const auto action = split == member.npos ? std::string_view{} : member.substr(split + 1);
+        if (split == member.npos)
+            allow(req, res, {http::verb::put});
+        else if (action == "apply" || action == "rollback")
+            allow(req, res, {http::verb::post});
+        else
+            throw Failure{404, "not_found"};
+        return registry.batch(req, res, site, std::string{batch}, std::string{item}, action);
+    }
     if (path == "cameras") {
         allow(req, res, {http::verb::get, http::verb::post});
         return registry.cameras(req, res, site, {});

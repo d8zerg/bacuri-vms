@@ -7,5 +7,6 @@ project=(docker compose -p "bacuri-install-$(cat /proc/sys/kernel/random/uuid)" 
 trap '"${project[@]}" --profile tools --profile playback-test down --volumes' EXIT
 "${project[@]}" up -d --no-build --wait playback-chrome
 "${project[@]}" run --rm --no-deps --use-aliases -T \
+    -e "BACURI_TEST_SUITE=${3:-}" \
     -e "BACURI_TEST_ENGINE=$(docker version --format '{{.Server.Version}}')" \
     -e "BACURI_TEST_COMPOSE=$(docker compose version --short)" install-vm

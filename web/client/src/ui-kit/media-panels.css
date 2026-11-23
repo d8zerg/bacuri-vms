@@ -89,7 +89,7 @@
   display: grid;
   gap: var(--space-1);
 }
-.ws-alerts button {
+.ws-alerts li button {
   display: grid;
   text-align: left;
   width: 100%;
@@ -102,11 +102,11 @@
   gap: 0.25rem;
   cursor: pointer;
 }
-.ws-alerts button:hover,
-.ws-alerts button[aria-current="true"] {
+.ws-alerts li button:hover,
+.ws-alerts li button[aria-current="true"] {
   background: var(--selected);
 }
-.ws-alerts button span,
+.ws-alerts li button span,
 .ws-alerts time {
   color: var(--muted);
   font-size: var(--text-caption);
@@ -169,8 +169,8 @@
   padding: 0 var(--space-4) var(--space-3);
   border-bottom: 1px solid var(--line);
 }
-.ws-feed-tools select {
-  font: var(--text-control)/1.4 var(--font);
+.ws-feed-tools > .bk-filter-panel {
+  width: 100%;
 }
 .ws-feed-status {
   display: flex;
@@ -200,21 +200,21 @@
 .ws-alerts li + li {
   border-top: 1px solid var(--line);
 }
-.ws-alerts button {
+.ws-alerts li button {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   column-gap: var(--space-2);
   padding: var(--space-3) var(--space-2);
   border: 0;
 }
-.ws-alerts button[aria-current="true"] {
+.ws-alerts li button[aria-current="true"] {
   box-shadow: inset 3px 0 var(--action);
 }
-.ws-alerts button span,
+.ws-alerts li button span,
 .ws-alerts time {
   grid-column: 1/-1;
 }
-.ws-alerts button:focus-visible {
+.ws-alerts li button:focus-visible {
   outline-offset: -2px;
 }
 .ws-alert-state {

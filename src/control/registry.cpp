@@ -1,5 +1,6 @@
 #include "control/inventory/telemetry.hpp"
 #include "control/inventory/registry.hpp"
+#include "control/inventory/enrollment.hpp"
 #include "control/inventory/operations.hpp"
 #include "control/recordings/operations.hpp"
 #include "control/access/operations.hpp"
@@ -69,6 +70,9 @@ Json read_configuration(const Request& request)
     return body;
 }
 
+} // namespace
+namespace inventory
+{
 void write_version(Database& db, const Key& key, const std::string& site, const std::string& device,
                    const std::string& revision, const Json& body)
 {
@@ -158,7 +162,67 @@ std::string register_device(Database& db, const std::string& site, const Json& b
             {site, device, point});
     return device;
 }
-} // namespace
+Json channel_configuration(const Key& key, const Json& selection, const std::string& main,
+                           const std::string& secondary)
+{
+    const auto& profiles = selection.at("profiles");
+    const auto first = profiles.find(fingerprint(key, "onvif-stream", main));
+    const auto second = profiles.find(fingerprint(key, "onvif-stream", secondary));
+    if (first == profiles.end() || second == profiles.end())
+        throw Failure{400, "invalid_request"};
+    if (main == secondary || first->value("channel", std::string{}) != second->value("channel", std::string{}))
+        throw Failure{422, "camera_incompatible_profiles"};
+    auto control = selection.at("control");
+    control.update(*first);
+    control["secondary_profile"] = second->at("profile");
+    Json meta;
+    for (const auto* k : {"endpoint_id", "manufacturer", "model", "firmware", "serial", "ptz", "events"})
+        meta[k] = selection.at(k);
+    if (control.contains("ptz_profile"))
+        meta["ptz"] = meta.at("ptz") == true && control.at("ptz_profile") == true;
+    meta["channel_token"] = first->value("channel", std::string{});
+    Json profile_channels = Json::object(), stream_channels = Json::object();
+    for (const auto& p : profiles) {
+        if (p.contains("channel") && p.contains("stream_url")) {
+            profile_channels[p.at("profile").get_ref<const std::string&>()] = p.at("channel");
+            stream_channels[p.at("stream_url").get_ref<const std::string&>()] = p.at("channel");
+        }
+    }
+    return {{"onvif", meta},
+            {"onvif_control", control},
+            {"main_url", main},
+            {"secondary_url", secondary},
+            {"profile_channels", std::move(profile_channels)},
+            {"stream_channels", std::move(stream_channels)}};
+}
+Json registered_channel(Database& db, const std::string& site, const Json& config)
+{
+    const auto& onvif = config.at("onvif");
+    const auto channel = onvif.at("channel_token").get<std::string>();
+    // Older configurations identify the recorded profile, before a physical source token was stored.
+    auto rows = db.exec(R"sql(
+        SELECT c.body,coalesce(nullif(c.body->>'channel_token',''),$3::jsonb->>(v.settings#>>'{onvif_control,profile}'),
+                               $4::jsonb->>(c.body->>'main_url'),$4::jsonb->>(c.body->>'secondary_url'),'')
+        FROM bacuri_inventory.camera_state c JOIN bacuri_inventory.configuration_versions v
+          ON (v.site_id,v.device_id,v.revision)=(c.site_id,c.device_id,(c.body->>'desired_revision')::bigint)
+        WHERE c.site_id=$1 AND c.body->>'endpoint_id'=$2
+    )sql",
+                        {site, onvif.at("endpoint_id"), config.at("profile_channels").dump(),
+                         config.at("stream_channels").dump()});
+    Json match = nullptr;
+    for (int i = 0; i < rows.size(); ++i) {
+        const auto source = rows.get(i, 1);
+        if (!channel.empty() && source.empty())
+            throw Failure{409, "camera_binding_conflict"};
+        if (channel.empty() || channel == source) {
+            if (!match.is_null())
+                throw Failure{409, "camera_binding_conflict"};
+            match = Json::parse(rows.get(i));
+        }
+    }
+    return match;
+}
+} // namespace inventory
 
 void CameraRegistry::onvif(const Request& req, Response& res, const std::string& site, bool inspect) const
 {
@@ -415,13 +479,12 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
         } else {
             if (body.contains("onvif_selection")) {
                 selected = read_camera_ticket(key_, site, body.at("onvif_selection"));
-                if (db.exec("SELECT 1 FROM bacuri_inventory.camera_state WHERE site_id=$1 AND "
-                            "body->>'endpoint_id'=$2",
-                            {site, selected.at("endpoint_id")})
-                        .size())
+                auto channel = inventory::channel_configuration(key_, selected, body.at("main_url"),
+                                                                body.at("secondary_url"));
+                if (!inventory::registered_channel(db, site, channel).is_null())
                     throw Failure{409, "camera_already_registered"};
             }
-            device = register_device(db, site, body);
+            device = inventory::register_device(db, site, body);
         }
     } else {
         if (body.contains("replace_device_id"))
@@ -435,6 +498,8 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
             for (const auto* field :
                  {"endpoint_id", "model", "manufacturer", "firmware", "serial", "ptz", "events"})
                 onvif[field] = current.at(field);
+            if (current.contains("channel_token"))
+                onvif["channel_token"] = current.at("channel_token");
         }
         if (!body.contains("onvif_selection")) {
             auto saved = db.exec("SELECT settings->'onvif_control' FROM bacuri_inventory.configuration_versions "
@@ -474,33 +539,22 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
                 const auto id = selected.at("endpoint_id").get<std::string>();
                 if (!onvif.empty() && onvif["endpoint_id"] != id)
                     throw Failure{409, "camera_binding_conflict"};
-                if (db.exec("SELECT 1 FROM bacuri_inventory.camera_state WHERE site_id=$1 AND device_id<>$2 AND "
-                            "body->>'endpoint_id'=$3",
-                            {site, device, id})
-                        .size())
+            }
+            auto config =
+                inventory::channel_configuration(key_, selected, body.at("main_url"), body.at("secondary_url"));
+            if (!create) {
+                auto match = inventory::registered_channel(db, site, config);
+                if (!match.is_null() && match.at("id") != device)
                     throw Failure{409, "camera_already_registered"};
+                if (!onvif.empty() && match.is_null())
+                    throw Failure{409, "camera_binding_conflict"};
             }
-            const auto& ids = selected.at("stream_ids");
-            for (const auto* field : {"main_url", "secondary_url"}) {
-                auto id = fingerprint(key_, "onvif-stream", body.at(field).get_ref<const std::string&>());
-                if (std::ranges::find(ids, Json(id)) == ids.end())
-                    throw Failure{400, "invalid_request"};
-            }
-            if (selected.contains("control")) {
-                auto control = selected.at("control");
-                auto id = fingerprint(key_, "onvif-stream", body.at("main_url").get_ref<const std::string&>());
-                control.update(selected.at("profiles").at(id));
-                body["onvif_control"] = std::move(control);
-            }
-            if (body.at("main_url") == body.at("secondary_url"))
-                throw Failure{422, "camera_incompatible_profiles"};
-            for (const auto* field :
-                 {"endpoint_id", "model", "manufacturer", "firmware", "serial", "ptz", "events"})
-                onvif[field] = selected.at(field);
+            onvif = config.at("onvif");
+            body["onvif_control"] = config.at("onvif_control");
         }
         if (!onvif.empty())
             body["onvif"] = std::move(onvif);
-        write_version(db, key_, site, device, revision, body);
+        inventory::write_version(db, key_, site, device, revision, body);
         result = camera(db, site, device);
         db.exec(R"sql(
                 INSERT INTO bacuri_inventory.configuration_audit(request_id,user_id,site_id,device_id,action,previous_revision,revision,outcome)

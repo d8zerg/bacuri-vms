@@ -49,13 +49,13 @@
 
 ## Исходные операции
 
-Для REST указаны точные `operationId` по областям, для Core - имена команд. В текущей таблице также перечислены операции доступа и корпоративного входа, добавленные после исходного среза в REST 1.1.0 и Core 0.1.7. Установщик, первичное доверие, замена утраченного фактора и восстановление из копии требуют локальной процедуры. Для штатных административных действий веб- и настольный клиенты вызывают общий API, который применяет те же операции C++ и права. Служебный gRPC остаётся внутриплощадочным. [Маршруты веб-клиента](../web/client/src/app/Workspace.tsx) · [Команды Core](../src/core/main.cpp) · [Установка](../src/core/site_admin.cpp) · [Обслуживание](../src/core/maintenance.cpp)
+Для REST указаны точные `operationId` по областям, для Core - имена команд. Операции партий и шаблонов камер добавлены в REST 1.2.0 и Core 0.1.8. В текущей таблице также перечислены операции доступа и корпоративного входа, добавленные после исходного среза в REST 1.1.0 и Core 0.1.7. Установщик, первичное доверие, замена утраченного фактора и восстановление из копии требуют локальной процедуры. Для штатных административных действий веб- и настольный клиенты вызывают общий API, который применяет те же операции C++ и права. Служебный gRPC остаётся внутриплощадочным. [Маршруты веб-клиента](../web/client/src/app/Workspace.tsx) · [Команды Core](../src/core/main.cpp) · [Установка](../src/core/site_admin.cpp) · [Обслуживание](../src/core/maintenance.cpp)
 
 | ID | Интерфейс | Операции |
 | --- | --- | --- |
 | identity | REST | createSession, verifyAdminFactor, getSession, revokeSession, getIdentityProvider, setIdentityProvider, bindExternalIdentity, unbindExternalIdentity, getLoginMethods, beginCorporateLogin, completeCorporateLogin |
 | access | REST | listPoints, listSiteUsers, createSiteUser, updateSiteUser, listResourceGroups, createResourceGroup, updateResourceGroup, listGrants, setGrant, deleteGrant, listPrivacyPolicies, setPrivacyPolicy, searchAccessAudit |
-| inventory | REST | discoverCameras, inspectCamera, listCameras, getCamera, registerCamera, updateCamera, getCameraStreamIssues, previousRecording |
+| inventory | REST | discoverCameras, inspectCamera, listCameras, getCamera, registerCamera, updateCamera, getCameraStreamIssues, previousRecording, listCameraBatches, getCameraBatch, previewCameraBatchItem, changeCameraBatchItem, listCameraTemplates, saveCameraTemplate |
 | ptz | REST | controlPointPtz |
 | media | REST | createMediaSession, revokeMediaSession, negotiateLiveMedia, getPlaybackManifest, readPlaybackPart |
 | search | REST | searchArchive |

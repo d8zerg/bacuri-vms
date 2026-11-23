@@ -7,7 +7,11 @@ type Methods = Pick<
   Services,
   "alertWork" | "alertCommand" | "audit" | "delegate" | "revokeDelegation"
 >;
-export function alertWorkFixture(point: string, utc: string): Methods {
+export function alertWorkFixture(
+  point: string,
+  utc: string,
+  updateState: (id: string, state: AlertWork["state"]) => void,
+): Methods {
   const cards = new Map<string, AlertWork>();
   const grants: AlertWork["delegations"] = [];
   const entries: AuditEntry[] = [];
@@ -65,6 +69,7 @@ export function alertWorkFixture(point: string, utc: string): Methods {
       };
       work.history.unshift(entry);
       entries.unshift(entry);
+      if (work.state !== from) updateState(alert, work.state);
       return Promise.resolve({ event_id: key, version: work.version });
     },
     audit: (_site, filter) => {

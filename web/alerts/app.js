@@ -11,9 +11,10 @@ function upsert(site, alert, points) {
     const id = "alert-" + alert.id;
     const row = byId(id) || document.createElement("li");
     row.id = id;
-    const link = document.createElement("a");
-    link.href = "/archive/?" + new URLSearchParams({ site, alert: alert.id });
-    link.textContent = "Открыть запись";
+    const openRecording = document.createElement("button");
+    openRecording.type = "button";
+    openRecording.onclick = () => location.assign("/archive/?" + new URLSearchParams({ site, alert: alert.id }));
+    openRecording.textContent = "Открыть запись";
     const type = alert.type === "motion" ? "Движение" : alert.type;
     const time = displayTime.format(new Date(alert.observed_at)) + " UTC";
     const quality = alert.time_basis === "reception" ? "по времени приёма" : "по часам источника";
@@ -26,7 +27,7 @@ function upsert(site, alert, points) {
             " (" +
             quality +
             ") ",
-        link,
+        openRecording,
     );
     list.prepend(row);
 }

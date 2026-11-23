@@ -37,6 +37,12 @@ class Device:
         self.initial_lease_seconds = 60
         self.lease_end = 0
         self.source = "main"
+        self.sources = {}
+        self.discoverable_peers = []
+        self.disconnected = set()
+        self.brightness = {}
+        self.image_writes = []
+        self.drop_image_reply = False
         self.report_position = True
         self.hfov = 64.0
         self.zoom = 0.0
@@ -87,7 +93,9 @@ class Device:
             for token, (width, height) in self.tokens.items():
                 profile = child(result, "trt:Profiles", token=token)
                 child(profile, "tt:Name", token)
-                child(profile, "tt:VideoSourceConfiguration", token=self.source)
+                channel = self.sources.get(token, self.source)
+                source = child(profile, "tt:VideoSourceConfiguration", token=channel)
+                child(source, "tt:SourceToken", channel)
                 encoder = child(profile, "tt:VideoEncoderConfiguration", token=token)
                 child(encoder, "tt:Encoding", self.codec)
                 resolution = child(encoder, "tt:Resolution")
@@ -97,13 +105,33 @@ class Device:
                     child(profile, "tt:PTZConfiguration", token="ptz")
         elif body.tag == tag("trt:GetStreamUri"):
             token = required(body, "trt:ProfileToken")
-            if token not in self.tokens:
+            if token not in self.tokens or self.sources.get(token) in self.disconnected:
                 raise ValueError("unknown stream")
             uri = child(result, "trt:MediaUri")
             child(uri, "tt:Uri", self.stream_uris.get(token, "rtsps://localhost:8554/" + self.stream_paths.get(token, token)))
             child(uri, "tt:InvalidAfterConnect", "false")
             child(uri, "tt:InvalidAfterReboot", "false")
             child(uri, "tt:Timeout", "PT0S")
+        elif body.tag.startswith("{" + NS["timg"] + "}") and "Imaging" in self.services:
+            source = required(body, "timg:VideoSourceToken")
+            if path != "/imaging" or source not in self.sources.values():
+                raise ValueError("unknown source")
+            if action == "GetOptions":
+                options = child(result, "timg:ImagingOptions")
+                if source in self.brightness:
+                    bounds = child(options, "tt:Brightness")
+                    child(bounds, "tt:Min", "0")
+                    child(bounds, "tt:Max", "100")
+            elif action == "GetImagingSettings":
+                child(child(result, "timg:ImagingSettings"), "tt:Brightness", str(self.brightness[source]))
+            elif action == "SetImagingSettings":
+                value = float(required(body, "timg:ImagingSettings/tt:Brightness"))
+                if not 0 <= value <= 100 or required(body, "timg:ForcePersistence") != "true":
+                    raise ValueError("invalid brightness")
+                self.brightness[source] = value
+                self.image_writes.append((source, value))
+            else:
+                raise ValueError("unknown imaging operation")
         elif body.tag == tag("tptz:GetServiceCapabilities") and "PTZ" in self.services:
             child(result, "tptz:Capabilities", StatusPosition="true", MoveStatus="true")
         elif body.tag == tag("tptz:GetConfigurationOptions") and "PTZ" in self.services:
@@ -225,6 +253,10 @@ class Control(BaseHTTPRequestHandler):
                     self.close_connection = True
                     return
                 response = device.respond(root, self.path)
+                if device.drop_image_reply and response.tag == tag("timg:SetImagingSettingsResponse"):
+                    device.drop_image_reply = False
+                    self.close_connection = True
+                    return
                 if device.lose_move_reply and response.tag == tag("tptz:ContinuousMoveResponse"):
                     device.lose_move_reply = False
                     self.close_connection = True
@@ -250,11 +282,12 @@ class Discovery(BaseRequestHandler):
             return
         device = self.server.device
         matches = node("d:ProbeMatches")
-        match = child(matches, "d:ProbeMatch", **{"xmlns:dn": NS["dn"]})
-        child(child(match, "wa:EndpointReference"), "wa:Address", device.serial)
-        child(match, "d:Types", "dn:NetworkVideoTransmitter")
-        child(match, "d:XAddrs", device.base + device.device_path)
-        child(match, "d:MetadataVersion", "1")
+        for peer in [device, *device.discoverable_peers]:
+            match = child(matches, "d:ProbeMatch", **{"xmlns:dn": NS["dn"]})
+            child(child(match, "wa:EndpointReference"), "wa:Address", peer.serial)
+            child(match, "d:Types", "dn:NetworkVideoTransmitter")
+            child(match, "d:XAddrs", peer.base + peer.device_path)
+            child(match, "d:MetadataVersion", "1")
         headers = [node("wa:RelatesTo", required(root, "s:Header/wa:MessageID")),
                    node("wa:Action", NS["d"] + "/ProbeMatches"), node("wa:MessageID", message_id())]
         sock.sendto(envelope(matches, headers), self.client_address)

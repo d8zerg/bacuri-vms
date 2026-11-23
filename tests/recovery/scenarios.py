@@ -278,6 +278,9 @@ def run():
         assert [p["id"] for p in c.http("GET", POINTS, headers=viewer)[2]] == [point]
         assert foreign in {p["id"] for p in c.http("GET", POINTS, headers=admin)[2]}
         assert c.query("SELECT count(*) FROM bacuri_access.local_users WHERE username='after-backup'") == "0"
+        for requested_point, expected in ((foreign, 404), (point, 503)):
+            search = f"{POINTS}/{requested_point}/archive?" + urlencode(bounds(first))
+            assert c.http("GET", search, headers=viewer)[0] == expected
         assert create(foreign, first, viewer)[0] == 404
         assert create(point, first, viewer)[0] == 503
         metrics["configuration"] = {**loss.finish("rto_s"), "rpo_snapshot_age_s": round(loss.started - snapshot_time, 3),

@@ -101,9 +101,11 @@ export function ViewCalibration({
     >
       <summary>Настроить сектор обзора</summary>
       <form onSubmit={(e) => void save(e)}>
-        <a href={live} target="_blank" rel="noreferrer">
+        <Button
+          onClick={() => window.open(live, "_blank", "noopener,noreferrer")}
+        >
           Открыть эфир в новой вкладке
-        </a>
+        </Button>
         <Button type="button" aria-pressed={aim} onClick={() => setAim(!aim)}>
           {aim ? "Отменить выбор ориентира" : "Указать ориентир на карте"}
         </Button>

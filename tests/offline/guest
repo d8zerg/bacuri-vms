@@ -63,6 +63,7 @@ while IFS= read -r command <&3; do
         legacy) (cd /usr/share/bacuri-vms/web && find . -type f -printf '%P\n' | sort | xargs sha256sum) >&3; echo END >&3 ;;
         packages) dpkg-query -W -f='${db:Status-Status} ${Package} ${Architecture} ${Version}\n' | awk '$1=="installed" {print $2,$3,$4}' >&3; echo END >&3 ;;
         assets) (cd /usr/share/bacuri-vms/build/web-client && sha256sum index.html assets/*) >&3; echo END >&3 ;;
+        suite) . /etc/os-release; printf '%s\n' "$VERSION_CODENAME" >&3 ;;
         done) systemctl --no-block poweroff; exit 0 ;;
         *) exit 1 ;;
     esac

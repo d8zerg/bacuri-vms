@@ -1,6 +1,6 @@
-import { useId } from "react";
+import { useId, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { Button } from "./FormControls";
+import { IconButton } from "./FormControls";
 import "./archive-timeline.css";
 
 type Interval = Readonly<{ startMs: number; endMs: number }>;
@@ -114,37 +114,16 @@ export function ArchiveTimeline({
   onRefresh,
 }: ArchiveTimelineProps) {
   const id = useId();
-  const entry =
-    data.status === "ready"
-      ? data.entries.find(
-          (item) => item.startMs <= positionMs && positionMs < item.endMs,
-        )
-      : undefined;
-
-  function step(event: KeyboardEvent<HTMLInputElement>) {
-    const delta = arrowStepMs[event.key];
-    if (delta === undefined) return;
-    event.preventDefault();
-    const input = event.currentTarget;
-    onPositionChange(
-      Math.max(
-        Number(input.min),
-        Math.min(Number(input.max), positionMs + delta),
-      ),
-    );
-  }
-
   return (
     <section className="bt-timeline" aria-labelledby={id}>
       <header className="bt-header">
         <h2 id={id}>Шкала архива</h2>
-        <Button
-          type="button"
+        <IconButton
+          icon="rotate-cw"
+          label="Обновить шкалу"
           aria-disabled={data.status === "loading"}
           onClick={onRefresh}
-        >
-          Обновить шкалу
-        </Button>
+        />
       </header>
       <div
         role="status"
@@ -158,73 +137,141 @@ export function ArchiveTimeline({
         {data.status === "ready" && "Данные архива загружены"}
       </div>
       {data.status === "ready" && (
-        <>
-          <div className="bt-readout">
-            <span>{day.format(positionMs)}</span>
-            <strong>{time(positionMs)} UTC</strong>
-          </div>
-          <div className="bt-track">
-            <div className="bt-bands" aria-hidden="true">
-              {data.entries.map((item) => {
-                const start = Math.max(data.window.startMs, item.startMs);
-                const end = Math.min(data.window.endMs, item.endMs);
-                if (end <= start) return null;
-                const duration = data.window.endMs - data.window.startMs;
-                return (
-                  <span
-                    key={item.startMs}
-                    data-kind={item.kind}
-                    style={{
-                      left:
-                        ((start - data.window.startMs) / duration) * 100 + "%",
-                      width: ((end - start) / duration) * 100 + "%",
-                    }}
-                  />
-                );
-              })}
-            </div>
-            <input
-              type="range"
-              min={data.window.startMs}
-              max={data.window.endMs - 1}
-              step={1}
-              value={positionMs}
-              aria-label="Позиция в архиве"
-              aria-valuetext={
-                day.format(positionMs) +
-                ", " +
-                time(positionMs) +
-                " UTC. " +
-                describe(entry)
-              }
-              aria-describedby={id + "-detail"}
-              onKeyDown={step}
-              onChange={(event) =>
-                onPositionChange(event.currentTarget.valueAsNumber)
-              }
-            />
-          </div>
-          <div className="bt-ticks" aria-hidden="true">
-            <span>{time(data.window.startMs)}</span>
-            <span>{time(data.window.endMs)}</span>
-          </div>
-          <div id={id + "-detail"}>
-            <SelectedInterval entry={entry} />
-          </div>
-          <ul className="bt-legend" aria-label="Обозначения шкалы">
-            {Object.entries(labels).map(([kind, label]) => (
-              <li key={kind}>
-                <span
-                  aria-hidden="true"
-                  className="bt-swatch"
-                  data-kind={kind}
-                />
-                {label}
-              </li>
-            ))}
-          </ul>
-        </>
+        <TimelineWindow
+          key={data.window.startMs + "/" + data.window.endMs}
+          data={data}
+          positionMs={positionMs}
+          onPositionChange={onPositionChange}
+        />
       )}
     </section>
+  );
+}
+
+function TimelineWindow({
+  data,
+  positionMs,
+  onPositionChange,
+}: {
+  data: Extract<TimelineData, { status: "ready" }>;
+  positionMs: number;
+  onPositionChange: (ms: number) => void;
+}) {
+  const id = useId();
+  const [preview, setPreview] = useState<number | null>(null);
+  const interaction = useRef<number | string | null>(null);
+  const shown = preview ?? positionMs;
+  const entry = data.entries.find(
+    (item) => item.startMs <= shown && shown < item.endMs,
+  );
+
+  function cancel() {
+    interaction.current = null;
+    setPreview(null);
+  }
+  function finish() {
+    if (preview !== null && preview !== positionMs) onPositionChange(preview);
+    cancel();
+  }
+  function step(event: KeyboardEvent<HTMLInputElement>) {
+    const delta = arrowStepMs[event.key];
+    if (
+      delta === undefined &&
+      !["Home", "End", "PageUp", "PageDown"].includes(event.key)
+    )
+      return;
+    interaction.current = event.key;
+    if (delta !== undefined) {
+      event.preventDefault();
+      const input = event.currentTarget;
+      setPreview(
+        Math.max(
+          Number(input.min),
+          Math.min(Number(input.max), input.valueAsNumber + delta),
+        ),
+      );
+    }
+  }
+
+  return (
+    <>
+      <div className="bt-readout">
+        <span>{day.format(shown)}</span>
+        <strong>{time(shown)} UTC</strong>
+      </div>
+      <div className="bt-track">
+        <div className="bt-bands" aria-hidden="true">
+          {data.entries.map((item) => {
+            const start = Math.max(data.window.startMs, item.startMs);
+            const end = Math.min(data.window.endMs, item.endMs);
+            if (end <= start) return null;
+            const duration = data.window.endMs - data.window.startMs;
+            return (
+              <span
+                key={item.startMs}
+                data-kind={item.kind}
+                style={{
+                  left: ((start - data.window.startMs) / duration) * 100 + "%",
+                  width: ((end - start) / duration) * 100 + "%",
+                }}
+              />
+            );
+          })}
+        </div>
+        <input
+          type="range"
+          min={data.window.startMs}
+          max={data.window.endMs - 1}
+          step={1}
+          value={shown}
+          aria-label="Позиция в архиве"
+          aria-valuetext={
+            day.format(shown) + ", " + time(shown) + " UTC. " + describe(entry)
+          }
+          aria-describedby={id + "-detail"}
+          onKeyDown={step}
+          onKeyUp={(e) => {
+            if (interaction.current === e.key) finish();
+          }}
+          onPointerDown={(e) => {
+            if (e.isPrimary && e.button === 0) {
+              interaction.current = e.pointerId;
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }
+          }}
+          onPointerUp={(e) => {
+            if (interaction.current === e.pointerId) finish();
+          }}
+          onLostPointerCapture={(e) => {
+            if (interaction.current === e.pointerId) cancel();
+          }}
+          onPointerCancel={cancel}
+          onBlur={() => {
+            if (typeof interaction.current === "string") finish();
+            else cancel();
+          }}
+          onChange={(event) => {
+            const next = event.currentTarget.valueAsNumber;
+            if (interaction.current !== null) setPreview(next);
+            else if (next !== positionMs) onPositionChange(next);
+          }}
+        />
+      </div>
+      <div className="bt-ticks" aria-hidden="true">
+        <span>{time(data.window.startMs)}</span>
+        <span>{time(data.window.endMs)}</span>
+      </div>
+      <div id={id + "-detail"}>
+        <SelectedInterval entry={entry} />
+      </div>
+      <ul className="bt-legend" aria-label="Обозначения шкалы">
+        {Object.entries(labels).map(([kind, label]) => (
+          <li key={kind}>
+            <span aria-hidden="true" className="bt-swatch" data-kind={kind} />
+            {label}
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

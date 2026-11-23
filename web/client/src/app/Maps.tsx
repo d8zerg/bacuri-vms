@@ -1,4 +1,9 @@
 import {
+  FilterPanel,
+  matchesQuery,
+  needsListSearch,
+} from "../ui-kit/FilterPanel";
+import {
   lazy,
   Suspense,
   useCallback,
@@ -8,10 +13,13 @@ import {
   useState,
 } from "react";
 import type { FormEvent } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
+import { SubsectionMenu } from "./SubsectionMenu";
+import { RouteButton } from "./RouteButton";
 import type { Services, MapScene, Point, Feed } from "../contracts/workspace";
 import { Button } from "../ui-kit/FormControls";
 import { CameraEvents } from "./CameraEvents";
+import { PlanZoom } from "./PlanZoom";
 import { CameraMarker, viewLabel } from "./CameraMarker";
 import {
   ViewCalibration,
@@ -45,8 +53,11 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
   const [landmark, setLandmark] = useState<Landmark | null>(null);
   const selected = params.get("point") ?? "",
     surface = params.get("plan") ?? "";
+  const previousPlan = useRef("");
   const focus = useRef(false);
   const focusCameraTitle = useRef(false);
+  const positionEditor = useRef<HTMLDetailsElement>(null);
+  const editPlanButton = useRef<HTMLButtonElement>(null);
   const cameraTitle = useRef<HTMLHeadingElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const current = useRef(params);
@@ -157,6 +168,10 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
   );
   const visibleMarkers = surface ? markers : geographyMarkers;
   const marker = visibleMarkers.find((p) => p.point_id === selected);
+  const availablePoints =
+    admin && !floor
+      ? points
+      : points.filter((p) => visibleMarkers.some((m) => m.point_id === p.id));
   function selectFloor(id: string, keepPoint = false) {
     setDraft(null);
     setAim(false);
@@ -227,6 +242,8 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
     } else focusCameraTitle.current = true;
   }
   function changeSurface(id: string) {
+    if (surface === id) return;
+    if (plan) previousPlan.current = plan.id;
     setDraft(null);
     setAim(false);
     setLandmark(null);
@@ -253,7 +270,13 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
       tell("");
       return;
     }
-    if (admin && point && (!floor || marker) && !marker?.source_plan_id) {
+    if (
+      admin &&
+      point &&
+      positionEditor.current?.open &&
+      (!floor || marker) &&
+      !marker?.source_plan_id
+    ) {
       setDraft({ x: fixed(x), y: fixed(y) });
       tell("");
     }
@@ -345,11 +368,74 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
     zoom <= 24
       ? { lng, lat, zoom }
       : null;
+  const [pointQuery, setPointQuery] = useState("");
+  const otherPoints = availablePoints.filter((p) => p.id !== selected);
+  const listedPoints = otherPoints.filter((p) =>
+    matchesQuery(pointQuery, p.name, p.id),
+  );
+  const pointList = (
+    <>
+      {needsListSearch(otherPoints.length, pointQuery) && (
+        <FilterPanel
+          label="Фильтры точек наблюдения"
+          queryLabel="Поиск точки"
+          query={pointQuery}
+          onQuery={setPointQuery}
+          onReset={() => setPointQuery("")}
+        />
+      )}
+      {!listedPoints.length && pointQuery && (
+        <p role="status">Точки не найдены.</p>
+      )}
+      <ul className="ws-map-list">
+        {listedPoints.map((p) => (
+          <li key={p.id}>
+            <Button
+              id={"map-point-" + p.id}
+              aria-pressed={selected === p.id}
+              onClick={() => choose(p.id)}
+            >
+              {p.name}
+              {newAlerts.has(p.id) && (
+                <span className="ws-point-alert">
+                  {" "}
+                  · Новых тревог: {newAlerts.get(p.id)}
+                </span>
+              )}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
   return (
     <>
-      <div className="ws-title">
-        <h1>Карты и планы</h1>
-      </div>
+      {scene && !(admin && plan && editingPlan === plan.id) && (
+        <SubsectionMenu
+          label="Подразделы карт и планов"
+          items={[
+            {
+              label: "Карта региона",
+              icon: "map",
+              active: !surface,
+              select: () => changeSurface(""),
+            },
+            {
+              label: "Планы",
+              icon: "layers",
+              active: !!surface,
+              disabled: !scene.plans.length,
+              select: () => {
+                const next =
+                  plan ??
+                  scene.plans.find((p) => p.id === previousPlan.current) ??
+                  scene.plans[0];
+                if (next) changeSurface(next.id);
+              },
+            },
+          ]}
+        />
+      )}
       {!scene ? (
         <p role="status">
           {failed
@@ -368,6 +454,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
             services={services}
             close={(saved) => {
               setEditingPlan("");
+              requestAnimationFrame(() => editPlanButton.current?.focus());
               if (saved) {
                 refresh((v) => v + 1);
                 tell("Привязка обновлена");
@@ -379,20 +466,26 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
         <div className="ws-maps">
           <section className="ws-panel ws-pad">
             <div className="ws-map-toolbar">
-              <label>
-                Карта или план{" "}
-                <select
-                  value={surface}
-                  onChange={(e) => changeSurface(e.target.value)}
-                >
-                  <option value="">Карта региона</option>
-                  {scene.plans.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {surface && (scene.plans.length > 1 || !plan) && (
+                <label>
+                  План{" "}
+                  <select
+                    value={surface}
+                    onChange={(e) => changeSurface(e.target.value)}
+                  >
+                    {!plan && (
+                      <option value={surface} disabled>
+                        Выберите план
+                      </option>
+                    )}
+                    {scene.plans.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               {!surface && scene.regions.length > 1 && (
                 <label>
                   Регион{" "}
@@ -415,27 +508,26 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                   </select>
                 </label>
               )}
-              {plan && (
-                <label>
-                  Масштаб плана{" "}
-                  <select
-                    value={scale}
-                    onChange={(e) => update({ scale: e.target.value })}
-                  >
-                    <option value={1}>100%</option>
-                    <option value={2}>200%</option>
-                  </select>
-                </label>
-              )}
             </div>
             {surface ? (
               plan ? (
                 <>
-                  <h2>{plan.name}</h2>
+                  <div className="ws-plan-heading">
+                    <h2>{plan.name}</h2>
+                    <PlanZoom
+                      label="Масштаб плана"
+                      levels={[1, 2]}
+                      value={scale}
+                      onChange={(level) => update({ scale: String(level) })}
+                    />
+                  </div>
                   {(admin || (plan.footprint && region)) && (
                     <div className="ws-map-actions">
                       {admin && (
-                        <Button onClick={() => setEditingPlan(plan.id)}>
+                        <Button
+                          ref={editPlanButton}
+                          onClick={() => setEditingPlan(plan.id)}
+                        >
                           {plan.footprint
                             ? "Настроить привязку к карте"
                             : "Привязать план к карте"}
@@ -630,49 +722,32 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
             )}
           </section>
           <section className="ws-panel ws-pad">
-            <h2>Точки наблюдения</h2>
-            <ul className="ws-map-list">
-              {(admin && !floor
-                ? points
-                : points.filter((p) =>
-                    visibleMarkers.some((m) => m.point_id === p.id),
-                  )
-              ).map((p) => (
-                <li key={p.id}>
-                  <Button
-                    id={"map-point-" + p.id}
-                    aria-pressed={selected === p.id}
-                    onClick={() => choose(p.id)}
-                  >
-                    {p.name}
-                    {newAlerts.has(p.id) && (
-                      <span className="ws-point-alert">
-                        {" "}
-                        · Новых тревог: {newAlerts.get(p.id)}
-                      </span>
-                    )}
-                  </Button>
-                </li>
+            {(!point || (!admin && !marker)) && <h2>Точки наблюдения</h2>}
+            {otherPoints.length > 0 &&
+              (point && (admin || marker) ? (
+                <details key={selected}>
+                  <summary>Сменить точку</summary>
+                  {pointList}
+                </details>
+              ) : (
+                pointList
               ))}
-            </ul>
+
             {!visibleMarkers.length && (
               <p>На карте или плане пока нет доступных точек</p>
             )}
             {point && (admin || marker) && (
               <>
-                <h3 tabIndex={-1} ref={cameraTitle}>
+                <h2
+                  tabIndex={-1}
+                  ref={cameraTitle}
+                  id={"map-point-" + point.id}
+                >
                   {point.name}
-                </h3>
-                {marker && (
-                  <p>
-                    {plan ? "X, Y" : "Долгота, широта"} · {fixed(marker.x)},{" "}
-                    {fixed(marker.y)}
-                  </p>
-                )}
-                {marker && <p>{viewLabel(marker.view)}</p>}
+                </h2>
                 <div className="ws-map-actions">
-                  <Link to={target("live")}>Эфир</Link>
-                  <Link to={target("archive")}>Архив</Link>
+                  <RouteButton to={target("live")}>Эфир</RouteButton>
+                  <RouteButton to={target("archive")}>Архив</RouteButton>
                 </div>
                 <CameraEvents
                   key={point.id}
@@ -710,14 +785,30 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                   />
                 )}
                 {admin &&
-                  (!floor || marker) &&
-                  !marker?.source_plan_id &&
-                  (plan || (!surface && region)) && (
+                (!floor || marker) &&
+                !marker?.source_plan_id &&
+                (plan || (!surface && region)) ? (
+                  <details
+                    key={
+                      site +
+                      "/" +
+                      surface +
+                      "/" +
+                      selected +
+                      "/" +
+                      (region?.id ?? "")
+                    }
+                    ref={positionEditor}
+                    onToggle={(e) => {
+                      if (!e.currentTarget.open) setDraft(null);
+                    }}
+                  >
+                    <summary>Изменить положение точки</summary>
+                    {marker?.view && <p>{viewLabel(marker.view)}</p>}
                     <form
                       className="ws-placement-form"
                       onSubmit={(e) => void save(e)}
                     >
-                      <h3>Положение точки</h3>
                       {(["x", "y"] as const).map((axis) => (
                         <label key={axis}>
                           {plan
@@ -745,7 +836,19 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                         Сохранить положение
                       </Button>
                     </form>
-                  )}
+                  </details>
+                ) : (
+                  marker && (
+                    <details>
+                      <summary>Параметры точки</summary>
+                      <p>
+                        {plan ? "X, Y" : "Долгота, широта"} · {fixed(marker.x)},{" "}
+                        {fixed(marker.y)}
+                      </p>
+                      {marker.view && <p>{viewLabel(marker.view)}</p>}
+                    </details>
+                  )
+                )}
               </>
             )}
             {admin && (

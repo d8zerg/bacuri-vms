@@ -216,7 +216,7 @@ def run():
                     "POST",
                     "/execute/sync",
                     {
-                        "script": "return Array.from(document.querySelectorAll('h2')).some(e=>e.textContent==='operator')",
+                        "script": "return Array.from(document.querySelectorAll('.ws-users summary strong')).some(e=>e.textContent==='operator')",
                         "args": [],
                     },
                 ),

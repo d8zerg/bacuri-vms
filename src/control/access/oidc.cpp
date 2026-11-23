@@ -60,9 +60,10 @@ std::string challenge(const std::string& verifier)
 size_t collect(char* data, size_t size, size_t count, void* context)
 {
     auto& body = *static_cast<std::string*>(context);
-    const auto n = size * count;
-    if (n > 512 * 1024 - body.size())
+    constexpr size_t limit = 512uz * 1024;
+    if (body.size() > limit || (size && count > (limit - body.size()) / size))
         return 0;
+    const auto n = size * count;
     try {
         body.append(data, n);
     } catch (...) {
@@ -344,6 +345,7 @@ namespace access
 void refresh_identities(std::stop_token stop, const Key& key)
 {
     while (!stop.stop_requested()) {
+        bool wait_before_retry;
         try {
             Database db;
             db.exec("BEGIN");
@@ -380,11 +382,13 @@ void refresh_identities(std::stop_token stop, const Key& key)
                 }
             }
             db.exec("COMMIT");
-            if (rows.size())
-                continue;
-        } catch (...) { /* Expired identity checks deny subsequent access. */
+            wait_before_retry = rows.size() == 0;
+        } catch (...) {
+            // Expired identity checks deny subsequent access while the provider is unavailable.
+            wait_before_retry = true;
         }
-        std::this_thread::sleep_for(500ms);
+        if (wait_before_retry)
+            std::this_thread::sleep_for(500ms);
     }
 }
 } // namespace access

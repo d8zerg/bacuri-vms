@@ -1,28 +1,20 @@
 - main:
   - heading "Карты и планы" [level=1]
-  - text: Карта или план
-  - combobox "Карта или план":
-    - option "Карта региона"
-    - option "Первый этаж" [selected]
-  - text: Масштаб плана
-  - combobox "Масштаб плана":
-    - option /\d+%/ [selected]
-    - option /\d+%/
+  - group "Подразделы карт и планов":
+    - button "Карта региона"
+    - button "Планы" [pressed]
   - heading "Первый этаж" [level=2]
+  - radiogroup "Масштаб плана":
+    - radio /\d+%/ [checked]
+    - text: /\d+%/
+    - radio /\d+%/
+    - text: /\d+%/
   - button "Привязать план к карте"
   - img "Первый этаж"
   - 'button /Погрузочные ворота \d+ · Новых тревог: 4/ [pressed]'
-  - heading "Точки наблюдения" [level=2]
-  - list:
-    - listitem:
-      - 'button /Погрузочные ворота \d+ · Новых тревог: 4/ [pressed]'
-  - heading /Погрузочные ворота \d+/ [level=3]
-  - paragraph: /X, Y · \d+\.\d+, \d+\.\d+/
-  - paragraph: /Заданное направление \d+° · угол обзора \d+°/
-  - link "Эфир":
-    - /url: /monitor?plan=floor&point=dock&mode=live
-  - link "Архив":
-    - /url: /monitor?plan=floor&point=dock&mode=archive
+  - heading /Погрузочные ворота \d+/ [level=2]
+  - button "Эфир"
+  - button "Архив"
   - region "События камеры":
     - heading "События камеры" [level=3]
     - list:
@@ -46,12 +38,7 @@
           - text: ""
     - button "Показать ещё (1)"
   - group: Настроить сектор обзора
-  - heading "Положение точки" [level=3]
-  - text: X
-  - spinbutton "X": /\d+\.\d+/
-  - text: "Y"
-  - spinbutton "Y": /\d+\.\d+/
-  - button "Сохранить положение" [disabled]
+  - group: Изменить положение точки
   - group: Добавить план
   - region "Управление регионами":
     - heading "Региональные карты" [level=3]

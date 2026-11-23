@@ -59,6 +59,8 @@ int schema_for(std::string v)
         return 20;
     if (v == "0.1.7-1")
         return 21;
+    if (v == "0.1.8-1")
+        return 22;
     throw std::runtime_error("Unsupported Bacuri VMS package version");
 }
 const char* version_query(int schema)

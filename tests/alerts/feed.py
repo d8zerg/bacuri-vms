@@ -183,6 +183,10 @@ def run():
                     ),
                     "live browser feed",
                 )
+                call("POST", "/window/rect", {"width": 1440, "height": 900})
+                assert js(call, "return document.querySelector('nav').getBoundingClientRect().right <= document.querySelector('main').getBoundingClientRect().left")
+                js(call, "document.querySelector('.sidebar-toggle').click()")
+                assert js(call, "return getComputedStyle(document.querySelector('nav a span')).display === 'none'")
                 before = js(call, "return document.getElementById('alerts').childElementCount")
                 began = time.monotonic()
                 send(motion(point))
@@ -199,7 +203,7 @@ def run():
                 )
                 js(
                     call,
-                    "document.getElementById('alert-'+arguments[0]).querySelector('a').click()",
+                    "document.getElementById('alert-'+arguments[0]).querySelector('button').click()",
                     first["id"],
                 )
                 c.wait_for(
@@ -213,6 +217,9 @@ def run():
                     """const v=document.querySelector('video'), c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;const ctx=c.getContext('2d');ctx.drawImage(v,0,0);let n=0;for(let i=0;i<5;i++) if(ctx.getImageData((i+.5)*c.width/5,40,1,1).data[0]>128)n|=1<<i;return n""",
                 )
                 assert frame == 16, (browser, frame)
+                assert js(call, "return document.querySelector('.sidebar-toggle').getAttribute('aria-expanded') === 'false'")
+                call("POST", "/window/rect", {"width": 640, "height": 800})
+                assert js(call, "return getComputedStyle(document.querySelector('nav a span')).display !== 'none' && getComputedStyle(document.querySelector('.sidebar-toggle')).display === 'none'")
                 print(browser, version, "alert opened encoded frame", frame, flush=True)
         fallback = motion(point)
         del fallback["clock"]

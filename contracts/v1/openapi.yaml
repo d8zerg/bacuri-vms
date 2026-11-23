@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Bacuri VMS API
-  version: 1.1.0
+  version: 1.2.0
 servers:
   - url: /api/v1
 security:
@@ -1484,6 +1484,145 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/camera-templates:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+    get:
+      operationId: listCameraTemplates
+      responses:
+        '200':
+          description: Latest versions of the site's reusable camera templates.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/CameraTemplate' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /sites/{siteId}/camera-templates/{templateId}:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+      - { name: templateId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+      - $ref: '#/components/parameters/Csrf'
+    put:
+      operationId: saveCameraTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/CameraTemplateSettings' }
+                - type: object
+                  required: [expected_revision]
+                  properties:
+                    expected_revision: { type: string, pattern: '^(0|[1-9][0-9]*)$' }
+      responses:
+        '200':
+          description: Saved template and revision.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CameraTemplate' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CameraConflict' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/camera-batches:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+    get:
+      operationId: listCameraBatches
+      responses:
+        '200':
+          description: The administrator's most recent 100 batches on this site.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, name, count]
+                  properties:
+                    id: { $ref: '#/components/schemas/Id' }
+                    name: { type: string }
+                    count: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /sites/{siteId}/camera-batches/{batchId}:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+      - { name: batchId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    get:
+      operationId: getCameraBatch
+      responses:
+        '200':
+          description: Camera batch receipt with the latest recorder acknowledgement.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/CameraBatchReceipt' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CameraConflict' }
+        '422': { $ref: '#/components/responses/CameraFailure' }
+        '502': { $ref: '#/components/responses/CameraFailure' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+        '504': { $ref: '#/components/responses/CameraFailure' }
+  /sites/{siteId}/camera-batches/{batchId}/{itemId}:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+      - { name: batchId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+      - { name: itemId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+      - $ref: '#/components/parameters/Csrf'
+    put:
+      operationId: previewCameraBatchItem
+      description: Prepare an immutable channel change. Reuse the same item ID for an identical request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CameraBatchDraft' }
+      responses:
+        '200':
+          description: Camera batch receipt with the latest recorder acknowledgement.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CameraBatchReceipt' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CameraConflict' }
+        '422': { $ref: '#/components/responses/CameraFailure' }
+        '502': { $ref: '#/components/responses/CameraFailure' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+        '504': { $ref: '#/components/responses/CameraFailure' }
+  /sites/{siteId}/camera-batches/{batchId}/{itemId}/{action}:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+      - { name: batchId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+      - { name: itemId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+      - $ref: '#/components/parameters/Csrf'
+      - { name: action, in: path, required: true, schema: { type: string, enum: [apply, rollback] } }
+    post:
+      operationId: changeCameraBatchItem
+      description: Apply or roll back the prepared version for this channel. Repeated completed actions return the receipt.
+      responses:
+        '200':
+          description: Camera batch receipt with the latest recorder acknowledgement.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CameraBatchReceipt' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CameraConflict' }
+        '422': { $ref: '#/components/responses/CameraFailure' }
+        '502': { $ref: '#/components/responses/CameraFailure' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+        '504': { $ref: '#/components/responses/CameraFailure' }
   /sites/{siteId}/cameras:
     parameters:
       - $ref: '#/components/parameters/Site'
@@ -1903,6 +2042,11 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/CameraConfiguration' }
   responses:
+    CameraConflict:
+      description: Conflicting identity, revision or request contents.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
     CameraFailure:
       description: Camera transport, authentication, or profile failure.
       content:
@@ -2777,8 +2921,108 @@ components:
             required: [token, name, url]
             properties:
               token: { type: string }
+              channel: { type: string }
+              width: { type: integer }
+              height: { type: integer }
               name: { type: string }
               url: { $ref: '#/components/schemas/CameraStreamUrl' }
+    CameraTemplateSettings:
+      type: object
+      required: [name, record_quality]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 128 }
+        record_quality: { type: string, enum: [high, low] }
+        brightness: { type: number }
+    CameraTemplate:
+      allOf:
+        - { $ref: '#/components/schemas/CameraTemplateSettings' }
+        - type: object
+          required: [id, revision]
+          properties:
+            id: { $ref: '#/components/schemas/Id' }
+            revision: { $ref: '#/components/schemas/Revision' }
+    CameraBatchDraft:
+      type: object
+      additionalProperties: false
+      required: [selection, username, password, name]
+      oneOf:
+        - required: [main_url, secondary_url]
+          not: { anyOf: [{ required: [channel] }, { required: [record_quality] }, { required: [template_id] }, { required: [template_revision] }] }
+        - required: [record_quality, channel]
+          not: { anyOf: [{ required: [main_url] }, { required: [secondary_url] }, { required: [template_id] }, { required: [template_revision] }] }
+        - required: [template_id, template_revision, channel]
+          not: { anyOf: [{ required: [main_url] }, { required: [secondary_url] }, { required: [record_quality] }, { required: [brightness] }] }
+      properties:
+        selection: { type: string, maxLength: 24576 }
+        username: { type: string, minLength: 1, maxLength: 128 }
+        password: { type: string, maxLength: 1024, writeOnly: true }
+        name: { type: string, minLength: 1, maxLength: 256 }
+        point_id: { $ref: '#/components/schemas/Id' }
+        main_url: { $ref: '#/components/schemas/CameraStreamUrl' }
+        secondary_url: { $ref: '#/components/schemas/CameraStreamUrl' }
+        brightness: { type: number }
+        record_quality: { type: string, enum: [high, low] }
+        channel: { type: string, maxLength: 256 }
+        template_id: { $ref: '#/components/schemas/Id' }
+        template_revision: { $ref: '#/components/schemas/Revision' }
+    BatchChannelSettings:
+      type: object
+      required: [name, main_url, secondary_url, point_id]
+      properties:
+        name: { type: string }
+        point_id: { type: string, description: Empty when a new observation point will be created. }
+        main_url: { type: string }
+        secondary_url: { type: string }
+    CameraBatchReceipt:
+      type: object
+      required: [item_id, camera, before, after, brightness, image, expected_revision, revision, state, current]
+      properties:
+        item_id: { $ref: '#/components/schemas/Id' }
+        device_id: { $ref: '#/components/schemas/Id' }
+        camera:
+          type: object
+          required: [endpoint_id, model, manufacturer, firmware, serial, channel_token, ptz, events]
+          properties:
+            endpoint_id: { type: string }
+            model: { type: string }
+            manufacturer: { type: string }
+            firmware: { type: string }
+            serial: { type: string }
+            channel_token: { type: string }
+            ptz: { type: boolean }
+            events: { type: boolean }
+        template: { $ref: '#/components/schemas/CameraTemplate' }
+        before:
+          oneOf: [{ $ref: '#/components/schemas/BatchChannelSettings' }, { type: 'null' }]
+        after: { $ref: '#/components/schemas/BatchChannelSettings' }
+        brightness: { type: [number, 'null'] }
+        image:
+          oneOf:
+            - { type: 'null' }
+            - type: object
+              required: [min, max, value]
+              properties:
+                min: { type: number }
+                max: { type: number }
+                value: { type: number }
+        state: { type: string, enum: [prepared, applying, rolling_back, saved, failed, rollback_failed, rolled_back] }
+        error: { type: string }
+        observed_brightness: { type: number }
+        expected_revision: { type: [string, 'null'] }
+        revision: { type: [string, 'null'] }
+        current:
+          oneOf:
+            - { type: 'null' }
+            - allOf:
+                - { $ref: '#/components/schemas/BatchChannelSettings' }
+                - type: object
+                  required: [id, desired_revision, applied_revision, binding_revision, state]
+                  properties:
+                    id: { type: string }
+                    desired_revision: { type: string }
+                    applied_revision: { type: [string, 'null'] }
+                    binding_revision: { type: string }
+                    state: { type: string, enum: [applying, applied, rejected] }
     CameraIssues:
       type: object
       required: [main, secondary]
@@ -2817,6 +3061,7 @@ components:
         serial: { type: string }
         ptz: { type: boolean }
         events: { type: boolean }
+        channel_token: { type: string }
         binding_revision: { $ref: '#/components/schemas/Revision' }
         has_credentials: { type: boolean }
         desired_revision: { $ref: '#/components/schemas/Revision' }
@@ -3011,6 +3256,9 @@ components:
             - camera_ptz_unsupported
             - camera_protocol_error
             - camera_authentication_failed
+            - camera_batch_limit
+            - camera_image_unsupported
+            - camera_image_unconfirmed
             - camera_binding_conflict
             - camera_discovery_unavailable
             - account_conflict
