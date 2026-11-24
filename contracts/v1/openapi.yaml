@@ -1,12 +1,244 @@
 openapi: 3.1.0
 info:
   title: Bacuri VMS API
-  version: 1.5.0
+  version: 1.6.0
 servers:
   - url: /api/v1
 security:
   - browserSession: []
 paths:
+  /sites/{siteId}/points/{pointId}/holds:
+    parameters:
+      - {$ref: '#/components/parameters/Site'}
+      - {name: pointId, in: path, required: true, schema: {$ref: '#/components/schemas/Id'}}
+    get:
+      operationId: listArchiveHolds
+      responses:
+        '200':
+          description: Successful operation.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ArchiveHold'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/CameraFailure'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    post:
+      operationId: createArchiveHold
+      parameters:
+        - {$ref: '#/components/parameters/Csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/HoldDraft'}
+      responses:
+        '201':
+          description: Successful operation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HoldId'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/CameraFailure'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /sites/{siteId}/investigations:
+    parameters:
+      - {$ref: '#/components/parameters/Site'}
+    get:
+      operationId: listInvestigations
+      responses:
+        '200':
+          description: Successful operation.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Investigation'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/CameraFailure'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /sites/{siteId}/investigations/{caseId}:
+    parameters:
+      - {$ref: '#/components/parameters/Site'}
+      - {name: caseId, in: path, required: true, schema: {$ref: '#/components/schemas/Id'}}
+    get:
+      operationId: getInvestigation
+      responses:
+        '200':
+          description: Successful operation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Investigation'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/CameraFailure'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    put:
+      operationId: saveInvestigation
+      parameters:
+        - {$ref: '#/components/parameters/Csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/InvestigationDraft'}
+      responses:
+        '200':
+          description: Successful operation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SavedInvestigation'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/CameraFailure'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /sites/{siteId}/archive-search:
+    parameters:
+      - {$ref: '#/components/parameters/Site'}
+    post:
+      operationId: searchArchiveFrames
+      parameters:
+        - {$ref: '#/components/parameters/Csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ArchiveSearch'}
+      responses:
+        '200':
+          description: Successful operation.
+          content:
+            application/json:
+              schema: {type: array, maxItems: 4, items: {$ref: '#/components/schemas/SearchTrack'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/CameraFailure'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /sites/{siteId}/points/{pointId}/video-rule:
+    parameters:
+      - {$ref: '#/components/parameters/Site'}
+      - {name: pointId, in: path, required: true, schema: {$ref: '#/components/schemas/Id'}}
+    get:
+      operationId: getVideoRule
+      responses:
+        '200':
+          description: Successful operation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuleVersion'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/CameraFailure'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    put:
+      operationId: setVideoRule
+      parameters:
+        - {$ref: '#/components/parameters/Csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RuleChange'}
+      responses:
+        '200':
+          description: Successful operation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuleVersion'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/CameraFailure'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /sites/{siteId}/points/{pointId}/video-rule/simulation:
+    parameters:
+      - {$ref: '#/components/parameters/Site'}
+      - {name: pointId, in: path, required: true, schema: {$ref: '#/components/schemas/Id'}}
+    post:
+      operationId: simulateVideoRule
+      parameters:
+        - {$ref: '#/components/parameters/Csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RuleTrial'}
+      responses:
+        '200':
+          description: Successful operation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TrialResult'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/CameraFailure'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /sites/{siteId}/investigations/{caseId}/exports:
+    parameters:
+      - {$ref: '#/components/parameters/Site'}
+      - {name: caseId, in: path, required: true, schema: {$ref: '#/components/schemas/Id'}}
+    post:
+      operationId: exportInvestigation
+      parameters:
+        - {$ref: '#/components/parameters/Csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CaseExport'}
+      responses:
+        '200':
+          description: Signed investigation archive.
+          content:
+            application/x-tar:
+              schema: {type: string, format: binary}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/CameraFailure'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /sites/{siteId}/investigation-assignees:
+    parameters:
+      - {$ref: '#/components/parameters/Site'}
+    post:
+      operationId: listCaseRecipients
+      parameters:
+        - {$ref: '#/components/parameters/Csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CaseRecipients'}
+      responses:
+        '200':
+          description: Successful operation.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/CaseRecipient'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/CameraFailure'}
+        '503': {$ref: '#/components/responses/Unavailable'}
   /sites/{siteId}/recording-policies:
     parameters:
     - $ref: '#/components/parameters/Site'
@@ -1744,6 +1976,68 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/cameras/{cameraId}/edge-archive:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+      - { name: cameraId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    get:
+      operationId: listEdgeRecordings
+      responses:
+        '200':
+          description: Device recording inventory with reported track bounds.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EdgeArchive' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/CameraFailure' }
+        '502': { $ref: '#/components/responses/CameraFailure' }
+        '504': { $ref: '#/components/responses/CameraFailure' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+    post:
+      operationId: recoverEdgeGap
+      parameters:
+        - {$ref: '#/components/parameters/Csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [recording, binding_revision, interval]
+              properties:
+                recording: {type: string, pattern: '^[0-9a-f]{64}$'}
+                binding_revision: {$ref: '#/components/schemas/Revision'}
+                interval: {$ref: '#/components/schemas/UtcInterval'}
+      responses:
+        '200':
+          description: Result for one bounded replay request and an optional continuation time.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [blocks, duration_us, outcome, next]
+                properties:
+                  blocks: {type: integer, minimum: 0}
+                  duration_us: {type: integer, minimum: 0}
+                  outcome: {type: string, enum: [copied, no_frames, timeout, quota]}
+                  next: {type: [string, 'null'], format: date-time}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/CameraFailure'}
+        '422': {$ref: '#/components/responses/CameraFailure'}
+        '429': {$ref: '#/components/responses/CameraFailure'}
+        '502': {$ref: '#/components/responses/CameraFailure'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+        '504': {$ref: '#/components/responses/CameraFailure'}
   /sites/{siteId}/cameras/{cameraId}/previous-recording:
     parameters:
       - $ref: '#/components/parameters/Site'
@@ -2157,6 +2451,9 @@ paths:
               properties:
                 interval: { $ref: '#/components/schemas/UtcInterval' }
                 alert_id: { $ref: '#/components/schemas/Id' }
+                mode: {type: string, enum: [selection, original, derivative]}
+                audio: {type: boolean}
+                reason: {type: string, minLength: 1, maxLength: 512}
       responses:
         '200':
           description: Tar package containing numbered MP4 files, the source manifest and its detached Ed25519 signature.
@@ -2638,6 +2935,263 @@ components:
           type:
           - integer
           - 'null'
+    InvestigationBookmark:
+      type: object
+      additionalProperties: false
+      required: [at, name]
+      properties:
+        at: {$ref: '#/components/schemas/UtcTime'}
+        name: {type: string, maxLength: 128}
+    CaseMaterialDraft:
+      type: object
+      additionalProperties: false
+      required: [point_id, interval, bookmarks]
+      properties:
+        point_id: {$ref: '#/components/schemas/Id'}
+        interval: {$ref: '#/components/schemas/UtcInterval'}
+        bookmarks: {type: array, maxItems: 64, items: {$ref: '#/components/schemas/InvestigationBookmark'}}
+    CaseMaterial:
+      type: object
+      additionalProperties: false
+      required: [point_id, interval, bookmarks, hold_id]
+      properties:
+        point_id: {$ref: '#/components/schemas/Id'}
+        interval: {$ref: '#/components/schemas/UtcInterval'}
+        bookmarks: {type: array, maxItems: 64, items: {$ref: '#/components/schemas/InvestigationBookmark'}}
+        hold_id: {$ref: '#/components/schemas/Id'}
+    InvestigationDraft:
+      type: object
+      additionalProperties: false
+      required: [number, assignee, notes, expires_at, revision, reason, materials]
+      properties:
+        number: {type: string, maxLength: 64}
+        assignee: {$ref: '#/components/schemas/Id'}
+        notes: {type: string, maxLength: 8192}
+        expires_at: {$ref: '#/components/schemas/UtcTime'}
+        revision: {type: string, pattern: '^(0|[1-9][0-9]*)$'}
+        reason: {type: string, maxLength: 512}
+        materials: {type: array, maxItems: 32, items: {$ref: '#/components/schemas/CaseMaterialDraft'}}
+    Investigation:
+      type: object
+      additionalProperties: false
+      required: [id, number, assignee, notes, expires_at, revision, materials]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        number: {type: string, maxLength: 64}
+        assignee: {$ref: '#/components/schemas/Id'}
+        notes: {type: string, maxLength: 8192}
+        expires_at: {$ref: '#/components/schemas/UtcTime'}
+        revision: {$ref: '#/components/schemas/Revision'}
+        materials: {type: array, maxItems: 32, items: {$ref: '#/components/schemas/CaseMaterial'}}
+    SavedInvestigation:
+      type: object
+      additionalProperties: false
+      required: [id, revision]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        revision: {$ref: '#/components/schemas/Revision'}
+    HoldDraft:
+      type: object
+      additionalProperties: false
+      required: [interval, reason, expires_at]
+      properties:
+        interval: {$ref: '#/components/schemas/UtcInterval'}
+        reason: {type: string, maxLength: 512}
+        expires_at: {$ref: '#/components/schemas/UtcTime'}
+    ArchiveHold:
+      type: object
+      additionalProperties: false
+      required: [interval, reason, expires_at, owner, id]
+      properties:
+        interval: {$ref: '#/components/schemas/UtcInterval'}
+        reason: {type: string, maxLength: 512}
+        expires_at: {$ref: '#/components/schemas/UtcTime'}
+        owner: {$ref: '#/components/schemas/Id'}
+        id: {$ref: '#/components/schemas/Id'}
+    HoldId:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+    MotionRegion:
+      type: object
+      additionalProperties: false
+      required: [left, top, right, bottom]
+      properties:
+        left: {type: number, minimum: 0, maximum: 1}
+        top: {type: number, minimum: 0, maximum: 1}
+        right: {type: number, minimum: 0, maximum: 1}
+        bottom: {type: number, minimum: 0, maximum: 1}
+    ArchiveSearch:
+      type: object
+      additionalProperties: false
+      required: [points, interval]
+      properties:
+        plan: {$ref: '#/components/schemas/Id'}
+        event_query: {type: string, maxLength: 128}
+        points: {type: array, maxItems: 4, items: {$ref: '#/components/schemas/Id'}}
+        interval: {$ref: '#/components/schemas/UtcInterval'}
+        region: {$ref: '#/components/schemas/MotionRegion'}
+        min_cells: {type: integer, minimum: 1, maximum: 192}
+        threshold: {type: integer, minimum: 1, maximum: 255}
+        motion: {type: boolean}
+    IndexCoverage:
+      type: object
+      additionalProperties: false
+      required: [interval, indexed, basis, uncertainty_us, binding_revision]
+      properties:
+        interval: {$ref: '#/components/schemas/UtcInterval'}
+        indexed: {type: boolean}
+        basis: {type: string}
+        uncertainty_us: {type: [integer, 'null']}
+        binding_revision: {$ref: '#/components/schemas/Revision'}
+    ArchiveMatch:
+      type: object
+      additionalProperties: false
+      required: [at, cells, preview]
+      properties:
+        at: {$ref: '#/components/schemas/UtcTime'}
+        cells: {type: integer}
+        preview: {type: string, contentEncoding: base64}
+    SearchGap:
+      type: object
+      additionalProperties: false
+      required: [interval, reason]
+      properties:
+        interval: {$ref: '#/components/schemas/UtcInterval'}
+        reason: {type: string}
+    SearchTrack:
+      type: object
+      additionalProperties: false
+      required: [point_id, coverage, hits, frames, gaps, next]
+      properties:
+        events: {type: array, items: {$ref: '#/components/schemas/SearchEvent'}}
+        point_id: {$ref: '#/components/schemas/Id'}
+        coverage: {type: array, items: {$ref: '#/components/schemas/IndexCoverage'}}
+        hits: {type: array, items: {$ref: '#/components/schemas/ArchiveMatch'}}
+        frames: {type: array, items: {$ref: '#/components/schemas/UtcTime'}}
+        gaps: {type: array, items: {$ref: '#/components/schemas/SearchGap'}}
+        next: {type: [string, 'null'], format: date-time}
+    VideoPeriod:
+      type: object
+      additionalProperties: false
+      required: [day, start, end]
+      properties:
+        day: {type: integer, minimum: 1, maximum: 7}
+        start: {type: integer, minimum: 0, maximum: 1439}
+        end: {type: integer, minimum: 1, maximum: 1440}
+    VideoRule:
+      type: object
+      additionalProperties: false
+      required: [enabled, record, notify, source, preset, threshold, min_cells, cooldown, include, exclude, zone, schedule, line]
+      properties:
+        enabled: {type: boolean}
+        record: {type: boolean}
+        notify: {type: boolean}
+        source: {type: string, enum: [local, onvif]}
+        preset: {type: string, maxLength: 128}
+        threshold: {type: integer, minimum: 1, maximum: 255}
+        min_cells: {type: integer, minimum: 1, maximum: 192}
+        cooldown: {type: integer, minimum: 1, maximum: 3600}
+        include: {type: array, maxItems: 8, items: {$ref: '#/components/schemas/MotionRegion'}}
+        exclude: {type: array, maxItems: 8, items: {$ref: '#/components/schemas/MotionRegion'}}
+        zone: {type: string}
+        schedule: {type: array, maxItems: 56, items: {$ref: '#/components/schemas/VideoPeriod'}}
+        line: {oneOf: [{type: 'null'}, {type: array, minItems: 4, maxItems: 4, items: {type: number, minimum: 0, maximum: 1}}]}
+    RuleVersion:
+      type: object
+      additionalProperties: false
+      required: [revision, rule]
+      properties:
+        revision: {type: string, pattern: '^(0|[1-9][0-9]*)$'}
+        rule: {oneOf: [{$ref: '#/components/schemas/VideoRule'}, {type: 'null'}]}
+    RuleChange:
+      type: object
+      additionalProperties: false
+      required: [revision, rule]
+      properties:
+        revision: {type: string, pattern: '^(0|[1-9][0-9]*)$'}
+        rule: {$ref: '#/components/schemas/VideoRule'}
+    RuleTrial:
+      type: object
+      additionalProperties: false
+      required: [rule, interval]
+      properties:
+        rule: {$ref: '#/components/schemas/VideoRule'}
+        interval: {$ref: '#/components/schemas/UtcInterval'}
+    TrialResult:
+      type: object
+      additionalProperties: false
+      required: [hits, complete]
+      properties:
+        hits: {type: array, items: {$ref: '#/components/schemas/UtcTime'}}
+        complete: {type: boolean}
+    CaseExport:
+      type: object
+      additionalProperties: false
+      required: [mode, reason, audio, revision]
+      properties:
+        mode: {type: string, enum: [original, derivative]}
+        reason: {type: string}
+        audio: {type: boolean}
+        revision: {$ref: '#/components/schemas/Revision'}
+    SearchEvent:
+      type: object
+      additionalProperties: false
+      required: [at, id, rule_revision, topic, source]
+      properties:
+        metadata: {type: object, additionalProperties: true}
+        alert_id: {type: string}
+        at: {$ref: '#/components/schemas/UtcTime'}
+        id: {$ref: '#/components/schemas/Id'}
+        rule_revision: {type: string, pattern: '^(0|[1-9][0-9]*)$'}
+        topic: {type: string}
+        source: {type: string}
+    CaseRecipients:
+      type: object
+      additionalProperties: false
+      required: [materials]
+      properties:
+        materials: {type: array, maxItems: 32, items: {$ref: '#/components/schemas/CaseMaterialDraft'}}
+    CaseRecipient:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        name: {type: string}
+    EdgeArchive:
+      type: object
+      additionalProperties: false
+      required: [supported, recordings, binding_revision, gaps]
+      properties:
+        binding_revision: {$ref: '#/components/schemas/Revision'}
+        gaps: {type: array, maxItems: 128, items: {$ref: '#/components/schemas/UtcInterval'}}
+        supported: {type: boolean}
+        recordings:
+          type: array
+          maxItems: 64
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, tracks]
+            properties:
+              name: {type: string}
+              id: {type: string}
+              tracks:
+                type: array
+                maxItems: 64
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [kind, bounds]
+                  properties:
+                    kind: {type: string, enum: [Video, Audio, Metadata]}
+                    bounds:
+                      oneOf:
+                        - {$ref: '#/components/schemas/UtcInterval'}
+                        - {type: 'null'}
     RecordingStorage:
       type: object
       additionalProperties: false
@@ -2695,6 +3249,17 @@ components:
             point_states:
               type: object
               additionalProperties: {type: string}
+            replica:
+              type: object
+              required: [verified, failed]
+              properties:
+                verified: {type: integer}
+                failed: {type: integer}
+                online: {type: boolean}
+                pending: {type: integer}
+                last_checked_us: {type: integer}
+            write_bytes_per_second: {type: [number, 'null']}
+            estimated_depth_seconds: {type: [number, 'null']}
             capacity_bytes:
               type: integer
             removed_blocks:
@@ -2818,6 +3383,7 @@ components:
           - record
           - configure
           - protect
+          - export_masked
           - export
         group_id:
           $ref: '#/components/schemas/Id'
@@ -2860,6 +3426,7 @@ components:
           - record
           - configure
           - protect
+          - export_masked
           - export
           - view_ptz
         begin_us:
@@ -3094,6 +3661,14 @@ components:
       additionalProperties: false
       required: [alert_id, point_id, state, version, owner, result, actions, history, delegations]
       properties:
+        rule:
+          type: object
+          required: [revision, binding, source, reaction]
+          properties:
+            revision: {type: string}
+            binding: {type: string}
+            source: {type: string}
+            reaction: {type: string}
         alert_id: { $ref: '#/components/schemas/Id' }
         point_id: { $ref: '#/components/schemas/Id' }
         state: { $ref: '#/components/schemas/AlertState' }
@@ -3773,6 +4348,7 @@ components:
       type: object
       required: [id, name, connection, recording]
       properties:
+        access_revision: {type: string}
         id: { $ref: '#/components/schemas/Id' }
         name: { type: string, minLength: 1, maxLength: 256 }
         connection: { type: string, enum: [unknown, online, offline] }

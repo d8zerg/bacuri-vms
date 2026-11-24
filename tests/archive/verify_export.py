@@ -8,6 +8,7 @@ import subprocess
 import struct
 import sys
 import tarfile
+import wave
 from tempfile import TemporaryDirectory
 
 
@@ -35,10 +36,46 @@ def mp4_durations(path):
     return duration(b"mdhd"), duration(b"mvhd")
 
 
+def verify_cases(binary, report):
+    key = report / "trusted-key.json"
+    masked = 0
+    for mode in ("original", "derivative"):
+        with TemporaryDirectory() as unpacked:
+            root = Path(unpacked)
+            with tarfile.open(report / f"case-{mode}.tar") as package:
+                package.extractall(root, filter="data")
+            case = json.loads(subprocess.check_output([binary, key, root]))
+            assert len(case["parts"]) == 2, case
+            for part in case["parts"]:
+                directory = root / part["directory"]
+                manifest = json.loads((directory / "manifest.json").read_text())
+                clip, = [p for p in manifest["periods"] if p["state"] == "recorded"]
+                file = directory / clip["file"]
+                raw = subprocess.check_output(["gst-launch-1.0","-q","filesrc","location="+str(file),"!",
+                    "qtdemux","!","decodebin","!","videoconvert","!","video/x-raw,format=GRAY8","!","fdsink","fd=1"],timeout=15)
+                assert raw and len(raw) % (320*240) == 0
+                if mode == "derivative" and max(raw) <= 18:
+                    masked += 1
+                    assert len(raw) == 15*320*240
+                else:
+                    frames = [sum((raw[i+40*320+32+64*b]>128)<<b for b in range(5)) for i in range(0,len(raw),320*240)]
+                    assert frames == (list(range(25)) if mode=="original" else list(range(5,20))), (mode, frames)
+                with wave.open(str(directory / clip["audio"]["file"])) as wav:
+                    assert wav.getnchannels()==1 and wav.getframerate()==8000
+                    assert wav.readframes(8000) == struct.pack("<4800h", *range(-2400,2400))
+            signature=root/"manifest.sig"
+            signature.write_bytes(b"0"*128)
+            assert subprocess.run([binary,key,root],capture_output=True).returncode
+    assert masked==1, masked
+    print("Disconnected verification passed: both case signatures, H.264/HEVC frames, masks and audio samples")
+
+
 def run():
     binary = Path("build") / sys.argv[1] / "bacuri-vms-verify-export"
     report = Path(sys.argv[2])
     assert os.listdir("/sys/class/net") == ["lo"], "Offline verifier requires network_mode: none"
+    if sys.argv[3:] == ["investigations"]:
+        return verify_cases(binary,report)
     browser = json.loads((report / "browser.json").read_text())
     key = report / "trusted-key.json"
     with TemporaryDirectory() as tmp:

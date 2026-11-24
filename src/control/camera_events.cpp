@@ -38,7 +38,8 @@ void listen(std::stop_token stop, const CameraNetworks& networks, const Key& key
             return;
         }
         auto hash = fingerprint(key, "onvif-motion",
-                                Json::array({camera.device, camera.binding, notice.source, notice.utc}).dump());
+                                Json::array({camera.device, camera.binding, notice.source, notice.utc}).dump() +
+                                    (notice.topic == "RuleEngine/CellMotionDetector/Motion" ? "" : notice.topic));
         v1::SubmitObservationRequest q;
         q.set_site_id(camera.site);
         q.set_source_id(camera.device);
@@ -54,7 +55,7 @@ void listen(std::stop_token stop, const CameraNetworks& networks, const Key& key
             q.mutable_clock()->set_uncertainty_us(notice.uncertainty);
         }
         q.set_attributes_json(
-            Json{{"topic", "RuleEngine/CellMotionDetector/Motion"}, {"source", notice.source}}.dump());
+            Json{{"topic", notice.topic}, {"source", notice.source}, {"data", notice.metadata}}.dump());
         while (!stop.stop_requested()) {
             v1::RegistrationResult result;
             auto status = store_observation(q, result, camera.revision);

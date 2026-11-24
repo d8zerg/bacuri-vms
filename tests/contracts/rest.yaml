@@ -338,3 +338,32 @@ manual_recording:
   request: {active: true, seconds: 900}
   status: 200
   response: {enabled: true, active: true, until_us: 1000000000}
+edge_archive_empty:
+  operation: listEdgeRecordings
+  status: 200
+  response: {supported: true, binding_revision: '1', recordings: [], gaps: []}
+unindexed_investigation_track:
+  operation: searchArchiveFrames
+  request:
+    points: [20000000-0000-4000-8000-000000000001]
+    interval: &investigation_window {start: '2020-01-01T09:58:00Z', end: '2020-01-01T09:59:00Z'}
+    motion: true
+  status: 200
+  response:
+    - point_id: 20000000-0000-4000-8000-000000000001
+      coverage:
+        - {interval: *investigation_window, indexed: false, basis: reception, uncertainty_us: null, binding_revision: '1'}
+      events: []
+      hits: []
+      frames: []
+      gaps: []
+      next: null
+draft_video_rule_preview:
+  operation: simulateVideoRule
+  request:
+    interval: *investigation_window
+    rule:
+      {enabled: false, source: local, notify: true, record: false, preset: '', threshold: 32, min_cells: 2, cooldown: 5,
+       include: [{left: 0, top: 0, right: 0.5, bottom: 1}], exclude: [], line: null, zone: UTC, schedule: []}
+  status: 200
+  response: {hits: ['2020-01-01T09:58:10Z'], complete: false}

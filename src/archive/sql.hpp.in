@@ -1,6 +1,7 @@
 #pragma once
 namespace bacuri::vms::archive::sql
 {
+inline constexpr char holds[] = R"sql(@archive_holds@)sql";
 inline constexpr char policies[] = R"sql(@archive_policies@)sql";
 inline constexpr char retention[] = R"sql(@archive_retention@)sql";
 inline constexpr char search[] = R"sql(@archive_search@)sql";

@@ -165,3 +165,33 @@ storage_status:
   rpc: RecorderControl.GetStorageStatus
   request: { site_id: *site, recording_node_id: 70000000-0000-4000-8000-000000000001 }
   response: { status_json: '{"state":"normal"}' }
+recover_recording:
+  rpc: RecorderControl.RecoverGap
+  request:
+    point: {site_id: *site, point_id: *point}
+    device_id: 40000000-0000-4000-8000-000000000001
+    binding: '1'
+    recording_id: 'f3ef000000000000000000000000000000000000000000000000000000000001'
+    uri: rtsps://camera.test/recording
+    begin_us: '1000000000000000'
+    end_us: '1000000005000000'
+  response: {blocks: 1, duration_us: '5000000', outcome: copied}
+request_motion_index:
+  rpc: ArchiveCatalog.NextIndex
+  request: {site_id: *site, recording_node_id: 70000000-0000-4000-8000-000000000001}
+  response: {}
+store_motion_index:
+  rpc: ArchiveCatalog.CommitIndex
+  request: {manifest: '{}', analysis: '{"frames":[],"samples":[]}'}
+  response: {}
+report_local_detector:
+  rpc: ArchiveCatalog.ReportMotion
+  request:
+    site_id: *site
+    source_id: 70000000-0000-4000-8000-000000000001
+    observation_id: 90000000-0000-4000-8000-000000000002
+    type: motion
+    schema_version: 1
+    binding: {point_id: *point, revision: '1'}
+    attributes_json: eyJ0b3BpYyI6IkxvY2FsL01vdGlvbiJ9
+  response: {state: REGISTRATION_STATE_COMMITTED}

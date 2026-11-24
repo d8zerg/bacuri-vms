@@ -387,6 +387,49 @@ body:has(.ws-shell, .ws-login, .ws-startup) {
     display: none;
   }
 }
+@media (max-width: 22rem) {
+  .ws-bar {
+    container-type: inline-size;
+  }
+  @container (max-width: 18.5rem) {
+    .ws-bar nav {
+      margin-inline: calc(-1 * var(--space-2));
+      gap: 0;
+    }
+    .ws-bar nav a {
+      min-width: 44px;
+      font-size: 0.75rem;
+    }
+  }
+}
+@media (min-width: 47.01rem) and (max-width: 62rem) {
+  .ws-bar nav a {
+    flex: 1 1 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.4rem;
+  }
+}
+.ws-nav-short {
+  display: none;
+}
+@media (max-width: 54rem) {
+  .ws-bar a[href^="/investigations"] .ws-nav-wide {
+    display: none;
+  }
+  .ws-bar a[href^="/investigations"] .ws-nav-short {
+    display: inline;
+  }
+}
+@media (max-width: 32rem) {
+  .ws-bar a[href^="/monitor"] .ws-nav-wide {
+    display: none;
+  }
+  .ws-bar a[href^="/monitor"] .ws-nav-short {
+    display: inline;
+  }
+}
 .ws-nav-section {
   display: contents;
 }
@@ -423,6 +466,17 @@ body:has(.ws-shell, .ws-login, .ws-startup) {
   width: 1.125rem;
   height: 1.125rem;
   flex: none;
+}
+.ws-submenu-short {
+  display: none;
+}
+@media (max-width: 28rem) {
+  .ws-submenu-full {
+    display: none;
+  }
+  .ws-submenu-short {
+    display: inline;
+  }
 }
 @media (width > 47rem) {
   .ws-submenu .ws-feed-jump {

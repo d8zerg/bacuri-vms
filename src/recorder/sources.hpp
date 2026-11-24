@@ -39,6 +39,7 @@ class Sources
         std::shared_ptr<CameraAudio> audio;
         std::unique_ptr<archive::Writer> writer;
         std::unique_ptr<Stream> stream;
+        std::jthread detector;
     };
 
     const control::CameraNetworks& networks_;

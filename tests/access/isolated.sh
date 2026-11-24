@@ -20,9 +20,10 @@ touch "$BACURI_ACCESS_STAND/keycloak/realm.json"
 runner=$!
 while kill -0 "$runner" 2>/dev/null && ! test -f "$BACURI_ACCESS_STAND/outage"; do sleep 1; done
 if test -f "$BACURI_ACCESS_STAND/outage"; then
-    "${project[@]}" stop keycloak
+    # Keep the issuer's DNS entry and TCP endpoint while application responses are unavailable.
+    "${project[@]}" pause keycloak
     touch "$BACURI_ACCESS_STAND/offline"
     while kill -0 "$runner" 2>/dev/null && ! test -f "$BACURI_ACCESS_STAND/restore"; do sleep 1; done
-    "${project[@]}" start keycloak
+    "${project[@]}" unpause keycloak
 fi
 wait "$runner"

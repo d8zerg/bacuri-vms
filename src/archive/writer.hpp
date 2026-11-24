@@ -3,6 +3,19 @@
 #include "recorder/audio.hpp"
 namespace bacuri::vms::archive
 {
+struct ReplayResult {
+    unsigned blocks{};
+    std::int64_t duration_us{};
+    std::string outcome;
+};
+struct ReplayRequest {
+    Origin origin;
+    std::string recording;
+    ingest::Endpoint endpoint;
+    std::int64_t begin, end, offset, uncertainty;
+};
+ReplayResult recover_gap(Volume&, const ReplayRequest&, const std::function<bool()>& cancelled);
+
 class Writer
 {
   public:

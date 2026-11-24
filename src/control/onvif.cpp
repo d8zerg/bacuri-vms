@@ -31,6 +31,9 @@ constexpr std::string_view soap = "http://www.w3.org/2003/05/soap-envelope";
 constexpr std::string_view addressing = "http://schemas.xmlsoap.org/ws/2004/08/addressing";
 constexpr std::string_view discovery = "http://schemas.xmlsoap.org/ws/2005/04/discovery";
 constexpr std::string_view device = "http://www.onvif.org/ver10/device/wsdl";
+constexpr std::string_view recording = "http://www.onvif.org/ver10/recording/wsdl";
+constexpr std::string_view search = "http://www.onvif.org/ver10/search/wsdl";
+constexpr std::string_view replay = "http://www.onvif.org/ver10/replay/wsdl";
 constexpr std::string_view media = "http://www.onvif.org/ver10/media/wsdl";
 constexpr std::string_view media2 = "http://www.onvif.org/ver20/media/wsdl";
 constexpr std::string_view device_io = "http://www.onvif.org/ver10/deviceIO/wsdl";
@@ -97,7 +100,7 @@ std::string uuid()
 
 std::string envelope(const std::string& header, const std::string& body)
 {
-    return R"(<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://www.w3.org/2005/08/addressing" xmlns:w="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dn="http://www.onvif.org/ver10/network/wsdl" xmlns:tio="http://www.onvif.org/ver10/deviceIO/wsdl" xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:tr2="http://www.onvif.org/ver20/media/wsdl" xmlns:timg="http://www.onvif.org/ver20/imaging/wsdl" xmlns:tptz="http://www.onvif.org/ver20/ptz/wsdl" xmlns:tev="http://www.onvif.org/ver10/events/wsdl" xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2" xmlns:tt="http://www.onvif.org/ver10/schema"><s:Header>)" +
+    return R"(<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://www.w3.org/2005/08/addressing" xmlns:w="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dn="http://www.onvif.org/ver10/network/wsdl" xmlns:trc="http://www.onvif.org/ver10/recording/wsdl" xmlns:tse="http://www.onvif.org/ver10/search/wsdl" xmlns:trp="http://www.onvif.org/ver10/replay/wsdl" xmlns:tio="http://www.onvif.org/ver10/deviceIO/wsdl" xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:tr2="http://www.onvif.org/ver20/media/wsdl" xmlns:timg="http://www.onvif.org/ver20/imaging/wsdl" xmlns:tptz="http://www.onvif.org/ver20/ptz/wsdl" xmlns:tev="http://www.onvif.org/ver10/events/wsdl" xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2" xmlns:tt="http://www.onvif.org/ver10/schema"><s:Header>)" +
            header + "</s:Header><s:Body>" + body + "</s:Body></s:Envelope>";
 }
 
@@ -220,6 +223,9 @@ struct CameraClient {
         const std::string element = (ns == device      ? "tds:"
                                      : ns == media2    ? "tr2:"
                                      : ns == media     ? "trt:"
+                                     : ns == recording ? "trc:"
+                                     : ns == search    ? "tse:"
+                                     : ns == replay    ? "trp:"
                                      : ns == device_io ? "tio:"
                                      : ns == imaging   ? "timg:"
                                      : ns == ptz       ? "tptz:"
@@ -897,6 +903,126 @@ std::optional<double> range_limit(xmlNode* range, const char* tag)
 }
 } // namespace
 
+Json read_edge_archive(const CameraNetworks& networks, const Json& control, const Json& credentials,
+                       const Key& key, EdgeSelection* selected)
+{
+    auto client = control_client(networks, control, credentials);
+    Json result{{"supported", false}, {"recordings", Json::array()}};
+    auto services = client.call(control.at("device_service"), device, "GetServices",
+                                "<tds:IncludeCapability>false</tds:IncludeCapability>");
+    std::map<std::string_view, std::string> endpoints;
+    auto* root = response(services, device, "GetServicesResponse");
+    if (!root)
+        throw Failure{502, "camera_protocol_error"};
+    for (auto* item = root->children; item; item = item->next) {
+        if (!named(item, device, "Service"))
+            continue;
+        auto ns = value(child(item, device, "Namespace"));
+        for (auto expected : {recording, search, replay}) {
+            if (ns != expected)
+                continue;
+            const auto address = value(child(item, device, "XAddr"));
+            if (!address.starts_with("https://"))
+                continue;
+            auto uri = https_uri(address);
+            if (!g_ascii_strcasecmp(client.host.c_str(), g_uri_get_host(uri.get())))
+                endpoints[expected] = address;
+        }
+    }
+    if (!endpoints.contains(recording) || !endpoints.contains(search) || !endpoints.contains(replay))
+        return result;
+    result["supported"] = true;
+    auto list = client.call(endpoints.at(recording), recording, "GetRecordings");
+    auto* body = response(list, recording, "GetRecordingsResponse");
+    if (!body)
+        throw Failure{502, "camera_protocol_error"};
+    std::set<std::string> seen;
+    for (auto* item = body->children; item; item = item->next) {
+        if (!named(item, recording, "RecordingItem"))
+            continue;
+        auto token = value(child(item, recording, "RecordingToken"));
+        if (seen.size() >= 64 || token.size() > 256 || !seen.insert(token).second)
+            throw Failure{502, "camera_protocol_error"};
+        auto info = client.call(endpoints.at(search), search, "GetRecordingInformation",
+                                "<tse:RecordingToken>" + escape(token) + "</tse:RecordingToken>");
+        auto* record =
+            child(response(info, search, "GetRecordingInformationResponse"), search, "RecordingInformation");
+        if (!record)
+            throw Failure{502, "camera_protocol_error"};
+        Json tracks = Json::array();
+        for (auto* track = record->children; track; track = track->next) {
+            if (!named(track, schema, "Track"))
+                continue;
+            auto kind = value(child(track, schema, "TrackType"));
+            if (kind != "Video" && kind != "Audio" && kind != "Metadata")
+                continue;
+            Json bounds = nullptr;
+            auto* from = child(track, schema, "DataFrom");
+            auto* to = child(track, schema, "DataTo");
+            if (from && to) {
+                Timestamp a, b;
+                if (!ProtoTime::FromString(value(from), &a) || !ProtoTime::FromString(value(to), &b))
+                    throw Failure{502, "camera_protocol_error"};
+                if (ProtoTime::TimestampToMicroseconds(a) < ProtoTime::TimestampToMicroseconds(b))
+                    bounds = Window{ProtoTime::TimestampToMicroseconds(a), ProtoTime::TimestampToMicroseconds(b)}
+                                 .json();
+            }
+            if (tracks.size() >= 64)
+                throw Failure{502, "camera_protocol_error"};
+            tracks.push_back({{"kind", kind}, {"bounds", bounds}});
+        }
+        const auto id =
+            fingerprint(key, "edge-recording", Json::array({client.host, control.at("source"), token}).dump());
+        auto* origin = child(record, schema, "Source");
+        auto* name = child(origin, schema, "Name");
+        const auto label = name ? value(name).substr(0, 256) : std::string{};
+        result["recordings"].push_back({{"id", id}, {"name", label}, {"tracks", tracks}});
+        if (selected && selected->id == id) {
+            if (std::ranges::count_if(tracks, [](const Json& t) { return t.at("kind") == "Video"; }) != 1)
+                throw Failure{422, "edge_recording_unavailable"};
+            const auto reply =
+                client.call(endpoints.at(replay), replay, "GetReplayUri",
+                            "<trp:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</"
+                            "tt:Protocol></tt:Transport></trp:StreamSetup>"
+                            "<trp:RecordingToken>" +
+                                escape(token) + "</trp:RecordingToken>");
+            const auto uri = value(child(response(reply, replay, "GetReplayUriResponse"), replay, "Uri"));
+            Uri parsed{g_uri_parse(uri.c_str(), G_URI_FLAGS_ENCODED, nullptr), g_uri_unref};
+            if (!parsed || !g_uri_get_host(parsed.get()) ||
+                g_ascii_strcasecmp(client.host.c_str(), g_uri_get_host(parsed.get())) || !networks.permits(uri))
+                throw Failure{422, "camera_transport_denied"};
+            selected->uri = uri;
+            const auto before = g_get_real_time();
+            const auto clock = client.call(control.at("device_service"), device, "GetSystemDateAndTime");
+            const auto after = g_get_real_time();
+            auto* utc =
+                child(child(response(clock, device, "GetSystemDateAndTimeResponse"), device, "SystemDateAndTime"),
+                      schema, "UTCDateTime");
+            auto number = [&](const char* part, const char* field) {
+                const auto v = value(child(child(utc, schema, part), schema, field));
+                if (v.size() > 4 || v.find_first_not_of("0123456789") != v.npos)
+                    throw Failure{502, "camera_protocol_error"};
+                return std::stoi(v);
+            };
+            std::unique_ptr<GDateTime, decltype(&g_date_time_unref)> time{
+                g_date_time_new_utc(number("Date", "Year"), number("Date", "Month"), number("Date", "Day"),
+                                    number("Time", "Hour"), number("Time", "Minute"), number("Time", "Second")),
+                g_date_time_unref};
+            if (!time || after < before || after - before > 4000000)
+                throw Failure{409, "camera_clock_uncertain"};
+            selected->offset_us =
+                before + (after - before) / 2 - (g_date_time_to_unix(time.get()) * G_USEC_PER_SEC + 500000);
+            selected->uncertainty_us = 500000 + (after - before + 1) / 2;
+            // Do not shift UTC-aligned cameras by the arbitrary phase of a whole-second clock report.
+            if (std::abs(selected->offset_us) <= selected->uncertainty_us) {
+                selected->uncertainty_us += std::abs(selected->offset_us);
+                selected->offset_us = 0;
+            }
+        }
+    }
+    return result;
+}
+
 Json read_camera_controls(const CameraNetworks& networks, const Json& control, const Json& credentials)
 {
     auto client = control_client(networks, control, credentials);
@@ -1167,14 +1293,19 @@ std::optional<MotionNotice> motion_notice(xmlNode* notification, const Json& con
     auto path = value(topic);
     auto colon = path.find(':');
     const bool digital = colon != path.npos && path.substr(colon + 1) == "Device/Trigger/DigitalInput";
-    if (colon == path.npos || (!digital && path.substr(colon + 1) != "RuleEngine/CellMotionDetector/Motion"))
+    const auto kind = colon == path.npos ? std::string{} : path.substr(colon + 1);
+    const bool crossed = kind == "RuleEngine/LineDetector/Crossed",
+               inside = kind == "RuleEngine/FieldDetector/ObjectsInside",
+               alarm = kind == "VideoSource/MotionAlarm";
+    if (colon == path.npos ||
+        (!digital && !crossed && !inside && !alarm && kind != "RuleEngine/CellMotionDetector/Motion"))
         return {};
     auto* ns = xmlSearchNs(topic->doc, topic, BAD_CAST path.substr(0, colon).c_str());
     if (!ns || std::string_view{reinterpret_cast<const char*>(ns->href)} != "http://www.onvif.org/ver10/topics")
         return {};
     auto* message = child(child(notification, wsn, "Message"), schema, "Message");
     const auto operation = attribute(message, "PropertyOperation");
-    if (operation != "Changed" && !(digital && operation == "Initialized"))
+    if (operation != "Changed" && !(crossed && operation.empty()) && !(digital && operation == "Initialized"))
         return {};
     Json source = Json::object();
     auto* items = child(message, schema, "Source");
@@ -1199,14 +1330,21 @@ std::optional<MotionNotice> motion_notice(xmlNode* notification, const Json& con
         source.at("VideoSourceConfigurationToken") != control.at("source"))
         return {};
     auto* data = child(message, schema, "Data");
+    Json fields = Json::object();
+    bool active = crossed;
     for (auto* item = data ? data->children : nullptr; item; item = item->next) {
-        if (!named(item, schema, "SimpleItem") || attribute(item, "Name") != "IsMotion")
+        if (!named(item, schema, "SimpleItem"))
             continue;
-        auto state = attribute(item, "Value");
-        if (state == "true" || state == "1") {
-            auto t = camera_time(attribute(message, "UtcTime"));
-            return MotionNotice{source, t.utc, t.precision, {}, {}, false};
-        }
+        const auto name = attribute(item, "Name"), val = attribute(item, "Value");
+        if (name.size() > 128 || val.size() > 512 || fields.size() >= 16)
+            return {};
+        fields[name] = val;
+        if (name == "IsMotion" || (alarm && name == "State") || (inside && name == "IsInside"))
+            active = val == "true" || val == "1";
+    }
+    if (active) {
+        auto t = camera_time(attribute(message, "UtcTime"));
+        return MotionNotice{source, t.utc, t.precision, {}, {}, false, kind, std::move(fields)};
     }
     return {};
 }

@@ -507,7 +507,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
         cmd(
             "test ! -f /var/lib/bacuri-maintenance/pending; systemctl is-active --quiet bacuri-core bacuri-media bacuri-recorder"
         )
-        assert query(cmd, "SELECT max(version) FROM bacuri_meta.schema_migrations") == "26"
+        assert query(cmd, "SELECT max(version) FROM bacuri_meta.schema_migrations") == "28"
         forbidden = (
             password,
             code,
@@ -635,7 +635,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
             {
                 "status": "passed",
                 "source_schema": source_schema,
-                "target_schema": 26,
+                "target_schema": 28,
                 "interrupted_migration_retried": True,
                 "rollback_schema": source_schema,
                 "independent_root": True,

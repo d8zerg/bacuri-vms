@@ -2,6 +2,7 @@ import { lazy, Suspense, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import type { CameraDraft, Point, Services } from "../contracts/workspace";
 import { SubsectionMenu } from "./SubsectionMenu";
+const VideoRules = lazy(() => import("./VideoRules"));
 const CameraCatalog = lazy(() => import("./CameraCatalog"));
 const Connection = lazy(() => import("./CameraConnection"));
 const CameraSelection = lazy(() => import("./CameraSelection"));
@@ -11,6 +12,7 @@ const empty = { name: "", main_url: "", secondary_url: "" };
 export function cameraSetup(requested: string | null) {
   return requested === "manual" ||
     requested === "onvif" ||
+    requested === "rules" ||
     requested === "recording" ||
     requested === "batch"
     ? requested
@@ -46,6 +48,7 @@ export function Installer({
         items={[
           {
             label: "Каталог устройств",
+            short: "Каталог",
             name: "Каталог подключённых устройств",
             icon: "cctv",
             active: !method,
@@ -53,21 +56,31 @@ export function Installer({
           },
           {
             label: "Запись и хранение",
+            short: "Запись",
             icon: "history",
             active: method === "recording",
             select: () => select("recording"),
           },
           {
+            label: "Видеоправила",
+            short: "Правила",
+            icon: "scan-line",
+            active: method === "rules",
+            select: () => select("rules"),
+          },
+          {
             label: "Подключение",
+            short: "Добавить",
             icon: "link-2",
-            active: !!method && method !== "recording",
+            active: !!method && method !== "recording" && method !== "rules",
             select: () => {
-              if (!method || method === "recording") select("manual");
+              if (!method || method === "rules" || method === "recording")
+                select("manual");
             },
           },
         ]}
       />
-      {method && method !== "recording" && (
+      {method && method !== "recording" && method !== "rules" && (
         <SubsectionMenu
           nested
           label="Способы подключения"
@@ -99,6 +112,9 @@ export function Installer({
         />
       )}
       <Suspense fallback={<p role="status">Загрузка…</p>}>
+        {method === "rules" && (
+          <VideoRules services={services} site={site} points={points ?? []} />
+        )}
         {method === "recording" && (
           <RecordingPolicies
             key={site}
@@ -131,7 +147,7 @@ export function Installer({
           ) : (
             <p role="status">{connectionNotice}</p>
           ))}
-        {method && method !== "recording" && (
+        {method && method !== "recording" && method !== "rules" && (
           <div
             hidden={method !== "manual"}
             ref={(node) => {

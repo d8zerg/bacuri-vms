@@ -17,11 +17,13 @@ template <class T, auto Release> struct GstDeleter {
 };
 template <class T, auto Release> using GstHandle = std::unique_ptr<T, GstDeleter<T, Release>>;
 
+struct LiveFormat {
+    std::string_view source, output;
+};
 class WebRtcPeer
 {
   public:
-    WebRtcPeer(const std::string& offer, std::string_view source, std::string_view output,
-               std::string_view regions);
+    WebRtcPeer(const std::string& offer, LiveFormat format, std::string_view regions);
     ~WebRtcPeer();
     void stop() noexcept;
     std::string answer(std::chrono::steady_clock::time_point deadline);

@@ -1,4 +1,8 @@
 #include "archive/delivery.hpp"
+#include "archive/analysis.hpp"
+#include "archive/mp4.hpp"
+#include <fcntl.h>
+#include <unistd.h>
 #include "control.grpc.pb.h"
 #include <grpcpp/grpcpp.h>
 #include <algorithm>
@@ -6,6 +10,62 @@
 
 namespace bacuri::vms::archive
 {
+void index_blocks(std::stop_token stop, Volume& volume, const std::filesystem::path& root,
+                  const std::string& socket)
+{
+    using namespace std::chrono_literals;
+    auto catalog = v1::ArchiveCatalog::NewStub(
+        grpc::CreateChannel("unix:" + socket, grpc::experimental::LocalCredentials(UDS)));
+    std::mutex mutex;
+    std::unique_lock guard{mutex};
+    std::condition_variable_any timer;
+    while (!stop.stop_requested()) {
+        auto delay = 1000ms;
+        try {
+            if (volume.scrub_copy())
+                delay = 20ms;
+        } catch (const std::exception&) {
+            std::fputs("Archive copy volume unavailable\n", stderr);
+        }
+        try {
+            v1::RetentionQuery query;
+            query.set_site_id(volume.owner().site);
+            query.set_recording_node_id(volume.owner().node);
+            grpc::ClientContext ctx;
+            ctx.set_deadline(std::chrono::system_clock::now() + 2s);
+            v1::IndexJob job;
+            if (catalog->NextIndex(&ctx, query, &job).ok() && !job.manifest().empty()) {
+                auto m = Json::parse(job.manifest());
+                validate_manifest(m);
+                const auto input = root / "blocks" / m.at("block_id").get<std::string>() / "media.mp4";
+                struct Input {
+                    int fd;
+                    ~Input()
+                    {
+                        if (fd >= 0)
+                            close(fd);
+                    }
+                } handle{open(input.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)};
+                if (handle.fd < 0 || m.at("media").at("sha256") != digest_media(handle.fd).sha256)
+                    throw std::runtime_error("Archive integrity failure");
+                auto index = analyze_recording(std::filesystem::path{"/proc/self/fd"} / std::to_string(handle.fd),
+                                               m.at("end_utc_us").get<std::int64_t>() -
+                                                   m.at("begin_utc_us").get<std::int64_t>());
+                v1::IndexResult data;
+                data.set_manifest(job.manifest());
+                data.set_analysis(index.dump());
+                grpc::ClientContext send;
+                send.set_deadline(std::chrono::system_clock::now() + 3s);
+                google::protobuf::Empty reply;
+                if (catalog->CommitIndex(&send, data, &reply).ok())
+                    delay = 50ms;
+            }
+        } catch (const std::exception&) {
+            std::fputs("Archive motion indexing deferred\n", stderr);
+        }
+        timer.wait_for(guard, stop, delay, [] { return false; });
+    }
+}
 void deliver_blocks(std::stop_token stop, Volume& volume, const std::string& socket)
 {
     using namespace std::chrono_literals;
@@ -23,16 +83,22 @@ void deliver_blocks(std::stop_token stop, Volume& volume, const std::string& soc
                 grpc::ClientContext context;
                 context.set_deadline(std::chrono::system_clock::now() + 3s);
                 v1::RetentionQuery query;
+                query.set_supports_holds(true);
                 query.set_site_id(volume.owner().site);
                 query.set_recording_node_id(volume.owner().node);
                 v1::RetentionPolicy policy;
                 if (catalog->AdvanceRetention(&context, query, &policy).ok()) {
+                    volume.set_detectors({policy.detector_points().begin(), policy.detector_points().end()});
                     volume.update_recording_plan(policy.has_recording_plan_json() ? policy.recording_plan_json()
                                                                                   : "{}");
-                    volume.remember_cutoffs({policy.point_cutoffs().begin(), policy.point_cutoffs().end()});
-                    volume.apply_retention({.cutoff_us = policy.cutoff_us(),
-                                            .days = policy.days(),
-                                            .reserve_percent = policy.reserve_percent()});
+                    if (!policy.retirement_suspended()) {
+                        volume.protect_blocks(
+                            {policy.protected_blocks().begin(), policy.protected_blocks().end()});
+                        volume.remember_cutoffs({policy.point_cutoffs().begin(), policy.point_cutoffs().end()});
+                        volume.apply_retention({.cutoff_us = policy.cutoff_us(),
+                                                .days = policy.days(),
+                                                .reserve_percent = policy.reserve_percent()});
+                    }
                 } else
                     volume.reclaim_authorized();
             } catch (const std::exception& error) {

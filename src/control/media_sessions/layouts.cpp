@@ -56,7 +56,10 @@ void Playback::layouts(const Request& req, Response& res, const std::string& sit
         if (req.method() == http::verb::delete_) {
             if (!current.size())
                 throw Failure{404, "not_found"};
-            if (req["If-Match"] != "\"" + current.get(0, 2) + "\"")
+            std::string tag{"\""};
+            tag += current.get(0, 2);
+            tag += '"';
+            if (req["If-Match"] != tag)
                 throw Failure{409, "revision_conflict"};
             db.exec("DELETE FROM bacuri_media_sessions.monitor_layouts WHERE site_id=$1 AND id=$2", {site, id});
             res.result(http::status::no_content);

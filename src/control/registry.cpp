@@ -289,6 +289,113 @@ void CameraRegistry::previous_recording(const Request& req, Response& res, const
                   {"interval", Window{recording->start, recording->end}.json()}});
 }
 
+void CameraRegistry::edge_archive(const Request& req, Response& res, const std::string& site,
+                                  const std::string& device) const
+{
+    Database db;
+    db.exec("BEGIN");
+    const bool recover = req.method() == http::verb::post;
+    auto identity = sessions_.authenticate(db, req, recover);
+    if (site_role(db, identity, site) != "administrator")
+        throw Failure{403, "forbidden"};
+    auto row = db.exec(
+        "SELECT v.settings->'onvif_control', "
+        "r.secret_revision,r.sealed_credentials,r.point_id,b.binding_revision,b.valid_from_utc_us "
+        "FROM bacuri_inventory.camera_registry r JOIN bacuri_inventory.configuration_progress p "
+        "USING(site_id,device_id) "
+        "JOIN bacuri_inventory.configuration_versions v ON "
+        "(v.site_id,v.device_id,v.revision)=(r.site_id,r.device_id,p.desired_revision) "
+        "JOIN LATERAL (SELECT binding_revision,valid_from_utc_us FROM bacuri_inventory.point_bindings WHERE "
+        "site_id=r.site_id AND point_id=r.point_id ORDER BY binding_revision DESC LIMIT 1) b ON true "
+        "WHERE r.site_id=$1 AND r.device_id=$2 FOR SHARE OF r",
+        {site, device});
+    if (!row.size())
+        throw Failure{404, "not_found"};
+    const auto point = row.get(0, 3), binding = row.get(0, 4);
+    EdgeSelection selection;
+    const auto since = std::stoll(row.get(0, 5));
+    Window range{since, g_get_real_time() - 15000000};
+    if (recover) {
+        auto body = object_body(req, {"recording", "binding_revision", "interval"});
+        if (!body.contains("interval"))
+            throw Failure{400, "invalid_request"};
+        range = window(body.at("interval"));
+        selection.id = string_field(body, "recording", 64);
+        if (selection.id.size() != 64 || selection.id.find_first_not_of("0123456789abcdef") != selection.id.npos)
+            throw Failure{400, "invalid_request"};
+        if (string_field(body, "binding_revision", 19) != binding || range.start < since ||
+            range.end > g_get_real_time() - 15000000)
+            throw Failure{409, "camera_binding_conflict"};
+    }
+    auto gaps = recordings::edge_gaps(db, site, point, binding, range.start, range.end);
+    Json result{{"supported", false}, {"recordings", Json::array()}};
+    if (!row.get(0).empty() && row.get(0) != "null" && !row.get(0, 2).empty()) {
+        auto credentials = Json::parse(unseal(row.get(0, 2), key_, site + "/" + device + "/" + row.get(0, 1)));
+        result = read_edge_archive(networks_, Json::parse(row.get(0)), credentials, key_,
+                                   recover ? &selection : nullptr);
+    }
+    if (!recover) {
+        result["binding_revision"] = binding;
+        result["gaps"] = Json::array();
+        for (const auto& gap : gaps)
+            result["gaps"].push_back(Window{gap.begin, gap.end}.json());
+    } else {
+        if (selection.uri.empty())
+            throw Failure{409, "edge_recording_unavailable"};
+        Json progress{{"blocks", 0}, {"duration_us", 0}, {"outcome", "no_frames"}, {"next", nullptr}};
+        for (const auto& gap : gaps) {
+            bool attempted = false;
+            for (const auto& record : result.at("recordings")) {
+                if (record.at("id") != selection.id)
+                    continue;
+                for (const auto& track : record.at("tracks")) {
+                    if (track.at("kind") != "Video" || track.at("bounds").is_null())
+                        continue;
+                    const auto a =
+                        std::max(gap.begin, parse_utc(track.at("bounds").at("start")) + selection.offset_us);
+                    const auto b = std::min(
+                        {gap.end, parse_utc(track.at("bounds").at("end")) + selection.offset_us, a + 15000000});
+                    if (a >= b)
+                        continue;
+                    v1::EdgeReplayRequest q;
+                    q.mutable_point()->set_site_id(site);
+                    q.mutable_point()->set_point_id(point);
+                    q.set_device_id(device);
+                    q.set_binding(std::stoll(binding));
+                    q.set_recording_id(selection.id);
+                    q.set_uri(selection.uri);
+                    q.set_begin_us(a);
+                    q.set_end_us(b);
+                    q.set_offset_us(selection.offset_us);
+                    q.set_uncertainty_us(selection.uncertainty_us);
+                    v1::EdgeReplayResult reply;
+                    grpc::ClientContext ctx;
+                    ctx.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds{35});
+                    auto status = v1::RecorderControl::NewStub(media::local_channel("BACURI_SOCKET"))
+                                      ->RecoverGap(&ctx, q, &reply);
+                    if (status.error_code() == grpc::StatusCode::RESOURCE_EXHAUSTED)
+                        throw Failure{429, "rate_limited"};
+                    if (!status.ok())
+                        throw Failure{503, "media_unavailable"};
+                    progress = {{"blocks", reply.blocks()},
+                                {"duration_us", reply.duration_us()},
+                                {"outcome", reply.outcome()},
+                                {"next", b < range.end
+                                             ? Json(ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(b)))
+                                             : Json(nullptr)}};
+                    attempted = true;
+                    break;
+                }
+            }
+            if (attempted)
+                break;
+        }
+        result = progress;
+    }
+    db.exec("COMMIT");
+    respond(res, result);
+}
+
 void CameraRegistry::ptz(const Request& req, Response& res, const std::string& site,
                          const std::string& point) const
 {
@@ -372,6 +479,42 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
         db.exec("COMMIT");
         return respond(res, catalog);
     }
+    dispatch_ptz(rows, site, point, user.user, request_key, command, target, role);
+    db.exec("COMMIT");
+    res.result(http::status::no_content);
+}
+
+void CameraRegistry::preset(const std::string& site, const std::string& point, std::int64_t binding,
+                            const std::string& user, const std::string& request, const std::string& target) const
+{
+    Database db;
+    db.exec("BEGIN");
+    access::lock_policy(db, site, true);
+    const auto role = access::site_role(db, site, user, access::RoleLock::shared);
+    if (!access::allowed(db, site, user, point, "configure") || !access::allowed(db, site, user, point, "ptz"))
+        throw Failure{403, "forbidden"};
+    auto rows = db.exec(
+        "SELECT v.settings->'onvif_control',r.secret_revision,r.sealed_credentials,r.device_id,p.desired_revision "
+        "FROM bacuri_inventory.camera_registry r JOIN bacuri_inventory.configuration_progress p "
+        "USING(site_id,device_id) "
+        "JOIN bacuri_inventory.configuration_versions v ON "
+        "(v.site_id,v.device_id,v.revision)=(r.site_id,r.device_id,p.desired_revision) "
+        "JOIN bacuri_inventory.point_bindings b ON (b.site_id,b.point_id)=(r.site_id,r.point_id) AND "
+        "b.binding_revision=(SELECT max(last.binding_revision) FROM bacuri_inventory.point_bindings last WHERE "
+        "last.site_id=r.site_id AND last.point_id=r.point_id) "
+        "WHERE r.site_id=$1 AND r.point_id=$2 AND b.binding_revision=$3 FOR NO KEY UPDATE OF r",
+        {site, point, std::to_string(binding)});
+    if (!rows.size())
+        throw Failure{409, "camera_binding_conflict"};
+    dispatch_ptz(rows, site, point, user, request, "preset_goto", target, role);
+    db.exec("COMMIT");
+}
+void CameraRegistry::dispatch_ptz(const Rows& rows, const std::string& site, const std::string& point,
+                                  const std::string& user, const std::string& request_key,
+                                  const std::string& command, const std::string& target,
+                                  const std::string& role) const
+{
+    const auto device = rows.get(0, 3);
     // Keep the binding locked while a separate transaction records dispatch before touching the device.
     Database journal;
 
@@ -379,7 +522,7 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
         auto saved = journal.exec(
             "SELECT device_id,point_id,command,status,failure_code,target FROM bacuri_inventory.ptz_commands "
             "WHERE site_id=$1 AND user_id=$2 AND request_key=$3",
-            {site, user.user, request_key});
+            {site, user, request_key});
         if (!saved.size())
             return false;
         if (saved.get(0) != device || saved.get(0, 1) != point || saved.get(0, 2) != command ||
@@ -416,7 +559,7 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
                                   "bacuri_inventory.ptz_commands WHERE site_id=$1 AND device_id=$2 "
                                   "ORDER BY started_at DESC LIMIT 1",
                                   {site, device});
-        if (owner.size() && owner.get(0, 1) == "t" && owner.get(0) != user.user && role != "administrator")
+        if (owner.size() && owner.get(0, 1) == "t" && owner.get(0) != user && role != "administrator")
             throw Failure{409, "camera_ptz_busy"};
         journal.exec("BEGIN");
         auto created = journal.exec("INSERT INTO "
@@ -426,15 +569,15 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
                                     "VALUES "
                                     "($1,$2,$3,$4,$5,$6,$7,$8,clock_timestamp()+$9::int*interval '1 second') ON "
                                     "CONFLICT DO NOTHING RETURNING 1",
-                                    {site, user.user, request_key, device, point, command, target,
+                                    {site, user, request_key, device, point, command, target,
                                      role == "administrator" ? "2" : "1", std::to_string(lease)});
         if (created.size()) {
             if (action.is_object() && action.value("mode", std::string{}) == "Continuous")
                 journal.exec("UPDATE bacuri_inventory.ptz_commands SET "
                              "focus_revision=$4,stop_after=clock_timestamp()+interval '1 second' "
                              "WHERE site_id=$1 AND user_id=$2 AND request_key=$3",
-                             {site, user.user, request_key, rows.get(0, 4)});
-            events::record_camera_control(journal, site, point, user.user, "dispatched", command, target);
+                             {site, user, request_key, rows.get(0, 4)});
+            events::record_camera_control(journal, site, point, user, "dispatched", command, target);
         }
         journal.exec("COMMIT");
         if (created.size()) {
@@ -453,29 +596,27 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
                                          ? Failure{e.status, "camera_ptz_unknown"}
                                          : e;
                 journal.exec("BEGIN");
-                events::record_camera_control(journal, site, point, user.user,
+                events::record_camera_control(journal, site, point, user,
                                               failure.code == "camera_ptz_unknown" ? "unknown" : "rejected",
                                               command, target);
                 journal.exec("UPDATE bacuri_inventory.ptz_commands SET status=$4,failure_code=$5 WHERE site_id=$1 "
                              "AND user_id=$2 "
                              "AND request_key=$3",
-                             {site, user.user, request_key, std::to_string(failure.status), failure.code});
+                             {site, user, request_key, std::to_string(failure.status), failure.code});
                 journal.exec("COMMIT");
                 throw failure;
             }
             journal.exec("BEGIN");
-            events::record_camera_control(journal, site, point, user.user, "applied", command, target);
+            events::record_camera_control(journal, site, point, user, "applied", command, target);
             journal.exec("UPDATE bacuri_inventory.ptz_commands SET "
                          "status=204,stop_after=NULL,lease_until=clock_timestamp()+$4::int*interval '1 second' "
                          "WHERE site_id=$1 "
                          "AND user_id=$2 AND request_key=$3",
-                         {site, user.user, request_key, std::to_string(lease)});
+                         {site, user, request_key, std::to_string(lease)});
             journal.exec("COMMIT");
         } else if (!replay())
             throw Failure{503, "dependency_unavailable"};
     }
-    db.exec("COMMIT");
-    res.result(http::status::no_content);
 }
 
 void CameraRegistry::points(const Request& req, Response& res, const std::string& site) const
@@ -524,11 +665,14 @@ void CameraRegistry::points(const Request& req, Response& res, const std::string
          array_parameter(access::granted_point_ids(db, site, identity.user, "audio_record")),
          array_parameter(access::granted_point_ids(db, site, identity.user, "audio_talk")),
          array_parameter(manual)});
+    const auto policy_revision = access::scope_revision(db, site);
     db.exec("COMMIT");
     auto points = Json::parse(rows.get(0));
     for (auto& point : points)
         if (point.contains("audio") && plan.contains(point.at("id").get<std::string>()))
             point["audio"]["record"] = false;
+    for (auto& point : points)
+        point["access_revision"] = policy_revision;
     respond(res, points);
 }
 

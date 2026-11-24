@@ -1,9 +1,11 @@
 #include "archive/writer.hpp"
+#include "recorder/replay.hpp"
 #include <gst/app/gstappsrc.h>
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <utility>
+#include <thread>
 
 namespace bacuri::vms::archive
 {
@@ -122,6 +124,101 @@ void mux(const fs::path& path, const Frames& frames, const std::vector<SampleTim
     throw std::runtime_error("Archive muxer failed to finalize media");
 }
 } // namespace
+ReplayResult recover_gap(Volume& volume, const ReplayRequest& job, const std::function<bool()>& cancelled)
+{
+    using namespace domain;
+    std::stop_source stop;
+    ReplayResult result;
+    Frames frames;
+    std::size_t bytes{};
+    const auto started = std::chrono::steady_clock::now();
+    auto eligible = started;
+    const auto parsed_epoch = ClockEpochId::parse(uuid());
+    if (!parsed_epoch)
+        throw std::runtime_error("Invalid replay clock identifier");
+    const auto epoch = *parsed_epoch;
+    const auto flush = [&] {
+        if (frames.empty())
+            return;
+        auto times = sample_times(frames);
+        const auto first = frames.front()->time.utc().time_since_epoch().count();
+        const auto end = frames.back()->time.utc().time_since_epoch().count() +
+                         std::max<std::int64_t>(1, static_cast<std::int64_t>(times.back().duration / GST_USECOND));
+        if (first >= job.begin && end <= job.end && end > first &&
+            volume.publish(
+                {job.origin, frames.front()->time, UtcTime{Microseconds{end}},
+                 frames.front()->codec == ingest::VideoCodec::h265 ? "h265" : "h264", job.recording},
+                [&](const fs::path& path) { mux(path, frames, times); }, {}, bytes)) {
+            ++result.blocks;
+            result.duration_us += end - first;
+        }
+        frames.clear();
+        bytes = 0;
+    };
+    const auto outcome = ingest::receive_replay(
+        job.endpoint, {job.begin - job.offset, job.end - job.offset},
+        [&] { return cancelled() || stop.stop_requested(); },
+        [&](ingest::FramePtr incoming, ingest::VideoFormat, bool discontinuity) {
+            if (cancelled() || std::chrono::steady_clock::now() - started > 30s) {
+                stop.request_stop();
+                return;
+            }
+            // Pace the replay reader at 4 Mbit/s. Socket backpressure bounds the decoder queue.
+            eligible = std::max(eligible, std::chrono::steady_clock::now()) +
+                       std::chrono::microseconds{2 * incoming->access_unit.size()};
+            if (eligible > started + 30s) {
+                result.outcome = "quota";
+                stop.request_stop();
+                return;
+            }
+            while (!cancelled() && std::chrono::steady_clock::now() < eligible)
+                std::this_thread::sleep_until(std::min(eligible, std::chrono::steady_clock::now() + 20ms));
+            if (cancelled())
+                return;
+            if (discontinuity || !incoming->ntp_ns) {
+                frames.clear();
+                bytes = 0;
+            }
+            constexpr std::int64_t ntp_offset = 2208988800000000LL;
+            if (!incoming->ntp_ns)
+                return;
+            const SourceTime source{Microseconds{static_cast<std::int64_t>(*incoming->ntp_ns / 1000)}};
+            const auto utc = UtcTime{source.value - Microseconds{ntp_offset} + Microseconds{job.offset}};
+            if (utc.time_since_epoch().count() >= job.end) {
+                flush();
+                stop.request_stop();
+                return;
+            }
+            if (utc.time_since_epoch().count() < job.begin)
+                return;
+            if (!frames.empty() && (utc <= frames.back()->time.utc() || utc - frames.back()->time.utc() > 1s)) {
+                frames.clear();
+                bytes = 0;
+            }
+            if (incoming->keyframe)
+                flush();
+            if (frames.empty() && !incoming->keyframe)
+                return;
+            if (frames.size() >= 512 || bytes + incoming->access_unit.size() > 16uz * 1024 * 1024) {
+                frames.clear();
+                bytes = 0;
+                return;
+            }
+            auto frame = std::make_shared<ingest::Frame>(*incoming);
+            frame->time = ProjectedTime::from_source({epoch, source, utc, Microseconds{job.uncertainty}}, source,
+                                                     incoming->time.received_at())
+                              .value();
+            frame->pts_ns = static_cast<std::uint64_t>(utc.time_since_epoch().count()) * 1000;
+            bytes += frame->access_unit.size();
+            frames.push_back(frame);
+        });
+    if (!cancelled())
+        flush();
+    if (result.outcome.empty())
+        result.outcome = result.blocks ? "copied" : outcome == "frame_timeout" ? "timeout" : "no_frames";
+    return result;
+}
+
 Writer::Writer(Volume& volume, Origin origin, std::shared_ptr<ingest::FrameQueue> queue,
                std::shared_ptr<ingest::CameraAudio> audio)
     : volume_{volume}, origin_{std::move(origin)}, queue_{std::move(queue)}, audio_{std::move(audio)},
@@ -209,7 +306,8 @@ void Writer::publish(Segment segment, std::size_t first, std::size_t last)
         const auto audio_begin = batch[first]->time.utc().time_since_epoch().count();
         const auto until = audio_end == last ? end_us : batch[audio_end]->time.utc().time_since_epoch().count();
         if (!sound.pcm.empty() && start < audio_begin) {
-            const auto skip = std::min<std::int64_t>((audio_begin - start + 124) / 125, sound.pcm.size() / 2);
+            const auto skip = std::min<std::int64_t>((audio_begin - start + 124) / 125,
+                                                     static_cast<std::int64_t>(sound.pcm.size() / 2));
             sound.pcm.erase(0, skip * 2);
             start += skip * 125;
         }

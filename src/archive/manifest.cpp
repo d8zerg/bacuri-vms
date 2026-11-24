@@ -30,7 +30,7 @@ std::string uuid()
 
 void validate_manifest(const Json& m)
 {
-    require(m.is_object() && m.size() == (m.contains("audio") ? 16u : 15u) &&
+    require(m.is_object() && m.size() == 15u + m.contains("audio") + m.contains("edge_recording") &&
             number(m.at("manifest_version")) == domain::BlockManifestV1::version);
     for (const auto key : {"site_id", "recording_node_id", "block_id", "recording_epoch_id", "point_id",
                            "device_id", "channel_id", "profile_id"}) {
@@ -42,6 +42,11 @@ void validate_manifest(const Json& m)
     require(domain::UtcInterval::make(domain::UtcTime{domain::Microseconds{begin}},
                                       domain::UtcTime{domain::Microseconds{end}})
                 .has_value());
+    if (m.contains("edge_recording")) {
+        const auto& id = m.at("edge_recording").get_ref<const std::string&>();
+        require(m.at("time").at("basis") == "source_clock" && id.size() == 64 &&
+                id.find_first_not_of("0123456789abcdef") == id.npos);
+    }
     if (m.contains("audio")) {
         const auto& a = m.at("audio");
         const auto start = number(a.at("start_us")), bytes = number(a.at("size_bytes"));
@@ -119,6 +124,8 @@ Json make_manifest(const Identity& identity, const std::string& id, const Block&
                   {"size_bytes", digest.bytes},
                   {"sha256", digest.sha256},
                   {"tracks", Json::array({track})}}}};
+    if (!block.edge_recording.empty())
+        result["edge_recording"] = block.edge_recording;
     validate_manifest(result);
     return result;
 }

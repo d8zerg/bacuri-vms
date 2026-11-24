@@ -5,6 +5,28 @@
 
 namespace bacuri::vms::control::recordings
 {
+std::vector<CoverageInterval> edge_gaps(Database& db, const std::string& site, const std::string& point,
+                                        const std::string& binding, std::int64_t since, std::int64_t until)
+{
+    require_available(db, site);
+    auto rows = db.exec(R"sql(
+        WITH limits AS (SELECT greatest($4::bigint,bacuri_archive.point_cutoff($1,$2)) AS a,$5::bigint AS b),
+        source_gaps AS (SELECT int8range(greatest(begin_utc_us,a),least(end_utc_us,b),'[)') AS span
+          FROM bacuri_archive.gaps CROSS JOIN limits WHERE site_id=$1 AND point_id=$2 AND binding_revision=$3
+          AND reason='source_offline' AND greatest(begin_utc_us,a)<least(end_utc_us,b)
+          ORDER BY begin_utc_us DESC LIMIT 128),
+        remainder AS (SELECT span::int8multirange - coalesce((SELECT range_agg(int8range(begin_utc_us,end_utc_us,'[)'))
+          FROM bacuri_archive.retained_blocks WHERE site_id=$1 AND point_id=$2 AND binding_revision=$3
+          AND unavailable_reason IS NULL AND int8range(begin_utc_us,end_utc_us,'[)') && span),'{}'::int8multirange) AS missing FROM source_gaps)
+        SELECT lower(part),upper(part) FROM (SELECT unnest(range_agg(missing)) AS part FROM remainder) pieces
+        ORDER BY lower(part) LIMIT 128)sql",
+                        {site, point, binding, std::to_string(since), std::to_string(until)});
+    std::vector<CoverageInterval> result;
+    for (int i = 0; i < rows.size(); ++i)
+        result.push_back({std::stoll(rows.get(i)), std::stoll(rows.get(i, 1)), {}, {}, {}, {}});
+    return result;
+}
+
 void require_available(Database& db, const std::string& site)
 {
     if (db.exec("SELECT FROM bacuri_archive.archive_recovery WHERE site_id=$1", {site}).size())
@@ -26,8 +48,8 @@ std::int64_t export_lifetime_ms(Database& db, const std::string& site, const std
                                 const std::string& hashes)
 {
     auto r = db.exec(R"sql(
-        SELECT least(1000,floor((min(b.end_utc_us)::numeric-bacuri_archive.retention_now_us()+
-            least((SELECT days FROM bacuri_archive.archive_retention WHERE site_id=$1),(SELECT days FROM bacuri_archive.point_retention WHERE site_id=$1 AND point_id=$2))*86400000000::bigint)/1000))::bigint
+        SELECT least(1000,floor((min(greatest(bacuri_archive.hold_until(b.site_id,b.block_id)::numeric, b.end_utc_us::numeric+
+            least((SELECT days FROM bacuri_archive.archive_retention WHERE site_id=$1),(SELECT days FROM bacuri_archive.point_retention WHERE site_id=$1 AND point_id=$2))*86400000000::bigint))-bacuri_archive.retention_now_us())/1000))::bigint
         FROM jsonb_each_text($3::jsonb) source
         LEFT JOIN bacuri_archive.retained_blocks b ON b.site_id=$1 AND b.point_id=$2 AND b.block_id=source.key::uuid
             AND b.manifest#>>'{media,sha256}'=source.value AND b.unavailable_reason IS NULL
@@ -129,13 +151,17 @@ std::vector<RecordedInterval> blocks_at(Database& db, const std::string& site, c
 std::optional<std::int64_t> delivery_lifetime_ms(Database& db, const std::string& site, const std::string& point,
                                                  std::int64_t end)
 {
-    auto r = db.exec(
-        "SELECT least(5000,floor(($2::bigint::numeric-bacuri_archive.retention_now_us()+"
-        "least((SELECT days FROM bacuri_archive.archive_retention WHERE site_id=$1),(SELECT days FROM "
-        "bacuri_archive.point_retention WHERE site_id=$1 AND point_id=$3))*86400000000::bigint)/1000))::bigint "
-        "WHERE $2::bigint>bacuri_archive.point_cutoff($1,$3) AND NOT EXISTS(SELECT FROM "
-        "bacuri_archive.archive_recovery WHERE site_id=$1)",
-        {site, std::to_string(end), point});
+    auto r = db.exec(R"sql(
+      WITH lifetime AS (SELECT least((SELECT days FROM bacuri_archive.archive_retention WHERE site_id=$1),
+        (SELECT days FROM bacuri_archive.point_retention WHERE site_id=$1 AND point_id=$3)) AS days),
+      protection AS (SELECT max(bacuri_archive.hold_until(site_id,block_id)) AS expiry FROM bacuri_archive.blocks
+          WHERE site_id=$1 AND point_id=$3 AND end_utc_us=$2 AND unavailable_reason IS NULL)
+      SELECT least(5000,floor((greatest(expiry::numeric,$2::numeric+days*86400000000::bigint)-
+          bacuri_archive.retention_now_us())/1000))::bigint FROM lifetime,protection
+      WHERE ($2::bigint>bacuri_archive.point_cutoff($1,$3) OR expiry>bacuri_archive.retention_now_us())
+        AND NOT EXISTS(SELECT FROM bacuri_archive.archive_recovery WHERE site_id=$1)
+    )sql",
+                     {site, std::to_string(end), point});
     if (!r.size())
         return {};
     return std::stoll(r.get(0));

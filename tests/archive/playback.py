@@ -34,7 +34,7 @@ def interval(start, end):
     return {"start": utc(start), "end": utc(end)}
 
 
-def fixture(camera, offset, width, colors, padding=0, codec="h264"):
+def fixture(camera, offset, width, colors, padding=0, codec="h264", pcm=None, source_offset=0, reception=False):
     block = str(uuid.uuid4())
     directory = ROOT / "blocks" / block
     directory.mkdir()
@@ -89,6 +89,12 @@ def fixture(camera, offset, width, colors, padding=0, codec="h264"):
             payload[:index] + struct.pack(">I4s", padding, b"free") + bytes(padding - 8) + payload[index:]
         )
         path.write_bytes(payload)
+    return register_fixture(camera, directory, offset, 1, codec, pcm, source_offset, reception)
+
+
+def register_fixture(camera, directory, offset, duration, codec="h264", pcm=None, source_offset=0, reception=False):
+    block = directory.name
+    payload = (directory / "media.mp4").read_bytes()
     manifest = json.loads(Path("tests/schema/block-manifest-v1.json").read_text())
     channel, profile = control.query(
         "SELECT channel_id,profile_id FROM bacuri_inventory.stream_profiles JOIN bacuri_inventory.channels USING(site_id,channel_id)"
@@ -103,11 +109,16 @@ def fixture(camera, offset, width, colors, padding=0, codec="h264"):
         recording_node_id=os.environ["BACURI_NODE_ID"],
         block_id=block,
         begin_utc_us=start,
-        end_utc_us=start + 1_000_000,
+        end_utc_us=start + duration * 1_000_000,
     )
-    manifest["time"].update(received_at_utc_us=start, source_time_us=start)
+    manifest["time"].update(received_at_utc_us=start, source_time_us=start + source_offset)
+    if reception:
+        manifest["time"].update(basis="reception", source_time_us=None, uncertainty_us=None, clock_epoch_id=None)
     manifest["media"]["tracks"][0]["codec"] = codec
     manifest["media"].update(size_bytes=len(payload), sha256=hashlib.sha256(payload).hexdigest())
+    if pcm is not None:
+        (directory / "audio.pcm").write_bytes(pcm)
+        manifest["audio"]={"start_us":start,"size_bytes":len(pcm),"sha256":hashlib.sha256(pcm).hexdigest()}
     (directory / "manifest.json").write_text(json.dumps(manifest))
     control.query(f"INSERT INTO bacuri_archive.blocks(manifest) VALUES ('{json.dumps(manifest)}')")
     return manifest

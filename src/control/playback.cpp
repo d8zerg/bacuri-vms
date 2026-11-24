@@ -436,6 +436,7 @@ void copy_export_block(const std::string& session, const Json& source, const std
 {
     v1::ReadPartRequest q;
     auto* s = q.mutable_scope();
+    s->set_export_source(true);
     s->set_media_session_id(session);
     s->set_browser_session_id(browser);
     s->mutable_point()->set_site_id(source.at("site_id").get<std::string>());
@@ -493,10 +494,11 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
         return;
     }
     db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-    auto session = db.exec("SELECT site_id,point_id,begin_us,end_us,closed OR "
-                           "expires_at<=clock_timestamp(),id,browser,presentation,presentation_request FROM "
-                           "bacuri_media_sessions.media_sessions WHERE id=$1 AND browser=$2",
-                           {id, browser});
+    auto session = db.exec(
+        "SELECT site_id,point_id,begin_us,end_us,closed OR "
+        "expires_at<=clock_timestamp(),id,browser,presentation,presentation_request FROM "
+        "bacuri_media_sessions.media_sessions WHERE id=$1 AND browser=$2 AND NOT presentation ? 'export_grant'",
+        {id, browser});
     if (!session.size())
         throw Failure{404, "not_found"};
     const auto surface = session.get(0, 2).empty() ? "live" : "archive";

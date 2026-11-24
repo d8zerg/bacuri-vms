@@ -1,6 +1,7 @@
 #pragma once
 #include "archive/recording_policy.hpp"
 #include <map>
+#include <set>
 #include "storage/sqlite.hpp"
 #include <optional>
 #include <functional>
@@ -45,7 +46,7 @@ class Volume
     using InvalidBlock = std::function<void(const std::string&)>;
     Volume(const fs::path& root, Owner owner, const InvalidBlock& invalid = {});
     void visit_inventory(const std::function<void(const Json&, const std::string&)>& visit);
-    void publish(const Block&, const MediaWriter&, const Observer& observer = {},
+    bool publish(const Block&, const MediaWriter&, const Observer& observer = {},
                  std::uintmax_t expected_bytes = 0, RecordedSound sound = {});
     std::string read_audio(const AudioSlice& slice);
     using RetirementObserver = std::function<void(RetirementStage)>;
@@ -53,12 +54,24 @@ class Volume
     void update_recording_plan(const std::string& payload);
     std::shared_ptr<const CaptureRule> recording_rule(const std::string& point);
     std::map<std::string, std::int64_t> point_cutoffs();
+    void protect_blocks(const std::vector<std::string>& ids);
     void remember_cutoffs(const std::map<std::string, std::int64_t>& cutoffs);
     Json status() const
     {
         return archive_status(root_);
     }
     void reclaim_authorized();
+    bool scrub_copy();
+    void set_detectors(std::set<std::string> value)
+    {
+        std::scoped_lock lock{plan_mutex_};
+        detectors_ = std::move(value);
+    }
+    bool detector_enabled(const std::string& point)
+    {
+        std::scoped_lock lock{plan_mutex_};
+        return detectors_.contains(point);
+    }
     std::int64_t retired_through();
     void confirm_inventory();
     void visit_gaps(const std::function<void(const Gap&)>& visit);
@@ -96,7 +109,8 @@ class Volume
     Lock lock_;
     storage::Sqlite db_;
     Identity identity_;
-    std::mutex mutex_, plan_mutex_;
+    std::mutex mutex_, plan_mutex_, replica_mutex_;
+    std::set<std::string> detectors_;
     std::string plan_payload_;
     std::map<std::string, std::shared_ptr<const CaptureRule>> recording_rules_;
     std::optional<std::pair<std::string, Json>> published_;

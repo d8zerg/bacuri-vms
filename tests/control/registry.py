@@ -26,8 +26,8 @@ def query(sql):
     return subprocess.check_output(["psql", "-XAtq", "-v", "ON_ERROR_STOP=1", "-c", sql], text=True).strip()
 
 
-def http(method, path, body=None, headers=None):
-    connection = HTTPSConnection("localhost", 8443, context=TLS, timeout=8)
+def http(method, path, body=None, headers=None, timeout=8):
+    connection = HTTPSConnection("localhost", 8443, context=TLS, timeout=timeout)
     try:
         connection.request(method, "/api/v1/" + path, body=json.dumps(body) if body is not None else None,
                            headers={"Content-Type": "application/json", "Origin": ORIGIN, **(headers or {})})

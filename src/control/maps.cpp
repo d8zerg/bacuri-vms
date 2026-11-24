@@ -278,6 +278,12 @@ void place(Database& db, const Request& req, const std::string& site)
 }
 } // namespace
 
+bool point_on_plan(Database& db, const std::string& site, const std::string& point, const std::string& plan)
+{
+    return db.exec("SELECT FROM bacuri_maps.point_placements WHERE site_id=$1 AND point_id=$2 AND plan_id=$3",
+                   {site, point, plan})
+               .size() != 0;
+}
 void maps(const Request& req, Response& res, const Sessions& sessions, const std::string& site,
           std::string_view path, const std::string& origin)
 {

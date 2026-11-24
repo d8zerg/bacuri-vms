@@ -28,6 +28,7 @@ const actions = {
   configure: "Настройка камеры",
   protect: "Защита записи",
   export: "Экспорт оригинала",
+  export_masked: "Экспорт производной копии",
   view_ptz: "Просмотр и PTZ",
 };
 const tabs = [

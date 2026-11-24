@@ -13,7 +13,25 @@ service RecorderControl {
   rpc GetVideoProfiles(PointKey) returns (VideoProfiles);
   rpc GetCameraIssues(CameraIssueQuery) returns (CameraIssues);
   rpc GetStorageStatus(RetentionQuery) returns (StorageStatus);
+  rpc RecoverGap(EdgeReplayRequest) returns (EdgeReplayResult);
   rpc ListPending(PendingQuery) returns (PendingIntervals);
+}
+
+message EdgeReplayRequest {
+  PointKey point = 1;
+  string device_id = 2;
+  int64 binding = 3;
+  string recording_id = 4;
+  string uri = 5;
+  int64 begin_us = 6;
+  int64 end_us = 7;
+  int64 offset_us = 8;
+  int64 uncertainty_us = 9;
+}
+message EdgeReplayResult {
+  uint32 blocks = 1;
+  int64 duration_us = 2;
+  string outcome = 3;
 }
 
 message AudioRequest {
@@ -98,6 +116,9 @@ message PartChunk {
 service ArchiveCatalog {
   // Acknowledge only after the catalog transaction commits.
   rpc RegisterBlock(RegisterBlockRequest) returns (RegistrationResult);
+  rpc ReportMotion(SubmitObservationRequest) returns (RegistrationResult);
+  rpc NextIndex(RetentionQuery) returns (IndexJob);
+  rpc CommitIndex(IndexResult) returns (google.protobuf.Empty);
   rpc RegisterGap(RegisterGapRequest) returns (RegistrationResult);
   // Commit the catalog cutoff before authorizing local reclamation.
   rpc AdvanceRetention(RetentionQuery) returns (RetentionPolicy);
@@ -127,6 +148,14 @@ message PendingQuery {
   optional sint64 retention_cutoff_us = 5;
 }
 message Coverage { int64 begin_us = 1; int64 end_us = 2; }
+message IndexJob {
+  string manifest = 1;
+}
+message IndexResult {
+  string manifest = 1;
+  string analysis = 2;
+}
+
 message RegisterGapRequest {
   PointKey point = 1; string recording_node_id = 2; int64 binding_revision = 3;
   Coverage interval = 4; string reason = 5;
@@ -183,17 +212,21 @@ enum ApplyFailure {
 }
 
 message RetentionQuery {
+  bool supports_holds = 3;
   string site_id = 1;
   string recording_node_id = 2;
 }
 
 message StorageStatus { string status_json = 1; }
 message RetentionPolicy {
+  repeated string protected_blocks = 6;
   optional string recording_plan_json = 4;
   map<string,sint64> point_cutoffs = 5;
   sint64 cutoff_us = 1;
   int32 days = 2;
   int32 reserve_percent = 3;
+  repeated string detector_points = 11;
+  bool retirement_suspended = 12;
 }
 
 message RegisterBlockRequest {
@@ -254,6 +287,7 @@ message AuthorizeDeliveryRequest {
   }
   string privacy_regions = 6;
   bool archive_h264 = 7;
+  bool export_source = 8;
 }
 
 message LiveSelection { bool main = 1; string source_codec = 2; string output_codec = 3; }

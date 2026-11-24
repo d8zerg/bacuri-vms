@@ -79,7 +79,7 @@ std::string sign_description(const control::Key& seed, const std::string& descri
                          description.size(), key.secret.data());
     return hex(sig);
 }
-Json verify_evidence(const std::filesystem::path& dir, const Json& trusted)
+static Json verify_directory(const std::filesystem::path& dir, const Json& trusted, bool allow_case)
 {
     const auto description = read_text(dir / "manifest.json", 4uz * 1024 * 1024);
     const auto sig = unhex<crypto_sign_BYTES>(read_text(dir / "manifest.sig", 2uz * crypto_sign_BYTES));
@@ -88,7 +88,34 @@ Json verify_evidence(const std::filesystem::path& dir, const Json& trusted)
     require(crypto_sign_verify_detached(sig.data(), reinterpret_cast<const unsigned char*>(description.data()),
                                         description.size(), pub.data()) == 0);
     const auto m = Json::parse(description);
-    require(m.at("format") == "bacuri.vms.export.v1" && m.at("site_id") == trusted.at("site_id") &&
+    if (allow_case && m.at("format") == "bacuri.vms.case.v1") {
+        const auto& c = m.at("case");
+        const auto& parts = m.at("parts");
+        require(m.at("site_id") == trusted.at("site_id") &&
+                control::canonical_id(c.at("id").get_ref<const std::string&>()) && !m.at("reason").empty() &&
+                parts.is_array() && !parts.empty() && parts.size() <= 32 &&
+                parts.size() == c.at("materials").size());
+        std::set<std::string> expected{"manifest.json", "manifest.sig"};
+        for (std::size_t i = 0; i < parts.size(); ++i) {
+            const auto name = "material-" + std::to_string(i + 1);
+            const auto& part = parts.at(i);
+            const auto& item = c.at("materials").at(i);
+            require(part.at("directory") == name && part.at("point_id") == item.at("point_id") &&
+                    std::filesystem::is_directory(std::filesystem::symlink_status(dir / name)) &&
+                    part.at("manifest_sha256") == file_digest(dir / name / "manifest.json").sha256);
+            const auto inner = verify_directory(dir / name, trusted, false);
+            require(inner.at("mode") == m.at("mode") && inner.at("point_id") == part.at("point_id") &&
+                    inner.at("begin_utc_us") == part.at("begin_utc_us") &&
+                    inner.at("end_utc_us") == part.at("end_utc_us"));
+            expected.insert(name);
+        }
+        for (const auto& entry : std::filesystem::directory_iterator(dir))
+            require(expected.erase(entry.path().filename().string()) == 1);
+        require(expected.empty());
+        return m;
+    }
+    const bool v2 = m.at("format") == "bacuri.vms.export.v2";
+    require((m.at("format") == "bacuri.vms.export.v1" || v2) && m.at("site_id") == trusted.at("site_id") &&
             control::canonical_id(m.at("point_id").get_ref<const std::string&>()) &&
             control::canonical_id(m.at("export_id").get_ref<const std::string&>()));
     std::set<std::string> files{"manifest.json", "manifest.sig"};
@@ -115,8 +142,35 @@ Json verify_evidence(const std::filesystem::path& dir, const Json& trusted)
         if (span.at("transform") == "original") {
             require(source.at("media").at("sha256") == digest.sha256 && source.at("begin_utc_us") == a &&
                     source.at("end_utc_us") == b);
+        } else if (v2 && span.at("transform") == "original_with_decode_context") {
+            require(m.at("mode") == "original" &&
+                    digest.sha256 == source.at("media").at("sha256").get<std::string>());
         } else
-            require(span.at("transform") == "h264_frame_selection" && span.at("frame_count") > 0);
+            require((span.at("transform") == "h264_frame_selection" ||
+                     (v2 && span.at("transform") == "h264_masked_selection")) &&
+                    span.at("frame_count") > 0);
+        if (v2) {
+            const bool original =
+                span.at("transform") == "original" || span.at("transform") == "original_with_decode_context";
+            require(span.at("codec") ==
+                    (original ? source.at("media").at("tracks").at(0).at("codec") : Json("h264")));
+            require(span.at("masks").is_array() &&
+                    (span.at("transform") == "h264_masked_selection") == !span.at("masks").empty());
+            if (!span.at("audio").is_null()) {
+                const auto& audio = span.at("audio");
+                const auto name = "audio-" + std::to_string(clips) + ".wav";
+                require(m.at("audio_requested") == true && audio.at("file") == name &&
+                        audio.at("codec") == "pcm_s16le" && audio.at("channels") == 1 &&
+                        audio.at("sample_rate") == 8000);
+                const auto ab = audio.at("begin_utc_us").get<std::int64_t>(),
+                           ae = audio.at("end_utc_us").get<std::int64_t>();
+                require(a <= ab && ab < ae && ae <= b && (ae - ab) % 125 == 0);
+                const auto d = file_digest(dir / name);
+                require(audio.at("sha256") == d.sha256 && audio.at("size_bytes") == d.bytes &&
+                        d.bytes == 44 + 2 * ((ae - ab) / 125));
+                files.insert(name);
+            }
+        }
         files.insert(file);
     }
     require(clips > 0 && cursor == end);
@@ -124,5 +178,9 @@ Json verify_evidence(const std::filesystem::path& dir, const Json& trusted)
         require(files.erase(entry.path().filename().string()) == 1);
     require(files.empty());
     return m;
+}
+Json verify_evidence(const std::filesystem::path& dir, const Json& trusted)
+{
+    return verify_directory(dir, trusted, true);
 }
 } // namespace bacuri::vms::archive

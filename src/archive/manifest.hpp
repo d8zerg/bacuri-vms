@@ -22,6 +22,7 @@ struct Block {
     domain::ProjectedTime first;
     domain::UtcTime end;
     std::string codec{"h264"};
+    std::string edge_recording{};
 };
 struct Identity {
     Owner owner;

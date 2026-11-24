@@ -41,7 +41,7 @@ export BACURI_RECORDER_DB="$test_dir/recorder.db" BACURI_OBSERVATION_SOCKET="$te
 export BACURI_CATALOG_SOCKET="$test_dir/catalog.sock" BACURI_ARCHIVE_DIR="$test_dir/archive"
 export BACURI_AUTH_SOCKET="$test_dir/auth.sock" BACURI_MEDIA_SOCKET="$test_dir/media.sock"
 export BACURI_PREVIEW_SOCKET="$test_dir/preview.sock"
-if [ "${2:-}" = recovery ] || [ "${2:-}" = retention ]; then
+if [ "${2:-}" = recovery ] || [ "${2:-}" = retention ] || [ "${2:-}" = hold-capacity ]; then
     fault_dir=/var/lib/bacuri-vms/fault-test
     test "$(stat -f -c %T "$fault_dir")" = tmpfs
     export BACURI_ARCHIVE_DIR="$fault_dir/archive"
@@ -70,19 +70,22 @@ case "${2:-control}" in
         ctest --test-dir "$BACURI_TEST_BIN" -R PublicationDeathTest --no-tests=error --output-on-failure \
             --output-junit "${BACURI_RECOVERY_REPORT%.json}.boundaries.xml"
         PYTHONDONTWRITEBYTECODE=1 python3 tests/recovery/scenarios.py "$test_dir" ;;
+    hold-capacity) PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/hold_capacity.py "$test_dir" ;;
     retention) PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/retention.py "$test_dir" ;;
     archive) PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/recording.py "$test_dir" ;;
-    playback|live|monitoring|alerts|workspace|maps|commissioning|batches|export|policies)
+    playback|live|monitoring|alerts|workspace|maps|commissioning|batches|edge|investigations|export|policies)
         export BACURI_LISTEN=0.0.0.0 BACURI_ORIGIN="https://$(hostname -i | awk '{print $1}'):8443"
         if [ "$2" = policies ]; then
             export BACURI_CAMERA_NETWORKS="127.0.0.0/8,::1/128,$fixture_ip/32"
             export BACURI_CAMERA_CA_FILE="$BACURI_TLS_CERT" BACURI_TEST_FRAME_COUNTER=1
             PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/policies.py "$test_dir"
-        elif [ "$2" = commissioning ] || [ "$2" = batches ]; then
+        elif [ "$2" = commissioning ] || [ "$2" = batches ] || [ "$2" = edge ]; then
             export BACURI_CAMERA_NETWORKS="127.0.0.0/8,::1/128,$fixture_ip/32"
             export BACURI_CAMERA_CA_FILE="$BACURI_TLS_CERT"
             export BACURI_LEGACY_RTSP_ADDRESSES="$fixture_ip"
             PYTHONDONTWRITEBYTECODE=1 python3 "tests/cameras/$2.py" "$test_dir"
+        elif [ "$2" = investigations ]; then
+            PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/investigations.py "$test_dir"
         elif [ "$2" = export ]; then
             PYTHONDONTWRITEBYTECODE=1 python3 tests/archive/export.py "$test_dir"
         elif [ "$2" = workspace ] || [ "$2" = maps ]; then

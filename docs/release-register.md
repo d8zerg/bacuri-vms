@@ -60,8 +60,11 @@
 | ptz | REST | controlPointPtz, getCameraControls |
 | media | REST | createMediaSession, revokeMediaSession, negotiateLiveMedia, getPlaybackManifest, readPlaybackPart |
 | layouts | REST | listMonitorLayouts, saveMonitorLayout, deleteMonitorLayout |
-| search | REST | searchArchive |
-| evidence | REST | exportFragment |
+| backfill | REST | listEdgeRecordings, recoverEdgeGap |
+| search | REST | searchArchive, searchArchiveFrames |
+| holds | REST | listArchiveHolds, createArchiveHold |
+| rules | REST | getVideoRule, setVideoRule, simulateVideoRule |
+| evidence | REST | exportFragment, exportInvestigation, listInvestigations, getInvestigation, saveInvestigation, listCaseRecipients |
 | alerts | REST | getAlertSnapshot, resolveAlertArchive, getAlertWork, applyAlertCommand, searchAlertAudit, issueAlertDelegation, revokeAlertDelegation |
 | maps | REST | getMapScene, getMapManagement, createMapSource, getMapSource, uploadMapChunk, queueMapRegions, setMapDownloadPaused, addFloorPlan, placePoint, previewPlanGeoreference, setPlanGeoreference, calibrateCameraView, getFloorPlan, getRegionStyle, getRegionTile |
 | identity | Core | initial-admin, enroll-admin, recover-admin |
@@ -71,6 +74,7 @@
 | maps | Core | import-map |
 | evidence | Core | export-public-key |
 | operations | Core | serve, migrate, backup-config, restore-config, recovery-status, rebuild-archive |
+| search | Веб | /investigations |
 | alerts | Веб | /monitor, /audit |
 | inventory | Веб | /cameras |
 | maps | Веб | /maps |

@@ -28,12 +28,16 @@ void ensure_site(Database& db, const std::string& site)
 {
     db.exec("INSERT INTO bacuri_inventory.sites VALUES ($1,'Local site','UTC') ON CONFLICT DO NOTHING", {site});
 }
-bool has_binding(Database& db, const std::string& site, const std::string& point, const std::string& revision)
+bool has_binding(Database& db, const std::string& site, const std::string& point, const std::string& revision,
+                 bool current)
 {
     return db
         .exec(
-            "SELECT FROM bacuri_inventory.point_bindings WHERE site_id=$1 AND point_id=$2 AND binding_revision=$3",
-            {site, point, revision})
+            "SELECT FROM bacuri_inventory.point_bindings WHERE site_id=$1 AND point_id=$2 AND binding_revision=$3 "
+            "AND (NOT $4::boolean OR binding_revision=(SELECT max(binding_revision) FROM "
+            "bacuri_inventory.point_bindings "
+            "WHERE site_id=$1 AND point_id=$2))",
+            {site, point, revision, current ? "true" : "false"})
         .size();
 }
 bool lock_camera_revision(Database& db, const std::string& site, const std::string& point,

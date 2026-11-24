@@ -5,6 +5,7 @@
 #include "control/support.hpp"
 
 #include <ostream>
+#include <set>
 #include <thread>
 
 namespace bacuri::vms::control
@@ -76,6 +77,21 @@ void rebuild_archive(Database& db, std::ostream& output, StorageLayout layout)
         db.exec("INSERT INTO bacuri_archive.retired_through VALUES($1,$2) ON CONFLICT(site_id) DO UPDATE SET "
                 "end_us=greatest(retired_through.end_us,excluded.end_us)",
                 {owner.site, std::to_string(local_cutoff)});
+    std::set<std::string> held;
+    const bool supports_holds =
+        !legacy && db.exec("SELECT to_regclass('bacuri_archive.archive_holds') IS NOT NULL").get(0) == "t";
+    if (supports_holds) {
+        auto ids = db.exec("SELECT DISTINCT b.block_id FROM bacuri_archive.held_blocks b JOIN "
+                           "bacuri_archive.archive_holds h "
+                           "ON (h.site_id,h.id)=(b.site_id,b.hold_id) WHERE h.site_id=$1 AND "
+                           "h.expires_us>bacuri_archive.retention_now_us()",
+                           {owner.site})
+                       .column();
+        held.insert(ids.begin(), ids.end());
+        volume.protect_blocks(ids);
+    }
+    const std::vector<std::string> ids(held.begin(), held.end());
+    const auto kept = array_parameter(ids);
     std::map<std::string, std::int64_t> retired_points;
     if (!legacy && db.exec("SELECT to_regclass('bacuri_archive.point_retention') IS NOT NULL").get(0) == "t") {
         for (const auto& [point, end] : volume.point_cutoffs())
@@ -88,10 +104,11 @@ void rebuild_archive(Database& db, std::ostream& output, StorageLayout layout)
                                  {owner.site});
         for (int i = 0; i < per_point.size(); ++i)
             retired_points[per_point.get(i)] = std::stoll(per_point.get(i, 1));
-        db.exec("DELETE FROM bacuri_archive.blocks b USING bacuri_archive.point_retention p WHERE "
-                "(b.site_id,b.point_id)=(p.site_id,p.point_id) AND p.site_id=$1 AND "
-                "b.end_utc_us<=bacuri_archive.point_cutoff(p.site_id,p.point_id)",
-                {owner.site});
+        db.exec(
+            "DELETE FROM bacuri_archive.blocks b USING bacuri_archive.point_retention p WHERE "
+            "(b.site_id,b.point_id)=(p.site_id,p.point_id) AND p.site_id=$1 AND "
+            "b.end_utc_us<=bacuri_archive.point_cutoff(p.site_id,p.point_id) AND NOT (b.block_id=ANY($2::uuid[]))",
+            {owner.site, kept});
         db.exec("DELETE FROM bacuri_archive.gaps g USING bacuri_archive.point_retention p WHERE "
                 "(g.site_id,g.point_id)=(p.site_id,p.point_id) AND p.site_id=$1 AND "
                 "g.end_utc_us<=bacuri_archive.point_cutoff(p.site_id,p.point_id)",
@@ -102,8 +119,9 @@ void rebuild_archive(Database& db, std::ostream& output, StorageLayout layout)
                                      "site_id=$1),'-9223372036854775808'::bigint)",
                                      {owner.site})
                                  .get(0));
-    db.exec("DELETE FROM bacuri_archive.blocks WHERE site_id=$1 AND end_utc_us<=$2",
-            {owner.site, std::to_string(cutoff)});
+    db.exec(
+        "DELETE FROM bacuri_archive.blocks WHERE site_id=$1 AND end_utc_us<=$2 AND NOT (block_id=ANY($3::uuid[]))",
+        {owner.site, std::to_string(cutoff), kept});
     db.exec("DELETE FROM bacuri_archive.gaps WHERE site_id=$1 AND end_utc_us<=$2",
             {owner.site, std::to_string(cutoff)});
     const auto expired = [&](const std::string& point, std::int64_t end) {
@@ -115,7 +133,7 @@ void rebuild_archive(Database& db, std::ostream& output, StorageLayout layout)
         if (m.at("site_id") != owner.site || m.at("recording_node_id") != owner.node) {
             throw std::runtime_error("Foreign archive journal entry");
         }
-        if (expired(m.at("point_id"), m.at("end_utc_us")))
+        if (expired(m.at("point_id"), m.at("end_utc_us")) && !held.contains(m.at("block_id").get<std::string>()))
             return;
         if (!reason.empty()) {
             mark_unavailable(db, owner, m, reason);

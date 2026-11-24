@@ -30,17 +30,22 @@ std::vector<std::string> granted_point_ids(Database&, const std::string& site, c
                                            const std::string& action = "view", bool include_intervals = false);
 std::vector<std::string> export_point_ids(Database&, const std::string& site, const std::string& user);
 std::vector<std::string> viewer_ids(Database&, const std::string& site, const std::string& point);
+std::map<std::string, std::string> investigation_assignees(Database&, const std::string& site,
+                                                           const std::string& spans);
 std::string display_name(Database&, const std::string& user);
 std::string browser_expiry(Database&, const std::string& browser);
+std::string export_regions(Database&, const std::string& site, const std::string& point);
 std::string export_permission(Database&, const std::string& site, const std::string& point,
-                              const std::string& user, const std::string& begin, const std::string& end);
+                              const std::string& user, const std::string& begin, const std::string& end,
+                              bool derivative = false);
 struct ExportLease {
     std::string site, point;
     std::int64_t milliseconds;
 };
 std::optional<ExportLease> export_lease(Database&, const std::string& browser, const std::string& grant,
-                                        const std::string& point, const std::string& begin,
-                                        const std::string& end);
+                                        const std::string& point, const std::string& begin, const std::string& end,
+                                        bool derivative = false, const std::string& regions = {},
+                                        bool sound = false);
 
 struct LocalAccount {
     std::string username, role;

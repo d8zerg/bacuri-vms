@@ -51,6 +51,10 @@ export async function attach(
   fail: (reason: string) => void,
   format?: (description: string) => void,
   renew?: () => void,
+  archiveOrigin?: (
+    utcSeconds: number,
+    seek: (at: string) => Promise<number>,
+  ) => void,
 ) {
   const supportsHevc =
     target.mode === "archive"
@@ -85,6 +89,7 @@ export async function attach(
         },
         format,
         renew,
+        archiveOrigin,
       );
       ready = true;
       return;
@@ -105,6 +110,10 @@ async function connect(
   decoder: { hevc: boolean; markNative: () => void },
   format?: (description: string) => void,
   renew?: () => void,
+  archiveOrigin?: (
+    utcSeconds: number,
+    seek: (at: string) => Promise<number>,
+  ) => void,
 ) {
   signal.throwIfAborted();
   const open = async () =>
@@ -276,6 +285,11 @@ async function connect(
       );
     player = new ArchivePlayer(video, session.id, manifest, fail);
     if (!(await player.seek(target.position))) throw Error("Frame unavailable");
+    const activePlayer = player;
+    archiveOrigin?.(player.origin, async (at) => {
+      if (!(await activePlayer.seek(at))) throw Error("Frame unavailable");
+      return activePlayer.origin;
+    });
   } else {
     const pc = new RTCPeerConnection({ iceServers: [] });
     peer = pc;

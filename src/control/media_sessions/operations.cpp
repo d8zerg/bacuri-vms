@@ -5,13 +5,15 @@
 namespace bacuri::vms::control::media_sessions
 {
 std::string open_export(Database& db, const std::string& browser, const std::string& site,
-                        const std::string& point, const std::string& begin, const std::string& end)
+                        const std::string& point, const std::string& begin, const std::string& end,
+                        const std::string& presentation)
 {
     return db
         .exec("INSERT INTO "
-              "bacuri_media_sessions.media_sessions(browser,site_id,point_id,begin_us,end_us,expires_at) "
-              "VALUES($1,$2,$3,$4,$5,now()+interval '5 minutes') RETURNING id",
-              {browser, site, point, begin, end})
+              "bacuri_media_sessions.media_sessions(browser,site_id,point_id,begin_us,end_us,expires_at,"
+              "presentation) "
+              "VALUES($1,$2,$3,$4,$5,now()+interval '5 minutes',$6::jsonb) RETURNING id",
+              {browser, site, point, begin, end, presentation})
         .get(0);
 }
 void close_export(Database& db, const std::string& session)

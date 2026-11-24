@@ -1,8 +1,184 @@
-import { useEffect, useState } from "react";
-import type { Camera, Point, Services } from "../contracts/workspace";
+import { useEffect, useRef, useState } from "react";
+import { IconButton } from "../ui-kit/FormControls";
+import type {
+  Camera,
+  EdgeArchive,
+  Interval,
+  Point,
+  Services,
+} from "../contracts/workspace";
 import { FilterPanel, matchesQuery } from "../ui-kit/FilterPanel";
 import { groupChannels, channelName } from "./cameraChannels";
 import "./camera-batch.css";
+function DeviceRecordings({
+  services,
+  site,
+  device,
+}: {
+  services: Services;
+  site: string;
+  device: string;
+}) {
+  const [attempt, check] = useState(0);
+  const [result, setResult] = useState<EdgeArchive | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [failure, setFailure] = useState(false);
+  useEffect(() => {
+    if (!attempt) return;
+    const ctl = new AbortController();
+    setLoading(true);
+    setFailure(false);
+    void services
+      .edgeArchive(
+        site,
+        device,
+        AbortSignal.any([ctl.signal, AbortSignal.timeout(15000)]),
+      )
+      .then((value) => {
+        if (!ctl.signal.aborted) setResult(value);
+      })
+      .catch(() => {
+        if (!ctl.signal.aborted) setFailure(true);
+      })
+      .finally(() => {
+        if (!ctl.signal.aborted) setLoading(false);
+      });
+    return () => ctl.abort();
+  }, [services, site, device, attempt]);
+  const recovering = useRef<AbortController | null>(null);
+  const [progress, setProgress] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(
+    () => () => {
+      recovering.current?.abort();
+      recovering.current = null;
+    },
+    [],
+  );
+  async function restore(id: string, range: Interval) {
+    if (!result || recovering.current) return;
+    const ctl = new AbortController();
+    recovering.current = ctl;
+    setBusy(true);
+    let duration = 0;
+    try {
+      let start = range.start;
+      while (Date.parse(start) < Date.parse(range.end) && !ctl.signal.aborted) {
+        const end = new Date(
+          Math.min(Date.parse(range.end), Date.parse(start) + 3599000),
+        ).toISOString();
+        const reply = await services.recoverGap(
+          site,
+          device,
+          id,
+          result.binding_revision,
+          { start, end },
+          ctl.signal,
+        );
+        duration += reply.duration_us;
+        setProgress(
+          "Восстановлено " +
+            (duration / 1000000).toLocaleString("ru", {
+              maximumFractionDigits: 1,
+            }) +
+            " с",
+        );
+        if (reply.outcome === "quota" || reply.outcome === "timeout") break;
+        const next = reply.next ?? end;
+        if (Date.parse(next) <= Date.parse(start)) break;
+        start = next;
+      }
+    } catch {
+      if (!ctl.signal.aborted)
+        setProgress(
+          "Догрузка прервана. Сохранённые фрагменты доступны в архиве.",
+        );
+    } finally {
+      if (recovering.current === ctl) {
+        recovering.current = null;
+        setBusy(false);
+        check((n) => n + 1);
+      }
+    }
+  }
+  const labels = { Video: "Видео", Audio: "Звук", Metadata: "Метаданные" };
+  const date = (utc: string) => new Date(utc).toLocaleString("ru");
+  return (
+    <div>
+      <div className="ws-edge-heading">
+        <strong>Архив устройства</strong>
+        <IconButton
+          icon={attempt ? "rotate-cw" : "search"}
+          label="Проверить архив устройства"
+          disabled={loading || busy}
+          onClick={() => check((n) => n + 1)}
+        />
+      </div>
+      <div role="status">
+        {loading
+          ? "Опрос камеры…"
+          : failure
+            ? "Не удалось прочитать архив камеры."
+            : !result
+              ? null
+              : !result.supported
+                ? "Службы архива недоступны."
+                : !result.recordings.length
+                  ? "Камера не вернула записей."
+                  : result.recordings.map((record, i) => (
+                      <div key={record.id}>
+                        {(record.name || result.recordings.length > 1) && (
+                          <strong>{record.name || "Запись " + (i + 1)}</strong>
+                        )}
+                        <dl>
+                          {record.tracks.map((track, index) => (
+                            <div key={index}>
+                              <dt>{labels[track.kind]}</dt>
+                              <dd>
+                                {track.bounds
+                                  ? date(track.bounds.start) +
+                                    " - " +
+                                    date(track.bounds.end)
+                                  : "Нет доступного интервала"}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                        {!record.tracks.length && (
+                          <p>Камера не вернула дорожек.</p>
+                        )}
+                        {result.gaps
+                          .filter((gap) =>
+                            record.tracks.some(
+                              (track) =>
+                                track.kind === "Video" &&
+                                track.bounds &&
+                                Date.parse(track.bounds.start) <
+                                  Date.parse(gap.end) &&
+                                Date.parse(track.bounds.end) >
+                                  Date.parse(gap.start),
+                            ),
+                          )
+                          .map((gap) => (
+                            <div className="ws-edge-heading" key={gap.start}>
+                              <span>
+                                Пропуск {date(gap.start)} - {date(gap.end)}
+                              </span>
+                              <IconButton
+                                icon="file-down"
+                                label={"Догрузить пропуск " + date(gap.start)}
+                                disabled={busy}
+                                onClick={() => void restore(record.id, gap)}
+                              />
+                            </div>
+                          ))}
+                      </div>
+                    ))}
+        {progress && <p>{progress}</p>}
+      </div>
+    </div>
+  );
+}
 function stateOf(c: Camera) {
   return c.state === "rejected"
     ? "rejected"
@@ -211,6 +387,12 @@ export default function CameraCatalog({
                         <dt>Версия рекордера</dt>
                         <dd>{c.applied_revision ?? "Ожидание"}</dd>
                       </dl>
+                      <DeviceRecordings
+                        key={site + c.id}
+                        services={services}
+                        site={site}
+                        device={c.id}
+                      />
                     </div>
                   </details>
                 );

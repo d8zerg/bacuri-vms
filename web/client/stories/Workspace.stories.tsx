@@ -38,6 +38,14 @@ export const Intercom: Story = {
   name: "Передача речи",
   args: { initial: "/monitor?point=dock&mode=live", condition: "intercom" },
 };
+export const Investigations: Story = {
+  name: "Расследования",
+  args: { initial: "/investigations", condition: "normal" },
+};
+export const VideoRules: Story = {
+  name: "Видеоправила",
+  args: { initial: "/cameras?setup=rules", condition: "normal" },
+};
 export const RecordingPolicies: Story = {
   name: "Запись и хранение",
   args: { initial: "/cameras?setup=recording", condition: "recording" },

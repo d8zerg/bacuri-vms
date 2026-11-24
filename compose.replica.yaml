@@ -1,0 +1,24 @@
+x-archive-copy: &archive-copy
+  type: bind
+  source: ${BACURI_REPLICA_MOUNT:?set BACURI_REPLICA_MOUNT to the archive copy directory}
+  target: /archive-copy
+  bind:
+    create_host_path: false
+
+services:
+  recorder:
+    environment:
+      BACURI_ARCHIVE_REPLICA_DIR: /archive-copy
+    volumes:
+      - *archive-copy
+  archive-recovery:
+    environment:
+      BACURI_ARCHIVE_REPLICA_DIR: /archive-copy
+    volumes:
+      - *archive-copy
+  media:
+    environment:
+      BACURI_ARCHIVE_REPLICA_DIR: /archive-copy
+    volumes:
+      - <<: *archive-copy
+        read_only: true

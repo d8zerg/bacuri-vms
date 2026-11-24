@@ -50,7 +50,8 @@ std::string delivery_regions(Database& db, const std::string& site, const std::s
 {
     const auto rows = db.exec(
         "SELECT regions::text FROM bacuri_access.privacy_policies WHERE site_id=$1 AND point_id=$2 AND CASE $3 "
-        "WHEN 'live' THEN live WHEN 'archive' THEN archive ELSE false END AND jsonb_array_length(regions)>0",
+        "WHEN 'live' THEN live WHEN 'archive' THEN archive WHEN 'thumbnail' THEN thumbnail WHEN 'export' THEN "
+        "export ELSE false END AND jsonb_array_length(regions)>0",
         {site, point, surface});
     return rows.size() ? rows.get(0) : "";
 }
@@ -93,6 +94,22 @@ std::vector<std::string> viewer_ids(Database& db, const std::string& site, const
               {site, point})
         .column();
 }
+std::map<std::string, std::string> investigation_assignees(Database& db, const std::string& site,
+                                                           const std::string& spans)
+{
+    auto rows =
+        db.exec("SELECT u.user_id,u.username FROM bacuri_access.local_users u JOIN bacuri_access.site_roles r "
+                "USING(user_id) "
+                "WHERE r.site_id=$1 AND r.enabled AND NOT EXISTS(SELECT FROM jsonb_to_recordset($2::jsonb) AS "
+                "m(point uuid,a bigint,b bigint) "
+                "WHERE NOT bacuri_access.can_use(r.site_id,u.user_id,m.point,'view',m.a,m.b,'') OR NOT "
+                "bacuri_access.can_use(r.site_id,u.user_id,m.point,'protect',m.a,m.b,'')) ORDER BY u.username",
+                {site, spans});
+    std::map<std::string, std::string> names;
+    for (int i = 0; i < rows.size(); i++)
+        names.emplace(rows.get(i), rows.get(i, 1));
+    return names;
+}
 std::string display_name(Database& db, const std::string& user)
 {
     if (user.empty())
@@ -107,33 +124,48 @@ std::string browser_expiry(Database& db, const std::string& browser)
               {browser})
         .get(0);
 }
-std::string export_permission(Database& db, const std::string& site, const std::string& point,
-                              const std::string& user, const std::string& begin, const std::string& end)
+std::string export_regions(Database& db, const std::string& site, const std::string& point)
 {
-    if (!allowed(db, site, user, point, "view", "export", begin, end))
+    auto row = db.exec("SELECT regions::text FROM bacuri_access.privacy_policies WHERE site_id=$1 AND point_id=$2 "
+                       "AND (archive OR export)",
+                       {site, point});
+    if (!row.size())
+        return {};
+    return Json::parse(row.get(0)).empty() ? R"([{"left":0,"top":0,"right":1,"bottom":1}])" : row.get(0);
+}
+std::string export_permission(Database& db, const std::string& site, const std::string& point,
+                              const std::string& user, const std::string& begin, const std::string& end,
+                              bool derivative)
+{
+    if (!allowed(db, site, user, point, "view", "", begin, end) ||
+        (!derivative && !export_regions(db, site, point).empty()))
         throw Failure{403, "forbidden"};
-    auto rows =
-        db.exec("SELECT grant_id FROM bacuri_access.effective_grants WHERE site_id=$1 AND point_id=$2 "
-                "AND user_id=$3 AND action='export' AND (begin_us IS NULL OR (begin_us<=$4 AND end_us>=$5)) "
-                "ORDER BY grant_id LIMIT 1",
-                {site, point, user, begin, end});
+    auto rows = db.exec("SELECT grant_id FROM bacuri_access.effective_grants WHERE site_id=$1 AND point_id=$2 "
+                        "AND user_id=$3 AND (action='export' OR ($6::boolean AND action='export_masked')) AND "
+                        "(begin_us IS NULL OR (begin_us<=$4 AND end_us>=$5)) "
+                        "ORDER BY (action='export_masked') DESC,grant_id LIMIT 1",
+                        {site, point, user, begin, end, derivative ? "true" : "false"});
     if (!rows.size())
         throw Failure{403, "forbidden"};
     return rows.get(0);
 }
 std::optional<ExportLease> export_lease(Database& db, const std::string& browser, const std::string& grant,
-                                        const std::string& point, const std::string& begin, const std::string& end)
+                                        const std::string& point, const std::string& begin, const std::string& end,
+                                        bool derivative, const std::string& regions, bool sound)
 {
-    auto rows = db.exec(R"sql(
+    auto rows =
+        db.exec(R"sql(
         SELECT g.site_id,g.point_id,least(1000,floor(extract(epoch FROM
             least(b.expires_at,b.last_active+interval '30 minutes',b.oidc_until)-clock_timestamp())*1000))::bigint
         FROM bacuri_access.browser_sessions b JOIN bacuri_access.effective_grants g USING(user_id)
-        WHERE b.token_hash=$1 AND (b.oidc_site IS NULL OR b.oidc_site=g.site_id) AND g.grant_id=$2 AND g.point_id=$3 AND g.action='export'
+        WHERE b.token_hash=$1 AND (b.oidc_site IS NULL OR b.oidc_site=g.site_id) AND g.grant_id=$2 AND g.point_id=$3
+            AND (g.action='export' OR ($6::boolean AND g.action='export_masked'))
             AND (g.begin_us IS NULL OR (g.begin_us<=$4 AND g.end_us>=$5))
-            AND bacuri_access.can_use(g.site_id,g.user_id,g.point_id,'view',$4,$5,'export')
+            AND bacuri_access.can_use(g.site_id,g.user_id,g.point_id,'view',$4,$5,'')
+            AND (NOT $7::boolean OR bacuri_access.can_use(g.site_id,g.user_id,g.point_id,'audio',$4,$5,''))
     )sql",
-                        {browser, grant, point, begin, end});
-    if (!rows.size())
+                {browser, grant, point, begin, end, derivative ? "true" : "false", sound ? "true" : "false"});
+    if (!rows.size() || export_regions(db, rows.get(0), point) != regions || (!derivative && !regions.empty()))
         return {};
     return ExportLease{rows.get(0), rows.get(0, 1), std::stoll(rows.get(0, 2))};
 }

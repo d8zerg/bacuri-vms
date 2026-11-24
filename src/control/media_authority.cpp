@@ -35,6 +35,28 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
         const Window bounds{utc_us(q->archive().start()), utc_us(q->archive().end())};
         Database db;
         db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+        if (q->export_source()) {
+            if (!q->has_archive() || q->archive_h264() || !q->privacy_regions().empty())
+                return {grpc::StatusCode::PERMISSION_DENIED, "Invalid export source"};
+            const auto source =
+                db.exec("SELECT presentation FROM bacuri_media_sessions.media_sessions WHERE id=$1 AND browser=$2 "
+                        "AND site_id=$3 AND point_id=$4 "
+                        "AND NOT closed AND expires_at>now() AND begin_us<=$5 AND end_us>=$6 AND presentation ? "
+                        "'export_grant'",
+                        {q->media_session_id(), q->browser_session_id(), q->point().site_id(),
+                         q->point().point_id(), std::to_string(bounds.start), std::to_string(bounds.end)});
+            if (!source.size())
+                return {grpc::StatusCode::PERMISSION_DENIED, "Unknown export session"};
+            auto p = Json::parse(source.get(0));
+            auto grant = access::export_lease(db, q->browser_session_id(), p.at("export_grant"),
+                                              q->point().point_id(), p.at("begin"), p.at("end"),
+                                              p.at("derivative"), p.at("regions"), p.at("sound"));
+            if (!grant || grant->milliseconds <= 0)
+                return {grpc::StatusCode::PERMISSION_DENIED, "Export permission expired"};
+            db.exec("COMMIT");
+            lease->set_valid_for_ms(grant->milliseconds);
+            return grpc::Status::OK;
+        }
         const auto surface = q->has_live() ? "live" : "archive";
         if (!q->privacy_regions().empty() &&
             access::delivery_regions(db, q->point().site_id(), q->point().point_id(), surface) !=
@@ -50,7 +72,7 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
             db.exec(R"sql(
           SELECT least(5000,floor(extract(epoch FROM least(expires_at,$8::timestamptz)-clock_timestamp())*1000))::bigint
           FROM bacuri_media_sessions.media_sessions WHERE id=$1 AND browser=$2 AND site_id=$3 AND point_id=$4 AND NOT closed
-          AND coalesce(presentation->>'mask','')=$9 AND ($7::boolean OR coalesce((presentation->>'converted')::boolean,false)=$10::boolean)
+          AND NOT (coalesce(presentation,'{}') ? 'export_grant') AND coalesce(presentation->>'mask','')=$9 AND ($7::boolean OR coalesce((presentation->>'converted')::boolean,false)=$10::boolean)
           AND CASE WHEN $7::boolean THEN begin_us IS NULL ELSE begin_us<=$5::bigint AND $5::bigint<$6::bigint AND $6::bigint<=end_us END
         )sql",
                     {q->media_session_id(), q->browser_session_id(), q->point().site_id(), q->point().point_id(),

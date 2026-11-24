@@ -73,7 +73,8 @@ test("Workspace navigation keeps icons level and labels inside touch targets", a
   await page.evaluate(() => document.fonts.ready);
   const nav = page.getByRole("navigation", { name: "Рабочее место" });
   const links = nav.getByRole("link");
-  await expect(links).toHaveCount(5);
+  await expect(links).toHaveCount(6);
+  await expect(nav.getByRole("link", { name: "Расследования" })).toBeVisible();
   for (const width of [
     320, 360, 390, 449, 480, 481, 600, 752, 753, 768, 1041, 1199, 1200, 1280,
     1440,
@@ -157,6 +158,63 @@ test("Workspace navigation keeps icons level and labels inside touch targets", a
       }
     }
   }
+});
+test("Archive search preserves the bookmark when a case is saved and reopened", async ({
+  page,
+}) => {
+  await open(page, "investigations");
+  await page.locator(".inv-points input").first().check();
+  await page.getByText("Фильтры эпизода").click();
+  await page.locator("form[role=search] button[type=submit]").click();
+  await expect(page.locator(".inv-track")).toHaveCount(1);
+  await page.getByRole("button", { name: "Следующий кадр" }).click();
+  await page
+    .getByRole("button", {
+      name: "Добавить закладку и интервалы в материалы дела",
+    })
+    .click();
+  await page.getByRole("button", { name: "Материалы (1)" }).click();
+  await page.getByRole("button", { name: /Новое дело/ }).click();
+  await page.getByLabel("Номер дела").fill("DOCK-1");
+  await page.getByLabel("Основание защиты").fill("Сверка погрузки");
+  await page.getByRole("button", { name: "Сохранить дело" }).click();
+  await page.getByRole("button", { name: /DOCK-1/ }).click();
+  await expect(page.getByLabel("Номер дела")).toHaveValue("DOCK-1");
+  await expect(page.locator(".inv-material")).toContainText("Погрузочные");
+  await page.locator(".inv-material button").nth(1).click();
+  await expect(page.locator(".inv-track")).toHaveCount(1);
+});
+test("Rule editor previews the draft and saves its version", async ({
+  page,
+}) => {
+  await open(page, "video-rules");
+  await page.getByRole("button", { name: "Добавить область" }).first().click();
+  await expect(
+    page.getByRole("button", { name: "Удалить область" }),
+  ).toHaveCount(1);
+  await page.getByLabel("Пересечение линии").check();
+  const frame = page.getByRole("img", { name: "Линия пересечения на кадре" });
+  await frame.scrollIntoViewIfNeeded();
+  const box = await frame.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 4, box.y + box.height / 4);
+  await page.mouse.up();
+  await page.getByText("Координаты линии").click();
+  await expect(page.getByLabel("X₁, %")).toHaveValue("25");
+  await expect(page.getByLabel("Y₁, %")).toHaveValue("25");
+  await page.getByLabel("X₂, %").fill("75");
+  await expect(frame.locator("line")).toHaveAttribute("x2", "75");
+  await page.getByText(/Расписание ·/).click();
+  await page.getByRole("button", { name: "Добавить период" }).click();
+  await expect(page.getByLabel("День недели")).toHaveCount(1);
+  await page.getByText("Проверка на записи", { exact: true }).click();
+  await page.getByRole("button", { name: "Проверить на записи" }).click();
+  await expect(page.getByText(/Срабатываний · 1/)).toBeVisible();
+  await page.getByRole("button", { name: "Сохранить правило" }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: /сохран/i }),
+  ).toBeVisible();
 });
 test("Desktop sidebar preserves its compact mode across navigation, reload and resizing", async ({
   page,

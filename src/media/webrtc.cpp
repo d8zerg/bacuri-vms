@@ -98,10 +98,10 @@ int video_payload(const GstSDPMedia* track, bool hevc)
 }
 } // namespace
 
-WebRtcPeer::WebRtcPeer(const std::string& offer, std::string_view source, std::string_view output,
-                       std::string_view regions)
+WebRtcPeer::WebRtcPeer(const std::string& offer, LiveFormat format, std::string_view regions)
     : mask_{regions}, offer_{parse(offer)}
 {
+    const auto [source, output] = format;
     const bool hevc = output == "h265";
     auto pt = std::to_string(video_payload(gst_sdp_message_get_media(offer_->sdp, 0), hevc));
     std::string launch = "appsrc name=input is-live=true do-timestamp=true format=time caps=";

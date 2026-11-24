@@ -19,8 +19,10 @@ void run(std::stop_token stop, const v1::LiveOffer& offer, std::promise<Result> 
         lease.deadline();
         const auto& video = offer.scope().live();
         const std::string source_codec = video.source_codec().empty() ? "h264" : video.source_codec();
-        WebRtcPeer peer{offer.sdp(), source_codec, video.output_codec().empty() ? "h264" : video.output_codec(),
-                        offer.scope().privacy_regions()};
+        WebRtcPeer peer{
+            offer.sdp(),
+            {.source = source_codec, .output = video.output_codec().empty() ? "h264" : video.output_codec()},
+            offer.scope().privacy_regions()};
         const auto setup = Clock::now() + 5s;
         auto sdp = peer.answer(setup);
         lease.deadline();

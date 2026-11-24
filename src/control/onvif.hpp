@@ -11,11 +11,19 @@ struct MotionNotice {
     std::string epoch;
     std::string input;
     bool active{};
+    std::string topic{"RuleEngine/CellMotionDetector/Motion"};
+    Json metadata = Json::object();
 };
 void read_motion(std::stop_token, const CameraNetworks&, const Json& control, const Json& credentials,
                  const std::function<void(const MotionNotice&)>& accept);
 Json discover_onvif(const CameraNetworks& networks, const Key& key, const std::string& site);
 Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::string& site, const Json& body);
+struct EdgeSelection {
+    std::string id, uri;
+    std::int64_t offset_us{}, uncertainty_us{};
+};
+Json read_edge_archive(const CameraNetworks&, const Json& control, const Json& credentials, const Key& key,
+                       EdgeSelection* selected = nullptr);
 void verify_camera_channel(const CameraNetworks&, const Json& config);
 Json camera_brightness(const CameraNetworks&, const Json& control, const Json& credentials);
 struct BrightnessChange {

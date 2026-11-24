@@ -12,6 +12,7 @@ function observeDesktop(notify: () => void) {
 }
 type Item = {
   label: string;
+  short?: string;
   icon: string;
   name?: string;
   className?: string;
@@ -46,6 +47,7 @@ export function SubsectionMenu({
       {items.map(
         ({
           label,
+          short,
           name = label,
           icon,
           className,
@@ -68,7 +70,14 @@ export function SubsectionMenu({
             <svg aria-hidden="true">
               <use href={icons + "#i-" + icon} />
             </svg>
-            <span>{label}</span>
+            {short ? (
+              <>
+                <span className="ws-submenu-full">{label}</span>
+                <span className="ws-submenu-short">{short}</span>
+              </>
+            ) : (
+              <span>{label}</span>
+            )}
           </button>
         ),
       )}

@@ -287,6 +287,7 @@ services:
     user: "11003:11010"
     networks: [live-media]
     environment:
+      BACURI_NODE_ID: *node
       BACURI_ARCHIVE_DIR: /archive/recorder
       BACURI_PREVIEW_SOCKET: /preview-ipc/preview.sock
       BACURI_AUTH_SOCKET: /auth-ipc/auth.sock

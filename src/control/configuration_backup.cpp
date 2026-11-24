@@ -1,3 +1,4 @@
+#include "control/events/configuration.hpp"
 #include "control/inventory/restore.hpp"
 #include "control/access/restore.hpp"
 #include "control/recordings/operations.hpp"
@@ -29,6 +30,7 @@ void visit_configuration(ConfigurationSnapshot& snapshot)
     access::permission_configuration(snapshot);
     maps::plan_configuration(snapshot);
     recordings::retention_configuration(snapshot);
+    events::rule_configuration(snapshot);
     media_sessions::layout_configuration(snapshot);
 }
 std::string context(const std::string& site)
@@ -90,10 +92,12 @@ void restore_configuration(std::istream& input)
     auto data = Json::parse(unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site)));
     data.erase("webauthn_credentials");
     for (const auto* table :
-         {"recording_policies", "monitor_layouts", "camera_templates", "camera_batch_items", "credential_audit",
-          "camera_transport_audit", "floor_plans", "point_placements", "archive_retention", "export_grants",
-          "map_catalog_settings", "resource_groups", "group_points", "scoped_grants", "privacy_policies",
-          "identity_providers", "external_identities", "policy_versions", "access_audit"}) {
+         {"video_rules",         "investigations",         "archive_holds",        "held_blocks",
+          "recording_policies",  "monitor_layouts",        "camera_templates",     "camera_batch_items",
+          "credential_audit",    "camera_transport_audit", "floor_plans",          "point_placements",
+          "archive_retention",   "export_grants",          "map_catalog_settings", "resource_groups",
+          "group_points",        "scoped_grants",          "privacy_policies",     "identity_providers",
+          "external_identities", "policy_versions",        "access_audit"}) {
         if (!data.contains(table))
             data[table] = Json::array();
     }

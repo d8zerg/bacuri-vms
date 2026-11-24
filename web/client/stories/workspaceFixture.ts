@@ -55,6 +55,11 @@ const initialAlerts: AlertItem[] = [82, 132, 236, 301].map((n, i) => ({
   uncertainty_us: "0",
 }));
 export function fixture(condition = "normal"): Services {
+  const caseRows: import("../src/contracts/workspace").Investigation[] = [];
+  let ruleVersion: Awaited<ReturnType<Services["videoRule"]>> = {
+    revision: "0",
+    rule: null,
+  };
   let layouts: Layout[] = [];
   const capture: import("../src/contracts/workspace").CapturePolicies = {
     policies: [],
@@ -291,6 +296,65 @@ export function fixture(condition = "normal"): Services {
     delete placed.calibration;
   }
   return {
+    videoRule: () => Promise.resolve(ruleVersion),
+    saveRule: (_site, _point, body) => {
+      ruleVersion = {
+        revision: String(Number(ruleVersion.revision) + 1),
+        rule: body.rule,
+      };
+      return Promise.resolve(ruleVersion);
+    },
+    simulateRule: (_site, _point, { interval }) =>
+      Promise.resolve({ hits: [interval.start], complete: true }),
+    caseRecipients: () =>
+      Promise.resolve([{ id: "installer", name: "Монтажник" }]),
+    exportCase: () => Promise.reject(new HttpFailure(403, "forbidden")),
+    searchFrames: (_site, { points, interval }) =>
+      Promise.resolve(
+        points.map((point_id) => ({
+          point_id,
+          coverage: [
+            {
+              interval,
+              indexed: true,
+              basis: "source_clock",
+              uncertainty_us: 1000,
+              binding_revision: "1",
+            },
+          ],
+          hits: [
+            {
+              at: interval.start,
+              cells: 4,
+              preview: btoa(String.fromCharCode(80).repeat(64 * 48)),
+            },
+          ],
+          frames: [
+            interval.start,
+            new Date(Date.parse(interval.start) + 40).toISOString(),
+          ],
+          gaps: [],
+          events: [],
+          next: null,
+        })),
+      ),
+    cases: () => Promise.resolve([...caseRows]),
+    saveCase: (_site, id, body) => {
+      const revision = String(Number(body.revision) + 1);
+      const saved = {
+        ...body,
+        id,
+        revision,
+        materials: body.materials.map((m) => ({
+          ...m,
+          hold_id: crypto.randomUUID(),
+        })),
+      };
+      const index = caseRows.findIndex((c) => c.id === id);
+      if (index >= 0) caseRows[index] = saved;
+      else caseRows.push(saved);
+      return Promise.resolve({ id, revision });
+    },
     exportFragment: () => Promise.reject(new HttpFailure(403, "forbidden")),
     ...alertWorkFixture(point, utc(150), (id, state) => {
       alerts = alerts.map((item) =>
@@ -570,6 +634,22 @@ export function fixture(condition = "normal"): Services {
             ],
           })
         : Promise.reject(new HttpFailure(422, "camera_authentication_failed")),
+    recoverGap: () =>
+      Promise.resolve({
+        blocks: 1,
+        duration_us: 1000000,
+        outcome: "copied",
+        next: null,
+      }),
+    edgeArchive: () =>
+      Promise.resolve({
+        binding_revision: "1",
+        gaps: [range(1, 2)],
+        supported: true,
+        recordings: [
+          { id: "rec1", tracks: [{ kind: "Video", bounds: range(0, 4) }] },
+        ],
+      }),
     previousRecording: () =>
       Promise.resolve({ binding_revision: "1", interval: range(0, 4) }),
     record: async (_, __, signal) => {

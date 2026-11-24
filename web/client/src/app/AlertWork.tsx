@@ -441,6 +441,13 @@ export function AlertWorkPanel({
             <strong>{states[work.state]}</strong>
             {work.owner && " · Ответственный: " + work.owner}
           </p>
+          {work.rule && (
+            <p>
+              Правило {work.rule.revision} ·{" "}
+              {work.rule.source === "local" ? "Локальный детектор" : "ONVIF"} ·
+              Привязка {work.rule.binding}
+            </p>
+          )}
           {work.result && <p>Результат проверки · {work.result}</p>}
           {work.actions.includes("record_result") && (
             <label>
@@ -453,6 +460,23 @@ export function AlertWorkPanel({
             </label>
           )}
           <div className="ws-work-actions">
+            {work.actions.includes("record_result") && (
+              <Button
+                disabled={busy || !!retry}
+                onClick={() =>
+                  void send(
+                    {
+                      action: "record_result",
+                      version: work.version,
+                      reason: "Ложная тревога",
+                    },
+                    crypto.randomUUID(),
+                  )
+                }
+              >
+                Ложная тревога
+              </Button>
+            )}
             {work.actions.map((action) => (
               <Button
                 key={action}

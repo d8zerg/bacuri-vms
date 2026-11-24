@@ -3,7 +3,7 @@
 #include <memory>
 #include <limits>
 #include <vector>
-struct _GTimeZone;
+#include <glib.h>
 namespace bacuri::vms::archive
 {
 struct WeeklyPeriod {
@@ -19,7 +19,7 @@ struct CaptureRule {
     int pre{}, post{}, days{};
     std::string id;
     std::int64_t revision{}, since{}, until{std::numeric_limits<std::int64_t>::max()};
-    std::shared_ptr<_GTimeZone> zone;
+    std::shared_ptr<GTimeZone> zone;
     std::vector<WeeklyPeriod> schedule;
     std::vector<CaptureWindow> windows;
     bool selects(std::int64_t utc, std::int64_t binding) const;

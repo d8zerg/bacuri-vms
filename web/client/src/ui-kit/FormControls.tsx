@@ -67,6 +67,7 @@ export type ControlIcon =
   | "move"
   | "settings-2"
   | "sun"
+  | "pause"
   | "play"
   | "clock-alert"
   | "circle-check"

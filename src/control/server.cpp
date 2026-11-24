@@ -1,8 +1,10 @@
+#include "control/events/video_rules.hpp"
 #include "control/inventory/telemetry.hpp"
 #include "control/inventory/registry.hpp"
 #include "control/export.hpp"
 #include "control/api.hpp"
 #include "control/recordings/policies.hpp"
+#include "control/recordings/search.hpp"
 #include "control/access/admin.hpp"
 #include "control/access/oidc.hpp"
 #include "control/maps.hpp"
@@ -43,7 +45,7 @@ namespace
 bool workspace_page(std::string_view path)
 {
     return path == "/access" || path == "/audit" || path == "/" || path == "/maps" || path == "/monitor" ||
-           path == "/cameras";
+           path == "/cameras" || path == "/investigations";
 }
 
 void workspace_file(const Request& req, Response& res, std::string_view path)
@@ -166,6 +168,21 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     path.remove_prefix(separator + 1);
     if (access::administration(req, res, sessions, key, site, path))
         return;
+    if (path == "investigation-assignees")
+        return recordings::case_recipients(req, res, sessions, site);
+    if (path == "investigations" || path.starts_with("investigations/")) {
+        if (path.ends_with("/exports") && path.size() == 15 + 36 + 8) {
+            const std::string case_id{path.substr(15, 36)};
+            if (canonical_id(case_id))
+                return export_case(req, res, sessions, key, site, case_id);
+        }
+        const std::string id{path == "investigations" ? std::string_view{} : path.substr(15)};
+        if (path != "investigations" && !canonical_id(id))
+            throw Failure{404, "not_found"};
+        return recordings::investigation(req, res, sessions, site, id);
+    }
+    if (path == "archive-search")
+        return recordings::search_index(req, res, sessions, site);
     if (path == "recording-policies")
         return recordings::policies(req, res, sessions, site, {});
     constexpr std::string_view recording_prefix = "recording-policies/";
@@ -216,6 +233,10 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
             const auto operation = path.substr(slash + 1);
             if (operation == "recording")
                 return recordings::manual_recording(req, res, sessions, site, point);
+            if (operation == "video-rule" || operation == "video-rule/simulation")
+                return events::video_rule(req, res, sessions, site, point, operation.ends_with("/simulation"));
+            if (operation == "holds")
+                return recordings::holds(req, res, sessions, site, point);
             if (operation == "exports")
                 return export_fragment(req, res, sessions, key, site, point);
             if (operation == "audio") {
@@ -297,6 +318,10 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
             return registry.cameras(req, res, site, std::string{device});
         }
         const auto resource = member.substr(split + 1);
+        if (resource == "edge-archive") {
+            allow(req, res, {http::verb::get, http::verb::post});
+            return registry.edge_archive(req, res, site, std::string{device});
+        }
         if (resource == "previous-recording" || resource == "stream-issues") {
             allow(req, res, {http::verb::get});
             if (resource == "stream-issues")
@@ -359,6 +384,10 @@ void serve()
     auto monitor_position = [&](std::stop_token stop) { inventory::track_positions(stop, networks, key); };
     std::jthread position_reader{monitor_position}, second_position_reader{monitor_position};
     std::jthread map_worker{map_packages::work};
+    std::jthread reactions{[&](std::stop_token stop) {
+        auto site = setting("BACURI_SITE_ID");
+        events::dispatch_presets(stop, site, [&](const auto&... job) { registry.preset(site, job...); });
+    }};
     std::jthread event_reader{[&](std::stop_token stop) { camera_events(stop, networks, key); }};
     std::jthread worker{[&key, policy = std::move(policy)](std::stop_token stop) { deliver(stop, key, policy); }};
     const auto handle = [&](const Request& req, const std::string& peer) {

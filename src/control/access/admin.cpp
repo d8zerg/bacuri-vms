@@ -154,7 +154,7 @@ Json grants(Database& db, const Request& req, const std::string& site, const std
     auto body = object_body(req, {"user_id", "action", "point_id", "group_id", "interval"});
     auto user = identifier(body, "user_id"), action = string_field(body, "action", 16);
     const std::set<std::string> actions{"view", "audio",     "audio_record", "record", "audio_talk",
-                                        "ptz",  "configure", "protect",      "export"};
+                                        "ptz",  "configure", "protect",      "export", "export_masked"};
     require(actions.contains(action) && body.contains("point_id") != body.contains("group_id"));
     member(db, site, user);
     std::string point, group, begin, end;
@@ -168,7 +168,7 @@ Json grants(Database& db, const Request& req, const std::string& site, const std
             throw Failure{404, "not_found"};
     }
     if (body.contains("interval")) {
-        require(action == "view" || action == "export");
+        require(action == "view" || action == "export" || action == "export_masked");
         auto range = body.at("interval");
         auto a = parse_utc(string_field(range, "start", 32)), b = parse_utc(string_field(range, "end", 32));
         require(range.size() == 2 && a < b);

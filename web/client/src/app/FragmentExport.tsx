@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Interval, Services } from "../contracts/workspace";
+import type { ExportOptions, Interval, Services } from "../contracts/workspace";
 import "./fragment-export.css";
 import { HttpFailure } from "../adapters/api";
 import { Button, TextField } from "../ui-kit/FormControls";
@@ -19,6 +19,9 @@ export default function FragmentExport({
 }) {
   const [start, setStart] = useState(interval.start);
   const [end, setEnd] = useState(interval.end);
+  const [mode, setMode] = useState<ExportOptions["mode"]>("selection");
+  const [reason, setReason] = useState(""),
+    [sound, setSound] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [url, setUrl] = useState("");
@@ -51,6 +54,9 @@ export default function FragmentExport({
         { start, end },
         alert,
         ctl.signal,
+        mode !== "selection" || sound
+          ? { mode, audio: sound, reason }
+          : undefined,
       );
       if (!ctl.signal.aborted) setUrl(URL.createObjectURL(file));
     } catch (cause) {
@@ -109,6 +115,47 @@ export default function FragmentExport({
               setError("");
             }}
           />
+          <label>
+            Представление
+            <select
+              value={mode}
+              disabled={busy}
+              onChange={(e) => {
+                setMode(e.target.value as ExportOptions["mode"]);
+                setUrl("");
+              }}
+            >
+              <option value="selection">Выбранные кадры</option>
+              <option value="original">
+                Оригинал с контекстом декодирования
+              </option>
+              <option value="derivative">Копия с масками</option>
+            </select>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={sound}
+              disabled={busy}
+              onChange={(e) => {
+                setSound(e.target.checked);
+                setUrl("");
+              }}
+            />
+            Включить звук
+          </label>
+          {(mode !== "selection" || sound) && (
+            <TextField
+              name="exportReason"
+              label="Основание выдачи"
+              required
+              value={reason}
+              onChange={(e) => {
+                setReason(e.target.value);
+                setUrl("");
+              }}
+            />
+          )}
           <Button
             ref={submit}
             type="submit"

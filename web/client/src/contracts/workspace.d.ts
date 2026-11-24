@@ -11,6 +11,7 @@ export type AlertItem = Schema["Alert"];
 export type Camera = Schema["Camera"];
 export type DiscoveredCamera = Schema["DiscoveredCamera"];
 export type CameraInspection = Schema["CameraInspection"];
+export type EdgeArchive = Schema["EdgeArchive"];
 export type BoundRecording = Schema["BoundRecording"];
 export type Interval = Schema["UtcInterval"];
 export type Entry = Schema["ArchiveEntry"];
@@ -55,7 +56,56 @@ export type AlertWork = Schema["AlertWork"];
 export type AlertCommand = Schema["AlertCommand"];
 export type AuditEntry = Schema["AuditEntry"];
 export type AuditFilter = Schema["AuditFilter"];
+export type SearchTrack = Schema["SearchTrack"];
+export type VideoRule = Schema["VideoRule"];
+export type VideoSearch = Schema["ArchiveSearch"];
+export type Investigation = Schema["Investigation"];
+export type CaseDraft = Schema["InvestigationDraft"];
+export type ExportOptions = {
+  mode: "selection" | "original" | "derivative";
+  reason: string;
+  audio: boolean;
+};
 export interface Services {
+  videoRule(
+    site: string,
+    point: string,
+    signal: AbortSignal,
+  ): Promise<Schema["RuleVersion"]>;
+  saveRule(
+    site: string,
+    point: string,
+    body: Schema["RuleChange"],
+  ): Promise<Schema["RuleVersion"]>;
+  simulateRule(
+    site: string,
+    point: string,
+    body: Schema["RuleTrial"],
+    signal: AbortSignal,
+  ): Promise<Schema["TrialResult"]>;
+  caseRecipients(
+    site: string,
+    materials: CaseDraft["materials"],
+    signal: AbortSignal,
+  ): Promise<{ id: string; name: string }[]>;
+  exportCase(
+    site: string,
+    id: string,
+    body: Schema["CaseExport"],
+    signal: AbortSignal,
+  ): Promise<Blob>;
+  searchFrames(
+    site: string,
+    query: VideoSearch,
+    signal: AbortSignal,
+  ): Promise<SearchTrack[]>;
+  cases(site: string, signal: AbortSignal): Promise<Investigation[]>;
+  saveCase(
+    site: string,
+    id: string,
+    draft: CaseDraft,
+  ): Promise<Schema["SavedInvestigation"]>;
+
   capturePolicies(site: string, signal: AbortSignal): Promise<CapturePolicies>;
   captureGroups(
     site: string,
@@ -97,6 +147,7 @@ export interface Services {
     interval: Interval,
     alert: string | null,
     signal: AbortSignal,
+    options?: ExportOptions,
   ): Promise<Blob>;
   alertWork(
     site: string,
@@ -188,6 +239,24 @@ export interface Services {
     signal: AbortSignal,
   ): Promise<Camera>;
   cameras(site: string, signal: AbortSignal): Promise<Camera[]>;
+  recoverGap(
+    site: string,
+    camera: string,
+    recording: string,
+    binding: string,
+    interval: Interval,
+    signal: AbortSignal,
+  ): Promise<{
+    blocks: number;
+    duration_us: number;
+    outcome: string;
+    next: string | null;
+  }>;
+  edgeArchive(
+    site: string,
+    camera: string,
+    signal: AbortSignal,
+  ): Promise<EdgeArchive>;
   previousRecording(
     site: string,
     camera: string,
@@ -227,5 +296,9 @@ export interface Services {
     failure: (message: string) => void,
     format?: (description: string) => void,
     renew?: () => void,
+    archiveOrigin?: (
+      utcSeconds: number,
+      seek: (at: string) => Promise<number>,
+    ) => void,
   ): Promise<void>;
 }

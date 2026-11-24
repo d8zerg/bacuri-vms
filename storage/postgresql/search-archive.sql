@@ -1,11 +1,24 @@
 WITH cutoff AS MATERIALIZED (
-    SELECT bacuri_archive.retention_cutoff($1) AS end_us
+    SELECT bacuri_archive.point_cutoff($1,$2) AS end_us
+), held AS MATERIALIZED (
+    SELECT DISTINCT h.block_id
+    FROM bacuri_archive.archive_holds a JOIN bacuri_archive.held_blocks h ON (h.site_id,h.hold_id)=(a.site_id,a.id)
+    WHERE a.site_id=$1 AND a.point_id=$2 AND a.expires_us>bacuri_archive.retention_now_us()
 ), catalog AS NOT MATERIALIZED (
     SELECT begin_utc_us AS a, end_utc_us AS b, interval_kind AS state, time_basis, uncertainty_us, gap_reason,
            int8range(begin_utc_us, end_utc_us, '[)') AS coverage
     FROM bacuri_archive.catalog_intervals
     WHERE site_id = $1 AND point_id = $2 AND end_utc_us > (SELECT end_us FROM cutoff)
       AND ($6 = '' OR binding_revision = nullif($6, '')::bigint)
+    UNION ALL
+    SELECT b.begin_utc_us,b.end_utc_us,CASE WHEN b.unavailable_reason IS NULL THEN 'recorded' ELSE 'gap' END,
+           CASE WHEN b.unavailable_reason IS NULL THEN b.time_basis END,
+           CASE WHEN b.unavailable_reason IS NULL THEN b.uncertainty_us END,
+           CASE WHEN b.unavailable_reason IS NOT NULL THEN 'storage_failure' END,
+           int8range(b.begin_utc_us,b.end_utc_us,'[)')
+    FROM held JOIN bacuri_archive.blocks b ON b.block_id=held.block_id AND b.site_id=$1
+    WHERE b.point_id=$2 AND b.end_utc_us <= (SELECT end_us FROM cutoff)
+      AND ($6='' OR b.binding_revision=nullif($6,'')::bigint)
 ), pending AS MATERIALIZED (
     SELECT a, b FROM jsonb_to_recordset($5::jsonb) AS p(a bigint, b bigint)
     WHERE a < $4 AND b > $3 AND b > (SELECT end_us FROM cutoff)

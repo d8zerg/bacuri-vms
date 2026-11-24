@@ -56,7 +56,8 @@ void attach_counter(GstRTSPMediaFactory*, GstRTSPMedia* media, gpointer)
                 if (gst_buffer_map(buffer, &map, GST_MAP_WRITE)) {
                     for (unsigned bit = 0; bit < 16; ++bit)
                         for (unsigned y = 0; y < 16; ++y)
-                            std::memset(map.data + y * 1280 + bit * 16, (*counter & (1U << bit)) ? 235 : 16, 16);
+                            std::memset(map.data + y * 1280uz + bit * 16uz, (*counter & (1U << bit)) ? 235 : 16,
+                                        16);
                     gst_buffer_unmap(buffer, &map);
                 }
                 ++*counter;

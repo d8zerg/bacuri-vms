@@ -27,6 +27,7 @@ const Access = lazy(() => import("./Access"));
 const Monitor = lazy(() =>
   import("./monitor").then((m) => ({ default: m.Monitor })),
 );
+const Investigations = lazy(() => import("./Investigations"));
 const Maps = lazy(() => import("./Maps"));
 const waiting: Feed = { items: [], status: "loading" };
 function Login({
@@ -157,6 +158,7 @@ function Site({
   admin,
   userId,
   cameras,
+  investigations,
   maps,
   audit,
   onExpired,
@@ -166,6 +168,7 @@ function Site({
   admin: boolean;
   userId: string;
   cameras: boolean;
+  investigations: boolean;
   maps: boolean;
   audit: boolean;
   onExpired: () => void;
@@ -254,6 +257,18 @@ function Site({
       />
     );
   if (!points) return <p role="status">{notice}</p>;
+  if (investigations)
+    return (
+      <Suspense fallback={<p role="status">Загрузка материалов…</p>}>
+        <Investigations
+          key={points[0]?.access_revision ?? ""}
+          services={services}
+          site={site}
+          points={points}
+          user={userId}
+        />
+      </Suspense>
+    );
   if (audit)
     return (
       <Suspense fallback={<p role="status">Загрузка журнала…</p>}>
@@ -293,7 +308,18 @@ function Site({
 }
 const sidebarKey = "bacuri.vms.sidebar.collapsed";
 const sections = [
-  { path: "/monitor", label: "Мониторинг", icon: "monitor-play" },
+  {
+    path: "/monitor",
+    label: "Мониторинг",
+    short: "Пост",
+    icon: "monitor-play",
+  },
+  {
+    path: "/investigations",
+    label: "Расследования",
+    short: "Дела",
+    icon: "search",
+  },
   {
     path: "/audit",
     label: "Журнал",
@@ -360,6 +386,7 @@ function Workspace({ services }: { services: Services }) {
   const section =
     {
       "/maps": "Карты и планы",
+      "/investigations": "Расследования",
       "/audit": "Журнал действий",
       "/access": "Доступ и пользователи",
       "/cameras": {
@@ -367,6 +394,7 @@ function Workspace({ services }: { services: Services }) {
         onvif: "Поиск ONVIF и замена камеры",
         batch: "Массовое подключение",
         recording: "Запись и хранение",
+        rules: "Видеоправила",
         catalog: "Каталог подключённых устройств",
       }[cameraSetup(params.get("setup")) ?? "catalog"],
     }[path] ?? "Мониторинг";
@@ -435,7 +463,7 @@ function Workspace({ services }: { services: Services }) {
               .filter(
                 (section) => !section.admin || site?.role === "administrator",
               )
-              .map(({ path: sectionPath, label, detail, icon }) => {
+              .map(({ path: sectionPath, label, detail, short, icon }) => {
                 const name = label + (detail ?? "");
                 return (
                   <div className="ws-nav-section" key={sectionPath}>
@@ -453,7 +481,14 @@ function Workspace({ services }: { services: Services }) {
                         <use href={icons + "#i-" + icon} />
                       </svg>
                       <span>
-                        {label}
+                        {short ? (
+                          <>
+                            <span className="ws-nav-wide">{label}</span>
+                            <span className="ws-nav-short">{short}</span>
+                          </>
+                        ) : (
+                          label
+                        )}
                         {detail && (
                           <span className="ws-nav-detail">{detail}</span>
                         )}
@@ -566,6 +601,7 @@ function Workspace({ services }: { services: Services }) {
               userId={identity.user_id}
               admin={site.role === "administrator"}
               cameras={cameras}
+              investigations={path === "/investigations"}
               maps={path === "/maps"}
               audit={path === "/audit"}
               onExpired={expired}
@@ -601,7 +637,14 @@ function MonitorRedirect() {
 function WorkspaceRoutes({ services }: { services: Services }) {
   const routes: RouteObject[] = [
     { path: "/", element: <MonitorRedirect /> },
-    ...["/monitor", "/cameras", "/maps", "/audit", "/access"].map((path) => ({
+    ...[
+      "/monitor",
+      "/cameras",
+      "/maps",
+      "/audit",
+      "/access",
+      "/investigations",
+    ].map((path) => ({
       path,
       element: <Workspace services={services} />,
     })),

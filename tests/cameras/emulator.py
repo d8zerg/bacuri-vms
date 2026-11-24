@@ -39,6 +39,7 @@ class Device:
         self.source = "main"
         self.sources = {}
         self.discoverable_peers = []
+        self.edge = None
         self.media2 = False
         self.disconnected = set()
         self.brightness = {}
@@ -107,10 +108,32 @@ class Device:
                 child(service, "tt:XAddr", self.base + (self.media_path if name == "Media" else "/" + name.lower()))
                 if name == "Events":
                     child(service, "tt:WSPullPointSupport", "true")
-        elif self.media2 and body.tag == tag("tds:GetServices"):
-            service=child(result,"tds:Service")
-            child(service,"tds:Namespace",NS["tr2"])
-            child(service,"tds:XAddr",self.base+"/media2")
+        elif body.tag == tag("tds:GetServices") and (self.media2 or self.edge):
+            names = (["tr2"] if self.media2 else []) + (["trc","tse","trp"] if self.edge else [])
+            for ns in names:
+                service=child(result,"tds:Service")
+                child(service,"tds:Namespace",NS[ns])
+                child(service,"tds:XAddr",self.base+("/media2" if ns=="tr2" else "/"+ns))
+        elif self.edge and body.tag == tag("trc:GetRecordings") and path == "/trc":
+            child(child(result, "trc:RecordingItem"), "trc:RecordingToken", "fixture-recording")
+        elif self.edge and body.tag == tag("tse:GetRecordingInformation") and path == "/tse":
+            assert required(body,"tse:RecordingToken")=="fixture-recording"
+            track=child(child(result,"tse:RecordingInformation"),"tt:Track")
+            child(track,"tt:TrackType","Video")
+            for field,value in zip(["DataFrom","DataTo"],self.edge[:2]):
+                child(track,"tt:"+field,value)
+        elif self.edge and body.tag==tag("trp:GetReplayUri") and path == "/trp":
+            assert required(body,"trp:RecordingToken")=="fixture-recording"
+            child(result,"trp:Uri",self.edge[2])
+        elif self.edge and body.tag==tag("tds:GetSystemDateAndTime"):
+            clock_value=child(child(result,"tds:SystemDateAndTime"),"tt:UTCDateTime")
+            now=datetime.now(timezone.utc)
+            date=child(clock_value,"tt:Date")
+            for name in ["year","month","day"]:
+                child(date,"tt:"+name.title(),str(getattr(now,name)))
+            time=child(clock_value,"tt:Time")
+            for name in ["hour","minute","second"]:
+                child(time,"tt:"+name.title(),str(getattr(now,name)))
         elif self.media2 and path == "/media2" and body.tag == tag("tr2:GetProfiles"):
             if required(body,"tr2:Type")!="All":
                 raise ValueError("profile configurations required")

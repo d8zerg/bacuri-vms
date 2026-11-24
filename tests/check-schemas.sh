@@ -96,6 +96,7 @@ done
 psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" "$@" -f tests/schema/module-dependencies.sql
 python3 -B tests/architecture/core_boundaries.py --database "$database"
 sqlite3 -bail "$sqlite_file" < storage/sqlite/migrations/0006_recording_policies.sql
-test "$(sqlite3 "$sqlite_file" 'PRAGMA user_version')" = 6
+sqlite3 -bail "$sqlite_file" < storage/sqlite/migrations/0007_archive_holds.sql
+test "$(sqlite3 "$sqlite_file" 'PRAGMA user_version')" = 7
 test "$(sqlite3 "$sqlite_file" 'SELECT days,reserve_percent FROM retention')" = '0|20'
 printf '%s\n' 'PostgreSQL and SQLite schemas and archive upgrades passed'

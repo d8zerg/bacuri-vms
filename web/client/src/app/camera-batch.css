@@ -183,3 +183,9 @@
 .ws-camera-fields > details > summary {
   padding-block: var(--space-2);
 }
+
+.ws-edge-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}

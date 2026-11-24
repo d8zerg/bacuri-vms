@@ -4,7 +4,7 @@
 namespace bacuri::vms::control
 {
 grpc::Status store_observation(const v1::SubmitObservationRequest&, v1::RegistrationResult&,
-                               std::int64_t camera_revision);
+                               std::int64_t camera_revision, bool detector = false);
 class Observations final : public v1::ObservationIngest::Service
 {
   public:

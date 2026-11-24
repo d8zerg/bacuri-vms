@@ -151,7 +151,10 @@ void policies(const Request& req, Response& res, const Sessions& sessions, const
         if (req.method() == http::verb::delete_) {
             if (!current.size())
                 throw Failure{404, "not_found"};
-            if (req["If-Match"] != "\"" + current.get(0) + "\"")
+            std::string tag{"\""};
+            tag += current.get(0);
+            tag += '"';
+            if (req["If-Match"] != tag)
                 throw Failure{409, "revision_conflict"};
             db.exec("DELETE FROM bacuri_archive.recording_policies WHERE site_id=$1 AND id=$2", {site, id});
             events::record_recording_change(db, site, current.get(0, 1) == "point" ? current.get(0, 2) : "", user,

@@ -1,5 +1,6 @@
 #include "control/inventory/operations.hpp"
 #include "control/observations.hpp"
+#include "control/events/video_rules.hpp"
 #include "control/recordings/policies.hpp"
 #include "control/playback_time.hpp"
 #include <grpcpp/grpcpp.h>
@@ -70,7 +71,8 @@ grpc::Status Observations::SubmitObservation(grpc::ServerContext*, const Request
     return store_observation(*q, *result, 0);
 }
 
-grpc::Status store_observation(const RequestData& q, v1::RegistrationResult& result, std::int64_t camera_revision)
+grpc::Status store_observation(const RequestData& q, v1::RegistrationResult& result, std::int64_t camera_revision,
+                               bool detector)
 {
     if (!valid(q)) {
         return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid observation"};
@@ -91,7 +93,7 @@ grpc::Status store_observation(const RequestData& q, v1::RegistrationResult& res
         db.exec("BEGIN");
         const auto point = q.binding().point_id();
         const auto revision = q.has_binding() ? std::to_string(q.binding().revision()) : "";
-        if (q.has_binding() && !inventory::has_binding(db, q.site_id(), point, revision)) {
+        if (q.has_binding() && !inventory::has_binding(db, q.site_id(), point, revision, detector)) {
             return {grpc::StatusCode::NOT_FOUND, "Unknown binding"};
         }
         if (camera_revision) {
@@ -129,16 +131,29 @@ grpc::Status store_observation(const RequestData& q, v1::RegistrationResult& res
             AND schema_version=1 AND point_id IS NOT DISTINCT FROM nullif($5,'')::uuid
             AND binding_revision IS NOT DISTINCT FROM nullif($6,'')::bigint AND source_time_us IS NOT DISTINCT FROM nullif($7,'')::bigint
             AND origin=$11 AND ($11='onvif' OR (clock_epoch_id IS NOT DISTINCT FROM nullif($8,'')::uuid AND uncertainty_us IS NOT DISTINCT FROM nullif($9,'')::bigint))
-            AND attributes=$10::jsonb
+            AND (attributes=$10::jsonb OR ($11='onvif' AND NOT attributes ? 'data' AND attributes=($10::jsonb - 'data')))
         )sql",
                                          args)
                                      .size()) {
             return {grpc::StatusCode::ALREADY_EXISTS, "Observation identity has different content"};
         }
         if (inserted.size() && q.type() == "motion") {
-            recordings::motion_recording(db, q.site_id(), point, q.binding().revision(),
-                                         std::stoll(inserted.get(0)));
-            publish(db, q);
+            const auto decision = events::evaluate_observation(db, q.site_id(), point, revision, q.source_id(),
+                                                               q.observation_id(), std::stoll(inserted.get(0)),
+                                                               detector, bool(camera_revision), attributes);
+            if (detector && !decision.record && !decision.notify &&
+                !db.exec("SELECT FROM bacuri_events.video_matches WHERE site_id=$1 AND source_id=$2 AND "
+                         "observation_id=$3",
+                         {q.site_id(), q.source_id(), q.observation_id()})
+                     .size()) {
+                result.set_state(v1::REGISTRATION_STATE_COMMITTED);
+                return grpc::Status::OK;
+            }
+            if (decision.record)
+                recordings::motion_recording(db, q.site_id(), point, q.binding().revision(),
+                                             std::stoll(inserted.get(0)));
+            if (decision.notify)
+                publish(db, q);
         }
         db.exec("COMMIT");
         result.set_state(inserted.size() ? v1::REGISTRATION_STATE_COMMITTED : v1::REGISTRATION_STATE_REPLAYED);

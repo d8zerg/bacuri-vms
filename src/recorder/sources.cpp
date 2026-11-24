@@ -1,3 +1,4 @@
+#include "recorder/detector.hpp"
 #include "recorder/sources.hpp"
 
 #include <nlohmann/json.hpp>
@@ -218,7 +219,12 @@ void Sources::apply(const v1::ApplyConfigurationRequest& assignment)
                 std::fprintf(stderr, "archive awaiting binding for point %s\n", key.point.c_str());
             }
         }
-        streams_.emplace(key, Entry{endpoint, audio, std::move(writer), std::move(stream)});
+        std::jthread detector;
+        if (key.profile == Profile::main && key.binding > 0)
+            detector =
+                std::jthread{[this, ptr = stream.get(), point = key.point, binding = key.binding](
+                                 std::stop_token stop) { detect_motion(stop, *ptr, volume_, point, binding); }};
+        streams_.emplace(key, Entry{endpoint, audio, std::move(writer), std::move(stream), std::move(detector)});
     }
 }
 

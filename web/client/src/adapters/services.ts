@@ -20,6 +20,78 @@ export function createServices(): Services {
   const operations = new WeakMap<object, Registration>();
   const auth = () => ({ "X-CSRF-Token": csrf });
   return {
+    async videoRule(siteId, pointId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/points/{pointId}/video-rule", {
+          params: { path: { siteId, pointId } },
+          signal,
+        }),
+      );
+    },
+    async saveRule(siteId, pointId, body) {
+      return data(
+        await api.PUT("/sites/{siteId}/points/{pointId}/video-rule", {
+          params: { path: { siteId, pointId }, header: auth() },
+          body,
+        }),
+      );
+    },
+    async simulateRule(siteId, pointId, body, signal) {
+      return data(
+        await api.POST(
+          "/sites/{siteId}/points/{pointId}/video-rule/simulation",
+          {
+            params: { path: { siteId, pointId }, header: auth() },
+            body,
+            signal,
+          },
+        ),
+      );
+    },
+    async caseRecipients(siteId, materials, signal) {
+      return data(
+        await api.POST("/sites/{siteId}/investigation-assignees", {
+          params: { path: { siteId }, header: auth() },
+          body: { materials },
+          signal,
+        }),
+      );
+    },
+    async exportCase(siteId, caseId, body, signal) {
+      return data(
+        await api.POST("/sites/{siteId}/investigations/{caseId}/exports", {
+          params: { path: { siteId, caseId }, header: auth() },
+          body,
+          parseAs: "blob",
+          signal,
+        }),
+      );
+    },
+    async searchFrames(siteId, body, signal) {
+      return data(
+        await api.POST("/sites/{siteId}/archive-search", {
+          params: { path: { siteId }, header: auth() },
+          body,
+          signal,
+        }),
+      );
+    },
+    async cases(siteId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/investigations", {
+          params: { path: { siteId } },
+          signal,
+        }),
+      );
+    },
+    async saveCase(siteId, caseId, body) {
+      return data(
+        await api.PUT("/sites/{siteId}/investigations/{caseId}", {
+          params: { path: { siteId, caseId }, header: auth() },
+          body,
+        }),
+      );
+    },
     async capturePolicies(siteId, signal) {
       return data(
         await api.GET("/sites/{siteId}/recording-policies", {
@@ -157,11 +229,11 @@ export function createServices(): Services {
         throw Error(String(response.status));
       csrf = "";
     },
-    async exportFragment(siteId, pointId, interval, alert, signal) {
+    async exportFragment(siteId, pointId, interval, alert, signal, options) {
       return data(
         await api.POST("/sites/{siteId}/points/{pointId}/exports", {
           params: { path: { siteId, pointId }, header: auth() },
-          body: { interval, ...(alert ? { alert_id: alert } : {}) },
+          body: { interval, ...options, ...(alert ? { alert_id: alert } : {}) },
           parseAs: "blob",
           signal,
         }),
@@ -398,6 +470,30 @@ export function createServices(): Services {
         }),
       );
     },
+    async recoverGap(
+      siteId,
+      cameraId,
+      recording,
+      binding_revision,
+      interval,
+      signal,
+    ) {
+      return data(
+        await api.POST("/sites/{siteId}/cameras/{cameraId}/edge-archive", {
+          params: { path: { siteId, cameraId }, header: auth() },
+          body: { recording, binding_revision, interval },
+          signal,
+        }),
+      );
+    },
+    async edgeArchive(siteId, cameraId, signal) {
+      return data(
+        await api.GET("/sites/{siteId}/cameras/{cameraId}/edge-archive", {
+          params: { path: { siteId, cameraId } },
+          signal,
+        }),
+      );
+    },
     async previousRecording(siteId, cameraId, signal) {
       return data(
         await api.GET("/sites/{siteId}/cameras/{cameraId}/previous-recording", {
@@ -565,9 +661,28 @@ export function createServices(): Services {
       );
     },
     subscribe,
-    async attach(video, site, target, signal, fail, format, renew) {
+    async attach(
+      video,
+      site,
+      target,
+      signal,
+      fail,
+      format,
+      renew,
+      archiveOrigin,
+    ) {
       try {
-        await attach(video, site, target, auth(), signal, fail, format, renew);
+        await attach(
+          video,
+          site,
+          target,
+          auth(),
+          signal,
+          fail,
+          format,
+          renew,
+          archiveOrigin,
+        );
       } catch (error) {
         if (!signal.aborted) fail(mediaFailure(error));
         throw error;

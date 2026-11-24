@@ -15,13 +15,19 @@ class CameraRegistry
     void batch(const Request&, Response&, const std::string& site, const std::string& batch,
                const std::string& item, std::string_view action) const;
     void issues(const Request&, Response&, const std::string& site, const std::string& device) const;
+    void edge_archive(const Request&, Response&, const std::string& site, const std::string& device) const;
     void previous_recording(const Request&, Response&, const std::string& site, const std::string& device) const;
     void audio(const Request&, Response&, const std::string& site, const std::string& point) const;
     void ptz(const Request&, Response&, const std::string& site, const std::string& point) const;
+    void preset(const std::string& site, const std::string& point, std::int64_t binding, const std::string& user,
+                const std::string& request, const std::string& target) const;
     void points(const Request& request, Response& response, const std::string& site) const;
     void cameras(const Request& request, Response& response, const std::string& site, std::string device) const;
 
   private:
+    void dispatch_ptz(const Rows&, const std::string& site, const std::string& point, const std::string& user,
+                      const std::string& request_key, const std::string& command, const std::string& target,
+                      const std::string& role) const;
     const Sessions& sessions_;
     const Key& key_;
     CameraNetworks networks_;

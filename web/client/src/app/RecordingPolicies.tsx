@@ -636,6 +636,28 @@ function Volume({
           value={v.capacity_bytes - v.available_bytes}
         />
       )}
+      {v?.replica && (
+        <p>
+          {v.replica.online === false
+            ? "Том копий недоступен"
+            : "Резервная копия"}{" "}
+          · {v.replica.verified} проверено
+          {!!v.replica.pending && ` · ${v.replica.pending} в очереди`}
+          {!!v.replica.failed && ` · ошибок: ${v.replica.failed}`}
+        </p>
+      )}
+      {v?.write_bytes_per_second && (
+        <p>
+          Прогноз по текущей скорости записи ·{" "}
+          {Math.min(
+            Number(days) || Infinity,
+            Math.max(0, v.capacity_bytes * (1 - reserve / 100)) /
+              v.write_bytes_per_second /
+              86400,
+          ).toLocaleString("ru", { maximumFractionDigits: 1 })}{" "}
+          сут.
+        </p>
+      )}
       <div className="rp-fields">
         <label>
           Срок хранения площадки, дни

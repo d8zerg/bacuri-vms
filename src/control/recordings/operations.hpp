@@ -36,6 +36,8 @@ struct PreviousRecording {
 };
 std::optional<PreviousRecording> previous_binding_recording(Database&, const std::string& site,
                                                             const std::string& point, const std::string& revision);
+std::vector<CoverageInterval> edge_gaps(Database&, const std::string& site, const std::string& point,
+                                        const std::string& binding, std::int64_t since, std::int64_t until);
 void require_available(Database&, const std::string& site);
 std::int64_t export_lifetime_ms(Database&, const std::string& site, const std::string& point,
                                 const std::string& block_hashes);

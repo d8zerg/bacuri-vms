@@ -92,6 +92,7 @@ tasks:
       - for: [gcc-debug, clang-asan-ubsan]
         task: recovery:check
         vars: {PRESET: '{{.ITEM}}'}
+      - task: investigations:check
       - task: recording-policies:check
       - task: retention:check
       - task: export:check
@@ -308,6 +309,20 @@ tasks:
       echo "Export evidence: $report"
       bash tests/workspace/isolated.sh {{.PRESET | shellQuote}} "$report" export
       {{.BUILD_RUN}} python3 tests/archive/verify_export.py {{.PRESET | shellQuote}} "$report"
+
+  investigations:check:
+    desc: Verify edge recovery, multi-camera motion, archive protection and signed investigation delivery
+    deps: [build, stand:up, web:build]
+    cmds:
+      - docker compose up -d --wait playback-chrome
+      - defer: docker compose stop playback-chrome
+      - '{{.DEV_RUN}} sh tests/check-control.sh {{.PRESET | shellQuote}} edge'
+      - |
+        set -eu
+        report=$(sh tools/quality-report-dir investigations)
+        {{.DEV_RUN}} env BACURI_WORKSPACE_RESULTS="/workspace/$report" sh tests/check-control.sh {{.PRESET | shellQuote}} investigations
+        {{.BUILD_RUN}} python3 tests/archive/verify_export.py {{.PRESET | shellQuote}} "$report" investigations
+        {{.DEV_RUN}} env BACURI_WORKSPACE_RESULTS="/workspace/$report" sh tests/check-control.sh {{.PRESET | shellQuote}} hold-capacity
 
   recording-policies:check:
     desc: Verify recording modes, numbered frames, audio and restart on a private camera feed

@@ -1,4 +1,7 @@
+#include "control/events/video_rules.hpp"
+#include "control/observations.hpp"
 #include "control/archive_catalog.hpp"
+#include "archive/analysis.hpp"
 #include "control/recordings/policies.hpp"
 #include "archive_sql.hpp"
 #include "control/database.hpp"
@@ -23,7 +26,7 @@ ArchiveCatalog::ArchiveCatalog(archive::Owner owner) : owner_{std::move(owner)}
 {
     const auto socket = setting("BACURI_CATALOG_SOCKET");
     grpc::ServerBuilder builder;
-    builder.SetMaxReceiveMessageSize(archive::manifest_limit + 1024);
+    builder.SetMaxReceiveMessageSize(2 * 1024 * 1024);
     builder.AddListeningPort("unix:" + socket, grpc::experimental::LocalServerCredentials(UDS));
     builder.RegisterService(this);
     server_ = builder.BuildAndStart();
@@ -35,6 +38,64 @@ ArchiveCatalog::~ArchiveCatalog()
 {
     server_->Shutdown(std::chrono::system_clock::now() + std::chrono::seconds{2});
     server_->Wait();
+}
+
+grpc::Status ArchiveCatalog::ReportMotion(grpc::ServerContext*, const v1::SubmitObservationRequest* q,
+                                          v1::RegistrationResult* out)
+{
+    if (q->site_id() != owner_.site || q->source_id() != owner_.node || q->type() != "motion" || !q->has_binding())
+        return {grpc::StatusCode::PERMISSION_DENIED, "Different detector assignment"};
+    return store_observation(*q, *out, 0, true);
+}
+grpc::Status ArchiveCatalog::NextIndex(grpc::ServerContext*, const v1::RetentionQuery* q, v1::IndexJob* out)
+{
+    if (q->site_id() != owner_.site || q->recording_node_id() != owner_.node)
+        return {grpc::StatusCode::PERMISSION_DENIED, "Different archive assignment"};
+    try {
+        Database db;
+        auto row = db.exec(R"sql(WITH job AS (
+            SELECT i.site_id,i.block_id,i.recording_epoch_id,i.owner_generation,b.manifest
+            FROM bacuri_archive.motion_indexes i JOIN bacuri_archive.retained_blocks b
+                USING(site_id,block_id,recording_epoch_id,owner_generation)
+            WHERE i.site_id=$1 AND b.recording_node_id=$2 AND b.unavailable_reason IS NULL
+              AND i.samples IS NULL AND i.retry_at<=now()
+              AND NOT EXISTS(SELECT FROM bacuri_archive.archive_recovery WHERE site_id=$1)
+            ORDER BY i.retry_at,i.block_id LIMIT 1 FOR UPDATE OF i SKIP LOCKED)
+            UPDATE bacuri_archive.motion_indexes i SET retry_at=now()+interval '1 minute'
+            FROM job j WHERE (i.site_id,i.block_id,i.recording_epoch_id,i.owner_generation)=
+                (j.site_id,j.block_id,j.recording_epoch_id,j.owner_generation)
+            RETURNING j.manifest)sql",
+                           {owner_.site, owner_.node});
+        if (row.size())
+            out->set_manifest(row.get(0));
+        return grpc::Status::OK;
+    } catch (const std::exception&) {
+        return {grpc::StatusCode::UNAVAILABLE, "Motion catalog unavailable"};
+    }
+}
+grpc::Status ArchiveCatalog::CommitIndex(grpc::ServerContext*, const v1::IndexResult* q, google::protobuf::Empty*)
+{
+    try {
+        auto m = archive::Json::parse(q->manifest());
+        archive::validate_manifest(m);
+        if (m.at("site_id") != owner_.site || m.at("recording_node_id") != owner_.node)
+            return {grpc::StatusCode::PERMISSION_DENIED, "Different archive assignment"};
+        auto index = archive::Json::parse(q->analysis());
+        archive::validate_analysis(index, m.at("end_utc_us").get<std::int64_t>() -
+                                              m.at("begin_utc_us").get<std::int64_t>());
+        Database db;
+        db.exec(
+            "UPDATE bacuri_archive.motion_indexes i SET samples=$6 FROM bacuri_archive.retained_blocks b WHERE "
+            "(i.site_id,i.block_id,i.recording_epoch_id,i.owner_generation)=(b.site_id,b.block_id,b.recording_"
+            "epoch_id,b.owner_generation) "
+            "AND b.site_id=$1 AND b.block_id=$2 AND b.recording_epoch_id=$3 AND b.owner_generation=$4 AND "
+            "b.manifest=$5::jsonb AND b.unavailable_reason IS NULL AND i.samples IS NULL",
+            {owner_.site, m.at("block_id"), m.at("recording_epoch_id"), m.at("owner_generation").dump(),
+             q->manifest(), q->analysis()});
+        return grpc::Status::OK;
+    } catch (const std::exception&) {
+        return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid motion index"};
+    }
 }
 
 grpc::Status ArchiveCatalog::AdvanceRetention(grpc::ServerContext*, const v1::RetentionQuery* q,
@@ -49,12 +110,24 @@ grpc::Status ArchiveCatalog::AdvanceRetention(grpc::ServerContext*, const v1::Re
         const auto policy =
             db.exec("SELECT days,reserve_percent FROM bacuri_archive.archive_retention WHERE site_id=$1 FOR SHARE",
                     {owner_.site});
+        auto protected_ids = db.exec(
+            "SELECT DISTINCT b.block_id FROM bacuri_archive.held_blocks b JOIN bacuri_archive.archive_holds h "
+            "ON (h.site_id,h.id)=(b.site_id,b.hold_id) WHERE h.site_id=$1 AND "
+            "h.expires_us>bacuri_archive.retention_now_us()",
+            {owner_.site});
+        if (protected_ids.size() && !q->supports_holds())
+            return {grpc::StatusCode::FAILED_PRECONDITION, "Archive protection requires recorder support"};
+        for (const auto& id : protected_ids.column())
+            result->add_protected_blocks(id);
+        for (const auto& point : events::detector_points(db, owner_.site))
+            result->add_detector_points(point);
         const auto plan = recordings::recording_plan(db, owner_.site);
         result->set_recording_plan_json(plan.dump());
         result->set_days(policy.size() ? std::stoi(policy.get(0)) : 0);
         result->set_reserve_percent(policy.size() ? std::stoi(policy.get(0, 1)) : 20);
         if (db.exec("SELECT FROM bacuri_archive.archive_recovery WHERE site_id=$1", {owner_.site}).size()) {
             // Continue new recordings on a replacement volume while historical blocks are verified.
+            result->set_retirement_suspended(true);
             result->set_cutoff_us(std::numeric_limits<std::int64_t>::min());
             db.exec("COMMIT");
             return grpc::Status::OK;
@@ -102,7 +175,10 @@ grpc::Status ArchiveCatalog::RegisterBlock(grpc::ServerContext*, const v1::Regis
     try {
         Database db;
         db.exec("BEGIN");
-        if (retired(db, owner_.site, m.at("point_id"), m.at("end_utc_us"))) {
+        if (retired(db, owner_.site, m.at("point_id"), m.at("end_utc_us")) &&
+            !db.exec("SELECT WHERE bacuri_archive.hold_until($1,$2)>bacuri_archive.retention_now_us()",
+                     {owner_.site, m.at("block_id")})
+                 .size()) {
             result->set_state(v1::REGISTRATION_STATE_RETIRED);
             db.exec("COMMIT");
             return grpc::Status::OK;

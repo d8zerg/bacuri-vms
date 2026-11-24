@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bacuri-vms VERSION 0.1.11 LANGUAGES CXX)
+project(bacuri-vms VERSION 0.1.12 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -51,6 +51,7 @@ archive_sql(archive_upgrade storage/sqlite/migrations/0002_archive.sql)
 archive_sql(archive_coverage storage/sqlite/migrations/0003_coverage.sql)
 archive_sql(archive_gap_history storage/sqlite/migrations/0004_gap_history.sql)
 archive_sql(archive_retention storage/sqlite/migrations/0005_retention.sql)
+archive_sql(archive_holds storage/sqlite/migrations/0007_archive_holds.sql)
 archive_sql(archive_policies storage/sqlite/migrations/0006_recording_policies.sql)
 archive_sql(archive_insert storage/postgresql/insert-block.sql)
 archive_sql(archive_read storage/postgresql/read-block-manifest.sql)
@@ -73,25 +74,27 @@ add_library(bacuri-vms-control-support STATIC src/control/support.cpp)
 target_link_libraries(bacuri-vms-control-support PUBLIC bacuri-vms-domain PkgConfig::SODIUM PkgConfig::GIO)
 pkg_check_modules(GST REQUIRED IMPORTED_TARGET gstreamer-app-1.0>=1.22 gstreamer-rtp-1.0 gstreamer-rtsp-1.0 gstreamer-video-1.0)
 add_library(bacuri-vms-ingest STATIC src/recorder/frame_clock.cpp src/recorder/frame_queue.cpp
-    src/recorder/ingest.cpp src/recorder/rtsp_session.cpp src/recorder/audio.cpp)
-target_link_libraries(bacuri-vms-ingest PUBLIC bacuri-vms-domain PRIVATE PkgConfig::GST PkgConfig::GIO)
+    src/recorder/ingest.cpp src/recorder/replay.cpp src/recorder/rtsp_session.cpp src/recorder/audio.cpp)
+target_link_libraries(bacuri-vms-ingest PUBLIC bacuri-vms-domain PRIVATE nlohmann_json::nlohmann_json PkgConfig::GST PkgConfig::GIO)
 target_compile_options(bacuri-vms-ingest PRIVATE -Wall -Wextra -Wpedantic)
 add_library(bacuri-vms-manifest STATIC src/archive/manifest.cpp)
 target_link_libraries(bacuri-vms-manifest PUBLIC bacuri-vms-control-support nlohmann_json::nlohmann_json)
-add_library(bacuri-vms-volume STATIC src/archive/volume.cpp src/archive/mp4.cpp src/archive/recording_policy.cpp)
+add_library(bacuri-vms-analysis STATIC src/archive/analysis.cpp)
+target_link_libraries(bacuri-vms-analysis PUBLIC bacuri-vms-manifest PRIVATE PkgConfig::GST)
+add_library(bacuri-vms-volume STATIC src/archive/volume.cpp src/archive/replica.cpp src/archive/mp4.cpp src/archive/recording_policy.cpp)
 target_include_directories(bacuri-vms-volume PRIVATE "${generated_dir}")
-target_link_libraries(bacuri-vms-volume PUBLIC bacuri-vms-manifest SQLite::SQLite3 PRIVATE Boost::headers PkgConfig::GIO)
+target_link_libraries(bacuri-vms-volume PUBLIC bacuri-vms-manifest SQLite::SQLite3 PkgConfig::GIO PRIVATE Boost::headers)
 add_library(bacuri-vms-evidence STATIC src/archive/evidence.cpp)
 target_link_libraries(bacuri-vms-evidence PUBLIC bacuri-vms-volume)
 add_executable(bacuri-vms-verify-export src/archive/verify_export.cpp)
 target_link_libraries(bacuri-vms-verify-export PRIVATE bacuri-vms-evidence)
 add_library(bacuri-vms-archive STATIC src/archive/writer.cpp src/archive/delivery.cpp)
 target_include_directories(bacuri-vms-archive PRIVATE "${generated_dir}")
-target_link_libraries(bacuri-vms-archive PUBLIC bacuri-vms-volume bacuri-vms-ingest SQLite::SQLite3
+target_link_libraries(bacuri-vms-archive PUBLIC bacuri-vms-analysis bacuri-vms-volume bacuri-vms-ingest SQLite::SQLite3
     PRIVATE bacuri-vms-rpc PkgConfig::GST Boost::headers)
 target_compile_options(bacuri-vms-archive PRIVATE -Wall -Wextra -Wpedantic)
-add_executable(bacuri-vms-recorder src/recorder/main.cpp src/recorder/sources.cpp)
-target_link_libraries(bacuri-vms-recorder PRIVATE bacuri-vms-archive)
+add_executable(bacuri-vms-recorder src/recorder/main.cpp src/recorder/sources.cpp src/recorder/detector.cpp)
+target_link_libraries(bacuri-vms-recorder PRIVATE bacuri-vms-archive PkgConfig::GST)
 target_link_libraries(bacuri-vms-recorder PRIVATE bacuri-vms-ingest nlohmann_json::nlohmann_json)
 target_link_libraries(bacuri-vms-recorder PRIVATE bacuri-vms-control-support bacuri-vms-rpc SQLite::SQLite3 Boost::headers)
 add_library(bacuri-vms-media-auth STATIC src/media/lease.cpp)
@@ -119,14 +122,14 @@ target_link_libraries(bacuri-maintain PRIVATE bacuri-maintenance-common bacuri-v
 add_executable(bacuri-vms src/core/site_admin.cpp)
 target_link_libraries(bacuri-vms PRIVATE bacuri-vms-control-support OpenSSL::Crypto)
 add_executable(bacuri-vms-core src/core/main.cpp
-    src/control/access/admin.cpp src/control/access/oidc.cpp src/control/access/operations.cpp src/control/inventory/operations.cpp src/control/events/operations.cpp
-    src/control/recordings/operations.cpp src/control/recordings/policies.cpp src/control/media_sessions/operations.cpp
+    src/control/access/admin.cpp src/control/access/oidc.cpp src/control/access/operations.cpp src/control/inventory/operations.cpp src/control/events/operations.cpp src/control/events/video_rules.cpp
+    src/control/recordings/operations.cpp src/control/recordings/policies.cpp src/control/recordings/investigations.cpp src/control/recordings/search.cpp src/control/media_sessions/operations.cpp
     src/control/inventory/configuration.cpp src/control/access/configuration.cpp src/control/maps/configuration.cpp src/control/recordings/configuration.cpp
     src/control/configuration_snapshot.cpp src/control/configuration_backup.cpp src/control/archive_recovery.cpp src/control/database.cpp src/control/inventory/batches.cpp src/control/registry.cpp src/control/inventory/audio.cpp src/control/onvif.cpp src/control/camera_events.cpp src/control/inventory/telemetry.cpp src/control/maps/orientation.cpp src/control/maps/georeference.cpp
     src/control/observations.cpp src/control/alert_work.cpp src/control/alerts.cpp src/control/alert_socket.cpp
     src/control/export.cpp src/control/media_authority.cpp src/control/playback.cpp src/control/media_sessions/layouts.cpp
     src/control/webauthn.cpp src/control/session.cpp src/control/server.cpp src/control/https.cpp src/control/maps.cpp src/control/map_import.cpp src/control/maps/packages.cpp src/control/maps/transfers.cpp src/control/delivery.cpp src/control/archive_catalog.cpp)
-target_link_libraries(bacuri-vms-core PRIVATE bacuri-video-transform LibArchive::LibArchive PkgConfig::MAP_CURL PkgConfig::FIDO bacuri-vms-evidence bacuri-vms-media-auth PNG::PNG PkgConfig::GST)
+target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-analysis bacuri-video-transform LibArchive::LibArchive PkgConfig::MAP_CURL PkgConfig::FIDO bacuri-vms-evidence bacuri-vms-media-auth PNG::PNG PkgConfig::GST)
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-control-support bacuri-vms-rpc
     LibXml2::LibXml2 PostgreSQL::PostgreSQL Boost::headers OpenSSL::SSL PkgConfig::GIO nlohmann_json::nlohmann_json)
 target_compile_definitions(bacuri-vms-core PRIVATE BACURI_VMS_VERSION="${PROJECT_VERSION}")
@@ -139,7 +142,15 @@ if(BUILD_TESTING)
     add_test(NAME core-module-boundaries COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tests/architecture/core_boundaries.py)
     add_executable(bacuri-vms-archive-test tests/archive/volume.cpp tests/archive/recording_policy.cpp)
     target_link_libraries(bacuri-vms-archive-test PRIVATE bacuri-vms-archive PkgConfig::GST GTest::gtest_main)
-    gtest_discover_tests(bacuri-vms-archive-test DISCOVERY_MODE PRE_TEST)
+    if(CMAKE_CXX_FLAGS MATCHES "-fsanitize=thread")
+        set(codec_test "RecordingPolicy.ArchiveDecodesNumberedSamplesAcrossTheRepeatedHour")
+        gtest_discover_tests(bacuri-vms-archive-test DISCOVERY_MODE PRE_TEST TEST_FILTER "-${codec_test}")
+        # The native media pipeline transfers buffer ownership inside distribution libraries built without TSan.
+        gtest_discover_tests(bacuri-vms-archive-test DISCOVERY_MODE PRE_TEST TEST_FILTER "${codec_test}"
+            PROPERTIES ENVIRONMENT_MODIFICATION "TSAN_OPTIONS=string_append::ignore_noninstrumented_modules=1")
+    else()
+        gtest_discover_tests(bacuri-vms-archive-test DISCOVERY_MODE PRE_TEST)
+    endif()
     add_executable(bacuri-vms-frame-queue-test tests/ingest/frame_queue.cpp)
     target_link_libraries(bacuri-vms-frame-queue-test PRIVATE bacuri-vms-ingest GTest::gmock_main)
     gtest_discover_tests(bacuri-vms-frame-queue-test DISCOVERY_MODE PRE_TEST)

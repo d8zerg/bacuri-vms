@@ -1,6 +1,7 @@
 #include "control/support.hpp"
 #include "control.grpc.pb.h"
 #include "recorder/sources.hpp"
+#include "recorder/replay.hpp"
 #include "archive/delivery.hpp"
 #include "storage/sqlite.hpp"
 
@@ -62,6 +63,50 @@ class Recorder final : public v1::RecorderControl::Service
         return point.site_id() == site_
                    ? sources_.preview(point.point_id(), main ? ingest::Profile::main : ingest::Profile::secondary)
                    : nullptr;
+    }
+
+    grpc::Status RecoverGap(grpc::ServerContext* ctx, const v1::EdgeReplayRequest* q,
+                            v1::EdgeReplayResult* out) override
+    {
+        if (q->point().site_id() != site_ || !canonical_id(q->point().point_id()) ||
+            !canonical_id(q->device_id()) || q->recording_id().size() != 64 ||
+            q->recording_id().find_first_not_of("0123456789abcdef") != std::string::npos ||
+            q->begin_us() < 1000000000000LL || q->end_us() > 4102444800000000LL || q->end_us() <= q->begin_us() ||
+            q->end_us() - q->begin_us() > 15000000 || q->uncertainty_us() < 0 || q->uncertainty_us() > 5000000 ||
+            q->offset_us() < -300000000 || q->offset_us() > 300000000)
+            return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid replay scope"};
+        std::unique_lock slot{replay_mutex_, std::try_to_lock};
+        if (!slot.owns_lock())
+            return {grpc::StatusCode::RESOURCE_EXHAUSTED, "Replay busy"};
+        try {
+            archive::ReplayRequest job;
+            {
+                std::scoped_lock lock{mutex_};
+                const auto it = std::ranges::find_if(active_.cameras(), [&](const auto& c) {
+                    return c.point_id() == q->point().point_id() && c.device_id() == q->device_id() &&
+                           c.binding_revision() == q->binding() && q->binding() > 0;
+                });
+                if (it == active_.cameras().end())
+                    return {grpc::StatusCode::FAILED_PRECONDITION, "Binding changed"};
+                auto pinned = networks_.stream_url(q->uri());
+                if (!pinned)
+                    return {grpc::StatusCode::PERMISSION_DENIED, "Replay transport unavailable"};
+                job = {{it->point_id(), it->device_id(), it->channel_id(), it->main_profile_id(), q->binding()},
+                       q->recording_id(),
+                       {*pinned, it->credentials().username(), it->credentials().password()},
+                       q->begin_us(),
+                       q->end_us(),
+                       q->offset_us(),
+                       q->uncertainty_us()};
+            }
+            const auto result = archive::recover_gap(volume_, job, [&] { return ctx->IsCancelled(); });
+            out->set_blocks(result.blocks);
+            out->set_duration_us(result.duration_us);
+            out->set_outcome(result.outcome);
+            return grpc::Status::OK;
+        } catch (const std::exception&) {
+            return {grpc::StatusCode::UNAVAILABLE, "Replay unavailable"};
+        }
     }
 
     grpc::Status ExchangeAudio(grpc::ServerContext*, const v1::AudioRequest* q, v1::AudioChunk* out) override
@@ -289,10 +334,13 @@ class Recorder final : public v1::RecorderControl::Service
     Key key_;
     Sqlite journal_;
     Snapshot active_;
-    std::mutex mutex_;
+    std::mutex mutex_, replay_mutex_;
     archive::Volume volume_{setting("BACURI_ARCHIVE_DIR"), {site_, node_}};
     std::jthread registration_{[this, socket = setting("BACURI_CATALOG_SOCKET")](std::stop_token stop) {
         archive::deliver_blocks(stop, volume_, socket);
+    }};
+    std::jthread indexer_{[this, socket = setting("BACURI_CATALOG_SOCKET")](std::stop_token stop) {
+        archive::index_blocks(stop, volume_, setting("BACURI_ARCHIVE_DIR"), socket);
     }};
     ingest::Sources sources_{networks_, volume_};
 };
@@ -358,6 +406,8 @@ class PreviewSource final : public v1::PreviewSource::Service
 
 int main(int argc, char** argv)
 try {
+    if (argc == 2 && std::string_view{argv[1]} == "receive-replay")
+        return bacuri::vms::ingest::replay_worker();
     if (argc == 2 && std::string_view{argv[1]} == "archive-status") {
         const auto status =
             bacuri::vms::archive::archive_status(bacuri::vms::control::setting("BACURI_ARCHIVE_DIR"));

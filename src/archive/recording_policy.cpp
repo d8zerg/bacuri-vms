@@ -60,7 +60,7 @@ bool CaptureRule::selects(std::int64_t utc, std::int64_t binding) const
     const std::chrono::sys_seconds local{
         std::chrono::seconds{seconds + g_time_zone_get_offset(zone.get(), interval)}};
     const auto day = std::chrono::floor<std::chrono::days>(local);
-    const int weekday = std::chrono::weekday{day}.iso_encoding();
+    const int weekday = static_cast<int>(std::chrono::weekday{day}.iso_encoding());
     const auto minute = std::chrono::duration_cast<std::chrono::minutes>(local - day).count();
     return std::ranges::any_of(schedule, [&](const auto& p) {
         if (p.start < p.end)

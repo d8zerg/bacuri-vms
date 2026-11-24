@@ -230,15 +230,26 @@ Json detail(Database& db, const std::string& site, const Identity& viewer, const
         AND revoked_at IS NULL AND expires_at>clock_timestamp() ORDER BY expires_at,delegation_id
     )sql",
                                 {site, row.get(0), user});
-    return {{"alert_id", id},
-            {"point_id", row.get(0)},
-            {"state", row.get(0, 1)},
-            {"version", std::stoi(row.get(0, 2))},
-            {"owner", row.get(0, 3).empty() ? Json(nullptr) : Json(access::display_name(db, row.get(0, 3)))},
-            {"result", row.get(0, 4)},
-            {"actions", actions},
-            {"history", audit_items(db, history, 25)},
-            {"delegations", objects(grants)}};
+    auto match = db.exec(
+        "SELECT m.revision,m.binding,m.context->>'source',m.preset_state FROM bacuri_events.video_matches m JOIN "
+        "bacuri_events.alerts a USING(site_id,source_id,observation_id) WHERE a.site_id=$1 AND a.alert_id=$2",
+        {site, id});
+    Json details = {
+        {"alert_id", id},
+        {"point_id", row.get(0)},
+        {"state", row.get(0, 1)},
+        {"version", std::stoi(row.get(0, 2))},
+        {"owner", row.get(0, 3).empty() ? Json(nullptr) : Json(access::display_name(db, row.get(0, 3)))},
+        {"result", row.get(0, 4)},
+        {"actions", actions},
+        {"history", audit_items(db, history, 25)},
+        {"delegations", objects(grants)}};
+    if (match.size())
+        details["rule"] = {{"revision", match.get(0)},
+                           {"binding", match.get(0, 1)},
+                           {"source", match.get(0, 2)},
+                           {"reaction", match.get(0, 3)}};
+    return details;
 }
 
 Json search(Database& db, const Request& req, const std::string& site, const std::string& user, bool admin)

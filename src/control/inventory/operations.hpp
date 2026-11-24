@@ -15,7 +15,8 @@ std::map<std::string, std::int64_t> recording_bindings(Database&, const std::str
 bool lock_point(Database&, const std::string& site, const std::string& point);
 bool lock_site(Database&, const std::string& site);
 void ensure_site(Database&, const std::string& site);
-bool has_binding(Database&, const std::string& site, const std::string& point, const std::string& revision);
+bool has_binding(Database&, const std::string& site, const std::string& point, const std::string& revision,
+                 bool current = false);
 bool lock_camera_revision(Database&, const std::string& site, const std::string& point, const std::string& device,
                           const std::string& revision);
 

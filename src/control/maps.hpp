@@ -6,6 +6,7 @@
 
 namespace bacuri::vms::control
 {
+bool point_on_plan(Database&, const std::string& site, const std::string& point, const std::string& plan);
 void maps(const Request&, Response&, const Sessions&, const std::string& site, std::string_view path,
           const std::string& origin);
 namespace map_packages
