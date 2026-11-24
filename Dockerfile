@@ -81,6 +81,7 @@ RUN apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::Langu
         clang-tidy-19 \
         cmake \
         g++-14 \
+        git \
         gstreamer1.0-libav \
         gstreamer1.0-plugins-good \
         gstreamer1.0-plugins-ugly \
@@ -153,7 +154,7 @@ RUN (dpkg-query -W && sha256sum /opt/bacuri/deps/*/graph.json /opt/bacuri/profil
 
 FROM dev AS quality
 RUN apt-get -o Acquire::Retries=3 update \
-    && apt-get -o Acquire::Retries=3 install -y --no-install-recommends clang-format-19 gcovr git \
+    && apt-get -o Acquire::Retries=3 install -y --no-install-recommends clang-format-19 gcovr \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=go-tools /out/gitleaks /usr/local/bin/gitleaks
 
@@ -204,7 +205,7 @@ FROM bookworm-base AS bookworm-builder
 RUN --mount=from=bookworm-postgres,source=/sdk,target=/pg-sdk \
     --mount=from=bookworm-postgres,source=/lib,target=/pg-lib \
     apt-get update && apt-get install -y --no-install-recommends /pg-lib/*.deb /pg-sdk/*.deb \
-    cmake ninja-build g++ pkg-config libgrpc++-dev libprotobuf-dev protobuf-compiler-grpc \
+    cmake ninja-build g++ git python3 pkg-config libgrpc++-dev libprotobuf-dev protobuf-compiler-grpc \
     libsqlite3-dev libpng-dev libarchive-dev libcurl4-openssl-dev libssl-dev libxml2-dev \
     libfido2-dev libsodium-dev libgstrtspserver-1.0-dev && rm -rf /var/lib/apt/lists/*
 COPY packaging/maintenance/webrtc-sdk /usr/local/bin/webrtc-sdk

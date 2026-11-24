@@ -22,7 +22,8 @@ void ensure(bool ok, const char* message);
 std::string read(const fs::path& file);
 void put(const fs::path& file, const std::string& value);
 struct Package {
-    std::string name, version;
+    std::string version;
+    int schema{};
 };
 Package installed_package();
 struct SignedKit {
@@ -30,7 +31,8 @@ struct SignedKit {
 };
 struct Bundle {
     Temp stage;
-    std::string package, version;
+    std::string version;
+    int schema{};
     explicit Bundle(const SignedKit& source);
     void install(bool downgrade = false) const;
 };

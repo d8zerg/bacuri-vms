@@ -1,4 +1,5 @@
 #include "control/support.hpp"
+#include "product_version.hpp"
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
 #include <sodium.h>
@@ -222,14 +223,19 @@ void setup(char** v)
 } // namespace
 int main(int argc, char** argv)
 try {
+    if (argc == 2 && std::string_view(argv[1]) == "--version") {
+        std::cout << "bacuri.vms " << BACURI_VMS_VERSION << '\n';
+        return 0;
+    }
     check(geteuid() == 0 && sodium_init() >= 0, "Local root privileges required");
     if (argc == 7 && std::string_view(argv[1]) == "setup")
         setup(argv);
     else if (argc >= 3 && std::string_view(argv[1]) == "admin")
         admin({argv + 2, argv + argc});
     else
-        throw std::invalid_argument("Usage: bacuri-vms setup DNS_NAME ADMIN CERT_CHAIN PRIVATE_KEY CAMERA_CIDRS "
-                                    "| admin COMMAND [ARG...]");
+        throw std::invalid_argument(
+            "Usage: bacuri-vms --version | setup DNS_NAME ADMIN CERT_CHAIN PRIVATE_KEY CAMERA_CIDRS "
+            "| admin COMMAND [ARG...]");
     return 0;
 } catch (const std::exception& e) {
     std::cerr << e.what() << '\n';

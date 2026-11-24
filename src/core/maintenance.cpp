@@ -1,6 +1,7 @@
 #include "control/inventory/restore.hpp"
 #include "control/access/restore.hpp"
 #include "maintenance.hpp"
+#include "product_version.hpp"
 #include "control/database.hpp"
 #include "control/recovery.hpp"
 #include "control/support.hpp"
@@ -38,38 +39,6 @@ std::string sql(const std::string& query)
     auto args = psql("bacuri_vms");
     args.insert(args.end(), {"-c", query});
     return capture(args);
-}
-int schema_for(std::string v)
-{
-    if (v.ends_with("~qualification"))
-        v.resize(v.size() - 14);
-    if (v == "0.1.0-1")
-        return 14;
-    if (v == "0.1.1-1")
-        return 15;
-    if (v == "0.1.2-1")
-        return 16;
-    if (v == "0.1.3-1")
-        return 17;
-    if (v == "0.1.4-1")
-        return 18;
-    if (v == "0.1.5-1")
-        return 19;
-    if (v == "0.1.6-1")
-        return 20;
-    if (v == "0.1.7-1")
-        return 21;
-    if (v == "0.1.8-1")
-        return 22;
-    if (v == "0.1.12-1")
-        return 28;
-    if (v == "0.1.11-1")
-        return 26;
-    if (v == "0.1.10-1")
-        return 25;
-    if (v == "0.1.9-1")
-        return 24;
-    throw std::runtime_error("Unsupported Bacuri VMS package version");
 }
 const char* version_query(int schema)
 {
@@ -136,7 +105,7 @@ void volume(const Json& info)
                info.at("node") == reinterpret_cast<const char*>(sqlite3_column_text(row.get(), 1)),
            "Archive identity differs from snapshot");
 }
-Json identity(const std::string& version)
+Json identity(const std::string& version, int schema)
 {
     struct stat st{};
     ensure(lstat(archive.c_str(), &st) == 0 && S_ISDIR(st.st_mode), "Missing archive directory");
@@ -146,7 +115,13 @@ Json identity(const std::string& version)
             {"site", read(config / "site-id")},
             {"node", read(config / "node-id")},
             {"version", version},
-            {"schema", schema_for(version)}};
+            {"schema", schema}};
+}
+Json installed_identity()
+{
+    const auto package = installed_package();
+    ensure(!package.version.empty(), "Bacuri VMS is not installed");
+    return identity(package.version, package.schema);
 }
 void space(std::uintmax_t size, const fs::path& file)
 {
@@ -203,8 +178,8 @@ Json open_snapshot(const fs::path& file, const fs::path& key, const Temp& tmp)
     run({"/usr/bin/tar", "-xf", "snapshot.tar", "database.sql", "identity.tar", "snapshot.json"},
         {.cwd = tmp.dir});
     auto info = Json::parse(read(tmp.dir / "snapshot.json"));
-    ensure(info.at("format") == 1 && info.at("schema") == schema_for(info.at("version")) &&
-               control::canonical_id(info.at("site").get<std::string>()) &&
+    ensure(info.at("format") == 1 && info.at("schema").is_number_integer() && info.at("schema") > 0 &&
+               info.at("version").is_string() && control::canonical_id(info.at("site").get<std::string>()) &&
                control::canonical_id(info.at("node").get<std::string>()),
            "Invalid recovery snapshot");
     volume(info);
@@ -301,7 +276,7 @@ void operate(const std::string& action, char** v)
 {
     auto file = fs::absolute(v[4]).lexically_normal(), key = fs::absolute(v[5]);
     Bundle bundle({.keyring = v[2], .directory = v[3]});
-    int target = schema_for(bundle.version);
+    const int target = bundle.schema;
     Json op{{"action", action}, {"version", bundle.version}, {"file", file.string()}};
     bool resumed = fs::exists(pending);
     auto previous = resumed ? Json::parse(read(pending)) : Json(nullptr);
@@ -312,13 +287,15 @@ void operate(const std::string& action, char** v)
     ensure(fs::is_directory(file.parent_path()), "Snapshot directory does not exist");
     validate_recovery_key(key);
     if (action == "upgrade") {
-        ensure(target == schema_for(BACURI_VMS_VERSION "-1"), "Unsupported upgrade target");
+        ensure(bundle.version == BACURI_DEBIAN_VERSION || bundle.version == BACURI_DEBIAN_VERSION "~qualification",
+               "Use the maintenance tool from the upgrade kit");
         if (!resumed || !fs::exists(file)) {
-            const auto current = installed_package().version;
-            const int source = schema_for(current);
-            ensure(source < target && sql(version_query(source)) == std::to_string(source) && !fs::exists(file),
+            const auto info = installed_identity();
+            const auto source = info.at("schema").get<int>();
+            run({"/usr/bin/dpkg", "--compare-versions", info.at("version").get<std::string>(), "lt",
+                 bundle.version});
+            ensure(source <= target && sql(version_query(source)) == std::to_string(source) && !fs::exists(file),
                    "Expected installed predecessor and unused backup path");
-            auto info = identity(current);
             volume(info);
             const auto bytes = std::stoull(sql("SELECT pg_database_size(current_database())"));
             space(4 * bytes, "/var/tmp");
@@ -328,22 +305,29 @@ void operate(const std::string& action, char** v)
         } else {
             Temp tmp;
             auto info = open_snapshot(file, key, tmp);
-            ensure(identity(info.at("version")) == info && info.at("schema") < target, "Wrong upgrade checkpoint");
+            run({"/usr/bin/dpkg", "--compare-versions", info.at("version").get<std::string>(), "lt",
+                 bundle.version});
+            ensure(identity(info.at("version"), info.at("schema")) == info && info.at("schema") <= target,
+                   "Wrong upgrade checkpoint");
             fence(op);
         }
         bundle.install();
-        run({bundle.package == "bacuri-vms" ? "/usr/sbin/bacuri-vms" : "/usr/sbin/bacuri-basic", "admin",
-             "migrate"});
+        run({"/usr/sbin/bacuri-vms", "admin", "migrate"});
         ensure(sql(version_query(target)) == std::to_string(target), "Migration did not complete");
     } else {
         Temp tmp;
         auto info = open_snapshot(file, key, tmp);
-        ensure(info.at("version") == bundle.version, "Snapshot requires the matching signed package");
+        ensure(info.at("version") == bundle.version && info.at("schema") == target,
+               "Snapshot requires the matching signed package");
         if (fs::exists(config / "site-id")) {
             ensure(info.at("site") == read(config / "site-id") && info.at("node") == read(config / "node-id") &&
                        (action == "rollback" || resumed),
                    "Restore requires a clean installation or the same site and node");
-            ensure(resumed || schema_for(installed_package().version) >= target, "Unsupported rollback source");
+            if (!resumed) {
+                const auto installed = installed_package();
+                ensure(installed.schema >= target, "Unsupported rollback source");
+                run({"/usr/bin/dpkg", "--compare-versions", installed.version, "ge", bundle.version});
+            }
         } else {
             ensure(action == "restore", "Rollback requires an existing installation");
             run({"/usr/bin/systemctl", "start", "postgresql.service"});
@@ -413,7 +397,7 @@ int command(int argc, char** v)
     }
     if (action == "reconcile" && argc == 2) {
         ensure(fs::exists(pending), "Reconciliation requires stopped services");
-        reconcile(identity(installed_package().version));
+        reconcile(installed_identity());
         return 0;
     }
     int lock = open("/run/lock/bacuri-maintenance", O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
@@ -421,7 +405,7 @@ int command(int argc, char** v)
     fs::create_directories(state);
     if (action == "backup" && argc == 4) {
         ensure(!fs::exists(pending), "Maintenance pending");
-        backup(fs::absolute(v[2]), identity(installed_package().version), v[3]);
+        backup(fs::absolute(v[2]), installed_identity(), v[3]);
     } else if ((action == "upgrade" || action == "rollback" || action == "restore") && argc == 6)
         operate(action, v);
     else

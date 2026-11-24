@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bacuri-vms VERSION 0.1.12 LANGUAGES CXX)
+project(bacuri-vms LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -41,6 +41,12 @@ find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin REQUIRED)
 set(proto_dir "${CMAKE_CURRENT_SOURCE_DIR}/contracts/v1")
 set(generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(MAKE_DIRECTORY "${generated_dir}")
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_custom_target(bacuri-product-version
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/tools/product_version.py" generate "${generated_dir}"
+    BYPRODUCTS "${generated_dir}/product_version.hpp" "${generated_dir}/product-version.json"
+    VERBATIM
+)
 function(archive_sql variable path)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${path}")
     file(READ "${path}" contents)
@@ -117,7 +123,6 @@ if(NOT CMAKE_CXX_FLAGS MATCHES "-fsanitize=")
 endif()
 add_executable(bacuri-maintain src/core/maintenance.cpp src/core/maintenance_crypto.cpp src/core/maintenance_diagnostics.cpp
     src/control/database.cpp src/control/archive_recovery.cpp src/control/media_sessions/operations.cpp)
-target_compile_definitions(bacuri-maintain PRIVATE BACURI_VMS_VERSION="${PROJECT_VERSION}")
 target_link_libraries(bacuri-maintain PRIVATE bacuri-maintenance-common bacuri-vms-volume PostgreSQL::PostgreSQL)
 add_executable(bacuri-vms src/core/site_admin.cpp)
 target_link_libraries(bacuri-vms PRIVATE bacuri-vms-control-support OpenSSL::Crypto)
@@ -132,13 +137,15 @@ add_executable(bacuri-vms-core src/core/main.cpp
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-analysis bacuri-video-transform LibArchive::LibArchive PkgConfig::MAP_CURL PkgConfig::FIDO bacuri-vms-evidence bacuri-vms-media-auth PNG::PNG PkgConfig::GST)
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-control-support bacuri-vms-rpc
     LibXml2::LibXml2 PostgreSQL::PostgreSQL Boost::headers OpenSSL::SSL PkgConfig::GIO nlohmann_json::nlohmann_json)
-target_compile_definitions(bacuri-vms-core PRIVATE BACURI_VMS_VERSION="${PROJECT_VERSION}")
+foreach(target IN ITEMS bacuri-maintain bacuri-vms bacuri-vms-core)
+    add_dependencies(${target} bacuri-product-version)
+    target_include_directories(${target} PRIVATE "${generated_dir}")
+endforeach()
 target_compile_options(bacuri-vms-core PRIVATE -Wall -Wextra -Wpedantic)
 
 if(BUILD_TESTING)
     find_package(GTest CONFIG REQUIRED)
     include(GoogleTest)
-    find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(NAME core-module-boundaries COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tests/architecture/core_boundaries.py)
     add_executable(bacuri-vms-archive-test tests/archive/volume.cpp tests/archive/recording_policy.cpp)
     target_link_libraries(bacuri-vms-archive-test PRIVATE bacuri-vms-archive PkgConfig::GST GTest::gtest_main)

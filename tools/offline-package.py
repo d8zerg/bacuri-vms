@@ -11,6 +11,8 @@ import shutil
 import subprocess
 from tempfile import TemporaryDirectory
 
+import product_version
+
 
 def output(*args, **opts):
     return subprocess.check_output(args, text=True, **opts).strip()
@@ -60,9 +62,13 @@ def make_package(work, repo, version, runtime, headers, binaries):
     depends = [f"{p['name']} (= {p['version']})" for p in runtime]
     control = pkg / "DEBIAN"
     control.mkdir()
+    migrations = sorted((share / "storage/postgresql/migrations").glob("*.sql"))
+    if not migrations or any(not path.name.startswith(f"{number:04d}_")
+                             for number, path in enumerate(migrations, 1)):
+        raise ValueError("Expected consecutive PostgreSQL migrations in the package")
     (control / "control").write_text(
         f"Package: bacuri-vms\nVersion: {version}\nArchitecture: amd64\n"
-        "Conflicts: bacuri-vms-basic\nReplaces: bacuri-vms-basic\n"
+        f"Bacuri-Schema: {len(migrations)}\n"
         "Maintainer: Bacuri VMS <packages@localhost>\nDescription: Bacuri VMS local video management services\n"
         + "Depends: "
         + ",\n ".join(depends)
@@ -82,6 +88,17 @@ def main():
     group.add_argument("--qualification", action="store_true")
     group.add_argument("--signer")
     args = parser.parse_args()
+    release = platform.freedesktop_os_release()
+    suite = release["VERSION_CODENAME"]
+    binaries = Path("build") / {"trixie": "gcc-release", "bookworm": "bookworm-release"}[suite]
+    identity = json.loads((binaries / "generated/product-version.json").read_text())
+    if identity != product_version.current():
+        raise ValueError("The Git revision or working tree changed since compilation. Rebuild before packaging.")
+    if output(binaries / "bacuri-vms", "--version") != "bacuri.vms " + identity["version"]:
+        raise ValueError("The compiled product version differs from its build manifest")
+    if args.signer:
+        product_version.check_release(identity)
+    version = identity["debian"] + ("~qualification" if args.qualification else "")
     root = args.directory.resolve()
     root.mkdir(parents=True, exist_ok=True)
     kit = root / "bundle"
@@ -91,14 +108,7 @@ def main():
     files = Path("/opt/bacuri/offline-packages")
     for file in files.glob("*.deb"):
         copy(file, repo / file.name)
-    release = platform.freedesktop_os_release()
-    suite = release["VERSION_CODENAME"]
-    binaries = Path("build") / {"trixie": "gcc-release", "bookworm": "bookworm-release"}[suite]
     target = ":".join((release["ID"], release["VERSION_ID"], output("dpkg", "--print-architecture")))
-    cache = (binaries / "CMakeCache.txt").read_text().splitlines()
-    version = next(x.split("=", 1)[1] for x in cache if x.startswith("CMAKE_PROJECT_VERSION:")) + "-1"
-    if args.qualification:
-        version += "~qualification"
     with TemporaryDirectory() as tmp:
         work = Path(tmp)
         env = dict(os.environ)
@@ -177,6 +187,9 @@ def main():
             kit / "sbom.json",
             {
                 "package_version": version,
+                "product_version": identity["version"],
+                "source_commit": identity["commit"],
+                "source_tag": identity["tag"],
                 "debian_target": target,
                 "postgresql_version": pg_version,
                 "debian_packages": packages,

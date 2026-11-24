@@ -1,32 +1,32 @@
 #include "maintenance.hpp"
-#include <algorithm>
-#include <array>
+#include <charconv>
 #include <sstream>
 #include <unistd.h>
 namespace bacuri::vms::maintenance
 {
 namespace
 {
-constexpr std::array package_names{"bacuri-vms", "bacuri-vms-basic"};
+int package_schema(const std::string& field)
+{
+    int schema{};
+    const auto end = field.data() + field.size();
+    const auto result = std::from_chars(field.data(), end, schema);
+    ensure(result.ec == std::errc{} && result.ptr == end && schema > 0,
+           "Missing or invalid Bacuri-Schema in package");
+    return schema;
 }
+} // namespace
 Package installed_package()
 {
-    std::istringstream rows{capture(
-        {"/usr/bin/dpkg-query", "-W", "-f=${Package} ${db:Status-Status} ${Version}\n", "bacuri-vms*"}, true)};
-    Package installed;
-    std::string line;
-    while (std::getline(rows, line)) {
-        std::istringstream fields{line};
-        Package row;
-        std::string status;
-        if (fields >> row.name >> status >> row.version &&
-            std::ranges::find(package_names, row.name) != package_names.end() && status != "config-files" &&
-            status != "not-installed") {
-            ensure(installed.name.empty(), "Multiple Bacuri VMS packages installed");
-            installed = row;
-        }
-    }
-    return installed;
+    std::istringstream fields{capture(
+        {"/usr/bin/dpkg-query", "-W", "-f=${db:Status-Status}\n${Version}\n${Bacuri-Schema}", "bacuri-vms"},
+        true)};
+    std::string status, version, schema;
+    if (!std::getline(fields, status) || status == "config-files" || status == "not-installed")
+        return {};
+    ensure(std::getline(fields, version) && !version.empty() && std::getline(fields, schema),
+           "Incomplete metadata in installed Bacuri VMS package");
+    return {version, package_schema(schema)};
 }
 Bundle::Bundle(const SignedKit& source)
 {
@@ -46,23 +46,16 @@ Bundle::Bundle(const SignedKit& source)
         {.cwd = kit});
     run({"/usr/bin/sha256sum", "--strict", "--check", "--quiet", "SHA256SUMS"}, {.cwd = kit});
     std::istringstream stream{read(kit / "VERSION")};
-    stream >> version;
-    ensure(!version.empty(), "Missing package version");
     std::string target;
-    if (!(stream >> target))
-        target = "debian:13:amd64"; // Earlier signed kits used the Trixie package set.
+    ensure(static_cast<bool>(stream >> version >> target),
+           "Missing package version or target in installation bundle");
     const auto host =
         capture({"/bin/sh", "-ec",
                  ". /etc/os-release; printf '%s:%s:' \"$ID\" \"$VERSION_ID\"; dpkg --print-architecture"});
     ensure(target == host, "Installation bundle targets a different Debian release or architecture");
-    for (const auto* name : package_names) {
-        const auto filename = std::string{name} + "_" + version + "_amd64.deb";
-        if (fs::is_regular_file(kit / "repository" / filename)) {
-            ensure(package.empty(), "Multiple product packages in signed kit");
-            package = name;
-        }
-    }
-    ensure(!package.empty(), "Missing product package in signed kit");
+    const auto product = kit / "repository" / ("bacuri-vms_" + version + "_amd64.deb");
+    ensure(fs::is_regular_file(product), "Missing product package in signed kit");
+    schema = package_schema(capture({"/usr/bin/dpkg-deb", "-f", product.string(), "Bacuri-Schema"}));
 }
 void Bundle::install(bool downgrade) const
 {
@@ -96,17 +89,7 @@ void Bundle::install(bool downgrade) const
     run(update);
     if (downgrade)
         apt.push_back("--allow-downgrades");
-    const auto current = installed_package();
-    if (current.name.empty() || current.name == package) {
-        apt.push_back("--no-remove");
-    } else {
-        // During a rename APT may remove only the previous package in the same transaction.
-        apt.insert(apt.end(), {"-o", "DPkg::Tools::Options::/usr/bin/awk::Version=2", "-o",
-                               "DPkg::Pre-Install-Pkgs::=/usr/bin/awk 'NR == 1 && $0 != \"VERSION 2\" {exit 1} "
-                               "$5 == \"**REMOVE**\" && $1 != \"" +
-                                   current.name + "\" {exit 1}'"});
-    }
-    apt.insert(apt.end(), {"--no-install-recommends", "-y", "install", package + "=" + version});
+    apt.insert(apt.end(), {"--no-remove", "--no-install-recommends", "-y", "install", "bacuri-vms=" + version});
     setenv("DEBIAN_FRONTEND", "noninteractive", 1);
     run(apt);
 }

@@ -8,7 +8,7 @@ try {
     ensure(!fs::exists("/var/lib/bacuri-maintenance/pending"), "Resume pending maintenance with bacuri-maintain");
     Bundle bundle({.keyring = argv[1], .directory = argv[2]});
     const auto current = installed_package();
-    ensure(current.name.empty() || current.version == bundle.version,
+    ensure(current.version.empty() || current.version == bundle.version,
            "Use bacuri-maintain to change the installed release");
     bundle.install();
     return 0;

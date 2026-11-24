@@ -255,6 +255,8 @@ def exercise(line, send):
     installed = {(p.split()[0], p.split()[1]): p.split()[2] for p in rows("packages")}
     assets = {path: sha for sha, path in (p.split(maxsplit=1) for p in rows("assets"))}
     sbom = json.loads((report / "bundle/sbom.json").read_text())
+    send("version")
+    assert line() == "bacuri.vms " + sbom["product_version"]
     assert assets == sbom["web_assets"]
     legacy = {path: sha for sha, path in (p.split(maxsplit=1) for p in rows("legacy"))}
     assert legacy == sbom["legacy_web_assets"]

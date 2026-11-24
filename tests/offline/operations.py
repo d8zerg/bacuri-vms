@@ -399,6 +399,7 @@ def main():
     with boot(standby, archive, kit, safe, "standby-install") as cmd:
         cmd("printf '%s\\n' 'u bacuri-test-local -' > /run/local-user.conf; systemd-sysusers /run/local-user.conf")
         install(cmd, NEW, "/etc/bacuri-test-key.gpg")
+        target_schema = int(cmd("dpkg-query -W -f='${Bacuri-Schema}' bacuri-vms"))
         spare_uid = cmd("id -u bacuri-recorder")
         assert cmd("test ! -f /etc/bacuri-vms/site-id; echo clean") == "clean"
     with boot(root, archive, kit, safe, "upgrade", power_loss=True) as cmd:
@@ -407,20 +408,20 @@ def main():
         cmd(
             "openssl rand 32 >/safe/recovery.key; openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -noenc -days 2 -subj /CN=bacuri.test -addext subjectAltName=DNS:bacuri.test -keyout /root/tls.key -out /root/tls.crt"
         )
-        old_admin = cmd("command -v bacuri-vms || command -v bacuri-basic")
         cmd(f"{NEW}/bacuri-install /etc/bacuri-test-key.gpg {NEW}", fails=True)
         code = cmd(
-            f"printf '%s\\n' '{password}' | {old_admin} setup bacuri.test installer /root/tls.crt /root/tls.key 10.0.2.0/24 | tail -2 | grep -E '^[a-f0-9]{{64}}$'"
+            f"printf '%s\\n' '{password}' | bacuri-vms setup bacuri.test installer /root/tls.crt /root/tls.key 10.0.2.0/24 | tail -2 | grep -E '^[a-f0-9]{{64}}$'"
         )
-        cmd(f"printf '%s\\n' '{password}' | {old_admin} admin create-user viewer operator")
+        cmd(f"printf '%s\\n' '{password}' | bacuri-vms admin create-user viewer operator")
         cmd(
             "for f in /etc/bacuri-vms/{core,recorder}.env; do echo BACURI_LEGACY_RTSP_ADDRESSES=10.0.2.15 >> $f; done; systemctl restart bacuri-core bacuri-recorder; systemctl enable --now test-camera"
         )
         site = Site(cmd, password)
         site.wait()
-        ledger = "bacuri_meta" if query(cmd, "SELECT to_regclass('bacuri_meta.schema_migrations') IS NOT NULL") == "t" else "bacuri_inventory"
-        source_schema = int(query(cmd, f"SELECT max(version) FROM {ledger}.schema_migrations"))
-        assert source_schema in (14, 15, 16, 17, 18, 19, 20, 21, 22), source_schema
+        source_schema = int(cmd("dpkg-query -W -f='${Bacuri-Schema}' bacuri-vms"))
+        schema_query = "SELECT max(version) FROM bacuri_meta.schema_migrations"
+        assert query(cmd, schema_query) == str(source_schema)
+        assert 0 < source_schema <= target_schema
         old_id = site.enroll(cmd, code)
         a = site.login()
         s, _, camera = site.api(
@@ -436,7 +437,7 @@ def main():
         )
         assert s == 201, (s, camera)
         site.point = camera["point_id"]
-        cmd(f"{old_admin} admin grant-point viewer {site.point}")
+        cmd(f"bacuri-vms admin grant-point viewer {site.point}")
         old = latest(cmd)
         viewer = site.viewer()
         pixels = site.frame(old, viewer)
@@ -449,36 +450,15 @@ def main():
         site.access(viewer)
         print("Previous release recorded and played back a frame; interrupting migration", flush=True)
         upgrade = operation("upgrade", NEW, "previous.snap")
-        lock_table = "bacuri_maps.map_regions" if source_schema == 16 else "bacuri_inventory.webauthn_credentials"
-        blocked_statement = "ALTER TABLE bacuri_maps.map_regions" if source_schema == 16 else "ALTER TABLE bacuri_inventory.local_users SET SCHEMA"
-        if source_schema == 17:
-            lock_table = "bacuri_maps.point_placements"
-            blocked_statement = "ALTER TABLE bacuri_maps.point_placements"
-        if source_schema == 18:
-            lock_table = "bacuri_maps.floor_plans"
-            blocked_statement = "ALTER TABLE bacuri_maps.floor_plans"
-        lock_mode = "ACCESS SHARE"
-        if source_schema == 22:
-            lock_table = "bacuri_inventory.ptz_commands"
-            blocked_statement = "ALTER TABLE bacuri_inventory.ptz_commands"
-        if source_schema == 21:
-            lock_table = "bacuri_inventory.sites"
-            blocked_statement = "CREATE TABLE bacuri_inventory.camera_batch_items"
-            lock_mode = "EXCLUSIVE"
-        if source_schema == 20:
-            lock_table = "bacuri_access.site_roles"
-            blocked_statement = "ALTER TABLE bacuri_access.site_roles"
-        if source_schema == 19:
-            lock_table = "bacuri_maps.map_sources"
-            blocked_statement = "CREATE INDEX map_sources_pending"
-            lock_mode = "ROW EXCLUSIVE"
+        # Migration acquires this lock even when two releases share the same database schema.
+        migration_lock = "SELECT pg_advisory_lock(486324017)"
         cmd(
-            f"""({PSQL} -c "SET application_name='migration_blocker'; BEGIN; LOCK {lock_table} IN {lock_mode} MODE; SELECT pg_sleep(180)" >/dev/null) & waiter=$!
+            f"""({PSQL} -c "SET application_name='migration_blocker'; {migration_lock}; SELECT pg_sleep(180)" >/dev/null) & waiter=$!
 sleep 0.5
 {upgrade} >/root/update.log 2>&1 & update=$!
 terminated=''
 for i in {{1..900}}; do
- terminated=$({PSQL} -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='bacuri_vms' AND wait_event_type='Lock' AND query LIKE '%{blocked_statement}%'")
+ terminated=$({PSQL} -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='bacuri_vms' AND wait_event_type='Lock' AND query = '{migration_lock}'")
  [[ $terminated != t ]] || break
  kill -0 "$update" 2>/dev/null || break
  sleep .1
@@ -491,7 +471,7 @@ test -f /var/lib/bacuri-maintenance/pending
 for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is-active "$service" || true)" = inactive; done
 """
         )
-        assert query(cmd, f"SELECT max(version) FROM {ledger}.schema_migrations") == str(max(15, source_schema))
+        assert query(cmd, schema_query) == str(source_schema)
         h = cmd("sha256sum /safe/previous.snap")
         cmd(upgrade)
         assert h == cmd("sha256sum /safe/previous.snap")
@@ -507,7 +487,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
         cmd(
             "test ! -f /var/lib/bacuri-maintenance/pending; systemctl is-active --quiet bacuri-core bacuri-media bacuri-recorder"
         )
-        assert query(cmd, "SELECT max(version) FROM bacuri_meta.schema_migrations") == "28"
+        assert query(cmd, schema_query) == str(target_schema)
         forbidden = (
             password,
             code,
@@ -554,7 +534,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
         publish("diagnostics.json", diagnostics)
         cmd(operation("rollback", OLD, "previous.snap"))
         site.wait()
-        assert query(cmd, f"SELECT max(version) FROM {ledger}.schema_migrations") == str(source_schema)
+        assert query(cmd, schema_query) == str(source_schema)
         assert (
             site.api("GET", "session", headers=a)[0] == 401
             and site.api("GET", "session", headers=viewer)[0] == 401
@@ -635,7 +615,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
             {
                 "status": "passed",
                 "source_schema": source_schema,
-                "target_schema": 28,
+                "target_schema": target_schema,
                 "interrupted_migration_retried": True,
                 "rollback_schema": source_schema,
                 "independent_root": True,

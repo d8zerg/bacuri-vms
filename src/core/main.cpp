@@ -8,6 +8,7 @@
 #include "archive/evidence.hpp"
 #include "control/recovery.hpp"
 #include "control/maps.hpp"
+#include "product_version.hpp"
 #include <sodium.h>
 #include <iostream>
 #include <charconv>

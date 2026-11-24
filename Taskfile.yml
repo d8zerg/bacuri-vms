@@ -158,12 +158,28 @@ tasks:
     desc: Run all checks and save the environment, log, and exit code
     cmd: bash tools/check-report
 
+  version:
+    desc: Show the product SemVer from Git
+    deps: [dev:image]
+    cmd: '{{.BUILD_RUN}} python3 tools/product_version.py show'
+
+  release:next:
+    desc: Suggest the next release tag from Conventional Commits
+    deps: [dev:image]
+    cmd: '{{.BUILD_RUN}} python3 tools/product_version.py next'
+
   release:check:
     desc: Build the optimized services offline and verify the core executable
     deps:
       - task: build
         vars: {PRESET: gcc-release}
-    cmd: '{{.BUILD_RUN}} build/gcc-release/bacuri-vms-core --version'
+    cmds:
+      - '{{.BUILD_RUN}} python3 tests/release/version.py'
+      - '{{.BUILD_RUN}} python3 tools/product_version.py next'
+      - >-
+        {{.BUILD_RUN}} sh -ec 'expected="bacuri.vms $(python3 tools/product_version.py show)";
+        for exe in bacuri-vms-core bacuri-vms; do test "$(build/gcc-release/$exe --version)" = "$expected"; done;
+        echo "$expected"'
 
   build:repro:
     desc: Compare all Release executables with a clean offline build

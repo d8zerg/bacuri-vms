@@ -27,6 +27,8 @@ if [ ! -f /root/first-boot ]; then
         -addext subjectAltName=DNS:bacuri.test -keyout /root/tls.key -out /root/tls.crt
     openssl rand -hex 24 >/root/password
     "$admin" setup bacuri.test installer /root/tls.crt /root/tls.key 10.0.2.0/24 </root/password >/root/setup-output
+    schema=$(dpkg-query -W -f='${Bacuri-Schema}' bacuri-vms)
+    test "$schema" = "$(runuser -u postgres -- psql -d bacuri_vms -XAtqc 'SELECT max(version) FROM bacuri_meta.schema_migrations')"
     pg_version=$(sed -n 's/.*"postgresql_version": "\([0-9.]*\)".*/\1/p' "$kit/sbom.json")
     test -n "$pg_version"
     test "$(runuser -u postgres -- psql -XAtqc 'SHOW server_version' | cut -d' ' -f1)" = "$pg_version"
@@ -61,6 +63,7 @@ while IFS= read -r command <&3; do
         revoke) "$admin" admin revoke-point viewer "$point"; echo OK >&3 ;;
         promote) runuser -u postgres -- psql -X -v ON_ERROR_STOP=1 -d bacuri_vms -c "UPDATE bacuri_access.site_roles SET role='administrator' FROM bacuri_access.local_users u WHERE site_roles.user_id=u.user_id AND u.username='viewer'"; echo OK >&3 ;;
         legacy) (cd /usr/share/bacuri-vms/web && find . -type f -printf '%P\n' | sort | xargs sha256sum) >&3; echo END >&3 ;;
+        version) bacuri-vms --version >&3 ;;
         packages) dpkg-query -W -f='${db:Status-Status} ${Package} ${Architecture} ${Version}\n' | awk '$1=="installed" {print $2,$3,$4}' >&3; echo END >&3 ;;
         assets) (cd /usr/share/bacuri-vms/build/web-client && sha256sum index.html assets/*) >&3; echo END >&3 ;;
         suite) . /etc/os-release; printf '%s\n' "$VERSION_CODENAME" >&3 ;;
