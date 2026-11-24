@@ -3,7 +3,6 @@ import csv
 import hashlib
 import json
 import math
-import re
 from pathlib import Path
 
 from series import FEATURES
@@ -28,7 +27,7 @@ def positive(row, names):
 
 
 def validate(p):
-    fields(p, "node load archive latency recovery role_minutes emulator hardware")
+    fields(p, "node load archive latency recovery role_minutes emulator reference_firmware hardware")
     fields(p["node"], "cpu logical_cpus ram_gib os filesystem network_mbps")
     positive(p["node"], "logical_cpus ram_gib network_mbps")
     for key in ("cpu", "os", "filesystem"):
@@ -78,17 +77,14 @@ def validate(p):
 
 
 def validate_asvs():
-    plan = Path("docs/devplan.md").read_text()
-    steps = set(re.findall(r"^#### Шаг (\d+\.\d+)\.", plan, re.M))
     with MATRIX.open() as file:
         reader = csv.DictReader(file)
-        need(reader.fieldnames == "id level control scope rationale step analysis_or_test result".split(), "invalid ASVS columns")
+        need(reader.fieldnames == "id level control scope rationale analysis_or_test result".split(), "invalid ASVS columns")
         rows = list(reader)
     keys = []
     for row in rows:
         need(all(isinstance(v, str) and v.strip() for v in row.values()), "incomplete ASVS row")
         need(row["scope"] in ("applicable", "excluded"), "invalid ASVS applicability")
-        need(row["step"] in steps, "unknown implementation or review step")
         need(row["result"] in (("pending", "tested") if row["scope"] == "applicable" else ("scope-review",)), "invalid ASVS evidence status")
         need(Path(row["analysis_or_test"]).is_file(), "missing evidence target")
         keys.append(f"{row['id']} {row['level']}\n")

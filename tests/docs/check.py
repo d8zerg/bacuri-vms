@@ -2,6 +2,7 @@
 
 from collections import Counter
 from functools import cache
+import json
 from pathlib import Path
 import re
 from urllib.parse import unquote, urlsplit
@@ -29,6 +30,7 @@ def lines(path):
 def anchors(path):
     used = set()
     for _, line in lines(path):
+        used.update(re.findall(r'<a name="([^"]+)"></a>', line))
         heading = re.match(r"^#{1,6}\s+(.+)$", line)
         if heading:
             base = heading_anchor(heading[1])
@@ -77,30 +79,56 @@ def same_set(label, expected, actual):
         raise ValueError(f"{label}: missing {sorted(expected - actual)}, unexpected {sorted(actual - expected)}")
 
 
-def check_release_profile(profile):
+def check_installations(profile, required):
     setups = table(profile, "Установки", [
         "ID", "Минимальная испытательная конфигурация", "Одновременная нагрузка", "Архив после форматирования"])
     profiles = unique_ids(profile, setups)
-    required = {"compact", "site", "cluster", "federation"}
-    if missing := required - profiles:
-        raise ValueError(f"{profile}: missing installations {sorted(missing)}")
+    same_set(f"{profile} installations", required, profiles)
+    return profiles
+
+
+def check_devices(profile):
+    firmware = json.loads(Path("tests/cameras/qualification.json").read_text())["reference_firmware"]
     devices = table(profile, "Эталонные устройства", [
-        "Семейство", "Модель", "Прошивка", "Оснащение и что проверить", "Источник версии"])
+        "Семейство", "Модель", "Оснащение и что проверить", "Источник"])
+    same_set("reference firmware", set(firmware), {row[1] for _, row in devices})
     families = {"Стационарная камера", "Поворотная камера", "Многоканальное устройство"}
     if missing := families - {row[0] for _, row in devices}:
         raise ValueError(f"{profile}: missing device families {sorted(missing)}")
     identities = set()
-    for number, (_, model, firmware, _, source) in devices:
-        if ((model, firmware) in identities or not re.search(r"\d", firmware) or "*" in firmware
+    for number, (_, model, _, source) in devices:
+        if (model in identities or not re.search(r"\d", firmware[model]) or "*" in firmware[model]
                 or not re.fullmatch(r"\[[^\]]+\]\(https://[^)]+\)", source)):
             raise ValueError(f"{profile}:{number}: invalid reference device or firmware source")
-        identities.add((model, firmware))
-    return profiles, len(identities)
+        identities.add(model)
+    return len(identities)
 
 
-def check_release_coverage(register, plan, profiles):
-    functions = table(register, "Функции", [
-        "ID", "Шаг", "Роль", "Профили", "Доступно", "Требуемая операция сервера", "Действие клиента"])
+def check_plan_steps(plan, functions):
+    headings = {}
+    for _, line in lines(plan):
+        match = re.fullmatch(r"#### (Шаг (\d+)\.(\d+)\. .+)", line)
+        if match:
+            headings[heading_anchor(match[1])] = (int(match[2]), int(match[3]))
+    intro = plan.read_text().partition("## Функции\n")[2].partition("\n|")[0]
+    boundaries = re.findall(r"\[[^\]]+\]\(" + re.escape(plan.name) + r"#([^)]+)\)", intro)
+    if len(boundaries) != 2 or any(ref not in headings for ref in boundaries):
+        raise ValueError(f"{plan}: expected two linked implementation boundaries")
+    first, last = (headings[ref] for ref in boundaries)
+    covered = sorted(value for value in headings.values() if first[0] <= value[0] <= last[0])
+    if not covered or (first, last) != (covered[0], covered[-1]):
+        raise ValueError(f"{plan}: boundaries must cover the complete implementation stages")
+    steps = {f"{stage}.{step}" for stage, step in covered}
+    same_set(plan, steps, {row[1] for _, row in functions})
+
+
+def check_release_coverage(register, profiles, *, includes_plan=False):
+    columns = ["ID", "Роль", "Профили", "Доступно", "Требуемая операция сервера", "Действие клиента"]
+    if includes_plan:
+        columns.insert(1, "Шаг")
+    functions = table(register, "Функции", columns)
+    if includes_plan:
+        check_plan_steps(register, functions)
     requirements = unique_ids(register, functions)
     concept = table(register, "Требования концепта", ["Основание", "Функции реестра"])
     concepts = set()
@@ -113,26 +141,12 @@ def check_release_coverage(register, plan, profiles):
         "ID", "Исходные данные", "Действие и ожидаемый результат", "Внесённый отказ и ожидаемый результат"])
     same_set(register, requirements, unique_ids(register, vectors))
 
-    headings = {}
-    for _, line in lines(plan):
-        match = re.fullmatch(r"#### (Шаг (\d+)\.(\d+)\. .+)", line)
-        if match:
-            headings[heading_anchor(match[1])] = (int(match[2]), int(match[3]))
-    boundaries = re.findall(r"\[(?:первого|последнего) шага\]\(" + re.escape(plan.name)
-                            + r"#([^)]+)\)", register.read_text())
-    if len(boundaries) != 2 or any(anchor not in headings for anchor in boundaries):
-        raise ValueError(f"{register}: expected two linked implementation boundaries")
-    first, last = (headings[anchor] for anchor in boundaries)
-    covered = sorted(value for value in headings.values() if first[0] <= value[0] <= last[0])
-    if not covered or (first, last) != (covered[0], covered[-1]):
-        raise ValueError(f"{register}: boundaries must cover the complete implementation stages")
-    steps = {f"{stage}.{step}" for stage, step in covered}
-    same_set(register, steps, {row[1] for _, row in functions})
+    profile_index = columns.index("Профили")
     for number, row in functions:
-        assigned = [item.strip() for item in row[3].split(",")]
+        assigned = [item.strip() for item in row[profile_index].split(",")]
         if set(assigned) - profiles or len(set(assigned)) != len(assigned):
             raise ValueError(f"{register}:{number}: invalid installation profile")
-    return requirements, len(steps)
+    return requirements
 
 
 def check_release_operations(register, requirements):
@@ -185,17 +199,11 @@ def check():
     if not steps or max(steps.values()) != 1:
         raise ValueError(f"{plan}: missing or duplicate step identifiers")
     profile = docs / "test-profile.md"
-    scenarios = table(profile, "Матрица сценариев", ["Сценарий", "Входы", "Условие прохождения", "Шаг"])
-    decisions = table(profile, "Реестр проектных решений", ["Решение", "Проверяемое свойство", "Шаги проверки"])
-    for number, cells in scenarios + decisions:
-        for entry in cells[-1].removeprefix("Только ").split(","):
-            bounds = entry.strip().split("-")
-            if len(bounds) > 2 or any(step not in steps for step in bounds):
-                raise ValueError(f"{profile}:{number}: invalid step reference {entry}")
-            if len(bounds) == 2:
-                start, end = (tuple(map(int, step.split("."))) for step in bounds)
-                if end < start:
-                    raise ValueError(f"{profile}:{number}: reversed step range {entry}")
+    scenarios = table(profile, "Матрица сценариев", ["Сценарий", "Входы", "Условие прохождения"])
+    decisions = table(profile, "Реестр проектных решений", ["Решение", "Проверяемое свойство"])
+    scenario_names = [row[0] for _, row in scenarios]
+    if len(set(scenario_names)) != len(scenario_names):
+        raise ValueError(f"{profile}: duplicate scenario")
 
     registered = []
     for number, cells in decisions:
@@ -209,10 +217,16 @@ def check():
     if sorted(registered) != sorted((docs / "adr").glob("*.md")):
         raise ValueError(f"{profile}: registry differs from ADR files")
     register = docs / "release-register.md"
-    profiles, devices = check_release_profile(docs / "release-profile.md")
-    requirements, implementation_steps = check_release_coverage(register, plan, profiles)
-    rest = check_release_operations(register, requirements)
-    print(f"{len(requirements)} release requirements and test vectors, {implementation_steps} implementation steps, "
+    profile = docs / "release-profile.md"
+    profiles = check_installations(profile, {"compact", "site"})
+    devices = check_devices(profile)
+    requirements = check_release_coverage(register, profiles)
+    manager = docs / "devplan-manager.md"
+    distributed = check_installations(manager, {"cluster", "federation"})
+    manager_requirements = check_release_coverage(manager, {"site"} | distributed, includes_plan=True)
+    rest = check_release_operations(register, requirements | manager_requirements)
+    print(f"Manager: {len(manager_requirements)} requirements and test vectors")
+    print(f"VMS: {len(requirements)} release requirements and test vectors, "
           f"{rest} REST operations, {len(profiles)} profiles and {devices} reference devices checked")
     print(f"{len(files)} documents, {count} local links, {len(steps)} steps, "
           f"{len(scenarios)} scenarios and {len(decisions)} decisions checked")

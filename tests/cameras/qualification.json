@@ -10,5 +10,6 @@
     "control": "https", "media": "rtsps", "trust": "ephemeral fixture CA", "legacy_exception": false,
     "features": ["discovery", "identity", "authentication", "profiles", "main", "sub", "ptz", "motion"]
   },
+  "reference_firmware": {"AXIS Q1656": "12.11.147", "AXIS Q6225-LE": "12.11.147", "AXIS F9114-B Mk II": "12.11.147"},
   "hardware": []
 }
