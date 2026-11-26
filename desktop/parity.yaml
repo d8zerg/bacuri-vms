@@ -106,6 +106,18 @@ contract_requests:
   camera-neighbors:
     need: Storage of manually adjusted neighbor links between cameras of a plan
     platform: ["7.1"]
+  shift-handover:
+    need: Storage of shift handover records with the summary, the note of the outgoing operator and the acknowledgement of the incoming one in the site journal
+    platform: ["7.2"]
+  building-model:
+    need: Floors of a building with heights and the calibrated position of each camera for projecting video onto the floor plane
+    platform: ["7.1", "analytics 4.5"]
+  path-prediction:
+    need: Predicted next cameras with the expected appearance time in the live analysis metadata
+    platform: ["analytics 4.4"]
+  video-synopsis:
+    need: Synopsis of an interval with objects, their time marks and links to the exact archive frames
+    platform: ["analytics 5.3"]
   federation:
     need: Site registry, delegation and shared policies of Bacuri Manager
     platform: ["manager 1.1", "manager 1.2"]
@@ -143,6 +155,31 @@ extensions:
     requires: [federation]
     capability: The session names a connected Bacuri Manager
     older_server: The cluster and federation section is hidden
+  shift-handover:
+    scenarios: [workstation-shift-handover]
+    requires: [shift-handover, site-capabilities]
+    capability: The site capability list contains shift handover records
+    older_server: The post restores its own state, the shift summary is shown locally without a stored note and acknowledgement
+  missed-summary:
+    scenarios: [workstation-missed-summary]
+    requires: [analytics-metadata]
+    capability: The site capability list contains the analysis metadata schema version
+    older_server: The summary contains alarms and camera events only
+  spatial-wall:
+    scenarios: [workstation-spatial-wall]
+    requires: [building-model, site-capabilities]
+    capability: The map scene contains floors with heights and calibrated cameras
+    older_server: Cameras are shown as markers with view sectors on the plan without projection
+  synopsis:
+    scenarios: [archive-synopsis]
+    requires: [video-synopsis, site-capabilities]
+    capability: The site capability list contains the synopsis
+    older_server: The synopsis is hidden, the interval summary and normal scrubbing stay
+  next-camera:
+    scenarios: [workstation-next-camera]
+    requires: [path-prediction, site-capabilities]
+    capability: The site capability list contains path prediction
+    older_server: The strip shows the topology neighbors of the camera
   video-wall:
     scenarios: [workstation-multi-monitor, workstation-video-wall]
     requires: []
@@ -1030,3 +1067,84 @@ scenarios:
     operations: []
     test: desktop/cluster/federation
     material: Policy versions per site, frames before and after the switch
+  workstation-shift-handover:
+    function: alerts
+    area: workstation
+    role: operator
+    precondition: A post with layouts on two monitors, an open alarm and an archive position
+    action: Kill the client and restart it, then hand the shift over to another operator with a note
+    result: The post returns to the same layouts, alarm card and archive position, the incoming operator sees open alarms, offline cameras and the note and acknowledges them
+    failure: Objects the incoming operator may not access are neither restored nor shown in the summary
+    steps: ["5.8"]
+    platform: ["7.2"]
+    operations: [getAlertSnapshot, searchAlertAudit, listMonitorLayouts]
+    web: /audit
+    test: desktop/workstation/shift-handover
+    material: Time to the restored post, handover record in the journal
+  workstation-missed-summary:
+    function: search
+    area: workstation
+    role: operator
+    precondition: A layout of 16 cameras and a reference recording with known episodes
+    action: Work on an alarm for a set time and return to the wall
+    result: The summary lists every episode of the cameras that were not on screen and opens the exact frame
+    failure: A site without analytics builds the summary from alarms and camera events
+    steps: ["5.9"]
+    platform: ["analytics 2.1", "analytics 5.2"]
+    operations: [getAlertSnapshot, searchArchiveFrames]
+    test: desktop/workstation/missed-summary
+    material: Episodes found against the reference, summary build time
+  alerts-task-mode:
+    function: alerts
+    area: alerts
+    role: operator
+    precondition: An accepted alarm and three new alarms during its handling, one with a higher priority
+    action: Handle the alarm in the task mode and close it
+    result: Input focus stays in the task, the queue counter grows, the higher priority alarm asks for a decision, closing restores the layout and focus
+    failure: The wall on other monitors keeps running and never loses its layout
+    steps: ["5.10"]
+    platform: ["7.2"]
+    operations: [getAlertWork, applyAlertCommand, openAlertStream]
+    web: /monitor
+    test: desktop/alerts/task-mode
+    material: Handling time and errors with and without the task mode
+  workstation-spatial-wall:
+    function: maps
+    area: workstation
+    role: operator
+    precondition: Four calibrated cameras on a floor with heights
+    action: Fly over the floor, follow a person across two cameras, open a camera from the scene
+    result: Projected frames match the plan at control points, the person is visible continuously at the seam, the transition keeps the archive moment
+    failure: A camera without calibration is shown as a marker with its sector
+    steps: ["5.11"]
+    platform: ["7.1", "analytics 4.5"]
+    operations: [getMapScene, getFloorPlan, createMediaSession]
+    web: /maps
+    test: desktop/workstation/spatial-wall
+    material: Control point residuals, UI frame time and stream count while flying
+  archive-synopsis:
+    function: search
+    area: archive
+    role: operator
+    precondition: An hour of recording with known episodes on a site with analytics
+    action: Open the synopsis of the interval, filter by class and zone, open an object
+    result: Every known episode is present and opens the exact archive frame, the view is labeled as a synopsis
+    failure: Objects inside a privacy mask stay masked
+    steps: ["5.12"]
+    platform: ["analytics 5.3"]
+    operations: [searchArchiveFrames]
+    test: desktop/archive/synopsis
+    material: Search time with the synopsis and with normal scrubbing
+  workstation-next-camera:
+    function: maps
+    area: workstation
+    role: operator
+    precondition: A tracked person on a camera with calibrated neighbors
+    action: Follow the person until they leave the frame
+    result: The predicted next camera is already streaming when the person appears on it
+    failure: A cancelled prediction releases its stream and the post quota is never exceeded
+    steps: ["5.13"]
+    platform: ["analytics 4.4"]
+    operations: [getMapScene, createMediaSession, revokeMediaSession]
+    test: desktop/workstation/next-camera
+    material: Time from leaving the frame to the frame on the next camera with and without prediction
