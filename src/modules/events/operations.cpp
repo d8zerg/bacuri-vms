@@ -4,7 +4,7 @@
 
 namespace bacuri::vms::control::events
 {
-std::optional<ArchiveAnchor> archive_anchor(postgresql::Database& db, const std::string& site,
+std::optional<ArchiveAnchor> archive_anchor(postgresql::QuerySession& db, const std::string& site,
                                             const std::string& alert)
 {
     auto r = db.exec("SELECT point_id,binding_revision,time_basis,observed_at_utc_us,uncertainty_us FROM "

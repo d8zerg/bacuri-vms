@@ -10,16 +10,19 @@ MINIMUM_PERCENT = json.loads((ROOT / "tests/coverage-policy.json").read_text())[
 SOURCE_SUFFIXES = {".cpp", ".cc", ".cxx"}
 
 
-def check(label, files, expected):
+def check(label, files, expected, *, enforce_minimum=True):
     missing = expected - files.keys()
     for path in sorted(missing):
         print(f"{label}: missing coverage for {path}")
     covered = sum(item["line_covered"] for item in files.values())
     total = sum(item["line_total"] for item in files.values())
     valid = total > 0 and not missing and all(0 <= f["line_covered"] <= f["line_total"] for f in files.values())
+    counts = f"{label}: {covered}/{total} lines ({100 * covered / total if total else 0:.2f}%)"
+    if not enforce_minimum:
+        print(counts if valid else f"{counts}: incomplete measurement")
+        return valid
     passed = valid and 100 * covered >= MINIMUM_PERCENT * total
-    print(f"{label}: {covered}/{total} lines ({100 * covered / total if total else 0:.2f}%), "
-          f"minimum {MINIMUM_PERCENT}%: {'PASS' if passed else 'FAIL'}")
+    print(f"{counts}, minimum {MINIMUM_PERCENT}%: {'PASS' if passed else 'FAIL'}")
     return passed
 
 
@@ -34,9 +37,19 @@ def owner(path):
 
 
 def main(report, selected=""):
-    summary = json.loads((report / "cpp/summary.json").read_text())
+    units = selected == "--units"
+    summary = json.loads((report / ("unit" if units else "cpp") / "summary.json").read_text())
     files = {Path(f["filename"]): f for f in summary["files"]}
     expected = {p.relative_to(ROOT) for p in (ROOT / "src").rglob("*") if p.suffix in SOURCE_SUFFIXES}
+    if units:
+        owners = {owner(path) for path in expected if path.parts[1] == "modules"}
+        owners.update({"application/export", "application/recovery"})
+        passed = True
+        for name in sorted(owners):
+            owned = {p: f for p, f in files.items() if owner(p) == name}
+            passed = check(f"Unit tests {name}", owned, {p for p in expected if owner(p) == name},
+                           enforce_minimum=False) and passed
+        return passed
     targets = defaultdict(set)
     commands = json.loads((ROOT / "build/gcc-coverage/compile_commands.json").read_text())
     for command in commands:

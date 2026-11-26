@@ -9,11 +9,12 @@
 namespace bacuri::vms::postgresql
 {
 class Database;
-}
+class QuerySession;
+} // namespace bacuri::vms::postgresql
 
 namespace bacuri::vms::control::inventory
 {
-std::map<std::string, std::int64_t> recording_bindings(postgresql::Database&, const std::string& site);
+std::map<std::string, std::int64_t> recording_bindings(postgresql::QuerySession&, const std::string& site);
 bool lock_point(postgresql::Database&, const std::string& site, const std::string& point);
 bool lock_site(postgresql::Database&, const std::string& site);
 void ensure_site(postgresql::Database&, const std::string& site);

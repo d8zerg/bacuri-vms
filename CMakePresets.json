@@ -59,6 +59,7 @@
         "CMAKE_CXX_FLAGS": "--coverage -fprofile-update=atomic"
       }
     },
+    { "name": "gcc-unit-coverage", "inherits": "gcc-coverage" },
     {
       "name": "clang-debug",
       "inherits": "dev-base",
@@ -84,6 +85,7 @@
     { "name": "gcc-release", "configurePreset": "gcc-release" },
     { "name": "gcc-debug", "configurePreset": "gcc-debug" },
     { "name": "gcc-coverage", "configurePreset": "gcc-coverage" },
+    { "name": "gcc-unit-coverage", "configurePreset": "gcc-unit-coverage" },
     { "name": "clang-debug", "configurePreset": "clang-debug" },
     { "name": "clang-asan-ubsan", "configurePreset": "clang-asan-ubsan" },
     { "name": "clang-tsan", "configurePreset": "clang-tsan" }
@@ -97,6 +99,7 @@
     },
     { "name": "gcc-debug", "inherits": "test-base", "configurePreset": "gcc-debug" },
     { "name": "gcc-coverage", "inherits": "test-base", "configurePreset": "gcc-coverage" },
+    { "name": "gcc-unit-coverage", "inherits": "test-base", "configurePreset": "gcc-unit-coverage" },
     { "name": "clang-debug", "inherits": "test-base", "configurePreset": "clang-debug" },
     { "name": "clang-asan-ubsan", "inherits": "test-base", "configurePreset": "clang-asan-ubsan" },
     { "name": "clang-tsan", "inherits": "test-base", "configurePreset": "clang-tsan" }

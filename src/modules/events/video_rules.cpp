@@ -279,27 +279,27 @@ void video_rule(const Request& req, Response& res, const Sessions& sessions, con
             for (const auto& b : blocks) {
                 if (++n > 64)
                     break;
-                if (b.at("begin").get<std::int64_t>() > covered)
+                if (b.begin > covered)
                     complete = false;
-                covered = std::max(covered, b.at("end").get<std::int64_t>());
-                if (b.at("index").is_null()) {
+                covered = std::max(covered, b.end);
+                if (!b.index) {
                     complete = false;
                     prev.clear();
                     continue;
                 }
-                for (const auto& sample : b["index"]["samples"]) {
-                    auto at = b.at("begin").get<std::int64_t>() + sample.at("at").get<std::int64_t>();
+                for (const auto& sample : b.index->samples) {
+                    auto at = b.begin + sample.offset;
                     if (at < span.start || at >= span.end)
                         continue;
-                    if (at - previous_at > 1000000 || b.at("binding") != binding)
+                    if (at - previous_at > 1000000 || b.binding != binding)
                         prev.clear();
                     if (at - last >= d.cooldown * 1000000LL &&
-                        matches(d, at, true, {{"cells", sample.at("cells")}, {"previous", prev}})) {
+                        matches(d, at, true, {{"cells", sample.cells}, {"previous", prev}})) {
                         hits.push_back(ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(at)));
                         last = at;
                     }
-                    prev = sample.at("cells");
-                    binding = b.at("binding");
+                    prev = sample.cells;
+                    binding = b.binding;
                     previous_at = at;
                 }
             }

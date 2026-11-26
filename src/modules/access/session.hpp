@@ -15,7 +15,7 @@ class Sessions
     void handle(const Request& request, Response& response, const std::string& peer) const;
     void corporate(const Request&, Response&, std::string_view path) const;
     void factor(const Request&, Response&) const;
-    Identity authenticate(postgresql::Database& db, const Request& request, bool mutation,
+    Identity authenticate(postgresql::QuerySession& db, const Request& request, bool mutation,
                           bool activity = true) const;
 
   private:

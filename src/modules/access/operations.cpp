@@ -30,7 +30,8 @@ std::string scope_revision(postgresql::Database& db, const std::string& site)
         .exec("SELECT coalesce((SELECT revision FROM bacuri_access.policy_versions WHERE site_id=$1),0)", {site})
         .get(0);
 }
-std::string site_role(postgresql::Database& db, const std::string& site, const std::string& user, RoleLock lock)
+std::string site_role(postgresql::QuerySession& db, const std::string& site, const std::string& user,
+                      RoleLock lock)
 {
     auto r = db.exec(
         lock == RoleLock::shared
@@ -47,7 +48,7 @@ bool lock_point_grant(postgresql::Database& db, const std::string& site, const s
     return allowed(db, site, user, point, "view");
 }
 
-std::string delivery_regions(postgresql::Database& db, const std::string& site, const std::string& point,
+std::string delivery_regions(postgresql::QuerySession& db, const std::string& site, const std::string& point,
                              const std::string& surface)
 {
     const auto rows = db.exec(
@@ -58,9 +59,9 @@ std::string delivery_regions(postgresql::Database& db, const std::string& site, 
     return rows.size() ? rows.get(0) : "";
 }
 
-bool allowed(postgresql::Database& db, const std::string& site, const std::string& user, const std::string& point,
-             const std::string& action, const std::string& surface, const std::string& begin,
-             const std::string& end)
+bool allowed(postgresql::QuerySession& db, const std::string& site, const std::string& user,
+             const std::string& point, const std::string& action, const std::string& surface,
+             const std::string& begin, const std::string& end)
 {
     return db.exec("SELECT bacuri_access.can_use($1,$2,$3,$4,nullif($5,'')::bigint,nullif($6,'')::bigint,$7)",
                    {site, user, point, action, begin, end, surface})
@@ -128,7 +129,7 @@ std::string browser_expiry(postgresql::Database& db, const std::string& browser)
               {browser})
         .get(0);
 }
-std::string export_regions(postgresql::Database& db, const std::string& site, const std::string& point)
+std::string export_regions(postgresql::QuerySession& db, const std::string& site, const std::string& point)
 {
     auto row = db.exec("SELECT regions::text FROM bacuri_access.privacy_policies WHERE site_id=$1 AND point_id=$2 "
                        "AND (archive OR export)",
@@ -137,7 +138,7 @@ std::string export_regions(postgresql::Database& db, const std::string& site, co
         return {};
     return Json::parse(row.get(0)).empty() ? R"([{"left":0,"top":0,"right":1,"bottom":1}])" : row.get(0);
 }
-std::string export_permission(postgresql::Database& db, const std::string& site, const std::string& point,
+std::string export_permission(postgresql::QuerySession& db, const std::string& site, const std::string& point,
                               const std::string& user, const std::string& begin, const std::string& end,
                               bool derivative)
 {

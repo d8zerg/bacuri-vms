@@ -17,8 +17,8 @@ void require(bool value)
         throw Failure{ErrorCode::invalid_request};
 }
 } // namespace
-bool can_view(postgresql::Database& db, const std::string& site, const std::string& user, const std::string& point,
-              Window span)
+bool can_view(postgresql::QuerySession& db, const std::string& site, const std::string& user,
+              const std::string& point, Window span)
 {
     auto mask = access::delivery_regions(db, site, point, "archive");
     return access::allowed(db, site, user, point, "view", mask.empty() ? "archive" : "",

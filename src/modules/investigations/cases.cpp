@@ -21,7 +21,7 @@ void require(bool value)
     if (!value)
         throw Failure{ErrorCode::invalid_request};
 }
-bool visible(postgresql::Database& db, const std::string& site, const std::string& user, const Json& materials)
+bool visible(postgresql::QuerySession& db, const std::string& site, const std::string& user, const Json& materials)
 {
     for (const auto& m : materials)
         if (!recordings::can_view(db, site, user, m.at("point_id"), window(m.at("interval"))))
@@ -69,8 +69,8 @@ void case_recipients(const Request& req, Response& res, const Sessions& sessions
     db.exec("COMMIT");
     respond(res, out);
 }
-Json case_for_export(postgresql::Database& db, const std::string& site, const std::string& id,
-                     const std::string& user)
+ExportCase case_for_export(postgresql::QuerySession& db, const std::string& site, const std::string& id,
+                           const std::string& user)
 {
     auto role = access::site_role(db, site, user, access::RoleLock::read);
     auto r =
@@ -82,12 +82,16 @@ Json case_for_export(postgresql::Database& db, const std::string& site, const st
     auto materials = Json::parse(r.get(0, 3));
     if (!visible(db, site, user, materials))
         throw Failure{ErrorCode::forbidden};
-    return {{"id", id},
-            {"number", r.get(0)},
-            {"assignee", r.get(0, 1)},
-            {"notes", r.get(0, 2)},
-            {"materials", materials},
-            {"revision", r.get(0, 4)}};
+    ExportCase result{id, r.get(0), r.get(0, 1), r.get(0, 2), r.get(0, 4), {}};
+    for (const auto& item : materials) {
+        const auto& interval = item.at("interval");
+        CaseMaterial material{
+            item.at("point_id"), item.at("hold_id"), {interval.at("start"), interval.at("end")}, {}};
+        for (const auto& mark : item.at("bookmarks"))
+            material.bookmarks.push_back({mark.at("at"), mark.at("name")});
+        result.materials.push_back(std::move(material));
+    }
+    return result;
 }
 void investigation(const Request& req, Response& res, const Sessions& sessions, const std::string& site,
                    const std::string& id)

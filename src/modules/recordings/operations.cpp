@@ -229,25 +229,30 @@ void await_verification(postgresql::Database& db, const std::string& site)
             {site});
 }
 
-Json indexed_blocks(postgresql::Database& db, const std::string& site, const std::string& point,
-                    std::int64_t begin, std::int64_t end, int limit)
+std::vector<IndexedBlock> indexed_blocks(postgresql::QuerySession& db, const std::string& site,
+                                         const std::string& point, std::int64_t begin, std::int64_t end, int limit)
 {
     auto rows = db.exec(
-        R"sql(SELECT b.block_id,b.begin_utc_us,b.end_utc_us,b.time_basis,b.uncertainty_us,b.binding_revision,i.samples
+        R"sql(SELECT b.begin_utc_us,b.end_utc_us,b.time_basis,b.binding_revision,b.uncertainty_us,i.samples
         FROM bacuri_archive.retained_blocks b LEFT JOIN bacuri_archive.motion_indexes i USING(site_id,block_id,recording_epoch_id,owner_generation)
         WHERE site_id=$1 AND point_id=$2 AND unavailable_reason IS NULL AND int8range(begin_utc_us,end_utc_us,'[)') && int8range($3,$4,'[)')
         ORDER BY begin_utc_us,block_id LIMIT $5)sql",
         {site, point, std::to_string(begin), std::to_string(end), std::to_string(limit)});
-    Json result = Json::array();
-    for (int i = 0; i < rows.size(); ++i)
-        result.push_back(
-            {{"id", rows.get(i)},
-             {"begin", std::stoll(rows.get(i, 1))},
-             {"end", std::stoll(rows.get(i, 2))},
-             {"basis", rows.get(i, 3)},
-             {"uncertainty", rows.get(i, 4).empty() ? Json(nullptr) : Json(std::stoll(rows.get(i, 4)))},
-             {"binding", rows.get(i, 5)},
-             {"index", rows.get(i, 6).empty() ? Json(nullptr) : Json::parse(rows.get(i, 6))}});
+    std::vector<IndexedBlock> result;
+    for (int i = 0; i < rows.size(); ++i) {
+        IndexedBlock block{
+            std::stoll(rows.get(i)), std::stoll(rows.get(i, 1)), rows.get(i, 2), rows.get(i, 3), {}, {}};
+        if (auto uncertainty = rows.get(i, 4); !uncertainty.empty())
+            block.uncertainty = std::stoll(uncertainty);
+        if (auto stored = rows.get(i, 5); !stored.empty()) {
+            const auto index = Json::parse(stored);
+            auto& motion = block.index.emplace();
+            index.at("frames").get_to(motion.frames);
+            for (const auto& sample : index.at("samples"))
+                motion.samples.push_back({sample.at("at"), sample.at("cells"), sample.at("image")});
+        }
+        result.push_back(std::move(block));
+    }
     return result;
 }
 } // namespace bacuri::vms::control::recordings

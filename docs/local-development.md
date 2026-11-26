@@ -25,6 +25,8 @@ For a full run, use a working copy with the full Git history. In the `task check
 | `task build:repro` | Compare the Release executables byte for byte with a clean build in a separate directory of the same image |
 | `task deps:lock` | Recompute the common Conan lockfile for all profiles after a dependency change |
 | `task test` | Build and run CTest. Supports `PRESET` |
+| `task module:test` | Build and run owner operation tests for the nine Core modules in a container without networking or PostgreSQL |
+| `task module:unit-coverage` | Measure line coverage for each of the nine modules from these tests alone. The report is written to `unit/modules.txt` in the result directory |
 | `task module:check MODULE=maps` | Build with Clang, check architecture and formatting, run GoogleTest and clang-tidy and enforce coverage for the selected module using GCC CTest and integration scenarios. Choose `access`, `events`, `export`, `inventory`, `investigations`, `maps`, `media_sessions`, `recordings` or `recovery` |
 | `task lint` | Check C++ by the rules of [.clang-tidy](../.clang-tidy) |
 | `task media:check:bookworm` | Check RTSP recording, WebRTC and alarm handling on the Debian Bookworm system libraries |

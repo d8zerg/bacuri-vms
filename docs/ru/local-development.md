@@ -25,6 +25,8 @@ task check
 | `task build:repro` | Побайтно сравнить исполняемые файлы Release с чистой сборкой в отдельном каталоге того же образа |
 | `task deps:lock` | Пересчитать общий Conan lockfile по всем профилям после изменения зависимостей |
 | `task test` | Собрать и запустить CTest. Поддерживает `PRESET` |
+| `task module:test` | Собрать и запустить тесты операций девяти модулей ядра в контейнере без сети и PostgreSQL |
+| `task module:unit-coverage` | Измерить покрытие строк каждого из девяти модулей только этими тестами. Отчёт записывается в `unit/modules.txt` каталога результата |
 | `task module:check MODULE=maps` | Сборка Clang, архитектурные границы, форматирование, GoogleTest, clang-tidy и покрытие выбранного модуля по CTest и интеграционным сценариям GCC. Доступны `access`, `events`, `export`, `inventory`, `investigations`, `maps`, `media_sessions`, `recordings` и `recovery` |
 | `task lint` | Проверить C++ по правилам из [.clang-tidy](../../.clang-tidy) |
 | `task media:check:bookworm` | Проверить запись RTSP, WebRTC и работу с тревогами на системных библиотеках Debian Bookworm |

@@ -69,6 +69,18 @@ void backup_configuration(std::ostream& output)
     }
 }
 
+bool requires_restore(nlohmann::json existing, const nlohmann::json& backup)
+{
+    if (std::ranges::all_of(existing, [](const auto& rows) { return rows.empty(); }))
+        return true;
+    // Replaying a backup preserves audit entries and policy revisions recorded since the backup.
+    for (const auto* field : {"credential_audit", "access_audit", "policy_versions"})
+        existing[field] = backup.at(field);
+    if (existing != backup)
+        throw std::runtime_error("Restore requires a clean database or an identical inventory");
+    return false;
+}
+
 void restore_configuration(std::istream& input)
 {
     const auto site = setting("BACURI_SITE_ID");
@@ -106,16 +118,7 @@ void restore_configuration(std::istream& input)
     postgresql::Database db;
     db.exec("BEGIN ISOLATION LEVEL SERIALIZABLE; SET LOCAL TIME ZONE 'UTC'");
     db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,1))", {site});
-    const auto existing = snapshot(db);
-    if (std::ranges::any_of(existing, [](const Json& rows) { return !rows.empty(); })) {
-        auto configuration = existing;
-        // Preserve newer audit entries and policy revisions on an already configured site.
-        for (const auto* field : {"credential_audit", "access_audit", "policy_versions"})
-            configuration[field] = data.at(field);
-        if (configuration != data) {
-            throw std::runtime_error("Restore requires a clean database or an identical inventory");
-        }
-    } else {
+    if (requires_restore(snapshot(db), data)) {
         db.exec("SET LOCAL bacuri.restoring='yes'");
         postgresql::ConfigurationSnapshot archive{db, data};
         visit_configuration(archive);

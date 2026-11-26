@@ -4,7 +4,7 @@
 
 namespace bacuri::vms::control::inventory
 {
-std::map<std::string, std::int64_t> recording_bindings(postgresql::Database& db, const std::string& site)
+std::map<std::string, std::int64_t> recording_bindings(postgresql::QuerySession& db, const std::string& site)
 {
     auto rows = db.exec("SELECT point_id,max(binding_revision) FROM bacuri_inventory.point_bindings WHERE "
                         "site_id=$1 GROUP BY point_id",

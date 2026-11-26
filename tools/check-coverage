@@ -4,16 +4,36 @@ set -euo pipefail
 module=${1:-}
 report=$(sh tools/quality-report-dir coverage)
 printf 'Coverage report: %s\n' "$report"
-mkdir -p "$report/cpp"
 run=(docker compose run --rm --no-deps -T --user "$(id -u):$(id -g)")
 # GCC writes counters next to object files. Isolate each measurement from prior runs.
-exec 9>build/.coverage.lock
+preset=gcc-coverage
+lock=build/.coverage.lock
+targets=()
+if [[ "$module" == --units ]]; then
+    preset=gcc-unit-coverage
+    lock=build/.unit-coverage.lock
+    targets=(--target core-module-tests)
+fi
+exec 9>"$lock"
 flock 9
+"${run[@]}" -e BUILD_JOBS builder sh tools/build-preset "$preset" "${targets[@]}"
+# Discover tests before resetting counters so discovery cannot contribute to the unit report.
+"${run[@]}" -e GCOV_PREFIX=/tmp/bacuri-tests/discovery builder ctest --preset "$preset" -N -L core-modules >/dev/null
+"${run[@]}" builder python3 tools/reset-coverage.py "$preset"
+"${run[@]}" builder ctest --preset "$preset" -L core-modules --no-tests=error
+mkdir -p "$report/unit"
+"${run[@]}" quality gcovr --gcov-executable gcov-14 --filter 'src/modules/' --filter 'src/application/(export|recovery)/' \
+    -j 2 --json-summary "$report/unit/summary.json" \
+    "build/$preset/src/modules" "build/$preset/src/application/export" "build/$preset/src/application/recovery"
+"${run[@]}" quality python3 tools/check-coverage-summary.py "$report" --units | tee "$report/unit/modules.txt"
+if [[ "$module" == --units ]]; then
+    exit 0
+fi
+
+mkdir -p "$report/cpp"
 docker compose up -d --wait playback-chrome playback-firefox
 trap 'docker compose stop playback-chrome playback-firefox' EXIT
-"${run[@]}" builder sh tools/build-preset gcc-coverage
-"${run[@]}" builder python3 tools/reset-coverage.py
-"${run[@]}" builder ctest --preset gcc-coverage
+"${run[@]}" builder ctest --preset gcc-coverage -LE core-modules
 "${run[@]}" dev python3 tests/ingest/relay.py build/gcc-coverage/bacuri-vms-rtsp-test rtsp-camera
 for scenario in control archive playback live alerts; do
     "${run[@]}" dev sh tests/check-control.sh gcc-coverage "$scenario"

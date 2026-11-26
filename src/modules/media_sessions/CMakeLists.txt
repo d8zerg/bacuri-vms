@@ -16,7 +16,3 @@ target_link_libraries(bacuri-vms-media-sessions PRIVATE bacuri-vms-configuration
 add_core_module_checks(bacuri-vms-media-sessions
     TESTS layouts.cpp
     ARCHIVES bacuri-vms-media-session-store)
-
-if(BUILD_TESTING)
-    target_link_libraries(bacuri-vms-media-sessions-test PRIVATE GTest::gmock)
-endif()

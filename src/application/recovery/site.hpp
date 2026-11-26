@@ -2,6 +2,7 @@
 #include <nlohmann/json.hpp>
 namespace bacuri::vms::control
 {
+bool requires_restore(nlohmann::json existing, const nlohmann::json& backup);
 inline void require_single_site(const nlohmann::json& data, const std::string& site)
 {
     const auto& sites = data.at("sites");

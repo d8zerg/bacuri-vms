@@ -9,7 +9,8 @@
 namespace bacuri::vms::postgresql
 {
 class Database;
-}
+class QuerySession;
+} // namespace bacuri::vms::postgresql
 
 namespace bacuri::vms::control
 {
@@ -23,7 +24,7 @@ struct ArchiveAnchor {
     std::int64_t time;
     std::string uncertainty;
 };
-std::optional<ArchiveAnchor> archive_anchor(postgresql::Database&, const std::string& site,
+std::optional<ArchiveAnchor> archive_anchor(postgresql::QuerySession&, const std::string& site,
                                             const std::string& alert);
 void record_camera_control(postgresql::Database&, const std::string& site, const std::string& point,
                            const std::string& user, const std::string& outcome, const std::string& command,

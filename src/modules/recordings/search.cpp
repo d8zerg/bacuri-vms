@@ -80,22 +80,22 @@ void search_index(const Request& req, Response& res, const Sessions& sessions, c
         auto blocks = indexed_blocks(db, site, point, span.start, span.end, 17);
         auto horizon = span.end;
         for (const auto& b : blocks) {
-            const auto base = b.at("begin").get<std::int64_t>(), end = b.at("end").get<std::int64_t>();
+            const auto base = b.begin, end = b.end;
             if (row["coverage"].size() >= 16 || row["hits"].size() >= 48 || row["frames"].size() >= 4096) {
                 horizon = std::max(base, span.start);
                 break;
             }
             auto first = std::max(base, span.start), last = std::min(end, horizon);
-            const auto& index = b.at("index");
-            if (!index.is_null()) {
-                for (const auto& sample : index.at("samples")) {
-                    const auto at = base + sample.at("at").get<std::int64_t>();
+            const auto& index = b.index;
+            if (index) {
+                for (const auto& sample : index->samples) {
+                    const auto at = base + sample.offset;
                     if (at < first || at >= last)
                         continue;
                     if (!event.empty() &&
                         std::ranges::none_of(anchors, [&](auto anchor) { return std::abs(at - anchor) < 250000; }))
                         continue;
-                    auto measured = archive::measure_motion(sample.at("cells"), threshold, roi, masks);
+                    auto measured = archive::measure_motion(sample.cells, threshold, roi, masks);
                     if (motion && measured.cells < minimum)
                         continue;
                     if (row["hits"].size() == 48) {
@@ -104,20 +104,21 @@ void search_index(const Request& req, Response& res, const Sessions& sessions, c
                     }
                     row["hits"].push_back({{"at", ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(at))},
                                            {"cells", measured.cells},
-                                           {"preview", archive::mask_preview(sample.at("image"), masks)}});
+                                           {"preview", archive::mask_preview(sample.image, masks)}});
                 }
-                for (const auto& frame : index.at("frames")) {
-                    const auto at = base + frame.get<std::int64_t>();
+                for (const auto& frame : index->frames) {
+                    const auto at = base + frame;
                     if (at >= first && at < last)
                         row["frames"].push_back(ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(at)));
                 }
             }
             if (last > first)
-                row["coverage"].push_back({{"interval", Window{first, last}.json()},
-                                           {"indexed", !index.is_null()},
-                                           {"basis", b.at("basis")},
-                                           {"uncertainty_us", b.at("uncertainty")},
-                                           {"binding_revision", b.at("binding")}});
+                row["coverage"].push_back(
+                    {{"interval", Window{first, last}.json()},
+                     {"indexed", index.has_value()},
+                     {"basis", b.basis},
+                     {"uncertainty_us", b.uncertainty ? Json(*b.uncertainty) : Json(nullptr)},
+                     {"binding_revision", b.binding}});
             if (horizon != span.end)
                 break;
         }

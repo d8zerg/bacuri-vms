@@ -61,7 +61,7 @@ Sessions::Sessions(Key key, std::string origin)
 {
 }
 
-Identity Sessions::authenticate(postgresql::Database& db, const Request& request, bool mutation,
+Identity Sessions::authenticate(postgresql::QuerySession& db, const Request& request, bool mutation,
                                 bool activity) const
 {
     auto value = cookie(request);

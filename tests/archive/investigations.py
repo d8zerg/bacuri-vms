@@ -480,7 +480,10 @@ def run():
         clip = next(p for p in manifest["periods"] if p["state"] == "recorded")
         assert clip["codec"] == "h265" and (root / clip["file"]).read_bytes() == original
         case_root, case_manifest = verify("original", True)
-        assert len(case_manifest["parts"]) == 2 and case_manifest["case"]["number"] == "LOADING-1"
+        assert len(case_manifest["parts"]) == 2
+        assert case_manifest["case"] == {
+            field: transferred[field] for field in ("id", "number", "assignee", "notes", "revision", "materials")
+        }
         with wave.open(str(root / clip["audio"]["file"])) as wav:
             assert wav.getframerate() == 8000 and wav.readframes(8000) == pcm[3200:12800]
         stopped = playback.slow_reader(

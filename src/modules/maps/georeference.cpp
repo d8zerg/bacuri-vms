@@ -105,7 +105,7 @@ void lock_geography(postgresql::Database& db, const std::string& site)
 {
     db.exec("SELECT pg_advisory_xact_lock(hashtextextended('bacuri_maps.geography:' || $1,0))", {site});
 }
-Json georeference(postgresql::Database& db, const Request& req, const std::string& site, bool save)
+Json georeference(postgresql::QuerySession& db, const Request& req, const std::string& site, bool save)
 {
     auto body = object_body(req, {"plan_id", "definition", "token", "choices"});
     const auto id = string_field(body, "plan_id", 36);

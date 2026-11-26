@@ -22,5 +22,5 @@ class PlanTransform
     double x_, y_, right_east_, up_east_, longitude_, latitude_, mercator_y_;
 };
 void lock_geography(postgresql::Database&, const std::string& site);
-Json georeference(postgresql::Database&, const Request&, const std::string& site, bool save);
+Json georeference(postgresql::QuerySession&, const Request&, const std::string& site, bool save);
 } // namespace bacuri::vms::control::maps_geo

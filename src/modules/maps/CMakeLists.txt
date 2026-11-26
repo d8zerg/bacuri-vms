@@ -15,5 +15,5 @@ target_link_libraries(bacuri-vms-maps PUBLIC bacuri-vms-access bacuri-vms-map-pl
 target_link_libraries(bacuri-vms-maps PRIVATE bacuri-vms-configuration-snapshot)
 
 add_core_module_checks(bacuri-vms-maps
-    TESTS georeference.cpp
+    TESTS georeference.cpp placements.cpp
     ARCHIVES bacuri-vms-map-placements)

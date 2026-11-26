@@ -30,5 +30,5 @@ target_link_libraries(bacuri-vms-inventory PUBLIC bacuri-vms-access bacuri-vms-i
 target_link_libraries(bacuri-vms-inventory PRIVATE bacuri-vms-configuration-snapshot)
 
 add_core_module_checks(bacuri-vms-inventory
-    TESTS device.cpp
+    TESTS device.cpp bindings.cpp
     ARCHIVES bacuri-vms-inventory-operations bacuri-vms-onvif)

@@ -33,17 +33,24 @@ class Rows
 
 std::string array_parameter(const std::vector<std::string>& elements);
 
+class QuerySession
+{
+  public:
+    virtual ~QuerySession() = default;
+    virtual Rows exec(const char* query, std::initializer_list<std::string> arguments = {}) = 0;
+};
+
 // One logical database session. Connections are reused through a process-wide pool: releasing a
 // session rolls back a transaction that did not reach COMMIT and resets session state, including
 // session advisory locks and listeners, as closing the connection would.
-class Database
+class Database final : public QuerySession
 {
   public:
     Database();
-    ~Database();
+    ~Database() override;
     Database(const Database&) = delete;
     Database& operator=(const Database&) = delete;
-    Rows exec(const char* query, std::initializer_list<std::string> arguments = {});
+    Rows exec(const char* query, std::initializer_list<std::string> arguments = {}) override;
 
     using Connection = std::unique_ptr<PGconn, decltype(&PQfinish)>;
 

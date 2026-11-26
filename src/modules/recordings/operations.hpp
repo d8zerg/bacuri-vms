@@ -3,7 +3,6 @@
 #include "archive/manifest.hpp"
 #include "modules/recordings/status.hpp"
 
-#include <nlohmann/json_fwd.hpp>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -13,7 +12,8 @@
 namespace bacuri::vms::postgresql
 {
 class Database;
-}
+class QuerySession;
+} // namespace bacuri::vms::postgresql
 
 namespace bacuri::vms::control::recordings
 {
@@ -81,6 +81,21 @@ void set_retention(postgresql::Database& db, const std::string& site, int days, 
 
 void await_verification(postgresql::Database& db, const std::string& site);
 
-nlohmann::json indexed_blocks(postgresql::Database&, const std::string& site, const std::string& point,
-                              std::int64_t begin, std::int64_t end, int limit);
+struct MotionSample {
+    std::int64_t offset;
+    std::string cells, image;
+};
+struct MotionIndex {
+    std::vector<std::int64_t> frames;
+    std::vector<MotionSample> samples;
+};
+struct IndexedBlock {
+    std::int64_t begin, end;
+    std::string basis, binding;
+    std::optional<std::int64_t> uncertainty;
+    std::optional<MotionIndex> index;
+};
+std::vector<IndexedBlock> indexed_blocks(postgresql::QuerySession&, const std::string& site,
+                                         const std::string& point, std::int64_t begin, std::int64_t end,
+                                         int limit);
 } // namespace bacuri::vms::control::recordings

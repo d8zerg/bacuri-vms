@@ -9,7 +9,8 @@
 namespace bacuri::vms::postgresql
 {
 class Database;
-}
+class QuerySession;
+} // namespace bacuri::vms::postgresql
 
 namespace bacuri::vms::control::access
 {
@@ -17,14 +18,14 @@ std::map<std::string, std::vector<std::string>> group_memberships(postgresql::Da
 void lock_policy(postgresql::Database&, const std::string& site, bool shared = false);
 std::string scope_revision(postgresql::Database&, const std::string& site);
 enum class RoleLock { read, shared };
-std::string site_role(postgresql::Database&, const std::string& site, const std::string& user, RoleLock);
+std::string site_role(postgresql::QuerySession&, const std::string& site, const std::string& user, RoleLock);
 bool lock_point_grant(postgresql::Database&, const std::string& site, const std::string& point,
                       const std::string& user);
 std::string role_for_existing_point(postgresql::Database&, const std::string& site, const std::string& point,
                                     const std::string& user);
-std::string delivery_regions(postgresql::Database&, const std::string& site, const std::string& point,
+std::string delivery_regions(postgresql::QuerySession&, const std::string& site, const std::string& point,
                              const std::string& surface);
-bool allowed(postgresql::Database&, const std::string& site, const std::string& user, const std::string& point,
+bool allowed(postgresql::QuerySession&, const std::string& site, const std::string& user, const std::string& point,
              const std::string& action, const std::string& surface = {}, const std::string& begin = {},
              const std::string& end = {});
 std::vector<std::string> granted_point_ids(postgresql::Database&, const std::string& site, const std::string& user,
@@ -35,8 +36,8 @@ std::map<std::string, std::string> investigation_assignees(postgresql::Database&
                                                            const std::string& spans);
 std::string display_name(postgresql::Database&, const std::string& user);
 std::string browser_expiry(postgresql::Database&, const std::string& browser);
-std::string export_regions(postgresql::Database&, const std::string& site, const std::string& point);
-std::string export_permission(postgresql::Database&, const std::string& site, const std::string& point,
+std::string export_regions(postgresql::QuerySession&, const std::string& site, const std::string& point);
+std::string export_permission(postgresql::QuerySession&, const std::string& site, const std::string& point,
                               const std::string& user, const std::string& begin, const std::string& end,
                               bool derivative = false);
 struct ExportLease {

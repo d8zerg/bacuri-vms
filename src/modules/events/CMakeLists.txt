@@ -10,7 +10,7 @@ target_link_libraries(bacuri-vms-events PUBLIC bacuri-vms-control-api bacuri-vms
     PRIVATE bacuri-vms-recording-plan bacuri-vms-access bacuri-vms-analysis bacuri-vms-inventory-operations bacuri-vms-recording-catalog bacuri-vms-volume)
 
 add_core_module_checks(bacuri-vms-events
-    TESTS alert_workflow.cpp
+    TESTS alert_workflow.cpp archive_anchor.cpp
     ARCHIVES bacuri-vms-event-journal)
 
 if(BUILD_TESTING)

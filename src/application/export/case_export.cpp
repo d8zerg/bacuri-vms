@@ -6,6 +6,28 @@
 
 namespace bacuri::vms::control
 {
+namespace
+{
+Json interval_json(const investigations::CaseInterval& interval)
+{
+    return {{"start", interval.start}, {"end", interval.end}};
+}
+Json manifest_case(const investigations::ExportCase& file)
+{
+    Json materials = Json::array();
+    for (const auto& item : file.materials) {
+        Json bookmarks = Json::array();
+        for (const auto& mark : item.bookmarks)
+            bookmarks.push_back({{"at", mark.at}, {"name", mark.name}});
+        materials.push_back({{"point_id", item.point_id},
+                             {"hold_id", item.hold_id},
+                             {"interval", interval_json(item.interval)},
+                             {"bookmarks", std::move(bookmarks)}});
+    }
+    return {{"id", file.id},       {"number", file.number},     {"assignee", file.assignee},
+            {"notes", file.notes}, {"revision", file.revision}, {"materials", std::move(materials)}};
+}
+} // namespace
 void export_case(const Request& req, Response& res, const Sessions& sessions, const Key& key,
                  const std::string& site, const std::string& id)
 {
@@ -18,7 +40,7 @@ void export_case(const Request& req, Response& res, const Sessions& sessions, co
     if (mode != "original" && mode != "derivative")
         throw Failure{ErrorCode::invalid_request};
     auto file = investigations::case_for_export(auth, site, id, who.user);
-    if (file.at("revision") != revision)
+    if (file.revision != revision)
         throw Failure{ErrorCode::revision_conflict};
     auto capacity = std::make_shared<ExportSlot>();
     auto stream = std::make_shared<ExportBody>(capacity);
@@ -29,31 +51,30 @@ void export_case(const Request& req, Response& res, const Sessions& sessions, co
     std::vector<std::string> paths;
     std::uintmax_t bytes = 0;
     auto manifest = Json{{"format", "bacuri.vms.case.v1"},
-                         {"case", file},
+                         {"case", manifest_case(file)},
                          {"export_id", archive::uuid()},
                          {"site_id", site},
                          {"reason", reason},
                          {"mode", mode},
                          {"parts", Json::array()}};
-    for (const auto& item : file.at("materials")) {
+    for (const auto& item : file.materials) {
         auto name = "material-" + std::to_string(paths.size() + 1);
         Request inner = req;
-        options["interval"] = item.at("interval");
+        options["interval"] = interval_json(item.interval);
         inner.body() = options.dump();
         inner.prepare_payload();
         Response part;
-        grants.push_back(
-            prepare_fragment(inner, part, sessions, key, site, item.at("point_id"), capacity, dir / name));
+        grants.push_back(prepare_fragment(inner, part, sessions, key, site, item.point_id, capacity, dir / name));
         for (const auto& entry : fs::directory_iterator(dir / name)) {
             bytes += entry.file_size();
             if (bytes > archive::evidence_limit)
                 throw Failure{ErrorCode::export_too_large};
         }
-        auto bounds = window(item.at("interval"));
+        const Window bounds{parse_utc(item.interval.start), parse_utc(item.interval.end)};
         manifest["parts"].push_back(
             {{"directory", name},
              {"manifest_sha256", archive::file_digest(dir / name / "manifest.json").sha256},
-             {"point_id", item.at("point_id")},
+             {"point_id", item.point_id},
              {"begin_utc_us", bounds.start},
              {"end_utc_us", bounds.end}});
         paths.push_back(std::move(name));
@@ -65,7 +86,7 @@ void export_case(const Request& req, Response& res, const Sessions& sessions, co
     pack(stream->root, paths);
     stream->group_lease = [grants = std::move(grants), site, id, user = who.user, revision] {
         postgresql::Database db;
-        if (investigations::case_for_export(db, site, id, user).at("revision") != revision)
+        if (investigations::case_for_export(db, site, id, user).revision != revision)
             throw Failure{ErrorCode::forbidden};
         auto deadline = std::chrono::steady_clock::time_point::max();
         for (const auto& grant : grants)
@@ -77,10 +98,11 @@ void export_case(const Request& req, Response& res, const Sessions& sessions, co
     stream->input.open(tar, std::ios::binary);
     if (!stream->input)
         throw Failure{ErrorCode::media_service_unavailable};
-    for (const auto& item : file.at("materials"))
+    for (const auto& item : file.materials)
         events::record_export(
-            auth, site, item.at("point_id"), who.user, "", "applied", reason,
-            Json{{"case", id}, {"revision", revision}, {"mode", mode}, {"interval", item.at("interval")}}.dump());
+            auth, site, item.point_id, who.user, "", "applied", reason,
+            Json{{"case", id}, {"revision", revision}, {"mode", mode}, {"interval", interval_json(item.interval)}}
+                .dump());
     res.result(http::status::ok);
     res.set(http::field::content_type, "application/x-tar");
     res.set(http::field::content_disposition, "attachment; filename=\"bacuri-case-" + id + ".tar\"");

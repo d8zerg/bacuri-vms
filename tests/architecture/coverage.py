@@ -59,3 +59,17 @@ with TemporaryDirectory() as temp:
     assert not passed("storage/sqlite")
     entries.append({"filename": "src/storage/sqlite/sqlite.hpp", "line_covered": minimum, "line_total": 100})
     assert passed("storage/sqlite")
+
+    unit_report = fixture / "unit"
+    unit_report.mkdir()
+    unit_files = []
+    for entry in names + ["src/application/export/package.cpp", "src/application/recovery/restore.cpp"]:
+        source = fixture / entry
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.touch()
+        unit_files.append({"filename": entry, "line_total": 50, "line_covered": 0})
+    (unit_report / "summary.json").write_text(json.dumps({"files": unit_files}))
+    assert summary.main(fixture, "--units")
+    unit_files.pop()
+    (unit_report / "summary.json").write_text(json.dumps({"files": unit_files}))
+    assert not summary.main(fixture, "--units")

@@ -39,6 +39,18 @@ tasks:
       {{.COMPOSE_RUN}} -T {{if .JOBS}}-e JOBS={{.JOBS | shellQuote}}{{end}} builder
       sh tools/check-cpp lint build/clang-debug '^/workspace/(src|tests)/'
 
+  module:test:
+    desc: Build and run the Core module unit tests without the stand
+    deps: [dev:image]
+    cmds:
+      - '{{.BUILD_RUN}} sh tools/build-preset gcc-debug --target core-module-tests'
+      - '{{.BUILD_RUN}} flock build/gcc-debug/.build.lock ctest --preset gcc-debug -L core-modules --no-tests=error'
+
+  module:unit-coverage:
+    desc: Measure Core module line coverage from the unit tests alone
+    deps: [dev:image, quality:image]
+    cmd: bash tools/check-coverage --units
+
   module:check:
     desc: Check a module with Clang and enforce measured module coverage
     deps: [quality:image, dev:image, stand:up, web:build]

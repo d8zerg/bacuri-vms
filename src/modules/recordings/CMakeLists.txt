@@ -23,5 +23,5 @@ target_link_libraries(bacuri-vms-recordings PUBLIC bacuri-vms-recording-catalog 
 target_link_libraries(bacuri-vms-recordings PRIVATE bacuri-vms-configuration-snapshot)
 
 add_core_module_checks(bacuri-vms-recordings
-    TESTS recording_status.cpp
+    TESTS recording_status.cpp indexed_blocks.cpp
     ARCHIVES bacuri-vms-recording-catalog bacuri-vms-archive-recovery)
