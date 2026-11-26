@@ -1,7 +1,7 @@
 #include "archive/writer.hpp"
 #include "archive/fmp4.hpp"
 #include "observability/metrics.hpp"
-#include "recorder/replay.hpp"
+#include "ingest/replay.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cstdio>

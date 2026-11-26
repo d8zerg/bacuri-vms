@@ -3,7 +3,11 @@ import { existsSync, globSync, readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { coverageReport, assertCoverage } from "./coverage.mjs";
+import { serviceAdapterCoverage } from "./service-adapters.mjs";
+import { speechCaptureCoverage } from "./speech-capture.mjs";
 const report = coverageReport(true);
+await report.add(await speechCaptureCoverage());
+await report.add(await serviceAdapterCoverage());
 const runs = globSync("/results/chrome/*.json");
 assert.ok(runs.length, "Missing real Chrome executions");
 for (const file of runs) {

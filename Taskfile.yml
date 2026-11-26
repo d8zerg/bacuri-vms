@@ -32,18 +32,25 @@ tasks:
 
   lint:
     desc: Run clang-tidy on the C++ sources
-    vars:
-      # Analysis is CPU bound, so it uses every core unless JOBS is set.
-      JOBS: {sh: nproc}
     deps:
       - task: build
         vars: {PRESET: clang-debug}
     cmd: >-
-      {{.BUILD_RUN}} run-clang-tidy-19 -p build/clang-debug
-      -clang-tidy-binary=/usr/bin/clang-tidy-19 -quiet -j {{.JOBS}}
-      -clang-apply-replacements-binary=/usr/bin/clang-apply-replacements-19
-      -config-file=/workspace/.clang-tidy
-      '^/workspace/(src|tests)/'
+      {{.COMPOSE_RUN}} -T {{if .JOBS}}-e JOBS={{.JOBS | shellQuote}}{{end}} builder
+      sh tools/check-cpp lint build/clang-debug '^/workspace/(src|tests)/'
+
+  module:check:
+    desc: Check a Core module with Clang and enforce measured module coverage
+    deps: [quality:image, dev:image, stand:up, web:build]
+    requires:
+      vars:
+        - name: MODULE
+          enum: [access, events, export, inventory, investigations, maps, media_sessions, recordings, recovery]
+    cmds:
+      - >-
+        {{.COMPOSE_RUN}} -T {{if .JOBS}}-e JOBS={{.JOBS | shellQuote}} -e BUILD_JOBS={{.JOBS | shellQuote}}{{end}} quality
+        sh tools/build-preset clang-debug --target {{printf "check-%s" .MODULE | shellQuote}}
+      - bash tools/check-coverage {{.MODULE | shellQuote}}
 
   check:
     desc: Run functional and dependency quality gates
@@ -104,6 +111,7 @@ tasks:
         task: install:check
         vars: {SUITE: '{{.ITEM}}'}
       - task: coverage:check
+        vars: {WORKSPACE_CHECK: full}
 
   packages:build:
     desc: Export the maintained Debian packages, verified source inputs and Go utilities
@@ -145,17 +153,16 @@ tasks:
   format:check:
     desc: Check C++ sources and headers with clang-format
     deps: [quality:image]
-    cmd: >-
-      {{.COMPOSE_RUN}} -T quality find src tests -type f
-      \( -name '*.cpp' -o -name '*.hpp' -o -name '*.hpp.in' -o -name '*.h' -o -name '*.cc' -o -name '*.cxx' \)
-      -exec clang-format-19 --dry-run --Werror --style=file {} +
+    cmd: '{{.COMPOSE_RUN}} -T quality sh tools/check-cpp format src tests'
 
   coverage:check:
-    desc: Require 75 percent line coverage separately for C++, browser JavaScript and client TypeScript
-    deps: [quality:image, dev:image, stand:up, workspace:check]
+    desc: Require the project line coverage threshold for every product module and CMake target
+    deps: [quality:image, dev:image, stand:up, web:build]
     cmds:
       - docker compose build api-types
       - bash tools/check-coverage
+      - task: workspace:check
+        vars: {WORKSPACE_CHECK: '{{.WORKSPACE_CHECK | default "coverage"}}'}
 
   check:report:
     desc: Run all checks and save the environment, log, and exit code
@@ -550,7 +557,7 @@ tasks:
       - stand:up
       - task: build
         vars: {PRESET: '{{.PRESET}}'}
-    cmd: bash tools/check-workspace {{.PRESET | shellQuote}}
+    cmd: bash tools/check-workspace {{.PRESET | shellQuote}} {{.WORKSPACE_CHECK | default "full" | shellQuote}}
 
   ui-kit:check:
     deps: [api:types]

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+mode=${2:-full}
+case "$mode" in full|coverage) ;; *) echo "Unknown workspace check: $mode" >&2; exit 2 ;; esac
 report=$(sh tools/quality-report-dir workspace)
 export BACURI_UI_RESULTS="$PWD/$report"
 echo "Workspace evidence: $report"
@@ -14,3 +16,6 @@ trap 'docker compose stop playback-chrome playback-firefox' EXIT
 "${run[@]}" -e "BACURI_WORKSPACE_RESULTS=/workspace/$report" dev sh tests/check-control.sh "$1" policies
 "${run[@]}" -e "BACURI_WORKSPACE_RESULTS=/workspace/$report" dev sh tests/check-control.sh "$1" investigations
 "${run[@]}" -v "$PWD/build/web-client:/results/client:ro" ui-kit-check node tests/workspace-coverage.mjs
+if [[ "$mode" == full ]]; then
+    "${run[@]}" builder python3 tests/workspace/performance.py "$report/performance.json"
+fi

@@ -89,7 +89,9 @@ psql -Xq -v ON_ERROR_STOP=1 --dbname "$database" -f storage/postgresql/migration
 set -- -f tests/schema/module-schemas.sql -f tests/schema/map-packages.sql
 for migration in storage/postgresql/migrations/*.sql; do
     name=${migration##*/}
-    if [ "${name%%_*}" -gt 17 ]; then
+    if [ "$name" = 0031_investigation_owner.sql ]; then
+        set -- "$@" -f tests/schema/investigation-owner.sql
+    elif [ "${name%%_*}" -gt 17 ]; then
         set -- "$@" -f "$migration"
     fi
 done

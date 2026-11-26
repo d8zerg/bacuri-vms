@@ -1,8 +1,7 @@
 #pragma once
 #include "archive/recording_policy.hpp"
 #include <map>
-#include <set>
-#include "storage/sqlite.hpp"
+#include "storage/sqlite/sqlite.hpp"
 #include <optional>
 #include <functional>
 #include <mutex>
@@ -91,16 +90,6 @@ class Volume
     }
     void reclaim_authorized();
     bool scrub_copy();
-    void set_detectors(std::set<std::string> value)
-    {
-        std::scoped_lock lock{plan_mutex_};
-        detectors_ = std::move(value);
-    }
-    bool detector_enabled(const std::string& point)
-    {
-        std::scoped_lock lock{plan_mutex_};
-        return detectors_.contains(point);
-    }
     std::int64_t retired_through();
     void confirm_inventory();
     void visit_gaps(const std::function<void(const Gap&)>& visit);
@@ -141,7 +130,6 @@ class Volume
     Identity identity_;
     mutable std::mutex mutex_;
     std::mutex plan_mutex_, replica_mutex_;
-    std::set<std::string> detectors_;
     std::string plan_payload_;
     std::map<std::string, std::shared_ptr<const CaptureRule>> recording_rules_;
     std::optional<std::pair<std::string, Json>> published_;

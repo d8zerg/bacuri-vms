@@ -106,7 +106,7 @@ def main():
                     result = evidence / (gate + ".exit-code")
                     state["checks"][gate] = int(result.read_text()) if result.is_file() else 1
                 required = [
-                    "release-sha256.txt", "coverage/cpp/summary.json", "coverage/web/coverage-summary.json",
+                    "release-sha256.txt", "coverage/cpp/summary.json", "coverage/cpp/modules.txt",
                     "workspace/performance.json", "workspace/tests.json", "workspace/coverage/coverage-report.json",
                     *[f"workspace/{browser}-{role}.png" for browser in ("chrome", "firefox")
                       for role in ("installer", "operator")],

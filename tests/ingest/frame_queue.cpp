@@ -1,5 +1,5 @@
-#include "recorder/ingest.hpp"
-#include "recorder/frame_clock.hpp"
+#include "ingest/ingest.hpp"
+#include "ingest/frame_clock.hpp"
 
 #include <gmock/gmock.h>
 

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { chromium, expect, firefox } from "playwright/test";
 
 const origin = "https://workspace.test";
@@ -16,6 +18,8 @@ async function checkStartup(
   page.on("pageerror", (error) => errors.push(error.message));
   let scripts, session;
   try {
+    if (browser.browserType() === chromium)
+      await page.coverage.startJSCoverage({ resetOnNavigation: false });
     await page.route(origin + "/**", async (route) => {
       const { pathname } = new URL(route.request().url());
       if (pathname === "/seed")
@@ -123,6 +127,17 @@ async function checkStartup(
       ]);
     }
     assert.deepEqual(errors, []);
+    if (browser.browserType() === chromium) {
+      const scripts = (await page.coverage.stopJSCoverage())
+        .filter((script) => script.url.startsWith(origin + "/assets/"))
+        .map(({ url, functions }) => ({ url, functions }));
+      assert.ok(scripts.some(({ url }) => url.endsWith("/initial-theme.js")));
+      mkdirSync("/results/chrome", { recursive: true });
+      writeFileSync(
+        `/results/chrome/${randomUUID()}.json`,
+        JSON.stringify(scripts),
+      );
+    }
   } finally {
     scripts?.resolve();
     session?.resolve();

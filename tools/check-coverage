@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+module=${1:-}
 report=$(sh tools/quality-report-dir coverage)
 printf 'Coverage report: %s\n' "$report"
 mkdir -p "$report/cpp"
@@ -29,13 +30,20 @@ done
 "${run[@]}" -e "BACURI_WORKSPACE_RESULTS=/workspace/$report/investigations" \
     dev sh tests/check-control.sh gcc-coverage hold-capacity
 
+mkdir -p "$report/maps"
+bash tests/workspace/isolated.sh gcc-coverage "$report/maps" maps
+
 mkdir -p "$report/export"
 bash tests/workspace/isolated.sh gcc-coverage "$report/export" export
 "${run[@]}" builder python3 tests/archive/verify_export.py gcc-coverage "$report/export"
 bash tests/access/isolated.sh gcc-coverage
 python3 tools/check-recovery gcc-coverage
 
+if [[ -z "$module" ]]; then
+    bash tools/check-admin-coverage "$report/admin"
+fi
+
 "${run[@]}" quality gcovr --gcov-executable gcov-14 --filter 'src/' -j 2 \
     --txt --json-summary "$report/cpp/summary.json" --html-details "$report/cpp/index.html" \
     build/gcc-coverage
-"${run[@]}" quality python3 tools/check-coverage-summary.py "$report"
+"${run[@]}" quality python3 tools/check-coverage-summary.py "$report" "$module" | tee "$report/cpp/modules.txt"

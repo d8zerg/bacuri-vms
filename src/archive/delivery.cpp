@@ -102,7 +102,8 @@ void verify_blocks(const std::stop_token& stop, Volume& volume)
     }
 }
 
-void deliver_blocks(const std::stop_token& stop, Volume& volume, const std::string& socket)
+void deliver_blocks(const std::stop_token& stop, Volume& volume, const std::string& socket,
+                    const DetectorUpdate& update_detectors)
 {
     using namespace std::chrono_literals;
     auto catalog = v1::ArchiveCatalog::NewStub(
@@ -124,7 +125,7 @@ void deliver_blocks(const std::stop_token& stop, Volume& volume, const std::stri
                 query.set_recording_node_id(volume.owner().node);
                 v1::RetentionPolicy policy;
                 if (catalog->AdvanceRetention(&context, query, &policy).ok()) {
-                    volume.set_detectors({policy.detector_points().begin(), policy.detector_points().end()});
+                    update_detectors({policy.detector_points().begin(), policy.detector_points().end()});
                     volume.update_recording_plan(policy.has_recording_plan_json() ? policy.recording_plan_json()
                                                                                   : "{}");
                     if (!policy.retirement_suspended()) {

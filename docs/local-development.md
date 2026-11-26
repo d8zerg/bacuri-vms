@@ -12,7 +12,7 @@ task check
 
 The command builds the optimized services, checks the GCC and Clang Debug builds, runs CTest with ASan/UBSan and TSan, runs static analysis and checks the contracts and the TypeScript types. Then it starts the Compose stand, applies the storage schemas and checks recording, live video, the archive and alarms. CMake and Ninja run in a container without network. The results are kept in `build/`.
 
-For a full run, use a working copy with the full Git history. In the `task check:report` report, open `coverage/cpp/index.html` and `workspace/coverage/index.html` to see the uncovered lines. `secrets/` contains separate Gitleaks results for the history, the index and the working files. [Mandatory code checks](quality.md#automatic-code-checks)
+For a full run, use a working copy with the full Git history. In the `task check:report` report, open `coverage/cpp/index.html` and `workspace/coverage/index.html` to see the uncovered lines. `secrets/` contains separate Gitleaks results for the history, the index and the working files. [Mandatory code checks](quality.md#automatic-code-checks) The `coverage/cpp/modules.txt` report lists covered and total lines and the threshold result for each C++ module and target.
 
 | Command | Action |
 | --- | --- |
@@ -25,12 +25,13 @@ For a full run, use a working copy with the full Git history. In the `task check
 | `task build:repro` | Compare the Release executables byte for byte with a clean build in a separate directory of the same image |
 | `task deps:lock` | Recompute the common Conan lockfile for all profiles after a dependency change |
 | `task test` | Build and run CTest. Supports `PRESET` |
+| `task module:check MODULE=maps` | Build with Clang, check architecture and formatting, run GoogleTest and clang-tidy and enforce coverage for the selected module using GCC CTest and integration scenarios. Choose `access`, `events`, `export`, `inventory`, `investigations`, `maps`, `media_sessions`, `recordings` or `recovery` |
 | `task lint` | Check C++ by the rules of [.clang-tidy](../.clang-tidy) |
 | `task media:check:bookworm` | Check RTSP recording, WebRTC and alarm handling on the Debian Bookworm system libraries |
 | `task postgres:performance` | Compare the results and plans of the queries to the map queue, the camera placements and the archive before and after the migration. [Method and measurements](postgresql-performance.md) |
 | `task format:check` | Check the C++ format by `.clang-format`. A mismatch stops the check |
 | `task secrets:check` | Run Gitleaks on the full Git history, the index and the working files, including new files outside the ignore rules |
-| `task coverage:check` | Run CTest and the integration scenarios. C++, the JavaScript of the work routes and the TypeScript of the UI Kit need at least 75% of lines in each report |
+| `task coverage:check` | Require at least 75% line coverage for each C++ module, production CMake target and web client module. Installation and recovery coverage requires KVM |
 | `task control:up` | Start the core, recording and delivery of the archive and live video, apply the PostgreSQL migrations |
 | `task live:check` | Check WebRTC in Chrome and Firefox, recording while a client slows down and delivery restarts, and the access revocation deadlines |
 | `task recovery:check` | Measure the recovery of permissions, recording and the archive on an isolated stand with stopped services and media failures. [Guide](recovery.md) |
@@ -54,6 +55,8 @@ For a full run, use a working copy with the full Git history. In the `task check
 | `task stand:logs` | Show the latest PostgreSQL and camera logs |
 | `task stand:down` | Stop the stand and keep the persistent volumes |
 | `task shell` | Open a shell in the development container |
+
+Inside the development container, build the maps library alone with `sh tools/build-preset gcc-debug --target bacuri-vms-maps`. To run its tests, build the `bacuri-vms-maps-test` target the same way, then run `ctest --test-dir build/gcc-debug/src/modules/maps --output-on-failure --no-tests=error`.
 
 `task --list` lists the tasks. `task test PRESET=clang-tsan` runs CTest in a separate container without network. The container uses a test seccomp profile that allows the `personality` call with the `ADDR_NO_RANDOMIZE` flag for TSan initialization.
 

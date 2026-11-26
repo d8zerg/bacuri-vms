@@ -38,8 +38,7 @@ export function coverageReport(integrated = false) {
       path.replace(/^.*\/web\/client\/(src|public)\//, "$1/"),
     sourceFilter: (path) => inScope(path, integrated),
     all: {
-      // The page profiler cannot observe the audio worklet's separate JS context.
-      // Keep unobserved public scripts in the integrated line count.
+      // Count unloaded files as uncovered in the integrated report.
       dir: integrated ? ["src", "public/assets"] : "src",
       filter: {
         "**/*.d.ts": false,
@@ -65,10 +64,37 @@ export async function assertCoverage(report, integrated) {
     new Set(expected),
     "Coverage must account for every in-scope product source",
   );
-  const { covered, total } = result.summary.lines;
-  assert.ok(
-    total > 0 && covered * 100 >= 75 * total,
-    "Browser routes require 75% line coverage",
+  const minimum = JSON.parse(
+    readFileSync("../../tests/coverage-policy.json"),
+  ).minimum_line_percent;
+  const modules = new Map([["client", result.summary.lines]]);
+  for (const file of result.files) {
+    const [directory, area] = file.sourcePath.split("/");
+    const owner = dirname(file.sourcePath).slice("src/".length);
+    const name =
+      directory === "public"
+        ? "browser scripts"
+        : area === "main.tsx"
+          ? "app"
+          : integrated
+            ? owner
+            : area;
+    const counts = modules.get(name) ?? { covered: 0, total: 0 };
+    counts.covered += file.summary.lines.covered;
+    counts.total += file.summary.lines.total;
+    modules.set(name, counts);
+  }
+  const failed = [];
+  for (const [name, { covered, total }] of modules) {
+    console.log(
+      `Coverage for ${name}: ${covered}/${total} lines (${((100 * covered) / total).toFixed(2)}%)`,
+    );
+    if (total === 0 || covered * 100 < minimum * total) failed.push(name);
+  }
+  assert.equal(
+    failed.length,
+    0,
+    `Modules below ${minimum}%: ${failed.join(", ")}`,
   );
 }
 export default async function finishCoverage() {

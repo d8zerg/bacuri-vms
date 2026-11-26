@@ -17,8 +17,9 @@ OBJECTS = {
     "access": """local_users site_roles point_grants browser_sessions login_attempts export_grants webauthn_credentials
         webauthn_enrollment webauthn_challenges credential_audit resource_groups group_points scoped_grants effective_grants privacy_policies identity_providers
         external_identities oidc_requests policy_versions access_audit can_use audit_policy_change invalidate_role_sessions audit_credential_binding""",
-    "recordings": """blocks motion_indexes enqueue_index investigations archive_holds held_blocks protect_new_block hold_until gaps retired_through catalog_intervals timeline_intervals retained_blocks archive_retention archive_recovery
+    "recordings": """blocks motion_indexes enqueue_index archive_holds held_blocks protect_new_block hold_until gaps retired_through catalog_intervals timeline_intervals retained_blocks archive_retention archive_recovery
         retention_now_us retention_cutoff advance_cutoff playback_parts recording_policies recording_windows point_retention point_cutoff reap_expired""",
+    "investigations": "investigations",
     "media_sessions": "media_sessions monitor_layouts",
     "events": """video_rules video_matches observations feed_heads alerts alert_outbox alert_details access_versions touch_alert_scope
         alert_delegations alert_audit protect_alert_audit""",
@@ -28,26 +29,58 @@ OBJECTS = {
 }
 OWNER = {name: owner for owner, names in OBJECTS.items() for name in names.split()}
 
-# Files at the root of src/control are shared by all modules. Module files live under their owner's directory.
-FILES = {
-    "shared": "api http support playback_time",
+PUBLIC = {
+    "application/control_api/api.hpp",
+    "application/control_api/http.hpp",
+    "application/control_api/playback_time.hpp",
+    "application/control_api/support.hpp",
+    "application/export/export.hpp",
+    "application/recovery/recovery.hpp",
+    "modules/access/admin.hpp",
+    "modules/access/configuration.hpp",
+    "modules/access/enrollment.hpp",
+    "modules/access/oidc.hpp",
+    "modules/access/operations.hpp",
+    "modules/access/restore.hpp",
+    "modules/access/session.hpp",
+    "modules/events/alert_work.hpp",
+    "modules/events/alerts.hpp",
+    "modules/events/configuration.hpp",
+    "modules/events/observations.hpp",
+    "modules/events/operations.hpp",
+    "modules/events/video_rules.hpp",
+    "modules/inventory/camera_events.hpp",
+    "modules/inventory/configuration.hpp",
+    "modules/inventory/delivery.hpp",
+    "modules/inventory/operations.hpp",
+    "modules/inventory/registry.hpp",
+    "modules/inventory/restore.hpp",
+    "modules/inventory/telemetry.hpp",
+    "modules/investigations/cases.hpp",
+    "modules/maps/configuration.hpp",
+    "modules/maps/operations.hpp",
+    "modules/maps/scene.hpp",
+    "modules/media_sessions/media_authority.hpp",
+    "modules/media_sessions/operations.hpp",
+    "modules/media_sessions/playback.hpp",
+    "modules/recordings/archive_catalog.hpp",
+    "modules/recordings/archive_recovery.hpp",
+    "modules/recordings/configuration.hpp",
+    "modules/recordings/holds.hpp",
+    "modules/recordings/operations.hpp",
+    "modules/recordings/policies.hpp",
+    "modules/recordings/recorder.hpp",
+    "modules/recordings/search.hpp",
+    "modules/recordings/status.hpp",
 }
-ENTRY_OWNER = {name: owner for owner, names in FILES.items() for name in names.split()}
-PUBLIC = set("""
-    api.hpp http.hpp support.hpp playback_time.hpp database/database.hpp recovery/recovery.hpp recovery/configuration_snapshot.hpp
-    recordings/archive_catalog.hpp maps/scene.hpp events/alerts.hpp events/alert_work.hpp events/observations.hpp inventory/delivery.hpp media_sessions/media_authority.hpp
-    media_sessions/playback.hpp export/export.hpp access/enrollment.hpp inventory/camera_events.hpp access/session.hpp inventory/registry.hpp
-    access/operations.hpp access/admin.hpp access/oidc.hpp inventory/operations.hpp inventory/telemetry.hpp events/operations.hpp events/video_rules.hpp events/configuration.hpp recordings/operations.hpp media_sessions/operations.hpp
-    access/configuration.hpp inventory/configuration.hpp recordings/policies.hpp recordings/search.hpp recordings/configuration.hpp maps/configuration.hpp
-    recordings/status.hpp recordings/recorder.hpp
-    access/restore.hpp inventory/restore.hpp
-""".split())
 
 def module(file):
-    if file.parts[:2] == ("src", "control"):
-        path = file.relative_to("src/control")
-        return path.parts[0] if len(path.parts) > 1 else ENTRY_OWNER.get(path.stem, "unassigned")
-    return "composition" if file.parts[:2] == ("src", "core") else "external"
+    if file.parts[:2] == ("src", "modules") and len(file.parts) >= 4:
+        return file.parts[2]
+    if file.parts[:3] == ("src", "storage", "postgresql"):
+        return "database"
+    return None
+
 
 CPP_TOKEN = re.compile(r'''//[^\n]*|/\*.*?\*/|R"(?P<tag>\w*)\((?P<raw>.*?)\)(?P=tag)"|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*' ''', re.S | re.X)
 def literals(code):
@@ -72,15 +105,15 @@ SQL_TOKEN = re.compile(r'''--[^\n]*|/\*.*?\*/|'(?:''|[^'])*'|"(?:""|[^"])*"|[\w$
 MODULE_SCHEMAS = {
     "access": "bacuri_access", "inventory": "bacuri_inventory", "events": "bacuri_events",
     "recordings": "bacuri_archive", "media_sessions": "bacuri_media_sessions",
-    "maps": "bacuri_maps", "database": "bacuri_meta",
+    "maps": "bacuri_maps", "investigations": "bacuri_investigations", "database": "bacuri_meta",
 }
 SCHEMAS = set(MODULE_SCHEMAS.values())
 # Previous packages and their snapshots use the original physical names during migration and rollback.
 LEGACY_NAMES = {
-    Path("src/control/database/database.hpp"): {"schema_migrations"},
-    Path("src/control/database/database.cpp"): {"schema_migrations"},
-    Path("src/control/recordings/archive_recovery.cpp"): {"archive_recovery"},
-    Path("src/control/media_sessions/operations.cpp"): {"media_sessions"},
+    Path("src/storage/postgresql/migrations.hpp"): {"schema_migrations"},
+    Path("src/storage/postgresql/migrations.cpp"): {"schema_migrations"},
+    Path("src/modules/recordings/archive_recovery.cpp"): {"archive_recovery"},
+    Path("src/modules/media_sessions/operations.cpp"): {"media_sessions"},
 }
 FUNCTION_NAMES = {
     "can_use", "advance_cutoff", "retention_cutoff", "retention_now_us", "audit_credential_binding",
@@ -122,41 +155,53 @@ def placement_errors(file, query):
         if schema == "bacuri_inventory" and name in LEGACY_NAMES.get(file, set()):
             continue
         # This batch is shared by online and offline restore. Its caller selects the access schema for the snapshot version.
-        if schema is None and file == Path("src/control/access/restore.hpp") and OWNER[name] == "access":
+        if schema is None and file == Path("src/modules/access/restore.hpp") and OWNER[name] == "access":
             continue
         errors.append(f"expected {expected}.{name}, found {schema or '<unqualified>'}.{name}")
     return errors
 
 
+def local_header(root, file, header):
+    for directory in (file.parent, Path("src")):
+        dest = (root / directory / header).resolve()
+        if dest.is_relative_to(root / "src") and dest.is_file():
+            return dest.relative_to(root)
+    return None
+
+
 def include_error(file, header):
-    src = ROOT / "src"
-    candidates = [(ROOT / file.parent / header).resolve(), (src / header).resolve()]
-    dest = next((p for p in candidates if p.is_file()), candidates[-1])
     if header == "archive_sql.hpp":
         return module(file) != "recordings" and file != Path("src/archive/volume.cpp")
-    if not dest.is_relative_to(src / "control"):
+    dest = local_header(ROOT, file, header)
+    if dest is None:
         return False
-    relative = dest.relative_to(src / "control").as_posix()
-    if relative.endswith("/restore.hpp") and file not in {
-        Path("src/core/maintenance.cpp"), Path("src/control/recovery/configuration_backup.cpp")
-    }:
-        return module(file) != module(dest.relative_to(ROOT))
-    return relative not in PUBLIC and module(file) != module(dest.relative_to(ROOT))
-
-# Services and libraries below the Core depend on the platform library, never on the control module.
-INDEPENDENT = {"archive", "recorder", "media", "platform", "storage", "domain", "observability"}
-
-
-def layer_errors(file, code):
-    if len(file.parts) < 3 or file.parts[0] != "src" or file.parts[1] not in INDEPENDENT:
-        return []
-    return [f"{file}: {file.parts[1]} includes the control module header {header}"
-            for header in re.findall(r'^\s*#\s*include\s*"(control/[^"]+)"', code, re.M)]
+    target = dest.relative_to("src")
+    caller = file.relative_to("src")
+    # Service implementation headers belong to exactly one executable.
+    if target.parts[0] == "services":
+        return caller.parts[:2] != target.parts[:2]
+    if target.parts[0] == "admin":
+        return caller.parts[0] != "admin"
+    if target.parts[0] not in {"modules", "application"}:
+        return False
+    if caller.parts[:2] == target.parts[:2]:
+        return False
+    if caller.parts[:2] == ("application", "control_api"):
+        return True
+    if caller.parts[0] in {"domain", "platform", "archive", "ingest", "media", "observability", "storage"}:
+        return True
+    if caller.parts[0] == "services" and caller.parts[1] != "control":
+        return True
+    if caller.parts[0] == "modules" and target.parts[0] == "application" and target.parts[1] != "control_api":
+        return True
+    if target.name == "restore.hpp":
+        return caller.as_posix() not in {"admin/maintenance.cpp", "application/recovery/configuration_backup.cpp"}
+    return target.as_posix() not in PUBLIC
 
 
 # The export verifier is distributed to third parties, so it must build with libsodium and JSON only.
 VERIFIER = Path("src/archive/verify_export.cpp")
-VERIFIER_FORBIDDEN = re.compile(r"^(sqlite3\.h|glib|gio/|gst/|archive/volume\.hpp|platform/(settings|secrets)\.hpp|control/)")
+VERIFIER_FORBIDDEN = re.compile(r"^(sqlite3\.h|glib|gio/|gst/|archive/volume\.hpp|platform/(settings|secrets)\.hpp|storage/|services/|modules/|application/)")
 
 
 def verifier_errors(root, entry=VERIFIER):
@@ -168,10 +213,11 @@ def verifier_errors(root, entry=VERIFIER):
         seen.add(file)
         code = (root / file).read_text()
         for header in re.findall(r'^\s*#\s*include\s*["<]([^">]+)[">]', code, re.M):
-            if VERIFIER_FORBIDDEN.match(header):
+            source = local_header(root, file, header)
+            name = source.relative_to("src").as_posix() if source else header
+            if VERIFIER_FORBIDDEN.match(name):
                 errors.append(f"{file}: the export verifier includes {header}")
-            source = Path("src") / header
-            if (root / source).is_file():
+            if source is not None:
                 pending.append(source)
                 if source.suffix == ".hpp" and (root / source.with_suffix(".cpp")).is_file():
                     pending.append(source.with_suffix(".cpp"))
@@ -184,12 +230,10 @@ def check_source(file, code):
     for header in re.findall(r'^\s*#\s*include\s*["<]([^">]+)[">]', code, re.M):
         if include_error(file, header):
             errors.append(f"private include {header}")
-    if owner == "unassigned":
-        errors.append("assign the entry point to a Core module")
     for query in literals(code):
         errors.extend(placement_errors(file, query))
         errors.extend(f"{owner} accesses {OWNER[name]}.{name}" for name in sorted(violations(owner, query)))
-        if re.search(r"\b(?:from|join|into|truncate)\s*$", query, re.I) and file != Path("src/control/recovery/configuration_snapshot.cpp"):
+        if re.search(r"\b(?:from|join|into|truncate)\s*$", query, re.I) and file != Path("src/storage/postgresql/configuration_snapshot.cpp"):
             errors.append("dynamic relation outside the configuration snapshot adapter")
     # The backup adapter builds SQL only from a section declared by its storage owner.
     for section in re.finditer(r'\.section\(\s*([^,\)]+)', code):
@@ -210,7 +254,7 @@ def check_storage():
     errors = []
     known = set()
     migrations = sorted((ROOT / "storage/postgresql/migrations").glob("*.sql"))
-    registered = re.findall(r'"(\d{4}_[a-z0-9_]+\.sql)"', (ROOT / "src/control/database/database.cpp").read_text())
+    registered = re.findall(r'"(\d{4}_[a-z0-9_]+\.sql)"', (ROOT / "src/storage/postgresql/migrations.cpp").read_text())
     if registered != [file.name for file in migrations]:
         errors.append("the runtime migration order differs from the PostgreSQL migrations")
     for file in migrations:
@@ -260,10 +304,21 @@ def check_examples():
     joined, = literals('"SELECT * " /* separator */ R"sql(FROM )sql" "\\"local_users\\""')
     if violations("events", joined) != {"local_users"}:
         raise AssertionError(joined)
-    caller = Path("src/control/events/operations.cpp")
-    allowed = '#include "control/inventory/operations.hpp"\n db.exec("SELECT * FROM bacuri_events.alerts");'
+    caller = Path("src/modules/events/operations.cpp")
+    allowed = '#include "modules/inventory/operations.hpp"\n db.exec("SELECT * FROM bacuri_events.alerts");'
     if check_source(caller, allowed):
         raise AssertionError("owner query and public include")
+    for path, header in [
+        ("src/archive/volume.cpp", "application/control_api/api.hpp"),
+        ("src/services/media/live.cpp", "modules/access/operations.hpp"),
+        ("src/modules/maps/scene.cpp", "../../services/control/transport/routes.hpp"),
+        ("src/modules/inventory/registry.cpp", "application/export/export.hpp"),
+        ("src/storage/postgresql/database.cpp", "modules/access/operations.hpp"),
+        ("src/application/control_api/api.cpp", "modules/maps/operations.hpp"),
+        ("src/services/control/main.cpp", "admin/maintenance.hpp"),
+    ]:
+        if not include_error(Path(path), header):
+            raise AssertionError(f"{path} accepted a forbidden include: {header}")
     prohibited = [
         '#include "../inventory/onvif.hpp"',
         'db.exec("SELECT count(*) FROM " "local_users");',
@@ -308,22 +363,23 @@ if __name__ == "__main__":
     parser.add_argument("--database", help="verify a disposable, migrated PostgreSQL database")
     args = parser.parse_args()
     check_examples()
-    if not layer_errors(Path("src/archive/volume.cpp"), '#include "control/support.hpp"\n'):
-        raise AssertionError("undetected control include below the Core")
     issues = check_storage()
     with tempfile.TemporaryDirectory() as sample:
         (Path(sample) / "src/archive").mkdir(parents=True)
-        (Path(sample) / VERIFIER).write_text('#include "archive/verify.hpp"\n')
-        (Path(sample) / "src/archive/verify.cpp").write_text("#include <sqlite3.h>\n")
+        (Path(sample) / VERIFIER).write_text('#include "verify.hpp"\n')
         (Path(sample) / "src/archive/verify.hpp").write_text("")
-        if not verifier_errors(Path(sample)):
-            raise AssertionError("undetected storage dependency of the export verifier")
+        adapter = Path(sample) / "src/storage/sqlite/sqlite.hpp"
+        adapter.parent.mkdir(parents=True)
+        adapter.touch()
+        for header in ("<sqlite3.h>", '"../storage/sqlite/sqlite.hpp"'):
+            (Path(sample) / "src/archive/verify.cpp").write_text(f"#include {header}\n")
+            if not verifier_errors(Path(sample)):
+                raise AssertionError(f"undetected export verifier dependency: {header}")
     issues.extend(verifier_errors(ROOT))
     for file in sorted((ROOT / "src").rglob("*")):
         if file.suffix in {".cpp", ".hpp", ".cc", ".cxx", ".hh", ".hxx", ".h", ".inl"}:
             relative, code = file.relative_to(ROOT), file.read_text()
             issues.extend(check_source(relative, code))
-            issues.extend(layer_errors(relative, code))
         elif file.suffix == ".sql":
             relative = file.relative_to(ROOT)
             issues.extend(f"{relative}: {module(relative)} accesses {name}"

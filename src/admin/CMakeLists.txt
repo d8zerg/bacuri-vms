@@ -1,0 +1,11 @@
+add_library(bacuri-maintenance-common STATIC maintenance_process.cpp maintenance_bundle.cpp)
+add_executable(bacuri-install install.cpp)
+target_link_libraries(bacuri-install PRIVATE bacuri-maintenance-common)
+# The sanitizer runtimes need a dynamic loader. The offline installer is linked statically for distribution.
+if(NOT CMAKE_CXX_FLAGS MATCHES "-fsanitize=")
+    target_link_options(bacuri-install PRIVATE -static)
+endif()
+add_executable(bacuri-vms site_admin.cpp)
+target_link_libraries(bacuri-vms PRIVATE bacuri-vms-platform OpenSSL::Crypto)
+add_executable(bacuri-maintain maintenance.cpp maintenance_crypto.cpp maintenance_diagnostics.cpp)
+target_link_libraries(bacuri-maintain PRIVATE bacuri-maintenance-common bacuri-vms-archive-recovery bacuri-vms-volume bacuri-vms-sqlite)

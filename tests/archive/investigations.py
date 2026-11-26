@@ -218,7 +218,7 @@ def restore_snapshot():
         subprocess.run([c.CORE, "migrate"], env=env, check=True)
         subprocess.run([c.CORE, "restore-config"], env=env, input=snapshot, check=True)
         for table, ordering in (
-            ("bacuri_archive.investigations", "id"),
+            ("bacuri_investigations.investigations", "id"),
             ("bacuri_archive.archive_holds", "id"),
             ("bacuri_archive.held_blocks", "hold_id,block_id"),
             ("bacuri_access.scoped_grants", "1"),

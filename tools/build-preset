@@ -2,6 +2,7 @@
 set -eu
 
 preset=$1
+shift
 build_dir="build/$preset"
 stamp=/opt/bacuri/deps/toolchain.sha256
 mkdir -p "$build_dir"
@@ -15,4 +16,4 @@ else
 fi
 cp "$stamp" "$build_dir/.toolchain.sha256"
 # Compilation is CPU bound and uses every core unless BUILD_JOBS limits it.
-cmake --build --parallel "${BUILD_JOBS:-$(nproc)}" --preset "$preset"
+cmake --build --parallel "${BUILD_JOBS:-$(nproc)}" --preset "$preset" "$@"

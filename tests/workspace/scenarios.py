@@ -5,7 +5,6 @@ from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
-from statistics import median
 import sqlite3
 import subprocess
 import sys
@@ -432,13 +431,6 @@ def run():
             operator(browser, cam, viewer, restart, plan)
             access_settings(browser, admin)
         measure("integrated", admin)
-    for before, after in zip(evidence[:4], evidence[4:], strict=True):
-        assert before["browser"] == after["browser"] and before["route"] == after["route"]
-        size = max(s["bytes"] for s in after["samples"])
-        ms = median(s["ms"] for s in after["samples"])
-        assert size <= min(400 * 1024, 1.15 * max(s["bytes"] for s in before["samples"]))
-        assert ms <= min(2000, 1000 + median(s["ms"] for s in before["samples"])), (before, after)
-        print(after["browser"], after["route"], size, "bytes,", ms, "ms", flush=True)
 
 
 if __name__ == "__main__":

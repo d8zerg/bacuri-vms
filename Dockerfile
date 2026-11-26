@@ -252,6 +252,7 @@ WORKDIR /workspace
 
 FROM dev AS rtsp-camera
 COPY CMakeLists.txt ./
+COPY cmake ./cmake
 COPY src ./src
 COPY storage ./storage
 COPY contracts/v1/control.proto ./contracts/v1/

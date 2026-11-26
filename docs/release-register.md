@@ -32,7 +32,7 @@ A standalone VMS serves video alarms and video resources. Extensions for distrib
 
 ## Source operations
 
-The table lists the current VMS interfaces, including local maps (`maps`) and maintenance (`operations`). For REST the exact `operationId` values are given by area, for Core the command names. The installer, initial trust, replacement of a lost factor and recovery from a backup require a local procedure. For regular administrative actions the web and desktop clients call the common API, which applies the same C++ operations and permissions. The service gRPC stays within the site. [Web client routes](../web/client/src/app/Workspace.tsx) · [Core commands](../src/core/main.cpp) · [Installation](../src/core/site_admin.cpp) · [Maintenance](../src/core/maintenance.cpp)
+The table lists the current VMS interfaces, including local maps (`maps`) and maintenance (`operations`). For REST the exact `operationId` values are given by area, for Core the command names. The installer, initial trust, replacement of a lost factor and recovery from a backup require a local procedure. For regular administrative actions the web and desktop clients call the common API, which applies the same C++ operations and permissions. The service gRPC stays within the site. [Web client routes](../web/client/src/app/Workspace.tsx) · [Core commands](../src/services/control/main.cpp) · [Installation](../src/admin/site_admin.cpp) · [Maintenance](../src/admin/maintenance.cpp)
 
 | ID | Interface | Operations |
 | --- | --- | --- |

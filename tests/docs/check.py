@@ -184,8 +184,8 @@ def check_release_operations(register, requirements):
     operation_ids = {op["operationId"] for item in api["paths"].values() for method, op in item.items()
                      if method in {"get", "put", "post", "delete", "patch", "head", "options", "trace"}}
     same_set("REST", operation_ids, surfaces[kinds["REST"]])
-    for key, name in (("Core", "main"), ("Maintenance", "maintenance")):
-        source = (Path("src/core") / f"{name}.cpp").read_text()
+    for key, path in (("Core", "src/services/control/main.cpp"), ("Maintenance", "src/admin/maintenance.cpp")):
+        source = Path(path).read_text()
         same_set(key, set(re.findall(r'\baction\s*==\s*"([^"]+)"', source)), surfaces[kinds[key]])
     router = Path("web/client/src/app/Workspace.tsx").read_text()
     routes = re.findall(r'"(/[\w/-]*)"', router.partition("const routes: RouteObject[]")[2])

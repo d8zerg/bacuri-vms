@@ -1,5 +1,7 @@
 **
 !CMakeLists.txt
+!cmake/
+!cmake/**
 !conanfile.py
 !conan.lock
 !conan/

@@ -32,7 +32,10 @@ External request -> site entry -> permission and validity check -> local executi
 | Media delivery | Live and playback sessions, copy selection, masking and on-demand transformation | Short-lived sessions. The archive and export results live in storage |
 | Video events, rules and alarms | Normalization of video events, recording and notification rules, rule testing on the archive, the video alarm queue and operator history | Observation journal, video rule versions and video alarm state |
 | Command execution and adapters | Device capability checks, arbitration, sending and observing the result | Command journal in the core. The external device remains the source of the observed physical state |
-| Search and investigations | Timeline, geographic filters, detection index, bookmarks, protection and export | Materials and retention restrictions in PostgreSQL. Rebuilding the index is limited by the retention of the source detections and manifests. Previews are restored from available video |
+| Recording catalog and search | Timeline, geographic filters, detection index and retention holds | Blocks, gaps, index and holds in `bacuri_archive`. Reindexing requires the source detections and manifests. Previews are restored from available video |
+| Investigations | Case, assignee, revision, material selection and bookmarks | Cases in `bacuri_investigations`. Case changes and protection of their intervals through the recording catalog share one transaction |
+| Evidence export | Prepare and deliver a verifiable fragment or case package under the current permissions and archive state | Signed manifest and package files |
+| Configuration backup and recovery | Take a consistent snapshot and restore configuration sections from all site owners | Encrypted snapshot. Restore applies all sections in one transaction |
 | Federation control center | Site registry and trust, policy distribution, summary, federated search and diagnostics | The center's own storage with permitted projections of site data |
 | Background jobs | Replication, integrity verification, export, analytics, integrations | Job state, progress and retry control at the job owner |
 
@@ -41,6 +44,19 @@ The model distinguishes the site, the observation point, the physical device, th
 Bulk configuration stores the expected version and the result for every resource. A conflict between two editors returns the current version. A retry after a broken connection continues unfinished operations with the same identifier. The administrator sees where a camera already applied a template, where actual settings need reconciliation and which changes can be rolled back.
 
 On a single node the core combines control, rules, alarms and the search API. Recording and delivery run as separate processes. Inside the core each module owns its state and offers operations to other modules through an interface. Processes and third-party extensions use authorized APIs. Binary recordings, detector metadata and user permissions have separate access and retention rules.
+
+### C++ source layout
+
+| Directory | Responsibility |
+| --- | --- |
+| `src/modules/<owner>/` | Domain rules, queries and mutations for access, inventory, recordings, media sessions, events, maps and investigations. Other owners use their public operations. |
+| `src/application/` | Export and configuration recovery coordinate multiple owners. `control_api/` provides common HTTP request and response types and validation for their handlers. |
+| `src/services/` | Executable entry points and wiring for control, recorder, media delivery and the observation source. The control service owns the HTTPS listener and routing. |
+| `src/admin/` | Site setup, installation, diagnostics, backup and maintenance commands. |
+| `src/storage/` | PostgreSQL sessions, migration runner and snapshot I/O, plus the SQLite adapter. The versioned SQL files are in the repository’s top-level `storage/`. |
+| `src/domain/`, `src/platform/`, `src/observability/`, `src/ingest/`, `src/archive/`, `src/media/` | Libraries shared by the services, including stream ingestion, archive formats, media leases and frame transformations. |
+
+The root build connects the production targets. Each domain module, export and configuration recovery declare their libraries and GoogleTest sources locally. Unit test directories under `tests/` mirror the source directories. Service headers are private to their service. Shared libraries can be linked by several services. Integration tests are grouped by scenario. [Build entry point](../CMakeLists.txt) · [Boundary verification](adr/018-core-module-boundary.md#boundary-verification)
 
 ### Site scenario contracts
 

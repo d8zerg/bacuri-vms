@@ -122,6 +122,7 @@ services:
     network_mode: none
     shm_size: 1gb
     volumes:
+      - ./tests/coverage-policy.json:/workspace/tests/coverage-policy.json:ro
       - ./tests/workspace/screens:/screen-references:${BACURI_WORKSPACE_SCREEN_MODE:-ro}
       - ./build/contracts:/workspace/build/contracts:ro
       - ./design/bacuri:/workspace/design/bacuri:ro
@@ -163,6 +164,8 @@ services:
       - ./build/clang-tsan:/workspace/build/clang-tsan
       - ./CMakePresets.json:/workspace/CMakePresets.json:ro
       - ./tests/architecture:/workspace/tests/architecture:ro
+      - ./tests/coverage-policy.json:/workspace/tests/coverage-policy.json:ro
+      - ./tools/check-coverage-summary.py:/workspace/tools/check-coverage-summary.py:ro
       - ./src:/workspace/src:ro
       - ./storage/postgresql:/workspace/storage/postgresql:ro
 

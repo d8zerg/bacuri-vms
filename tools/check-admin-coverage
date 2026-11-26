@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+report=$1
+mkdir -p "$report"
+run=(docker compose run --rm --no-deps -T --user "$(id -u):$(id -g)")
+docker compose build offline-packager install-vm
+"${run[@]}" builder sh tools/build-preset gcc-release
+"${run[@]}" offline-packager python3 tools/offline-package.py "$report" --qualification
+docker compose run --rm --no-deps -T -v "$PWD/$report:/report" install-vm python3 -B tests/offline/coverage.py
+# Merge VM and container counters from the same instrumented build before invoking gcovr.
+"${run[@]}" builder sh -ec '
+    merged=$(mktemp -d)
+    trap '\''rm -rf "$merged"'\'' EXIT
+    gcov-tool-14 merge build/gcc-coverage "$1/counters" -o "$merged"
+    cp -r "$merged/." build/gcc-coverage/
+' sh "$report"

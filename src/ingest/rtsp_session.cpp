@@ -1,0 +1,357 @@
+#include "platform/settings.hpp"
+#include "ingest/rtsp_session.hpp"
+#include "ingest/frame_clock.hpp"
+#include "platform/scope_exit.hpp"
+
+#include <gst/app/gstappsink.h>
+#include <gst/rtp/gstrtpbuffer.h>
+#include <gst/rtsp/gstrtspmessage.h>
+#include <glib.h>
+#include <gio/gio.h>
+
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+
+namespace bacuri::vms::ingest
+{
+namespace
+{
+using namespace std::chrono_literals;
+using namespace domain;
+
+template <auto Release> struct ReleaseGst {
+    template <typename T> void operator()(T* value) const
+    {
+        Release(value);
+    }
+};
+template <typename T, auto Release> using Handle = std::unique_ptr<T, ReleaseGst<Release>>;
+
+struct PacketStamp {
+    GstClockTime pts{GST_CLOCK_TIME_NONE};
+    std::optional<std::uint32_t> rtp;
+    std::optional<std::uint64_t> ntp;
+};
+
+class PacketTimes
+{
+  public:
+    explicit PacketTimes(std::optional<ReplayWindow> replay) : replay_{replay} {}
+    void observe(GstBuffer* buffer)
+    {
+        if (!GST_BUFFER_PTS_IS_VALID(buffer)) {
+            return;
+        }
+        GstRTPBuffer rtp{};
+        if (!gst_rtp_buffer_map(buffer, GST_MAP_READ, &rtp)) {
+            return;
+        }
+        PacketStamp stamp{GST_BUFFER_PTS(buffer), gst_rtp_buffer_get_timestamp(&rtp), std::nullopt};
+        if (replay_) {
+            guint16 profile{};
+            gpointer raw{};
+            guint words{};
+            if (gst_rtp_buffer_get_extension_data(&rtp, &profile, &raw, &words) && profile == 0xabac &&
+                words >= 3) {
+                const auto* bytes = static_cast<const guint8*>(raw);
+                // Unfold the NTP era against the requested interval, including recordings after the first
+                // rollover.
+                constexpr std::int64_t epoch = 2208988800LL;
+                const auto seconds = replay_->begin_us / 1000000 + epoch;
+                const auto delta =
+                    static_cast<std::int32_t>(GST_READ_UINT32_BE(bytes) - static_cast<std::uint32_t>(seconds));
+                const auto whole = seconds + delta;
+                if (whole >= 0 && whole < INT64_MAX / 1000000000LL)
+                    stamp.ntp = static_cast<std::uint64_t>(whole) * GST_SECOND +
+                                (static_cast<std::uint64_t>(GST_READ_UINT32_BE(bytes + 4)) * GST_SECOND >> 32);
+            }
+        }
+        gst_rtp_buffer_unmap(&rtp);
+        auto* meta = gst_buffer_get_reference_timestamp_meta(buffer, ntp_caps_.get());
+        if (!replay_ && meta && GST_CLOCK_TIME_IS_VALID(meta->timestamp)) {
+            stamp.ntp = meta->timestamp;
+        }
+        std::scoped_lock lock{mutex_};
+        if (entries_.empty() || entries_.back().pts != stamp.pts) {
+            if (entries_.size() == 32) {
+                entries_.pop_front();
+            }
+            entries_.push_back(stamp);
+        } else if (stamp.ntp) {
+            entries_.back().ntp = stamp.ntp;
+        }
+    }
+
+    PacketStamp lookup(GstClockTime pts)
+    {
+        std::scoped_lock lock{mutex_};
+        const auto found = std::ranges::find(entries_, pts, &PacketStamp::pts);
+        return found == entries_.end() ? PacketStamp{} : *found;
+    }
+
+  private:
+    std::optional<ReplayWindow> replay_;
+    Handle<GstCaps, gst_caps_unref> ntp_caps_{gst_caps_new_empty_simple("timestamp/x-ntp")};
+    std::mutex mutex_;
+    std::deque<PacketStamp> entries_;
+};
+
+struct Selection {
+    std::atomic<bool> selected{};
+    std::atomic<bool> saw_other{};
+};
+
+gboolean select_video(GstElement*, guint, GstCaps* caps, gpointer data)
+{
+    auto& selection = *static_cast<Selection*>(data);
+    const auto* track = gst_caps_get_structure(caps, 0);
+    const auto* encoding = gst_structure_get_string(track, "encoding-name");
+    if (g_strcmp0(gst_structure_get_string(track, "media"), "video") == 0 && encoding &&
+        (g_ascii_strcasecmp(encoding, "H264") == 0 || g_ascii_strcasecmp(encoding, "H265") == 0)) {
+        return !selection.selected.exchange(true);
+    }
+    selection.saw_other = true;
+    return FALSE;
+}
+
+GstPadProbeReturn observe_packet(GstPad*, GstPadProbeInfo* info, gpointer data)
+{
+    auto* buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+    if (buffer) {
+        static_cast<PacketTimes*>(data)->observe(buffer);
+    }
+    return GST_PAD_PROBE_OK;
+}
+
+void link_video(GstElement* source, GstPad* pad, gpointer data)
+{
+    Handle<GstCaps, gst_caps_unref> caps{gst_pad_get_current_caps(pad)};
+    if (!caps || gst_caps_is_empty(caps.get()))
+        return;
+    const auto* type = gst_caps_get_structure(caps.get(), 0);
+    const auto* encoding = gst_structure_get_string(type, "encoding-name");
+    if (!encoding || g_strcmp0(gst_structure_get_string(type, "media"), "video") != 0)
+        return;
+    const bool hevc = g_ascii_strcasecmp(encoding, "H265") == 0;
+    if (!hevc && g_ascii_strcasecmp(encoding, "H264") != 0)
+        return;
+    auto* parent = GST_BIN(GST_OBJECT_PARENT(source));
+    Handle<GstElement, gst_object_unref> sink{gst_bin_get_by_name(parent, "frames")};
+    GError* raw{};
+    Handle<GstElement, gst_object_unref> branch{gst_parse_bin_from_description(
+        hevc ? "rtph265depay ! h265parse config-interval=-1 ! capsfilter "
+               "caps=video/x-h265,profile=main,stream-format=byte-stream,alignment=au"
+             : "rtph264depay request-keyframe=true wait-for-keyframe=true ! h264parse config-interval=-1 ! "
+               "capsfilter caps=video/x-h264,stream-format=byte-stream,alignment=au",
+        TRUE, &raw)};
+    Handle<GError, g_error_free> error{raw};
+    if (!branch || error || !gst_bin_add(parent, branch.get()))
+        return;
+    auto* decoder = branch.release();
+    Handle<GstPad, gst_object_unref> input{gst_element_get_static_pad(decoder, "sink")};
+    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, observe_packet, data, nullptr);
+    if (gst_element_link(decoder, sink.get()) && gst_pad_link(pad, input.get()) == GST_PAD_LINK_OK)
+        gst_element_sync_state_with_parent(decoder);
+}
+
+int port(GUri* uri)
+{
+    const int number = g_uri_get_port(uri);
+    return number >= 0 ? number : (g_strcmp0(g_uri_get_scheme(uri), "rtsps") == 0 ? 322 : 554);
+}
+
+gboolean same_origin(GstElement* source, GstRTSPMessage* message, gpointer data)
+{
+    const auto original = static_cast<GUri*>(data);
+    gchar* current_location{};
+    g_object_get(source, "location", &current_location, nullptr);
+    std::unique_ptr<gchar, decltype(&g_free)> location{current_location, g_free};
+    Handle<GUri, g_uri_unref> current{location ? g_uri_parse(location.get(), G_URI_FLAGS_ENCODED, nullptr)
+                                               : nullptr};
+    if (!current || g_strcmp0(g_uri_get_host(current.get()), g_uri_get_host(original)) ||
+        g_strcmp0(g_uri_get_scheme(current.get()), g_uri_get_scheme(original)) ||
+        port(current.get()) != port(original))
+        return FALSE;
+    GstRTSPMethod method{};
+    const gchar* target{};
+    if (gst_rtsp_message_parse_request(message, &method, &target, nullptr) != GST_RTSP_OK) {
+        return TRUE;
+    }
+    if (g_strcmp0(target, "*") == 0) {
+        return TRUE;
+    }
+    Handle<GUri, g_uri_unref> uri{g_uri_parse(target, G_URI_FLAGS_ENCODED, nullptr)};
+    return uri && !g_uri_get_userinfo(uri.get()) && g_uri_get_host(uri.get()) &&
+           g_ascii_strcasecmp(g_uri_get_host(original), g_uri_get_host(uri.get())) == 0 &&
+           (g_strcmp0(g_uri_get_scheme(original), g_uri_get_scheme(uri.get())) == 0 ||
+            (g_strcmp0(g_uri_get_scheme(original), "rtsps") == 0 &&
+             g_strcmp0(g_uri_get_scheme(uri.get()), "rtsp") == 0)) &&
+           port(original) == port(uri.get());
+}
+
+struct StopPipeline {
+    void operator()(GstElement* pipeline) const
+    {
+        gst_element_set_state(pipeline, GST_STATE_NULL);
+        gst_object_unref(pipeline);
+    }
+};
+
+} // namespace
+
+bool configure_rtsp_source(GstElement* source, const Endpoint& endpoint)
+{
+    Handle<GUri, g_uri_unref> origin{g_uri_parse(endpoint.url.c_str(), G_URI_FLAGS_ENCODED, nullptr)};
+    if (!origin || !g_uri_get_host(origin.get())) {
+        return false;
+    }
+    g_signal_connect_data(
+        source, "before-send", G_CALLBACK(same_origin), origin.release(),
+        +[](gpointer uri, GClosure*) { g_uri_unref(static_cast<GUri*>(uri)); }, G_CONNECT_DEFAULT);
+    g_object_set(source, "location", endpoint.url.c_str(), "user-id", endpoint.username.c_str(), "user-pw",
+                 endpoint.password.c_str(), nullptr);
+    const auto trust = platform::optional_setting("BACURI_CAMERA_CA_FILE");
+    if (endpoint.url.starts_with("rtsps://") && trust) {
+        Handle<GTlsDatabase, g_object_unref> ca{g_tls_file_database_new(trust->c_str(), nullptr)};
+        if (!ca)
+            return false;
+        g_object_set(source, "tls-database", ca.get(), nullptr);
+    }
+    return true;
+}
+
+std::string receive_rtsp(const Endpoint& endpoint, const std::stop_token& stop, const Receive& receive,
+                         std::optional<ReplayWindow> replay, const std::function<void()>& finished)
+{
+    gst_init(nullptr, nullptr);
+    PacketTimes packets{replay};
+    FrameClock clock;
+    Selection selection;
+    std::atomic<bool> certificate_rejected{};
+    GError* error{};
+    std::string range;
+    std::unique_ptr<GstElement, StopPipeline> pipeline{
+        gst_parse_launch("rtspsrc name=source protocols=tcp latency=250 drop-on-latency=true tcp-timeout=3000000 "
+                         "teardown-timeout=100000000 add-reference-timestamp-meta=true "
+                         "appsink name=frames sync=false max-buffers=1 wait-on-eos=false "
+                         "enable-last-sample=false",
+                         &error)};
+    Handle<GError, g_error_free> failure{error};
+    platform::ScopeExit finish{[&finished] {
+        if (finished)
+            finished();
+    }};
+    if (!pipeline || failure) {
+        return "pipeline_error";
+    }
+    Handle<GstElement, gst_object_unref> source{gst_bin_get_by_name(GST_BIN(pipeline.get()), "source")};
+    Handle<GstElement, gst_object_unref> sink{gst_bin_get_by_name(GST_BIN(pipeline.get()), "frames")};
+    // GStreamer 1.22 limits appsink by buffer count. A single access unit is checked against the byte budget
+    // below.
+    if (g_object_class_find_property(G_OBJECT_GET_CLASS(sink.get()), "max-bytes")) {
+        g_object_set(sink.get(), "max-bytes", static_cast<guint64>(limits(Profile::main).bytes), "max-buffers", 4U,
+                     nullptr);
+    }
+    Handle<GstBus, gst_object_unref> bus{gst_element_get_bus(pipeline.get())};
+    g_signal_connect(source.get(), "pad-added", G_CALLBACK(link_video), &packets);
+    g_signal_connect(source.get(), "accept-certificate",
+                     G_CALLBACK(+[](GstElement*, GTlsConnection*, GTlsCertificate*, GTlsCertificateFlags,
+                                    gpointer data) -> gboolean {
+                         static_cast<std::atomic<bool>*>(data)->store(true);
+                         return FALSE;
+                     }),
+                     &certificate_rejected);
+    g_signal_connect(source.get(), "select-stream", G_CALLBACK(select_video), &selection);
+    if (!configure_rtsp_source(source.get(), endpoint))
+        return "certificate_error";
+    if (replay) {
+        auto stamp = [](std::int64_t us) {
+            std::unique_ptr<GDateTime, decltype(&g_date_time_unref)> utc{
+                g_date_time_new_from_unix_utc(us / 1000000), g_date_time_unref};
+            if (!utc)
+                throw std::invalid_argument("Invalid replay range");
+            std::unique_ptr<char, decltype(&g_free)> seconds{g_date_time_format(utc.get(), "%Y%m%dT%H%M%S"),
+                                                             g_free};
+            return std::string{seconds.get()} + "." + std::to_string(1000000 + us % 1000000).substr(1) + "Z";
+        };
+        range = "clock=" + stamp(replay->begin_us) + "-" + stamp(replay->end_us);
+        g_object_set(source.get(), "onvif-mode", TRUE, "onvif-rate-control", TRUE, "buffer-mode", 0,
+                     "drop-on-latency", FALSE, nullptr);
+        g_signal_connect(source.get(), "before-send",
+                         G_CALLBACK(+[](GstElement*, GstRTSPMessage* message, gpointer data) -> gboolean {
+                             if (message->type == GST_RTSP_MESSAGE_REQUEST &&
+                                 message->type_data.request.method == GST_RTSP_PLAY) {
+                                 gst_rtsp_message_remove_header(message, GST_RTSP_HDR_RANGE, -1);
+                                 gst_rtsp_message_add_header(message, GST_RTSP_HDR_RANGE,
+                                                             static_cast<const char*>(data));
+                             }
+                             return TRUE;
+                         }),
+                         range.data());
+    }
+    if (gst_element_set_state(pipeline.get(), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+        return certificate_rejected ? "certificate_error" : "pipeline_error";
+    }
+    using Steady = std::chrono::steady_clock;
+    auto deadline = Steady::now() + 8s;
+    bool saw_sample = false;
+    while (!stop.stop_requested()) {
+        Handle<GstSample, gst_sample_unref> sample{
+            gst_app_sink_try_pull_sample(GST_APP_SINK(sink.get()), 100 * GST_MSECOND)};
+        // Drain the entire bus, including normal state changes and streaming notifications.
+        while (Handle<GstMessage, gst_message_unref> message{gst_bus_pop(bus.get())}) {
+            if (certificate_rejected)
+                return "certificate_error";
+            if (selection.saw_other && !selection.selected &&
+                GST_MESSAGE_TYPE(message.get()) == GST_MESSAGE_ERROR) {
+                return "incompatible_profile";
+            }
+            if (GST_MESSAGE_TYPE(message.get()) == GST_MESSAGE_ERROR ||
+                (!sample && GST_MESSAGE_TYPE(message.get()) == GST_MESSAGE_EOS)) {
+                return "source_unavailable";
+            }
+        }
+        if (!sample) {
+            if (saw_sample && gst_app_sink_is_eos(GST_APP_SINK(sink.get())))
+                return "source_unavailable";
+            if (Steady::now() >= deadline) {
+                return selection.saw_other && !selection.selected ? "incompatible_profile" : "frame_timeout";
+            }
+            continue;
+        }
+        saw_sample = true;
+        auto* buffer = gst_sample_get_buffer(sample.get());
+        auto* caps = gst_sample_get_caps(sample.get());
+        VideoFormat format{};
+        if (!buffer || !caps || gst_caps_is_empty(caps)) {
+            return "incompatible_profile";
+        }
+        const auto* type = gst_caps_get_structure(caps, 0);
+        if (!gst_structure_get_int(type, "width", &format.width) ||
+            !gst_structure_get_int(type, "height", &format.height) || format.width <= 0 || format.height <= 0) {
+            return "incompatible_profile";
+        }
+        const auto size = gst_buffer_get_size(buffer);
+        if (size == 0 || size > limits(Profile::main).bytes ||
+            GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_CORRUPTED)) {
+            return "invalid_access_unit";
+        }
+        const auto pts = GST_BUFFER_PTS(buffer);
+        const auto stamp = packets.lookup(pts);
+        const auto received = std::chrono::time_point_cast<Microseconds>(std::chrono::system_clock::now());
+        const auto pts_ns = GST_CLOCK_TIME_IS_VALID(pts) ? std::optional{pts} : std::nullopt;
+        auto frame = std::make_shared<Frame>(
+            Frame{std::vector<std::byte>(size), clock.project(received, {stamp.ntp, pts_ns}), stamp.rtp, stamp.ntp,
+                  pts_ns, !GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT),
+                  GST_BUFFER_DURATION_IS_VALID(buffer) ? std::optional{GST_BUFFER_DURATION(buffer)} : std::nullopt,
+                  gst_structure_has_name(type, "video/x-h265") ? VideoCodec::h265 : VideoCodec::h264});
+        if (gst_buffer_extract(buffer, 0, frame->access_unit.data(), size) != size) {
+            return "invalid_access_unit";
+        }
+        receive(std::move(frame), format, GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DISCONT));
+        deadline = Steady::now() + 5s;
+    }
+    return "stopped";
+}
+} // namespace bacuri::vms::ingest

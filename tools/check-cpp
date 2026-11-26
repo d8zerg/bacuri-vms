@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+check=$1
+shift
+case "$check" in
+    format)
+        exec find "$@" -type f \
+            \( -name '*.cpp' -o -name '*.hpp' -o -name '*.hpp.in' -o -name '*.h' -o -name '*.cc' -o -name '*.cxx' \) \
+            -exec clang-format-19 --dry-run --Werror --style=file {} +
+        ;;
+    lint)
+        build_dir=$1
+        shift
+        exec run-clang-tidy-19 -p "$build_dir" -clang-tidy-binary=/usr/bin/clang-tidy-19 -quiet \
+            -j "${JOBS:-$(nproc)}" -clang-apply-replacements-binary=/usr/bin/clang-apply-replacements-19 \
+            -config-file="$PWD/.clang-tidy" "$@"
+        ;;
+    *)
+        echo "Unknown C++ check: $check" >&2
+        exit 2
+        ;;
+esac
