@@ -6,8 +6,8 @@
 #include "control/access/oidc.hpp"
 #include "control/playback_time.hpp"
 #include "archive/evidence.hpp"
-#include "control/recovery.hpp"
-#include "control/maps.hpp"
+#include "control/recovery/recovery.hpp"
+#include "control/maps/scene.hpp"
 #include "observability/metrics.hpp"
 #include "product_version.hpp"
 #include <sodium.h>

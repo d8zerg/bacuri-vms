@@ -2,7 +2,7 @@
 #include "control/inventory/enrollment.hpp"
 #include "control/inventory/operations.hpp"
 #include "control/access/operations.hpp"
-#include "control/onvif.hpp"
+#include "control/inventory/device.hpp"
 
 namespace bacuri::vms::control
 {
@@ -79,7 +79,8 @@ Json template_settings(Database& db, const std::string& site, const Json& body)
 
 Json resolve_profiles(const Key& key, const std::string& site, const Json& body, std::string_view record_quality)
 {
-    const auto selection = read_camera_ticket(key, site, string_field(body, "selection", 24576));
+    const auto selection =
+        device_family_named("onvif").read_selection(key, site, string_field(body, "selection", 24576));
     if (record_quality.empty()) {
         if (body.contains("channel"))
             throw Failure{400, "invalid_request"};
@@ -146,7 +147,7 @@ Preview preview(Database& db, const Key& key, const CameraNetworks& networks, co
             throw Failure{409, "camera_binding_conflict"};
         config["point_id"] = point;
     }
-    auto image = camera_brightness(networks, control, config.at("credentials"));
+    auto image = device_family(control).brightness(networks, control, config.at("credentials"));
     Json brightness = nullptr;
     if (settings.contains("brightness")) {
         brightness = settings.at("brightness");
@@ -199,11 +200,13 @@ void change_channel(Database& db, const Key& key, const CameraNetworks& networks
                current.at("id") != (committed ? receipt.at("device_id") : plan.at("device")))
         throw Failure{409, "revision_conflict"};
 
-    verify_camera_channel(networks, next);
+    const auto next_control = next.value("control", Json::object());
+    const auto& family = device_family(next_control);
+    family.verify_channel(networks, next);
     if (!receipt.at("brightness").is_null()) {
         const auto before = receipt.at("image").at("value").get<double>();
         const auto after = receipt.at("brightness").get<double>();
-        receipt["observed_brightness"] = apply_camera_brightness(
+        receipt["observed_brightness"] = family.apply_brightness(
             networks, next, {.expected = rollback ? after : before, .requested = rollback ? before : after});
     }
     if (rollback && !committed)

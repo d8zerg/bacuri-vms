@@ -170,7 +170,7 @@ def run():
         link = c.http("GET", BASE + "/" + first["id"] + "/archive", headers=viewer)[2]
         assert link["state"] == "ready" and link["point_id"] == point, link
         for browser in ("chrome", "firefox"):
-            with browser_session(browser, viewer, "/alerts/") as (call, version):
+            with browser_session(browser, viewer, "/monitor") as (call, version):
                 c.wait_for(
                     lambda: js(
                         call, "return document.getElementById('alert-'+arguments[0])!==null", first["id"]
@@ -179,19 +179,15 @@ def run():
                 )
                 c.wait_for(
                     lambda: js(
-                        call, "return document.getElementById('status').textContent==='Лента подключена'"
+                        call, "return document.querySelector('.ws-feed-status')?.dataset.status==='online'"
                     ),
                     "live browser feed",
                 )
-                call("POST", "/window/rect", {"width": 1440, "height": 900})
-                assert js(call, "return document.querySelector('nav').getBoundingClientRect().right <= document.querySelector('main').getBoundingClientRect().left")
-                js(call, "document.querySelector('.sidebar-toggle').click()")
-                assert js(call, "return getComputedStyle(document.querySelector('nav a span')).display === 'none'")
-                before = js(call, "return document.getElementById('alerts').childElementCount")
+                before = js(call, "return document.querySelectorAll('.ws-alerts li').length")
                 began = time.monotonic()
                 send(motion(point))
                 c.wait_for(
-                    lambda: js(call, "return document.getElementById('alerts').childElementCount") > before,
+                    lambda: js(call, "return document.querySelectorAll('.ws-alerts li').length") > before,
                     "live alert in DOM",
                 )
                 print(
@@ -203,23 +199,17 @@ def run():
                 )
                 js(
                     call,
-                    "document.getElementById('alert-'+arguments[0]).querySelector('button').click()",
+                    "document.getElementById('alert-'+arguments[0]).click()",
                     first["id"],
                 )
-                c.wait_for(
+                # The archive player stops at the encoded frame of the alert, whose band pattern encodes its ordinal.
+                frame = c.wait_for(
                     lambda: js(
-                        call, "return document.getElementById('status')?.textContent==='Кадр тревоги'"
+                        call,
+                        """const v=document.querySelector('.ws-player video');if(!v||v.readyState<2||!v.videoWidth||v.seeking)return null;const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;const ctx=c.getContext('2d');ctx.drawImage(v,0,0);let n=0;for(let i=0;i<5;i++) if(ctx.getImageData((i+.5)*c.width/5,40,1,1).data[0]>128)n|=1<<i;return n===16?n:null""",
                     ),
                     "archive target frame",
                 )
-                frame = js(
-                    call,
-                    """const v=document.querySelector('video'), c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;const ctx=c.getContext('2d');ctx.drawImage(v,0,0);let n=0;for(let i=0;i<5;i++) if(ctx.getImageData((i+.5)*c.width/5,40,1,1).data[0]>128)n|=1<<i;return n""",
-                )
-                assert frame == 16, (browser, frame)
-                assert js(call, "return document.querySelector('.sidebar-toggle').getAttribute('aria-expanded') === 'false'")
-                call("POST", "/window/rect", {"width": 640, "height": 800})
-                assert js(call, "return getComputedStyle(document.querySelector('nav a span')).display !== 'none' && getComputedStyle(document.querySelector('.sidebar-toggle')).display === 'none'")
                 print(browser, version, "alert opened encoded frame", frame, flush=True)
         fallback = motion(point)
         del fallback["clock"]
@@ -245,7 +235,7 @@ def run():
             f"INSERT INTO bacuri_archive.gaps VALUES('{SITE}','{point}',1,{playback.ORIGIN_US + 2000000},{playback.ORIGIN_US + 3000000},'source_offline')"
         )
         assert last_link()["reason"] == "source_offline"
-        with browser_session("chrome", viewer, "/alerts/") as (call, _):
+        with browser_session("chrome", viewer, "/monitor") as (call, _):
             probe(call, empty["cursor"])
             expected = snapshot(viewer)
             actual = frames(call, len(expected["items"]))
@@ -266,14 +256,17 @@ def run():
             assert frames(call, 2)[-1] == {"type": "resync_required", "reason": "client_lag"}
             closed(call, 1000)
             current = snapshot(viewer)
-            visible_ids = [a["id"] for a in reversed(current["items"])]
+            # The feed shows the new snapshot, newest first. Alerts observed at the same time keep no defined order.
+            visible_ids = {a["id"] for a in current["items"]}
             c.wait_for(
-                lambda: js(
-                    call, "return [...document.querySelectorAll('#alerts li')].map(row=>row.id.slice(6))"
+                lambda: set(
+                    js(call, "return [...document.querySelectorAll('.ws-alerts li button')].map(row=>row.id.slice(6))")
                 )
                 == visible_ids,
                 "browser resnapshot after lag",
             )
+            shown = js(call, "return [...document.querySelectorAll('.ws-alerts li time')].map(t=>t.dateTime)")
+            assert shown == sorted(shown, reverse=True), shown
             cursor = current["cursor"]
             probe(call, cursor)
             c.query(f"DELETE FROM bacuri_access.point_grants WHERE point_id='{point}'")
@@ -281,7 +274,7 @@ def run():
             closed(call, 1000)
             assert not snapshot(viewer)["items"]
             c.wait_for(
-                lambda: js(call, "return !document.getElementById('alerts').childElementCount"),
+                lambda: js(call, "return !document.querySelectorAll('.ws-alerts li').length"),
                 "revoked DOM cleared",
             )
             subprocess.run([c.CORE, "grant-point", "viewer", point], check=True)

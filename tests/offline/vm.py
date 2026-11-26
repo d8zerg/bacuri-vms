@@ -14,6 +14,9 @@ import time
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+# The browser answers WebAuthn challenges with this script and its virtual authenticator.
+FACTOR_ANSWER = (Path(__file__).resolve().parents[1] / "control/factor-answer.js").read_text()
+
 report = Path("/report")
 guest = Path("/guest")
 origin = "https://bacuri.test:8443"
@@ -194,7 +197,8 @@ def exercise(line, send):
         signed = call(
             "/execute/async",
             {
-                "script": "const [c, done] = arguments; import('/webauthn.js').then(m=>m.factorAnswer(c,'installer')).then(done).catch(()=>done(null))",
+                "script": "const [c, done] = arguments;\n" + FACTOR_ANSWER
+                + "\nfactorAnswer(c, 'installer').then(done).catch(() => done(null));",
                 "args": [challenge],
             },
         )

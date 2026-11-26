@@ -1,5 +1,5 @@
-#include "control/database.hpp"
-#include "control/recovery.hpp"
+#include "control/database/database.hpp"
+#include "control/recovery/recovery.hpp"
 #include "control/media_sessions/operations.hpp"
 
 namespace bacuri::vms::control::media_sessions

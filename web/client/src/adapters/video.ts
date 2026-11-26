@@ -1,4 +1,4 @@
-import type { ArchivePlayer } from "/archive/player.js";
+import { ArchivePlayer } from "./archivePlayer";
 import type { Target } from "../contracts/workspace";
 import { api, data, HttpFailure } from "./api";
 import { t } from "../i18n";
@@ -236,15 +236,12 @@ async function connect(
     signal,
   });
   if (target.mode === "archive") {
-    const [{ ArchivePlayer }, manifest] = await Promise.all([
-      import("/archive/player.js"),
-      api
-        .GET("/media-sessions/{mediaSessionId}/manifest", {
-          params: { path },
-          signal,
-        })
-        .then(data),
-    ]);
+    const manifest = data(
+      await api.GET("/media-sessions/{mediaSessionId}/manifest", {
+        params: { path },
+        signal,
+      }),
+    );
     signal.throwIfAborted();
     async function verify() {
       try {

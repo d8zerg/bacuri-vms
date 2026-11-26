@@ -128,6 +128,8 @@ def run():
         assert status == 201, camera
         point = camera["point_id"]
         route = f"sites/{control.SITE}/points/{point}/media-sessions"
+        # The monitor opens in archive mode, so live video starts only when the test selects it.
+        monitor = f"/monitor?point={point}&mode=archive"
         headers = {**viewer, "Idempotency-Key": str(uuid.uuid4())}
         assert control.http("POST", route, {"mode": "live"}, headers)[0] == 404
         subprocess.run([control.CORE, "grant-point", "operator", point], check=True)
@@ -159,7 +161,7 @@ def run():
         reference = coverage(point, baseline)
         assert reference == (0, 0, 0, 0), reference
         for browser in ["chrome", "firefox"]:
-            with browser_session(browser, viewer, "/live/") as (call, version):
+            with browser_session(browser, viewer, monitor) as (call, version):
                 print(browser, version, frame(call), flush=True)
         # The media service measures the same wait on the server and exports it for the site.
         served = control.wait_for(lambda: control.metric("media", "bacuri_live_first_frame_seconds_count"),
@@ -167,7 +169,7 @@ def run():
         first = control.metric("media", "bacuri_live_first_frame_seconds_sum") / served
         print(f"server first frame mean {first:.3f} s over {served:.0f} sessions", flush=True)
         assert 0 < first < 2, first
-        with browser_session("chrome", viewer, "/live/") as (call, _):
+        with browser_session("chrome", viewer, monitor) as (call, _):
             pending_id = uuid.UUID(
                 call(
                     "POST",
@@ -190,7 +192,7 @@ def run():
             # This includes transport teardown, the close RPC and polling the committed row.
             assert elapsed < 5.6, elapsed
             print(f"unconnected live session released after {elapsed:.3f} s", flush=True)
-        with browser_session("chrome", viewer, "/live/") as (call, _), VideoLink("chrome") as link:
+        with browser_session("chrome", viewer, monitor) as (call, _), VideoLink("chrome") as link:
             linked(call, link)
             link.limited.set()
             count = len(archive_blocks(point))
@@ -207,7 +209,7 @@ def run():
             )
             link.limited.clear()
             print("reconnect in the same browser", frame(call), flush=True)
-        with browser_session("chrome", viewer, "/live/") as (call, _), VideoLink("chrome") as link:
+        with browser_session("chrome", viewer, monitor) as (call, _), VideoLink("chrome") as link:
             revoked = linked(call, link)
             verify_cutoff(
                 link,
@@ -221,7 +223,7 @@ def run():
                 == "t"
             )
         subprocess.run([control.CORE, "grant-point", "operator", point], check=True)
-        with browser_session("chrome", viewer, "/live/") as (call, _), VideoLink("chrome") as link:
+        with browser_session("chrome", viewer, monitor) as (call, _), VideoLink("chrome") as link:
             live_id = linked(call, link)
             verify_cutoff(
                 link,
@@ -234,7 +236,7 @@ def run():
                 control.query(f"SELECT closed FROM bacuri_media_sessions.media_sessions WHERE id='{live_id}'")
                 == "t"
             )
-        with browser_session("chrome", viewer, "/live/") as (call, _), VideoLink("chrome") as link:
+        with browser_session("chrome", viewer, monitor) as (call, _), VideoLink("chrome") as link:
             linked(call, link)
             try:
                 verify_cutoff(link, lambda: core.send_signal(signal.SIGSTOP), "authorization outage")

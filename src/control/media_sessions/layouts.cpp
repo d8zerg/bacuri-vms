@@ -1,7 +1,7 @@
 #include "control/access/operations.hpp"
 #include "control/inventory/operations.hpp"
-#include "control/playback.hpp"
-#include "control/configuration_snapshot.hpp"
+#include "control/media_sessions/playback.hpp"
+#include "control/recovery/configuration_snapshot.hpp"
 #include "control/media_sessions/operations.hpp"
 #include <set>
 

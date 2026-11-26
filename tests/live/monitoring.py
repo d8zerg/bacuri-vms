@@ -157,7 +157,7 @@ def profiles(point, admin):
     )
     assert live_mask["video"]["reason"] == "privacy_mask" and live_mask["video"]["codec"] == "h264", live_mask
     try:
-        with browser_session("chrome", admin, "/session.js") as (call, _):
+        with browser_session("chrome", admin, "/") as (call, _):
             visible = call(
                 "POST",
                 "/execute/async",
@@ -351,7 +351,7 @@ def run():
             and copy["video"]["width"] == 320
         ), copy
         assert session(hevc, admin, {"mode": "live", "hevc": False}, 429)["code"] == "video_transcoder_limit"
-        with browser_session("chrome", admin, "/session.js") as (call, _):
+        with browser_session("chrome", admin, "/") as (call, _):
             frame = call(
                 "POST",
                 "/execute/async",

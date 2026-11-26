@@ -2645,6 +2645,23 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/Unavailable' }
 
+  /sites/{siteId}/alerts/stream:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+    get:
+      operationId: openAlertStream
+      description: >
+        WebSocket upgrade with subprotocol bacuri.vms.alerts.v1. The request carries the Origin of the site
+        workspace. The messages after the upgrade are described in alerts.schema.yaml.
+      responses:
+        '101':
+          description: The connection is upgraded to the alert feed WebSocket.
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
   /sites/{siteId}/alerts/{alertId}/archive:
     parameters:
       - $ref: '#/components/parameters/Site'
@@ -4620,6 +4637,16 @@ components:
             - video_session_limit
             - authorization_unavailable
             - dependency_unavailable
+            - position_from_plan
+            - edge_recording_unavailable
+            - camera_clock_uncertain
+            - conflict
+            - source_unavailable
+            - region_busy
+            - download_unavailable
+            - camera_position_changed
+            - invalid_georeference
+            - georeference_changed
         request_id: { $ref: '#/components/schemas/Id' }
     RevisionConflict:
       allOf:

@@ -48,7 +48,7 @@ The table lists the current VMS interfaces, including local maps (`maps`) and ma
 | holds | REST | listArchiveHolds, createArchiveHold |
 | rules | REST | getVideoRule, setVideoRule, simulateVideoRule |
 | evidence | REST | exportFragment, exportInvestigation, listInvestigations, getInvestigation, saveInvestigation, listCaseRecipients |
-| alerts | REST | getAlertSnapshot, resolveAlertArchive, getAlertWork, applyAlertCommand, searchAlertAudit, issueAlertDelegation, revokeAlertDelegation |
+| alerts | REST | getAlertSnapshot, openAlertStream, resolveAlertArchive, getAlertWork, applyAlertCommand, searchAlertAudit, issueAlertDelegation, revokeAlertDelegation |
 | maps | REST | getMapScene, getMapManagement, createMapSource, getMapSource, uploadMapChunk, queueMapRegions, setMapDownloadPaused, addFloorPlan, placePoint, previewPlanGeoreference, setPlanGeoreference, calibrateCameraView, getFloorPlan, getRegionStyle, getRegionTile |
 | identity | Core | initial-admin, enroll-admin, recover-admin |
 | access | Core | create-user, grant-point, revoke-point, grant-export, revoke-export, configure-oidc, bind-identity |
@@ -62,9 +62,6 @@ The table lists the current VMS interfaces, including local maps (`maps`) and ma
 | inventory | Web | /cameras |
 | maps | Web | /maps |
 | access | Web | /access |
-| media | Page | /live/ |
-| search | Page | /archive/ |
-| alerts | Page | /alerts/ |
 | operations | Maintenance | backup, upgrade, rollback, restore, diagnose, reconcile, scrape, sample |
 
 ## Administrative operations of the full release

@@ -199,6 +199,7 @@ For each mandatory requirement, record the scenario, the revision, the ADR, the 
 | [ADR-016. Maintenance of system packages](adr/016-system-backports.md) | A package from the build contains a verified backport of the fix, the original version stays in the advisory check. A library change invalidates the evidence |
 | [ADR-017. Map and floor plan sources](adr/017-map-sources.md) | The region map and the customer's plans open in an isolated network. A package update changes the source data date and keeps the camera bindings |
 | [ADR-018. Boundary between Core and pluggable modules](adr/018-core-module-boundary.md) | CTest `core-module-boundaries` checks the SQL and the includes of private Core headers. `task schema:check` compares the "schema, object" pairs with the catalog of the running PostgreSQL and checks the data migration, the permission revision and the revocation of a media session. With the source stopped, the site keeps the recording and the alarm history. A repeated observation keeps one alarm, a revoked service delegation is refused |
+| [ADR-019. Data loading in the web client](adr/019-client-data-loading.md) | The UI Kit screen tests show loading, failure and refresh on the fixture. The end-to-end scenarios of the monitor, the maps, the access settings and the investigations read the same screens from the server |
 
 ## Single web client acceptance
 

@@ -9,6 +9,7 @@ import { pause } from "../workflows/pause";
 import { api, data, HttpFailure } from "./api";
 import { subscribe } from "./feed";
 import { attach, mediaFailure } from "./video";
+import { factorAnswer } from "./webauthn";
 type Registration = {
   key: string;
   initial: CameraDraft;
@@ -208,7 +209,6 @@ export function createServices(): Services {
           csrf = stage.csrf_token;
           return stage;
         }
-        const { factorAnswer } = await import("/webauthn.js");
         const verified = await api.POST("/session/webauthn", {
           body: await factorAnswer(stage, username),
         });

@@ -1,4 +1,4 @@
-#include "control/maps.hpp"
+#include "control/maps/scene.hpp"
 #include "control/events/video_rules.hpp"
 #include "control/recordings/search.hpp"
 #include "control/recordings/operations.hpp"

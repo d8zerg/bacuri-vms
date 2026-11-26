@@ -14,7 +14,7 @@ import ssl
 import subprocess
 import time
 import uuid
-from vm import configure_guest, ext4, guest, origin, publish, qemu_command, report, request, until
+from vm import FACTOR_ANSWER, configure_guest, ext4, guest, origin, publish, qemu_command, report, request, until
 
 NEW = "/mnt/bundle/new"
 OLD = "/mnt/bundle/old"
@@ -170,7 +170,7 @@ class Browser:
 
     def sign(self, challenge):
         answer = self.js(
-            "return (await import('/webauthn.js')).factorAnswer(arguments[0], 'installer')", challenge
+            FACTOR_ANSWER + "\nreturn await factorAnswer(arguments[0], 'installer');", challenge
         )
         assert "error" not in answer, answer
         return answer

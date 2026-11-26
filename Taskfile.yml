@@ -377,6 +377,7 @@ tasks:
   playback:check:
     desc: Verify archive search, playback permissions, first frame and seek in Chrome and Firefox
     deps:
+      - web:build
       - stand:up
       - task: build
         vars: {PRESET: '{{.PRESET}}'}
@@ -397,6 +398,7 @@ tasks:
   alerts:check:
     desc: Verify observation replay, alert feed recovery, access and archive navigation
     deps:
+      - web:build
       - stand:up
       - task: build
         vars: {PRESET: '{{.PRESET}}'}
@@ -414,6 +416,7 @@ tasks:
         - name: CAMERA
           enum: [rtsp-camera, webcam]
     deps:
+      - web:build
       - stand:up
       - task: build
         vars: {PRESET: '{{.PRESET}}'}

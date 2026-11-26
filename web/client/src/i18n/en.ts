@@ -252,6 +252,12 @@ export const en = {
   "media.interrupted":
     "Viewing was interrupted. Check access and connect again.",
   "media.playFailed": "Playback could not start",
+  "media.invalidInit":
+    "The recording carries an invalid video stream description",
+  "media.positionUnavailable": "No recording at the selected position",
+  "media.partUnavailable": "The recording part is unavailable",
+  "media.formatUnsupported": "The browser does not support {format}",
+  "media.gapContinues": "Recording gap. Playback continues at {at}",
   "media.cameraLost": "The connection to the camera was lost. Connect again.",
   "timeline.recorded": "Recording",
   "timeline.estimated": "Estimated time",

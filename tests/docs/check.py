@@ -62,7 +62,7 @@ LABELS = {
         "vector_columns": ["ID", "Input data", "Action and expected result", "Injected failure and expected result"],
         "operations": "Source operations",
         "operation_columns": ["ID", "Interface", "Operations"],
-        "interfaces": {"REST": "REST", "Core": "Core", "Web": "Web", "Page": "Page", "Maintenance": "Maintenance"},
+        "interfaces": {"REST": "REST", "Core": "Core", "Web": "Web", "Maintenance": "Maintenance"},
         "scenarios": "Scenario matrix",
         "scenario_columns": ["Scenario", "Inputs", "Pass condition"],
         "decisions": "Design decision registry",
@@ -82,7 +82,7 @@ LABELS = {
                            "Внесённый отказ и ожидаемый результат"],
         "operations": "Исходные операции",
         "operation_columns": ["ID", "Интерфейс", "Операции"],
-        "interfaces": {"REST": "REST", "Core": "Core", "Web": "Веб", "Page": "Страница", "Maintenance": "Обслуживание"},
+        "interfaces": {"REST": "REST", "Core": "Core", "Web": "Веб", "Maintenance": "Обслуживание"},
         "scenarios": "Матрица сценариев",
         "scenario_columns": ["Сценарий", "Входы", "Условие прохождения"],
         "decisions": "Реестр проектных решений",
@@ -190,9 +190,6 @@ def check_release_operations(register, requirements):
     router = Path("web/client/src/app/Workspace.tsx").read_text()
     routes = re.findall(r'"(/[\w/-]*)"', router.partition("const routes: RouteObject[]")[2])
     same_set("web workspace", set(routes) - {"/"}, surfaces[kinds["Web"]])
-    server = Path("src/control/server.cpp").read_text()
-    pages = set(re.findall(r'path == "(/[\w-]+/)"', server))
-    same_set("standalone web pages", pages, surfaces[kinds["Page"]])
     return len(operation_ids)
 
 

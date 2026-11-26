@@ -2,8 +2,8 @@
 #include "control/access/restore.hpp"
 #include "maintenance.hpp"
 #include "product_version.hpp"
-#include "control/database.hpp"
-#include "control/recovery.hpp"
+#include "control/database/database.hpp"
+#include "control/recovery/recovery.hpp"
 #include "platform/identifiers.hpp"
 #include "storage/sqlite.hpp"
 #include <nlohmann/json.hpp>

@@ -2,10 +2,8 @@
 
 from contextlib import contextmanager
 import json
-import os
 from pathlib import Path
 from urllib.error import HTTPError
-from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 from uuid import uuid4
 import registry as control
@@ -46,19 +44,19 @@ def browser_session(browser, credential, page, *, workspace_coverage=None, softw
         {"capabilities": {"alwaysMatch": capabilities}},
     )
     path = "/session/" + result["sessionId"]
-    coverage = os.environ.get("BACURI_BROWSER_COVERAGE") if browser == "chrome" else None
 
     def profiler(command, **params):
         return call("POST", path + "/goog/cdp/execute", {"cmd": "Profiler." + command, "params": params})
 
     try:
         workspace = workspace_coverage if browser == "chrome" else None
-        if coverage or workspace:
+        if workspace:
             profiler("enable")
             profiler("startPreciseCoverage", callCount=True, detailed=True)
         call("POST", path + "/timeouts", {"script": 50000})
         if credential:
-            call("POST", path + "/url", {"url": control.ORIGIN + "/session.js"})
+            # A static asset of the client gives the browser the origin for the session cookie.
+            call("POST", path + "/url", {"url": control.ORIGIN + "/assets/sprite.svg"})
             name, value = credential["Cookie"].split("=", 1)
             call(
                 "POST",
@@ -83,16 +81,5 @@ def browser_session(browser, credential, page, *, workspace_coverage=None, softw
             scripts = [s for s in profiler("takePreciseCoverage")["result"] if s["url"].startswith(control.ORIGIN + "/assets/") and s["url"].endswith(".js")]
             assert scripts, "No workspace bundle in Chrome coverage"
             (workspace / f"{uuid4()}.json").write_text(json.dumps(scripts))
-        elif coverage:
-            scripts = []
-            for script in profiler("takePreciseCoverage")["result"]:
-                url = script["url"]
-                if url.startswith(control.ORIGIN + "/"):
-                    source = Path("web") / urlsplit(url).path.lstrip("/")
-                    if source.suffix == ".js" and source.is_file():
-                        scripts.append({**script, "url": source.resolve().as_uri()})
-            if not scripts:
-                raise AssertionError(f"No product JavaScript coverage from {page}")
-            (Path(coverage) / f"{uuid4()}.json").write_text(json.dumps({"result": scripts}))
     finally:
         call("DELETE", path)

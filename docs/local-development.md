@@ -12,7 +12,7 @@ task check
 
 The command builds the optimized services, checks the GCC and Clang Debug builds, runs CTest with ASan/UBSan and TSan, runs static analysis and checks the contracts and the TypeScript types. Then it starts the Compose stand, applies the storage schemas and checks recording, live video, the archive and alarms. CMake and Ninja run in a container without network. The results are kept in `build/`.
 
-For a full run, use a working copy with the full Git history. In the `task check:report` report, open `coverage/cpp/index.html`, `coverage/web/index.html` and `workspace/coverage/index.html` to see the uncovered lines. `secrets/` contains separate Gitleaks results for the history, the index and the working files. [Mandatory code checks](quality.md#automatic-code-checks)
+For a full run, use a working copy with the full Git history. In the `task check:report` report, open `coverage/cpp/index.html` and `workspace/coverage/index.html` to see the uncovered lines. `secrets/` contains separate Gitleaks results for the history, the index and the working files. [Mandatory code checks](quality.md#automatic-code-checks)
 
 | Command | Action |
 | --- | --- |
@@ -154,7 +154,7 @@ The manifest includes whole H.264 blocks starting at a keyframe. When a position
 
 ## Alarms and the transition to the recording
 
-After `task control:up`, open the [alarm feed](https://localhost:8443/alerts/). The operator sees the last 100 alarms of the own points. The list is updated over WSS. "Open the recording" opens the archive at the frame of the event. When the block is still being registered, "Check the recording again" checks the same interval again.
+After `task control:up`, open the [monitor](https://localhost:8443/monitor). The alarm feed shows the operator the last 100 alarms of the own points and is updated over WSS. Selecting an alarm opens the archive at the frame of the event. When the block is still being registered, the player checks the same interval again on "Retry".
 
 The local test source creates a `motion` observation for an already configured point and binding revision. Put the point UUID instead of `POINT_UUID` and the current revision instead of `1`. Keep the message to send it again.
 
@@ -168,7 +168,7 @@ The first response is `REGISTRATION_STATE_COMMITTED`, the repeated one `REGISTRA
 
 ## Live video
 
-After `task control:up`, open [live video](https://localhost:8443/live/), sign in, choose the site and the observation point and press "Watch". The operator needs the permission for the point. "Stop" closes the media session. After a lost connection, press "Watch" to connect again.
+After `task control:up`, open the [monitor](https://localhost:8443/monitor), sign in and choose the observation point. The player starts live video, "Archive" switches to the recording. The operator needs the permission for the point. Leaving the point closes the media session. After a lost connection, press "Retry" to connect again.
 
 The core negotiates WebRTC over HTTPS. The `bacuri-vms-media` process gets the secondary H.264 stream from the recording node through a Unix socket and sends it to the browser over DTLS-SRTP without re-encoding. On a Linux host the browser needs a direct UDP route to the container address in the `live-media` network. The stand profile uses local ICE candidates. Viewing requires WebRTC H.264 support. The test Firefox image contains OpenH264 with a checksum check.
 

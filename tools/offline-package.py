@@ -49,7 +49,6 @@ def make_package(work, repo, version, runtime, headers, binaries):
     copy("packaging/debian/runtime.conf", pkg / "usr/lib/tmpfiles.d/bacuri-vms.conf")
     copy("packaging/debian/bootstrap.sql", share / "bootstrap.sql")
     shutil.copytree("storage/postgresql/migrations", share / "storage/postgresql/migrations")
-    shutil.copytree("web", share / "web", ignore=shutil.ignore_patterns("client"))
     shutil.copytree("build/web-client", share / "build/web-client", ignore=shutil.ignore_patterns("*.map"))
     copy("LICENSE", pkg / "usr/share/doc/bacuri-vms/copyright")
     for node in headers:
@@ -196,11 +195,6 @@ def main():
                 "postgresql_version": pg_version,
                 "debian_packages": packages,
                 "web_assets": assets,
-                "legacy_web_assets": {
-                    str(p.relative_to("web")): digest(p)
-                    for p in Path("web").rglob("*")
-                    if p.is_file() and "client" not in p.relative_to("web").parts
-                },
                 "browser_chunks": sources,
                 "frontend_runtime_graph": [p for p in npm if not lock[p["path"]].get("dev")],
                 "cpp_headers": [n["ref"] for n in headers],

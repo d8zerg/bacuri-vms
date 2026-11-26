@@ -1,5 +1,5 @@
 #pragma once
-#include "control/configuration_snapshot.hpp"
+#include "control/recovery/configuration_snapshot.hpp"
 namespace bacuri::vms::control::inventory
 {
 void site_configuration(ConfigurationSnapshot& snapshot);

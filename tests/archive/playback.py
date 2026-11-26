@@ -124,9 +124,14 @@ def register_fixture(camera, directory, offset, duration, codec="h264", pcm=None
     return manifest
 
 
-def webdriver(browser, credential, selections):
-    with browser_session(browser, credential, "/archive/") as (call, version):
-        for selection in selections:
+def webdriver(browser, credential, point, selections):
+    # Each selection opens the archive of the point at its start. The first page is the first selection, so no
+    # other archive session holds the single conversion slot of the test site.
+    page = lambda selection: f"/monitor?point={point}&mode=archive&at={selection['start']}"
+    with browser_session(browser, credential, page(selections[0])) as (call, version):
+        for number, selection in enumerate(selections):
+            if number:
+                call("POST", "/url", {"url": control.ORIGIN + page(selection)})
             metrics = call("POST","/execute/async",{
                 "script":Path("tests/archive/browser.js").read_text(),"args":[selection]})
             assert "error" not in metrics, (browser,metrics)
@@ -347,7 +352,7 @@ def run():
         assert binary(base + "/parts/" + one["media_id"], admin)[0] == 200
         recorded = camera_recording(start, path, admin)
         for browser in ["chrome", "firefox"]:
-            webdriver(browser, admin, [{**interval(0, 4), "target": utc(0.64), "gap": utc(2.5)}, recorded])
+            webdriver(browser, admin, point, [{**interval(0, 4), "target": utc(0.64), "gap": utc(2.5)}, recorded])
         grant_headers = {**viewer, "Idempotency-Key": str(uuid.uuid4())}
         subprocess.run([control.CORE, "grant-point", "viewer", point], check=True)
         throttled_session = create(interval(5, 6), grant_headers)[2]

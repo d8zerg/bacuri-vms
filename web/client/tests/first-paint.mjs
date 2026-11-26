@@ -10,7 +10,8 @@ async function checkStartup(
   system,
   { saved, signedIn, denyStorage } = {},
 ) {
-  const page = await browser.newPage({ colorScheme: system });
+  // The checks name the Russian interface, which the client selects from the browser language.
+  const page = await browser.newPage({ colorScheme: system, locale: "ru-RU" });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   let scripts, session;

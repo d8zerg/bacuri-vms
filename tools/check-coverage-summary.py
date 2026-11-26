@@ -20,18 +20,10 @@ def check(label, covered, total, expected, measured):
 def main(report):
     cpp = json.loads((report / "cpp/summary.json").read_text())
     cpp_files = {path for path in Path("src").rglob("*") if path.suffix in {".cpp", ".cc", ".cxx"}}
-    cpp_ok = check(
+    return check(
         "C++", cpp["line_covered"], cpp["line_total"], cpp_files,
         {Path(entry["filename"]) for entry in cpp["files"]},
     )
-
-    web = json.loads((report / "web/coverage-summary.json").read_text())
-    lines = web.pop("total")["lines"]
-    web_ok = check(
-        "Web", lines["covered"], lines["total"], set(Path("web").rglob("*.js")),
-        {Path(name).resolve().relative_to(Path.cwd()) for name in web},
-    )
-    return cpp_ok and web_ok
 
 
 if __name__ == "__main__":

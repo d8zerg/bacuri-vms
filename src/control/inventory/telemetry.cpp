@@ -1,5 +1,5 @@
 #include "control/inventory/telemetry.hpp"
-#include "control/onvif.hpp"
+#include "control/inventory/device.hpp"
 #include "control/events/operations.hpp"
 #include <thread>
 
@@ -63,7 +63,8 @@ void stop_pending_focus(Database& db, const std::string& site, const CameraNetwo
             Json::parse(unseal(row.get(0, 4), key, site + "/" + row.get(0, 2) + "/" + row.get(0, 3)));
         bool stopped = true;
         try {
-            operate_camera(networks, Json::parse(row.get(0, 5)), credentials, {.command = "focus_stop"});
+            const auto control = Json::parse(row.get(0, 5));
+            device_family(control).operate(networks, control, credentials, {.command = "focus_stop"});
         } catch (const Failure&) {
             stopped = false;
         }
@@ -139,7 +140,8 @@ bool poll_one(Database& db, const std::string& site, const CameraNetworks& netwo
     bool answered = true;
     try {
         auto credentials = Json::parse(unseal(row.get(0, 4), key, site + "/" + device + "/" + row.get(0, 3)));
-        sample = read_ptz_position(networks, Json::parse(row.get(0, 2)), credentials);
+        const auto control = Json::parse(row.get(0, 2));
+        sample = device_family(control).read_ptz_position(networks, control, credentials);
     } catch (const Failure&) {
         answered = false;
     } catch (const std::exception&) {

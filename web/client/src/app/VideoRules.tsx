@@ -13,7 +13,7 @@ import {
   RegionField,
 } from "./ArchiveFrame";
 import "./investigations.css";
-import { shortWeekdays, t as translate, useT } from "../i18n";
+import { locale, shortWeekdays, t as translate, useT } from "../i18n";
 const blank: VideoRule = {
   enabled: false,
   source: "local",
@@ -537,7 +537,7 @@ function Editor({
               " · " +
                 trial.hits
                   .slice(0, 8)
-                  .map((t) => new Date(t).toLocaleTimeString("ru"))
+                  .map((t) => new Date(t).toLocaleTimeString(locale()))
                   .join(", ")}
           </p>
         )}

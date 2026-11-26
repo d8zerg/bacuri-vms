@@ -102,6 +102,18 @@
 
 ### Changed
 
+- The control sources live in the directories of their owning modules. The ONVIF adapter is split into SOAP transport, discovery, stream profiles, imaging, PTZ, camera recordings and events, and is built as a library. Core calls it through the `DeviceFamily` interface, which selects the adapter of a camera from its control settings. [ADR-018. Core and pluggable modules](docs/adr/018-core-module-boundary.md)
+
+- The investigations, recording policies, maps and access screens of the web client are split by task. They read server data through one layer with a cache per session, cancellation, retries of transient failures and polling. The recording policy editor keeps its save and confirmation steps in one state. [ADR-019. Data loading in the web client](docs/adr/019-client-data-loading.md)
+
+- Times in the investigations, the recording policies and the video rules are formatted in the selected interface language.
+
+- Every error code of the server is listed in the OpenAPI contract, and `task api:check` compares them with the server sources.
+
+- Live video, archive playback and the alarm feed work only in the single web client. The separate pages `/live/`, `/archive/` and `/alerts/` were removed. The archive player and the WebAuthn sign-in step are part of the client bundle, and the browser scenarios drive the monitor of the client.
+
+- The Storybook fixture of the client answers with the shapes of the OpenAPI contract and UUID identifiers. `task ui-kit:check` validates its responses against the contract, and the end-to-end scenarios validate every HTTP response. The WebSocket upgrade of the alarm feed is part of the contract.
+
 - The export verifier `bacuri-vms-verify-export` is built from verification, manifest, MP4 and identifier libraries and links only libsodium. An architecture test rejects SQLite, GLib, GIO, GStreamer and the archive volume in its sources. [Archive format](docs/archive-format.md#verification-tools)
 
 - An archive block is written by an own fragmented MP4 writer instead of a GStreamer pipeline per block. The CPU time per block dropped about five times. The live session waits for connection state changes instead of polling. [Archive format](docs/archive-format.md)

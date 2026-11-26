@@ -258,6 +258,11 @@ export const ru = {
   "media.interrupted":
     "Просмотр прерван. Проверьте доступ и подключитесь снова.",
   "media.playFailed": "Не удалось начать просмотр",
+  "media.invalidInit": "Некорректное описание видеопотока в записи",
+  "media.positionUnavailable": "В выбранной позиции запись недоступна",
+  "media.partUnavailable": "Фрагмент записи недоступен",
+  "media.formatUnsupported": "Браузер не поддерживает {format}",
+  "media.gapContinues": "Разрыв записи. Продолжение с {at}",
   "media.cameraLost": "Связь с камерой потеряна. Повторите подключение.",
   "timeline.recorded": "Запись",
   "timeline.estimated": "Оценочное время",

@@ -341,7 +341,7 @@ def run():
                 {"interval": interval},
             )
             grant(gexport, "export")
-            with VideoLink("chrome") as link, browser_session("chrome", session, "/live/") as (call, _):
+            with VideoLink("chrome") as link, browser_session("chrome", session, f"/monitor?point={point}&mode=archive") as (call, _):
                 streaming.linked(call, link)
                 streaming.verify_cutoff(
                     link,
@@ -379,7 +379,7 @@ def run():
         print("Checking renewal before blocking the corporate subject in Keycloak", flush=True)
         time.sleep(max(0, issued + 56 - time.monotonic()))
         check(200, c.http("GET", "session", headers=remote))
-        with VideoLink("chrome") as link, browser_session("chrome", remote, "/live/") as (call, _):
+        with VideoLink("chrome") as link, browser_session("chrome", remote, f"/monitor?point={point}&mode=archive") as (call, _):
             streaming.linked(call, link)
             started = time.monotonic()
             enabled(False)

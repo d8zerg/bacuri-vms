@@ -157,14 +157,19 @@ def run():
         wait(lambda: len(manifests(point, 0)) >= 2, "original continuous recording")
         manual = f"points/{point}/recording"
         api("GET", "storage/volumes", observer, status=403)
+        current = api("GET", "storage/volumes", admin)
+        # The reserve stays well below the free share of the host disk, so the volume reports normal space.
+        free = 100 * current["volume"]["available_bytes"] // current["volume"]["capacity_bytes"]
         storage_edit = {
             "days": 30,
-            "reserve_percent": 15,
-            "revision": api("GET", "storage/volumes", admin)["revision"],
+            "reserve_percent": max(1, min(15, free - 10)),
+            "revision": current["revision"],
         }
         volume = api("PUT", "storage/volumes", admin, storage_edit)
         api("PUT", "storage/volumes", admin, storage_edit, 409)
-        assert volume["days"] == 30 and volume["volume"]["state"] == "normal" and volume["points"]
+        assert volume["days"] == 30 and volume["points"]
+        # The recorder reports the space state for the new reserve with its next status.
+        wait(lambda: api("GET", "storage/volumes", admin)["volume"]["state"] == "normal", "normal volume space")
         _, headers, _ = c.http("GET", site + "/resource-groups", headers=admin)
         group = api(
             "POST",

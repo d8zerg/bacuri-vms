@@ -28,25 +28,15 @@ OBJECTS = {
 }
 OWNER = {name: owner for owner, names in OBJECTS.items() for name in names.split()}
 
-# Existing entry points in src/control. New module files live under their owner's directory.
+# Files at the root of src/control are shared by all modules. Module files live under their owner's directory.
 FILES = {
-    "inventory": "registry onvif camera_events delivery",
-    "access": "session webauthn",
-    "recordings": "archive_catalog archive_recovery",
-    "media_sessions": "playback media_authority",
-    "events": "observations alerts alert_work observation_source",
-    "maps": "maps map_import",
-    "export": "export",
-    "transport": "server https alert_socket routes",
-    "database": "database",
-    "recovery": "configuration_backup recovery configuration_snapshot",
     "shared": "api http support playback_time",
 }
 ENTRY_OWNER = {name: owner for owner, names in FILES.items() for name in names.split()}
 PUBLIC = set("""
-    api.hpp http.hpp support.hpp playback_time.hpp database.hpp recovery.hpp configuration_snapshot.hpp
-    archive_catalog.hpp maps.hpp alerts.hpp alert_work.hpp observations.hpp delivery.hpp media_authority.hpp
-    playback.hpp export.hpp access/enrollment.hpp inventory/camera_events.hpp access/session.hpp inventory/registry.hpp
+    api.hpp http.hpp support.hpp playback_time.hpp database/database.hpp recovery/recovery.hpp recovery/configuration_snapshot.hpp
+    recordings/archive_catalog.hpp maps/scene.hpp events/alerts.hpp events/alert_work.hpp events/observations.hpp inventory/delivery.hpp media_sessions/media_authority.hpp
+    media_sessions/playback.hpp export/export.hpp access/enrollment.hpp inventory/camera_events.hpp access/session.hpp inventory/registry.hpp
     access/operations.hpp access/admin.hpp access/oidc.hpp inventory/operations.hpp inventory/telemetry.hpp events/operations.hpp events/video_rules.hpp events/configuration.hpp recordings/operations.hpp media_sessions/operations.hpp
     access/configuration.hpp inventory/configuration.hpp recordings/policies.hpp recordings/search.hpp recordings/configuration.hpp maps/configuration.hpp
     recordings/status.hpp recordings/recorder.hpp
@@ -87,9 +77,9 @@ MODULE_SCHEMAS = {
 SCHEMAS = set(MODULE_SCHEMAS.values())
 # Previous packages and their snapshots use the original physical names during migration and rollback.
 LEGACY_NAMES = {
-    Path("src/control/database.hpp"): {"schema_migrations"},
-    Path("src/control/database.cpp"): {"schema_migrations"},
-    Path("src/control/archive_recovery.cpp"): {"archive_recovery"},
+    Path("src/control/database/database.hpp"): {"schema_migrations"},
+    Path("src/control/database/database.cpp"): {"schema_migrations"},
+    Path("src/control/recordings/archive_recovery.cpp"): {"archive_recovery"},
     Path("src/control/media_sessions/operations.cpp"): {"media_sessions"},
 }
 FUNCTION_NAMES = {
@@ -148,7 +138,7 @@ def include_error(file, header):
         return False
     relative = dest.relative_to(src / "control").as_posix()
     if relative.endswith("/restore.hpp") and file not in {
-        Path("src/core/maintenance.cpp"), Path("src/control/configuration_backup.cpp")
+        Path("src/core/maintenance.cpp"), Path("src/control/recovery/configuration_backup.cpp")
     }:
         return module(file) != module(dest.relative_to(ROOT))
     return relative not in PUBLIC and module(file) != module(dest.relative_to(ROOT))
@@ -199,7 +189,7 @@ def check_source(file, code):
     for query in literals(code):
         errors.extend(placement_errors(file, query))
         errors.extend(f"{owner} accesses {OWNER[name]}.{name}" for name in sorted(violations(owner, query)))
-        if re.search(r"\b(?:from|join|into|truncate)\s*$", query, re.I) and file != Path("src/control/configuration_snapshot.cpp"):
+        if re.search(r"\b(?:from|join|into|truncate)\s*$", query, re.I) and file != Path("src/control/recovery/configuration_snapshot.cpp"):
             errors.append("dynamic relation outside the configuration snapshot adapter")
     # The backup adapter builds SQL only from a section declared by its storage owner.
     for section in re.finditer(r'\.section\(\s*([^,\)]+)', code):
@@ -220,7 +210,7 @@ def check_storage():
     errors = []
     known = set()
     migrations = sorted((ROOT / "storage/postgresql/migrations").glob("*.sql"))
-    registered = re.findall(r'"(\d{4}_[a-z0-9_]+\.sql)"', (ROOT / "src/control/database.cpp").read_text())
+    registered = re.findall(r'"(\d{4}_[a-z0-9_]+\.sql)"', (ROOT / "src/control/database/database.cpp").read_text())
     if registered != [file.name for file in migrations]:
         errors.append("the runtime migration order differs from the PostgreSQL migrations")
     for file in migrations:
@@ -275,7 +265,7 @@ def check_examples():
     if check_source(caller, allowed):
         raise AssertionError("owner query and public include")
     prohibited = [
-        '#include "../onvif.hpp"',
+        '#include "../inventory/onvif.hpp"',
         'db.exec("SELECT count(*) FROM " "local_users");',
         'db.exec(R"sql(SELECT * FROM bacuri_events.alerts JOIN visible_points USING(point_id))sql");',
         'db.exec("DELETE FROM " + table);',
