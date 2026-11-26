@@ -112,7 +112,10 @@ def corporate(name, accepted=True, otp=False):
         if not accepted:
             wait(
                 lambda: js(
-                    "return location.pathname.endsWith('/callback') && document.body.innerText.includes('invalid_identity')"
+                    # The refused corporate sign-in returns to the workspace, which names the cause in Russian.
+                    "return location.pathname === '/monitor'"
+                    " && new URLSearchParams(location.search).get('sign_in_error') === 'invalid_identity'"
+                    " && document.body.innerText.includes('Не удалось подтвердить личность')"
                 ),
                 10,
                 "unbound identity or absent MFA",

@@ -264,21 +264,8 @@ def check_native_browser(browser, call, point, credentials):
                 "POST",
                 "/execute/async",
                 {
-                    "script": """
-                const [id,position,done]=arguments;
-                (async()=>{
-                    const playerModule=await import('/archive/player.js');
-                    const response=await fetch('/api/v1/media-sessions/'+id+'/manifest');
-                    const manifest=await response.json(), video=document.createElement('video');
-                    video.muted=true;document.body.append(video);
-                    const player=new playerModule.ArchivePlayer(video,id,manifest);
-                    try {
-                        if(manifest.parts[0].codec!=='h265'||!(await player.seek(position)))throw Error('Native HEVC seek');
-                        return [video.videoWidth,video.videoHeight];
-                    } finally {player.stop();video.remove();}
-                })().then(done,error=>done({error:String(error)}));
-            """,
-                    "args": [ticket["id"], bounds["start"]],
+                    "script": Path("tests/live/native-archive.js").read_text(),
+                    "args": [ticket["id"]],
                 },
             )
             assert result == [640, 360], result

@@ -55,7 +55,7 @@ inline Doc parse(const std::string& bytes)
                           XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING),
             xmlFreeDoc};
     if (!doc || doc->intSubset || doc->extSubset)
-        throw Failure{502, "camera_protocol_error"};
+        throw Failure{ErrorCode::camera_protocol_error};
     return doc;
 }
 
@@ -76,10 +76,10 @@ inline xmlNode* child(xmlNode* parent, std::string_view ns, std::string_view nam
 inline std::string value(xmlNode* n)
 {
     if (!n)
-        throw Failure{502, "camera_protocol_error"};
+        throw Failure{ErrorCode::camera_protocol_error};
     std::unique_ptr<xmlChar, xmlFreeFunc> text{xmlNodeGetContent(n), xmlFree};
     if (!text || !*text || xmlStrlen(text.get()) > 4096)
-        throw Failure{502, "camera_protocol_error"};
+        throw Failure{ErrorCode::camera_protocol_error};
     return reinterpret_cast<const char*>(text.get());
 }
 
@@ -135,7 +135,7 @@ inline Uri https_uri(const std::string& url)
     if (url.size() > 2048 || url.find_first_of(" \t\r\n\\") != url.npos || !uri || !url.starts_with("https://") ||
         !g_uri_get_host(uri.get()) || g_uri_get_userinfo(uri.get()) || g_uri_get_fragment(uri.get()) ||
         g_uri_get_port(uri.get()) == 0)
-        throw Failure{422, "camera_transport_denied"};
+        throw Failure{ErrorCode::camera_transport_denied};
     return uri;
 }
 
@@ -152,9 +152,9 @@ inline Json read_ticket(const Key& key, const std::string& context, const std::s
         if (data.at("expires").get<gint64>() > g_get_real_time() / G_USEC_PER_SEC)
             return data;
     } catch (const std::exception&) {
-        throw Failure{400, "camera_selection_expired"};
+        throw Failure{ErrorCode::camera_selection_expired};
     }
-    throw Failure{400, "camera_selection_expired"};
+    throw Failure{ErrorCode::camera_selection_expired};
 }
 
 struct AddressingHeaders {
@@ -170,13 +170,13 @@ struct CameraClient {
              const std::string& params = {}, const AddressingHeaders& headers = {}) const
     {
         if (Clock::now() >= deadline)
-            throw Failure{504, "camera_unavailable"};
+            throw Failure{ErrorCode::camera_unavailable};
         auto uri = https_uri(url);
         if (g_ascii_strcasecmp(host.c_str(), g_uri_get_host(uri.get())))
-            throw Failure{422, "camera_transport_denied"};
+            throw Failure{ErrorCode::camera_transport_denied};
         const int declared = g_uri_get_port(uri.get());
         if (declared > 65535)
-            throw Failure{422, "camera_transport_denied"};
+            throw Failure{ErrorCode::camera_transport_denied};
         const auto port = static_cast<guint16>(declared < 0 ? 443 : declared);
         Object<GSocketClient> client{g_socket_client_new(), g_object_unref};
         g_socket_client_set_enable_proxy(client.get(), false);
@@ -184,19 +184,19 @@ struct CameraClient {
         Object<GSocketConnection> tcp{
             g_socket_client_connect_to_host(client.get(), ip.c_str(), port, nullptr, nullptr), g_object_unref};
         if (!tcp)
-            throw Failure{502, actuator ? "camera_command_unsent" : "camera_unavailable"};
+            throw Failure{actuator ? ErrorCode::camera_command_unsent : ErrorCode::camera_unavailable};
         Object<GSocketConnectable> name{g_network_address_new(host.c_str(), port), g_object_unref};
         Object<GIOStream> tls{g_tls_client_connection_new(G_IO_STREAM(tcp.get()), name.get(), nullptr),
                               g_object_unref};
         if (!tls)
-            throw Failure{502, "camera_tls_error"};
+            throw Failure{ErrorCode::camera_tls_error};
         // The certificate handler reads the path during the handshake, so the string outlives it.
         const auto trust = optional_setting("BACURI_CAMERA_CA_FILE");
         if (trust) {
             const char* path = trust->c_str();
             Object<GTlsDatabase> ca{g_tls_file_database_new(path, nullptr), g_object_unref};
             if (!ca)
-                throw Failure{502, "camera_tls_error"};
+                throw Failure{ErrorCode::camera_tls_error};
             g_tls_connection_set_database(G_TLS_CONNECTION(tls.get()), ca.get());
             // A provisioned leaf can anchor one camera when its private issuer is unavailable.
             g_signal_connect(
@@ -220,7 +220,7 @@ struct CameraClient {
                 const_cast<char*>(path));
         }
         if (!g_tls_connection_handshake(G_TLS_CONNECTION(tls.get()), nullptr, nullptr))
-            throw Failure{502, "camera_tls_error"};
+            throw Failure{ErrorCode::camera_tls_error};
         const std::string action = headers.action.empty() ? std::string{ns} + "/" + operation : headers.action;
         const std::string element = (ns == device      ? "tds:"
                                      : ns == media2    ? "tr2:"
@@ -250,7 +250,7 @@ struct CameraClient {
                        action + "\"\r\nContent-Length: " + std::to_string(body.size()) + "\r\n\r\n" + body;
         if (!g_output_stream_write_all(g_io_stream_get_output_stream(tls.get()), request.data(), request.size(),
                                        nullptr, nullptr, nullptr))
-            throw Failure{502, "camera_unavailable"};
+            throw Failure{ErrorCode::camera_unavailable};
         http::response_parser<http::string_body> parser;
         constexpr std::size_t max_body = 1024uz * 1024uz;
         parser.body_limit(max_body);
@@ -259,42 +259,42 @@ struct CameraClient {
         boost::system::error_code ec;
         while (!parser.is_done()) {
             if (Clock::now() >= deadline)
-                throw Failure{504, "camera_unavailable"};
+                throw Failure{ErrorCode::camera_unavailable};
             auto area = buffer.prepare(8192);
             const auto count = g_input_stream_read(g_io_stream_get_input_stream(tls.get()), area.data(),
                                                    area.size(), nullptr, nullptr);
             if (count < 0)
-                throw Failure{502, "camera_unavailable"};
+                throw Failure{ErrorCode::camera_unavailable};
             if (count == 0) {
                 if (!parser.got_some())
-                    throw Failure{502, "camera_protocol_error"};
+                    throw Failure{ErrorCode::camera_protocol_error};
                 parser.put_eof(ec);
                 if (ec || !parser.is_done())
-                    throw Failure{502, "camera_protocol_error"};
+                    throw Failure{ErrorCode::camera_protocol_error};
                 break;
             }
             buffer.commit(static_cast<std::size_t>(count));
             buffer.consume(parser.put(buffer.data(), ec));
             if (ec && ec != http::error::need_more)
-                throw Failure{502, "camera_protocol_error"};
+                throw Failure{ErrorCode::camera_protocol_error};
             ec.clear();
         }
         const auto& response = parser.get();
         if (response.result_int() == 401 || response.result_int() == 403)
-            throw Failure{422, "camera_authentication_failed"};
+            throw Failure{ErrorCode::camera_authentication_failed};
         auto doc = parse(response.body());
         auto* root = xmlDocGetRootElement(doc.get());
         auto* content = child(root, soap, "Body");
         if (auto* fault = child(content, soap, "Fault")) {
             auto* code = child(child(child(fault, soap, "Code"), soap, "Subcode"), soap, "Value");
             if (code && value(code).ends_with("NotAuthorized"))
-                throw Failure{422, "camera_authentication_failed"};
+                throw Failure{ErrorCode::camera_authentication_failed};
             if (actuator)
-                throw Failure{422, "camera_command_rejected"};
+                throw Failure{ErrorCode::camera_command_rejected};
         }
         if (response.result_int() != 200 || !named(root, soap, "Envelope") ||
             !child(content, ns, operation + "Response"))
-            throw Failure{502, "camera_protocol_error"};
+            throw Failure{ErrorCode::camera_protocol_error};
         return doc;
     }
 };
@@ -349,7 +349,7 @@ inline Json directions(const CameraClient& client, const std::string& url, const
             char* end{};
             auto number = g_ascii_strtod(raw.c_str(), &end);
             if (*end || !std::isfinite(number))
-                throw Failure{502, "camera_protocol_error"};
+                throw Failure{ErrorCode::camera_protocol_error};
             return number;
         };
         return std::pair{bound("Min"), bound("Max")};
@@ -385,7 +385,7 @@ inline CameraClient control_client(const CameraNetworks& networks, const Json& c
     auto ip = control.at("ip").get<std::string>();
     Object<GInetAddress> peer{g_inet_address_new_from_string(ip.c_str()), g_object_unref};
     if (!peer || !networks.contains(peer.get()))
-        throw Failure{422, "camera_transport_denied"};
+        throw Failure{ErrorCode::camera_transport_denied};
     return {credentials, ip, control.at("host"), Clock::now() + 4s};
 }
 

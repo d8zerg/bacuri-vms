@@ -6,6 +6,7 @@
 #include <sodium.h>
 #include <array>
 #include <fstream>
+#include <optional>
 #include <set>
 #include <thread>
 #include <utility>
@@ -16,11 +17,8 @@ namespace
 {
 using namespace std::chrono_literals;
 constexpr std::uint64_t chunk_size = 4ULL << 20;
-struct PackageError : std::runtime_error {
-    using std::runtime_error::runtime_error;
-};
-struct NetworkError : std::runtime_error {
-    using std::runtime_error::runtime_error;
+struct PackageError {
+    ErrorCode code;
 };
 void require(bool ok)
 {
@@ -124,7 +122,7 @@ std::string fetch(const std::string& url, std::size_t limit, Download* download 
 {
     std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> curl{curl_easy_init(), curl_easy_cleanup};
     if (!curl)
-        throw NetworkError("catalog_unavailable");
+        throw PackageError{ErrorCode::network_unavailable};
     Reply reply{curl.get(), limit, download, {}, {}, {}};
     curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl.get(), CURLOPT_PROTOCOLS_STR, "https");
@@ -153,16 +151,17 @@ std::string fetch(const std::string& url, std::size_t limit, Download* download 
     long status{};
     curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &status);
     if (reply.disk_error)
-        throw PackageError("storage_unavailable");
+        throw PackageError{ErrorCode::storage_unavailable};
     if (reply.invalid)
-        throw PackageError(download ? "invalid_range" : "invalid_catalog");
+        throw PackageError{download ? ErrorCode::invalid_range : ErrorCode::invalid_catalog};
     if (result == CURLE_ABORTED_BY_CALLBACK || status >= 500 || status == 429 || status == 408 ||
         (!status && result != CURLE_OK))
-        throw NetworkError("network_unavailable");
+        throw PackageError{ErrorCode::network_unavailable};
     if (!reply.accepts(status))
-        throw PackageError(download && (status == 200 || status == 206) ? "invalid_range" : "catalog_unavailable");
+        throw PackageError{download && (status == 200 || status == 206) ? ErrorCode::invalid_range
+                                                                        : ErrorCode::catalog_unavailable};
     if (result != CURLE_OK || (download && reply.written != limit))
-        throw NetworkError("network_unavailable");
+        throw PackageError{ErrorCode::network_unavailable};
     return reply.data;
 }
 bool hex_digest(const std::string& text)
@@ -211,7 +210,7 @@ std::string digest(const fs::path& path)
         crypto_hash_sha256_update(&state, reinterpret_cast<const unsigned char*>(buf.data()),
                                   static_cast<unsigned long long>(in.gcount()));
     if (!in.eof())
-        throw std::runtime_error("map_read_failed");
+        throw PackageError{ErrorCode::storage_unavailable};
     std::array<unsigned char, crypto_hash_sha256_BYTES> hash{};
     crypto_hash_sha256_final(&state, hash.data());
     char text[2 * crypto_hash_sha256_BYTES + 1];
@@ -267,11 +266,19 @@ Json unpack(const fs::path& dir)
 void scan(Database& db, const std::string& id, const std::string& kind, const std::string& url)
 {
     Json entries;
+    std::optional<ErrorCode> error;
     try {
         entries = kind == "online" ? catalog(url) : unpack(directory(id));
+    } catch (const PackageError& failure) {
+        error = failure.code;
+    } catch (const std::ios_base::failure&) {
+        error = ErrorCode::storage_unavailable;
     } catch (const std::exception&) {
+        error = kind == "online" ? ErrorCode::invalid_catalog : ErrorCode::invalid_package;
+    }
+    if (error) {
         db.exec("UPDATE bacuri_maps.map_sources SET state='failed',error=$2 WHERE id=$1",
-                {id, kind == "online" ? "catalog_unavailable" : "invalid_package"});
+                {id, std::string{info(*error).code}});
         if (kind == "file")
             fs::remove_all(directory(id));
         return;
@@ -308,7 +315,7 @@ void advance(Database& db, const Rows& row, std::stop_token stop)
                 std::unique_ptr<char, decltype(&g_free)> address{
                     g_uri_resolve_relative(url.c_str(), filename.c_str(), G_URI_FLAGS_NONE, nullptr), g_free};
                 if (!address)
-                    throw PackageError("catalog_unavailable");
+                    throw PackageError{ErrorCode::catalog_unavailable};
                 fetch(address.get(), n, &download);
                 out.close();
                 db.exec("UPDATE bacuri_maps.map_jobs SET received=$2,next_attempt=now() WHERE id=$1",
@@ -317,7 +324,7 @@ void advance(Database& db, const Rows& row, std::stop_token stop)
                     return;
             }
             if (digest(file) != e.at("sha256").get<std::string>())
-                throw PackageError("checksum_mismatch");
+                throw PackageError{ErrorCode::checksum_mismatch};
         }
         if (!db.exec("UPDATE bacuri_maps.map_jobs SET state='installing',received=size_bytes,error='' WHERE id=$1 "
                      "AND state<>'paused' RETURNING id",
@@ -329,20 +336,25 @@ void advance(Database& db, const Rows& row, std::stop_token stop)
         install(db, file, site, e, mode);
         db.exec("UPDATE bacuri_maps.map_jobs SET state='installed' WHERE id=$1", {id});
         db.exec("COMMIT");
-    } catch (const NetworkError&) {
-        db.exec("UPDATE bacuri_maps.map_jobs SET received=$2, state=CASE WHEN state='downloading' THEN 'retrying' "
+    } catch (const PackageError& error) {
+        if (error.code == ErrorCode::network_unavailable) {
+            db.exec(
+                "UPDATE bacuri_maps.map_jobs SET received=$2, state=CASE WHEN state='downloading' THEN 'retrying' "
                 "ELSE state END, "
-                "error=CASE WHEN state='downloading' THEN 'network_unavailable' ELSE '' END, "
+                "error=CASE WHEN state='downloading' THEN $3 ELSE '' END, "
                 "next_attempt=CASE WHEN state='downloading' THEN now()+interval '5 seconds' ELSE next_attempt END "
                 "WHERE id=$1",
-                {id, std::to_string(fs::exists(file) ? fs::file_size(file) : 0)});
-        return;
-    } catch (const PackageError& error) {
-        db.exec("UPDATE bacuri_maps.map_jobs SET state='failed',error=$2 WHERE id=$1", {id, error.what()});
+                {id, std::to_string(fs::exists(file) ? fs::file_size(file) : 0),
+                 std::string{info(error.code).code}});
+            return;
+        }
+        db.exec("UPDATE bacuri_maps.map_jobs SET state='failed',error=$2 WHERE id=$1",
+                {id, std::string{info(error.code).code}});
     } catch (const std::exception&) {
         if (transaction)
             db.exec("ROLLBACK");
-        db.exec("UPDATE bacuri_maps.map_jobs SET state='failed',error='installation_failed' WHERE id=$1", {id});
+        db.exec("UPDATE bacuri_maps.map_jobs SET state='failed',error=$2 WHERE id=$1",
+                {id, std::string{info(ErrorCode::installation_failed).code}});
     }
     if (remote)
         fs::remove(file);

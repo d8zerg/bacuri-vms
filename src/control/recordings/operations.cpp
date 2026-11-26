@@ -31,7 +31,7 @@ std::vector<CoverageInterval> edge_gaps(Database& db, const std::string& site, c
 void require_available(Database& db, const std::string& site)
 {
     if (db.exec("SELECT FROM bacuri_archive.archive_recovery WHERE site_id=$1", {site}).size())
-        throw Failure{503, "media_unavailable"};
+        throw Failure{ErrorCode::media_service_unavailable};
 }
 std::map<std::string, LastRecorded> last_recorded(Database& db, const std::string& site,
                                                   const std::vector<std::string>& points)

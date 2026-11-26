@@ -59,10 +59,17 @@ def check_https_transport():
                 response = connection.getresponse()
                 assert response.status == 401 and json.loads(response.read())["code"] == "unauthenticated"
                 assert connection.sock is established
-            connection.request("POST", "/api/v1/session", body=b" " * 32769)
-            response = connection.getresponse()
-            assert response.status == 413
-            response.read()
+            for body, headers, expected in (
+                (b" " * 32769, {}, (413, "payload_too_large")),
+                (b"", {"Expect": "unsupported"}, (417, "expectation_failed")),
+                (b"", {"X-Padding": "x" * 8192}, (431, "headers_too_large")),
+            ):
+                connection.request("POST", "/api/v1/session", body=body, headers=headers)
+                response = connection.getresponse()
+                problem = json.loads(response.read())
+                CONTRACT.check("POST", "/api/v1/session", response.status, response.getheader("Content-Type"), problem)
+                assert (response.status, problem["code"]) == expected, problem
+                assert problem["request_id"] == response.getheader("X-Request-Id")
         finally:
             connection.close()
 
@@ -138,7 +145,7 @@ def main():
         assert http("POST", cameras, config, viewer)[0] == 403
         assert http("GET", cameras, headers=viewer)[0] == 403
         assert http("GET", f"sites/{uuid.uuid4()}/cameras", headers=admin)[0] == 404
-        assert http("POST", cameras, {**config, "main_url": "rtsp://127.0.0.1/main"}, write)[0] == 400
+        assert http("POST", cameras, {**config, "main_url": "rtsp://127.0.0.1/main"}, write)[0] == 422
         with concurrent.futures.ThreadPoolExecutor(2) as pool:
             responses = list(pool.map(lambda _: http("POST", cameras, config, write), range(2)))
         status, headers, first = responses[0]

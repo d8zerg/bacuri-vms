@@ -9,6 +9,7 @@
 #include <mutex>
 #include <span>
 #include <stdexcept>
+#include <string_view>
 
 namespace bacuri::vms::control
 {
@@ -82,7 +83,7 @@ class Pool
         }
         Database::Connection opened{PQconnectdb("connect_timeout=3"), PQfinish};
         if (!opened || PQstatus(opened.get()) != CONNECTION_OK || !succeeds(opened.get(), session_settings))
-            throw std::runtime_error("Database unavailable");
+            throw DatabaseUnavailable("Database unavailable");
         return opened;
     }
     // A connection that cannot be reset or kept is closed. The reserved storage keeps release free of
@@ -160,7 +161,9 @@ Rows Database::exec(const char* query, std::initializer_list<std::string> argume
                                   : PQexecParams(connection_.get(), query, static_cast<int>(values.size()),
                                                  nullptr, values.data(), nullptr, nullptr, 0);
     if (!result) {
-        throw std::runtime_error(std::string{"Database operation failed: "} + PQerrorMessage(connection_.get()));
+        if (PQstatus(connection_.get()) == CONNECTION_BAD)
+            throw DatabaseUnavailable(PQerrorMessage(connection_.get()));
+        throw std::runtime_error("Database returned no result");
     }
     const auto status = PQresultStatus(result);
     Rows rows{result};
@@ -168,8 +171,13 @@ Rows Database::exec(const char* query, std::initializer_list<std::string> argume
         // The state code and the primary message identify the cause in the service journal.
         const char* state = PQresultErrorField(result, PG_DIAG_SQLSTATE);
         const char* message = PQresultErrorField(result, PG_DIAG_MESSAGE_PRIMARY);
-        throw std::runtime_error(std::string{"Database operation failed: "} + (state ? state : "unknown") + " " +
-                                 (message ? message : PQresStatus(status)));
+        const std::string_view sqlstate = state ? state : "unknown";
+        const auto diagnostic = "Database operation failed: " + std::string{sqlstate} + " " +
+                                (message ? message : PQresStatus(status));
+        if (PQstatus(connection_.get()) == CONNECTION_BAD || sqlstate.starts_with("08") || sqlstate == "57P01" ||
+            sqlstate == "57P02" || sqlstate == "57P03")
+            throw DatabaseUnavailable(diagnostic);
+        throw std::runtime_error(diagnostic);
     }
     return rows;
 }
@@ -212,7 +220,8 @@ void migrate()
                                     "0026_recording_policies.sql",
                                     "0027_archive_holds.sql",
                                     "0028_motion_index_queue.sql",
-                                    "0029_keyframe_gaps.sql"};
+                                    "0029_keyframe_gaps.sql",
+                                    "0030_audit_details.sql"};
     if (version > static_cast<int>(migrations.size())) {
         throw std::runtime_error("Unsupported database schema");
     }

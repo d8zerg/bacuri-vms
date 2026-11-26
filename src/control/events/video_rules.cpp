@@ -70,7 +70,7 @@ Detector parse(const Json& body)
                                                   {"schedule", body.at("schedule")}});
         return d;
     } catch (const std::exception&) {
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     }
 }
 bool matches(const Detector& d, std::int64_t at, bool local, const Json& sample)
@@ -129,7 +129,7 @@ void dispatch_presets(const std::stop_token& stop, const std::string& site, cons
                                  job.get(0, 4));
                         status = "acknowledged";
                     } catch (const Failure& f) {
-                        status = f.code == "camera_ptz_unknown" ? "unknown" : "rejected";
+                        status = f.error == ErrorCode::camera_ptz_unknown ? "unknown" : "rejected";
                     } catch (...) {
                         status = "unknown";
                     }
@@ -231,7 +231,7 @@ void video_rule(const Request& req, Response& res, const Sessions& sessions, con
     auto user = sessions.authenticate(db, req, req.method() != http::verb::get).user;
     access::site_role(db, site, user, access::RoleLock::shared);
     if (!inventory::lock_point(db, site, point) || !access::allowed(db, site, user, point, "configure"))
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     auto rows = db.exec("SELECT revision,definition FROM bacuri_events.video_rules WHERE site_id=$1 AND "
                         "point_id=$2 ORDER BY revision DESC LIMIT 1",
                         {site, point});
@@ -243,15 +243,15 @@ void video_rule(const Request& req, Response& res, const Sessions& sessions, con
     }
     auto body = object_body(req, {"rule", "revision", "interval"});
     if (!body.contains("rule"))
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     auto d = parse(body.at("rule"));
     if (simulation) {
         if (!body.contains("interval"))
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         auto span = window(body.at("interval"));
         if (!access::allowed(db, site, user, point, "view", "archive", std::to_string(span.start),
                              std::to_string(span.end)))
-            throw Failure{403, "forbidden"};
+            throw Failure{ErrorCode::forbidden};
         Json hits = Json::array();
         std::int64_t last = std::numeric_limits<std::int64_t>::min() / 2;
         bool complete = true;
@@ -309,14 +309,14 @@ void video_rule(const Request& req, Response& res, const Sessions& sessions, con
         return;
     }
     if (!body.contains("revision") || body.at("revision") != revision)
-        throw Failure{409, "revision_conflict"};
+        throw Failure{ErrorCode::revision_conflict};
     if (!d.preset.empty() && !access::allowed(db, site, user, point, "ptz"))
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     auto saved = db.exec("INSERT INTO bacuri_events.video_rules VALUES($1,$2,$3::bigint+1,$4,$5,$6) ON CONFLICT "
                          "DO NOTHING RETURNING revision",
                          {site, point, revision, std::to_string(g_get_real_time()), user, body.at("rule").dump()});
     if (!saved.size())
-        throw Failure{409, "revision_conflict"};
+        throw Failure{ErrorCode::revision_conflict};
     record_recording_change(db, site, point, user, "video_rule", saved.get(0));
     db.exec("COMMIT");
     respond(res, {{"revision", saved.get(0)}, {"rule", body.at("rule")}});

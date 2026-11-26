@@ -2,25 +2,29 @@ import { ArchivePlayer } from "./archivePlayer";
 import type { Target } from "../contracts/workspace";
 import { api, data, HttpFailure } from "./api";
 import { t } from "../i18n";
+import { describeError, errorCode } from "./errors";
+// Releases of closed media sessions that the server may not have applied yet. A new session waits for them, so a
+// limited resource such as the conversion slot is free again when the next view opens.
+let releasing: Promise<unknown> = Promise.resolve();
+function afterReleases(signal: AbortSignal) {
+  return Promise.race([
+    releasing,
+    new Promise((resolve) => setTimeout(resolve, 2000)),
+    new Promise((resolve) =>
+      signal.addEventListener("abort", resolve, { once: true }),
+    ),
+  ]);
+}
 export function mediaFailure(error: unknown) {
-  if (error instanceof HttpFailure) {
-    if (error.code === "video_bandwidth_limit")
-      return t("media.bandwidthLimit");
-    if (error.code === "video_session_limit") return t("media.sessionLimit");
-    if (error.code === "video_transcoder_limit")
-      return t("media.transcoderLimit");
-    if (error.code === "video_source_unavailable")
-      return t("media.sourceUnavailable");
-    if (error.code === "pending_catalog") return t("media.pendingCatalog");
-    if (error.code === "recording_gap") return t("media.recordingGap");
-    if (error.status === 401) return t("media.sessionExpired");
-    if (error.status === 403 || error.status === 404)
-      return t("media.forbidden");
-    if (error.status === 410) return t("media.viewExpired");
-    if (error.status === 429) return t("media.viewLimit");
-    if (error.status === 503) return t("media.serviceUnavailable");
-  }
-  return t("video.unavailable");
+  const code = errorCode(error);
+  if (code === "internal_error") return t("video.unavailable");
+  return describeError(error, {
+    unauthenticated: "media.sessionExpired",
+    forbidden: "media.forbidden",
+    not_found: "media.forbidden",
+    rate_limited: "media.viewLimit",
+    dependency_unavailable: "media.serviceUnavailable",
+  });
 }
 function event(target: EventTarget, name: string, signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
@@ -110,6 +114,8 @@ async function connect(
     seek: (at: string) => Promise<number>,
   ) => void,
 ) {
+  signal.throwIfAborted();
+  await afterReleases(signal);
   signal.throwIfAborted();
   const open = async () =>
     data(
@@ -202,12 +208,13 @@ async function connect(
     );
   }
   function releaseSession() {
-    void api
+    const release = api
       .DELETE("/media-sessions/{mediaSessionId}", {
         params: { path, header },
         keepalive: true,
       })
       .catch(() => {});
+    releasing = Promise.allSettled([releasing, release]);
   }
   if (signal.aborted) {
     releaseSession();
@@ -313,7 +320,7 @@ async function connect(
         signal,
       },
     );
-    if (!answer.ok) throw new HttpFailure(answer.status, "");
+    if (!answer.ok) throw await HttpFailure.fromResponse(answer);
     await pc.setRemoteDescription({ type: "answer", sdp: await answer.text() });
   }
   if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA)

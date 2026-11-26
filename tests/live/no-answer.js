@@ -12,7 +12,7 @@ window.fetch = async (url, init) => {
 (async () => {
     const until = performance.now() + 10000;
     const live = () =>
-        [...document.querySelectorAll("main button")].find((b) => b.textContent.trim() === "Эфир");
+        document.querySelector('.ws-submenu button[aria-label="Эфир"]:not(:disabled)');
     while (!live() && performance.now() < until) await new Promise((resolve) => setTimeout(resolve, 25));
     live().click();
 })();

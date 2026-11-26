@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import type { Session } from "../contracts/workspace";
 import { api, data, HttpFailure } from "../adapters/api";
 import { useResource } from "../adapters/resource";
+import { describeError } from "../adapters/errors";
 import { SubsectionMenu } from "./SubsectionMenu";
 
 import { AccessAudit } from "./AccessAudit";
@@ -142,19 +143,11 @@ export default function Access({
         expire();
         return;
       }
-      if (response.status === 412) {
-        setMessage(t("access.conflict"));
-      } else if (!response.ok) {
-        const problem = (await response.json()) as { code: string };
+      if (!response.ok) {
         setMessage(
-          (
-            {
-              last_administrator: t("access.lastAdministrator"),
-              account_conflict: t("access.accountConflict"),
-              identity_conflict: t("access.identityConflict"),
-              group_conflict: t("access.groupConflict"),
-            } as Record<string, string>
-          )[problem.code] ?? t("access.saveFailed"),
+          describeError(await HttpFailure.fromResponse(response), {
+            invalid_request: "access.saveFailed",
+          }),
         );
       } else setMessage(t("access.saved"));
       access.reload();

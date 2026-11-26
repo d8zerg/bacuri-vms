@@ -14,6 +14,7 @@ paths:
     get:
       operationId: listArchiveHolds
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Successful operation.
           content:
@@ -35,6 +36,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/HoldDraft'}
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '201':
           description: Successful operation.
           content:
@@ -52,6 +54,7 @@ paths:
     get:
       operationId: listInvestigations
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Successful operation.
           content:
@@ -70,6 +73,7 @@ paths:
     get:
       operationId: getInvestigation
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Successful operation.
           content:
@@ -91,6 +95,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/InvestigationDraft'}
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Successful operation.
           content:
@@ -115,6 +120,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/ArchiveSearch'}
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Successful operation.
           content:
@@ -133,6 +139,7 @@ paths:
     get:
       operationId: getVideoRule
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Successful operation.
           content:
@@ -154,6 +161,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/RuleChange'}
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Successful operation.
           content:
@@ -179,6 +187,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/RuleTrial'}
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Successful operation.
           content:
@@ -204,6 +213,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/CaseExport'}
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Signed investigation archive.
           content:
@@ -228,6 +238,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/CaseRecipients'}
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Successful operation.
           content:
@@ -245,6 +256,7 @@ paths:
     get:
       operationId: listRecordingPolicies
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Operation completed.
           content:
@@ -278,6 +290,7 @@ paths:
     get:
       operationId: getRecordingPolicy
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Operation completed.
           content:
@@ -303,6 +316,7 @@ paths:
     put:
       operationId: saveRecordingPolicy
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Operation completed.
           content:
@@ -345,6 +359,7 @@ paths:
     delete:
       operationId: deleteRecordingPolicy
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '204':
           description: Operation completed.
         '400':
@@ -376,6 +391,7 @@ paths:
     get:
       operationId: getRecordingStorage
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Operation completed.
           content:
@@ -401,6 +417,7 @@ paths:
     put:
       operationId: setRecordingStorage
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Operation completed.
           content:
@@ -453,6 +470,7 @@ paths:
     get:
       operationId: getManualRecording
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Operation completed.
           content:
@@ -478,6 +496,7 @@ paths:
     put:
       operationId: setManualRecording
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Operation completed.
           content:
@@ -524,6 +543,7 @@ paths:
     get:
       operationId: listSiteUsers
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -573,6 +593,7 @@ paths:
             schema:
               $ref: '#/components/schemas/NewUser'
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -617,6 +638,7 @@ paths:
     get:
       operationId: listResourceGroups
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -666,6 +688,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GroupDefinition'
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -710,6 +733,7 @@ paths:
     get:
       operationId: listGrants
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -748,6 +772,7 @@ paths:
     get:
       operationId: listPrivacyPolicies
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -805,6 +830,7 @@ paths:
             schema:
               $ref: '#/components/schemas/UserPolicy'
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -868,6 +894,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GroupDefinition'
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -931,6 +958,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GrantDefinition'
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -980,6 +1008,7 @@ paths:
           type: string
         description: Quoted access policy revision from the last read.
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -1043,6 +1072,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PrivacyPolicy'
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -1101,6 +1131,7 @@ paths:
             schema:
               $ref: '#/components/schemas/ProviderSettings'
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -1142,6 +1173,7 @@ paths:
     get:
       operationId: getIdentityProvider
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -1197,6 +1229,7 @@ paths:
             schema:
               $ref: '#/components/schemas/ExternalIdentity'
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -1246,6 +1279,7 @@ paths:
           type: string
         description: Quoted access policy revision from the last read.
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -1298,6 +1332,7 @@ paths:
             schema:
               $ref: '#/components/schemas/AccessAuditFilter'
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current policy revision and result.
           headers:
@@ -1335,6 +1370,7 @@ paths:
       operationId: getLoginMethods
       security: []
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Available sign-in methods.
           content:
@@ -1355,6 +1391,7 @@ paths:
       operationId: beginCorporateLogin
       security: []
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '303':
           description: Continue sign-in in the same browser.
           headers:
@@ -1370,6 +1407,7 @@ paths:
       operationId: completeCorporateLogin
       security: []
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '303':
           description: Continue sign-in in the same browser.
           headers:
@@ -1401,6 +1439,7 @@ paths:
       operationId: getAlertWork
       description: Read current state, permitted actions, most recent history and active delegations issued by this user at the point.
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Read current state, permitted actions, most recent history and active delegations issued by this user at the point.
           content:
@@ -1424,6 +1463,7 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/AlertCommand' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Apply a versioned command. Replay the original receipt for the same principal, key and input while authorized.
           content:
@@ -1453,6 +1493,7 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/AuditFilter' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Find up to 50 permitted audit entries by alert and literal reason or result substring, newest first.
           content:
@@ -1477,6 +1518,7 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/IssueAlertDelegation' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '201':
           description: Issue a short-lived credential for one service, point and action on behalf of the current user.
           content:
@@ -1497,6 +1539,7 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Csrf' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '204':
           description: Revoke a delegation as its issuer or site administrator.
         '400': { $ref: '#/components/responses/InvalidRequest' }
@@ -1511,6 +1554,7 @@ paths:
       operationId: getMapScene
       description: Read the installed region, visible plans and point placements. Relative resource URLs use the site HTTPS origin.
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Read the installed region, visible plans and point placements. Relative resource URLs use the site HTTPS origin.
           content:
@@ -1527,6 +1571,7 @@ paths:
     get:
       operationId: getMapManagement
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Administrator map package operation.
           content:
@@ -1549,6 +1594,7 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/MapSourceRequest' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '201':
           description: Administrator map package operation.
           content:
@@ -1559,7 +1605,11 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/Unavailable' }
-        '409': { description: 'The source, region or upload offset has changed.' }
+        '409':
+          description: 'The source, region or upload offset has changed.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   /sites/{siteId}/maps/sources/{sourceId}:
     parameters:
       - { $ref: '#/components/parameters/Site' }
@@ -1567,6 +1617,7 @@ paths:
     get:
       operationId: getMapSource
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Administrator map package operation.
           content:
@@ -1591,6 +1642,7 @@ paths:
           application/octet-stream:
             schema: { type: string, format: binary }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '204':
           description: Administrator map package operation.
         '400': { $ref: '#/components/responses/InvalidRequest' }
@@ -1598,7 +1650,11 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/Unavailable' }
-        '409': { description: 'The source, region or upload offset has changed.' }
+        '409':
+          description: 'The source, region or upload offset has changed.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   /sites/{siteId}/maps/jobs:
     parameters:
       - { $ref: '#/components/parameters/Site' }
@@ -1611,6 +1667,7 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/MapSelection' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '204':
           description: Administrator map package operation.
         '400': { $ref: '#/components/responses/InvalidRequest' }
@@ -1618,7 +1675,11 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/Unavailable' }
-        '409': { description: 'The source, region or upload offset has changed.' }
+        '409':
+          description: 'The source, region or upload offset has changed.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   /sites/{siteId}/maps/jobs/{jobId}/download:
     parameters:
       - { $ref: '#/components/parameters/Site' }
@@ -1635,11 +1696,16 @@ paths:
               required: [paused]
               properties: { paused: { type: boolean } }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '204': { description: Download state saved. }
         '400': { $ref: '#/components/responses/InvalidRequest' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { description: This job is unavailable for download control. }
+        '409':
+          description: This job is unavailable for download control.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   /sites/{siteId}/maps/plans:
     parameters:
       - { $ref: '#/components/parameters/Site' }
@@ -1653,6 +1719,7 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/PlanUpload' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '201':
           description: Import a static PNG plan as a site administrator. Maximum 4 MiB, 4096 pixels per side and 8388608 pixels in total.
           content:
@@ -1662,7 +1729,11 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '413': { description: Request body exceeds the transport limit. }
+        '413':
+          description: Request body exceeds the transport limit.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
         '503': { $ref: '#/components/responses/Unavailable' }
   /sites/{siteId}/maps/placement:
     parameters:
@@ -1677,7 +1748,12 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/PointCoordinates' }
       responses:
-        '409': { description: This geographic position is supplied by a floor plan. }
+        default: { $ref: '#/components/responses/RequestFailure' }
+        '409':
+          description: This geographic position is supplied by a floor plan.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
         '204':
           description: Set longitude and latitude on the region or fractional coordinates from the top left of a plan. Requires the site administrator role.
         '400': { $ref: '#/components/responses/InvalidRequest' }
@@ -1698,6 +1774,7 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/PlanLink' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Preview the image footprint and affected point positions.
           content:
@@ -1721,8 +1798,13 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/SavePlanLink' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '204': { description: Applied the previewed change. }
-        '409': { description: The plan or a point placement changed after preview. }
+        '409':
+          description: The plan or a point placement changed after preview.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
         '400': { $ref: '#/components/responses/InvalidRequest' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -1741,13 +1823,18 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/ViewCalibrationRequest' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '204':
           description: Calibrate a placed camera against a landmark on this surface. Requires the site administrator role.
         '400': { $ref: '#/components/responses/InvalidRequest' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: The device or its observed position changed. }
+        '409':
+          description: The device or its observed position changed.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
         '503': { $ref: '#/components/responses/Unavailable' }
   /sites/{siteId}/maps/plans/{planId}:
     parameters:
@@ -1757,6 +1844,7 @@ paths:
       operationId: getFloorPlan
       description: Read a visible plan image.
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Read a visible plan image.
           content:
@@ -1775,6 +1863,7 @@ paths:
       operationId: getRegionStyle
       description: Read the installed MapLibre Style Specification version 8 raster style.
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Read the installed MapLibre Style Specification version 8 raster style.
           content:
@@ -1796,6 +1885,7 @@ paths:
       operationId: getRegionTile
       description: Read one local 256 pixel XYZ tile.
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Read one local 256 pixel XYZ tile.
           content:
@@ -1817,6 +1907,7 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/FactorAnswer' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '201':
           description: Both factors verified.
           content:
@@ -1837,6 +1928,7 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/Login' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '202':
           description: Password accepted. A WebAuthn ceremony is required before issuing a session.
           content:
@@ -1862,6 +1954,7 @@ paths:
       operationId: getSession
       description: Read identity and access without extending the idle timeout.
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current session and its CSRF token.
           headers:
@@ -1876,6 +1969,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Csrf'
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '204':
           description: Session and its media grants revoked. Repeated revocation is harmless.
           headers:
@@ -1892,6 +1986,7 @@ paths:
       operationId: listPoints
       description: List observation points visible to the current session without extending the idle timeout.
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Visible observation points and their current status.
           headers:
@@ -1911,6 +2006,7 @@ paths:
     post:
       operationId: discoverCameras
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Devices discovered on permitted camera interfaces.
           headers:
@@ -1942,6 +2038,7 @@ paths:
                 username: { type: string, minLength: 1, maxLength: 128 }
                 password: { type: string, maxLength: 1024, writeOnly: true }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Verified device identity and selectable H.264 or HEVC profiles.
           headers:
@@ -1964,6 +2061,7 @@ paths:
     get:
       operationId: getCameraStreamIssues
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Observed recorder diagnostics for this device.
           headers:
@@ -1983,6 +2081,7 @@ paths:
     get:
       operationId: listEdgeRecordings
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Device recording inventory with reported track bounds.
           headers:
@@ -2015,6 +2114,7 @@ paths:
                 binding_revision: {$ref: '#/components/schemas/Revision'}
                 interval: {$ref: '#/components/schemas/UtcInterval'}
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: >-
             Result for one bounded replay request and an optional continuation time. Partial means that the time budget
@@ -2047,6 +2147,7 @@ paths:
     get:
       operationId: previousRecording
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Latest available block from a previous binding of this point.
           headers:
@@ -2065,6 +2166,7 @@ paths:
     get:
       operationId: listMonitorLayouts
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Personal and shared layouts, with unavailable cells redacted.
           content:
@@ -2085,6 +2187,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/MonitorLayoutDraft'}
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Saved layout revision.
           content:
@@ -2105,6 +2208,7 @@ paths:
       parameters:
         - {name: If-Match, in: header, required: true, schema: {type: string}}
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '204': {description: Layout removed.}
         '400': {$ref: '#/components/responses/InvalidRequest'}
         '401': {$ref: '#/components/responses/Unauthenticated'}
@@ -2117,6 +2221,7 @@ paths:
     get:
       operationId: listCameraTemplates
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Latest versions of the site's reusable camera templates.
           content:
@@ -2143,6 +2248,7 @@ paths:
                   properties:
                     expected_revision: { type: string, pattern: '^(0|[1-9][0-9]*)$' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Saved template and revision.
           content:
@@ -2160,6 +2266,7 @@ paths:
     get:
       operationId: listCameraBatches
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: The administrator's most recent 100 batches on this site.
           content:
@@ -2182,6 +2289,7 @@ paths:
     get:
       operationId: getCameraBatch
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Camera batch receipt with the latest recorder acknowledgement.
           content:
@@ -2211,6 +2319,7 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/CameraBatchDraft' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Camera batch receipt with the latest recorder acknowledgement.
           content:
@@ -2236,6 +2345,7 @@ paths:
       operationId: changeCameraBatchItem
       description: Apply or roll back the prepared version for this channel. Repeated completed actions return the receipt.
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Camera batch receipt with the latest recorder acknowledgement.
           content:
@@ -2257,6 +2367,7 @@ paths:
       operationId: listCameras
       description: List camera configurations, including desired and applied revisions.
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Site camera configurations visible to its administrator.
           headers:
@@ -2279,6 +2390,7 @@ paths:
       requestBody:
         $ref: '#/components/requestBodies/CameraConfiguration'
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '201':
           description: Configuration persisted. A replay returns the original result.
           headers:
@@ -2311,6 +2423,7 @@ paths:
     get:
       operationId: getCamera
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current site camera configuration.
           headers:
@@ -2335,6 +2448,7 @@ paths:
       requestBody:
         $ref: '#/components/requestBodies/CameraConfiguration'
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current configuration after the update.
           headers:
@@ -2376,6 +2490,7 @@ paths:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/AudioRequest' } } }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: State acknowledged or authorized PCM samples with their UTC start in microseconds.
           content: { application/json: { schema: { $ref: '#/components/schemas/AudioResult' } } }
@@ -2393,6 +2508,7 @@ paths:
     get:
       operationId: getCameraControls
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current binding, supported controls, last observed inputs and recent commands.
           content: { application/json: { schema: { $ref: '#/components/schemas/CameraControls' } } }
@@ -2422,6 +2538,7 @@ paths:
                 command: { $ref: '#/components/schemas/PtzCommand' }
                 target: { type: string, maxLength: 256 }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '204':
           description: The device acknowledged the command.
         '400': { $ref: '#/components/responses/InvalidRequest' }
@@ -2457,6 +2574,7 @@ paths:
                 audio: {type: boolean}
                 reason: {type: string, minLength: 1, maxLength: 512}
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Tar package containing numbered MP4 files, the source manifest and its detached Ed25519 signature.
           content:
@@ -2499,6 +2617,7 @@ paths:
           in: query
           schema: { $ref: '#/components/schemas/Cursor' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Known archive intervals. The continuation cursor is bound to the search and current access scope.
           headers:
@@ -2526,6 +2645,7 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/MediaRequest' }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '201':
           description: Media session scoped to this browser session, point, mode and requested archive interval.
           headers:
@@ -2552,6 +2672,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Csrf'
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '204':
           description: The caller's session is revoked. Absent, closed and foreign sessions return the same response.
         '401': { $ref: '#/components/responses/Unauthenticated' }
@@ -2571,6 +2692,7 @@ paths:
           application/sdp:
             schema: { type: string, maxLength: 65536 }
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: SDP answer with gathered ICE candidates.
           headers:
@@ -2596,6 +2718,7 @@ paths:
     get:
       operationId: getPlaybackManifest
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Authorized MSE playback plan. Parts are relative to the current media session.
           headers:
@@ -2617,6 +2740,7 @@ paths:
     get:
       operationId: readPlaybackPart
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Authorized initialization or media segment.
           headers:
@@ -2634,6 +2758,7 @@ paths:
     get:
       operationId: getAlertSnapshot
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Consistent snapshot of the latest 100 visible alerts and its WebSocket resume cursor.
           headers:
@@ -2654,6 +2779,7 @@ paths:
         WebSocket upgrade with subprotocol bacuri.vms.alerts.v1. The request carries the Origin of the site
         workspace. The messages after the upgrade are described in alerts.schema.yaml.
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '101':
           description: The connection is upgraded to the alert feed WebSocket.
         '400': { $ref: '#/components/responses/InvalidRequest' }
@@ -2672,6 +2798,7 @@ paths:
     get:
       operationId: resolveAlertArchive
       responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
         '200':
           description: Current archive coverage for the observed binding and time uncertainty.
           content:
@@ -2728,6 +2855,16 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/CameraConfiguration' }
   responses:
+    RequestFailure:
+      description: The HTTP request could not be processed or the handler failed unexpectedly.
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: object
+                properties:
+                  code: { enum: [invalid_request, method_not_allowed, payload_too_large, headers_too_large, expectation_failed, dependency_unavailable, internal_error] }
     CameraConflict:
       description: Conflicting identity, revision or request contents.
       content:
@@ -3674,6 +3811,10 @@ components:
         from_state: { enum: [new, in_progress, closed, null] }
         to_state: { enum: [new, in_progress, closed, null] }
         version: { type: [integer, 'null'] }
+        details:
+          type: object
+          description: Values of the change named by the reason code, such as a policy and its revision.
+          additionalProperties: {type: [string, number, boolean]}
         recorded_at: { $ref: '#/components/schemas/UtcTime' }
     AlertWork:
       type: object
@@ -3761,12 +3902,16 @@ components:
         source_id: { $ref: '#/components/schemas/Id' }
         mode: { enum: [install, update] }
         regions: { type: array, minItems: 1, maxItems: 1024, items: { type: string } }
+    MapPackageError:
+      type: string
+      description: The cause reported by a map source or installation job. Empty when there is no failure.
+      enum: ['', invalid_catalog, invalid_package, network_unavailable, installation_failed, checksum_mismatch, invalid_range, catalog_unavailable, storage_unavailable]
     MapSourceState:
       type: object
       required: [state, error, received, regions]
       properties:
         state: { enum: [uploading, pending, ready, failed] }
-        error: { type: string }
+        error: { $ref: '#/components/schemas/MapPackageError' }
         received: { type: integer }
         regions: { type: array, items: { $ref: '#/components/schemas/MapPackage' } }
     MapManagement:
@@ -3789,7 +3934,7 @@ components:
               state: { enum: [queued, downloading, retrying, paused, installing, installed, failed] }
               received: { type: integer }
               bytes: { type: integer }
-              error: { type: string }
+              error: { $ref: '#/components/schemas/MapPackageError' }
               created: { type: string, format: date-time }
     MapScene:
       type: object
@@ -4611,7 +4756,7 @@ components:
             - identity_conflict
             - invalid_identity
             - identity_unavailable
-            - policy_conflict
+            - precondition_failed
             - invalid_factor
             - enrollment_required
             - invalid_credentials
@@ -4637,6 +4782,12 @@ components:
             - video_session_limit
             - authorization_unavailable
             - dependency_unavailable
+            - method_not_allowed
+            - payload_too_large
+            - headers_too_large
+            - expectation_failed
+            - media_service_unavailable
+            - internal_error
             - position_from_plan
             - edge_recording_unavailable
             - camera_clock_uncertain
@@ -4655,5 +4806,5 @@ components:
           required: [current]
           properties:
             status: { const: 412 }
-            code: { const: revision_conflict }
+            code: { const: precondition_failed }
             current: { $ref: '#/components/schemas/Camera' }

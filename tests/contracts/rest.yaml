@@ -101,10 +101,10 @@ update_camera_conflict:
     credentials: null
   status: 412
   response:
-    type: https://bacuri.invalid/problems/revision-conflict
-    title: Camera revision changed
+    type: urn:bacuri:vms:problem:precondition_failed
+    title: precondition_failed
     status: 412
-    code: revision_conflict
+    code: precondition_failed
     request_id: &request 90000000-0000-4000-8000-000000000001
     current: *camera
 operator_cannot_write_configuration:
@@ -115,6 +115,15 @@ operator_cannot_write_configuration:
     title: Operation forbidden
     status: 403
     code: forbidden
+    request_id: *request
+unexpected_session_failure:
+  operation: getSession
+  status: 500
+  response:
+    type: urn:bacuri:vms:problem:internal_error
+    title: internal_error
+    status: 500
+    code: internal_error
     request_id: *request
 point_status:
   operation: listPoints

@@ -20,6 +20,9 @@ def pointer(*parts):
 class Contract:
     def __init__(self, path=SPECIFICATION):
         self.api = yaml.safe_load(path.read_text(encoding="utf-8"))
+        catalog = yaml.safe_load(path.with_name("errors.yaml").read_text(encoding="utf-8"))
+        self.status_by_code = {code: entry["http"] for code, entry in catalog["errors"].items()
+                               if entry.get("surface", "problem") == "problem"}
         self.base = self.api["servers"][0]["url"].rstrip("/")
         self.registry = Registry().with_resource(API_URI, DRAFT202012.create_resource(self.api))
         self.resolver = self.registry.resolver(API_URI)
@@ -48,9 +51,10 @@ class Contract:
         operation = self.api["paths"][template].get(method.lower())
         if operation is None:
             raise AssertionError(f"{method} {template}: method is not in the contract")
-        if str(status) not in operation["responses"]:
+        response_key = str(status) if str(status) in operation["responses"] else "default"
+        if response_key not in operation["responses"]:
             raise AssertionError(f"{method} {template}: status {status} is not in the contract")
-        location = "#/" + pointer("paths", template, method.lower(), "responses", str(status))
+        location = "#/" + pointer("paths", template, method.lower(), "responses", response_key)
         response = self.resolver.lookup(location).contents
         if "$ref" in response:
             location = response["$ref"]
@@ -71,3 +75,6 @@ class Contract:
         if errors:
             details = "; ".join(f"{list(error.absolute_path)}: {error.message}" for error in errors[:5])
             raise AssertionError(f"{method} {template} {status}: response differs from the contract: {details}")
+        if media == "application/problem+json" and (body["status"] != status or
+                self.status_by_code.get(body["code"]) != status):
+            raise AssertionError(f"{method} {template}: HTTP {status} disagrees with Problem {body['code']}")

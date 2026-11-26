@@ -46,7 +46,7 @@ net::awaitable<FeedBatch> poll(AlertFeed& feed, std::string_view cursor)
     try {
         co_return feed.poll(cursor);
     } catch (const Failure& f) {
-        co_return FeedBatch{{}, static_cast<unsigned>(f.status == 401 || f.status == 404 ? 1008 : 1011)};
+        co_return FeedBatch{{}, static_cast<unsigned>(f.status() == 401 || f.status() == 404 ? 1008 : 1011)};
     } catch (const std::exception&) {
         co_return FeedBatch{{}, 1011};
     }

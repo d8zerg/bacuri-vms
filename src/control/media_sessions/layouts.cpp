@@ -52,15 +52,15 @@ void Playback::layouts(const Request& req, Response& res, const std::string& sit
                                      "WHERE site_id=$1 AND id=$2 FOR UPDATE",
                                      {site, id});
         if (current.size() && (current.get(0, 1) == "t" ? !admin : current.get(0) != user))
-            throw Failure{404, "not_found"};
+            throw Failure{ErrorCode::not_found};
         if (req.method() == http::verb::delete_) {
             if (!current.size())
-                throw Failure{404, "not_found"};
+                throw Failure{ErrorCode::not_found};
             std::string tag{"\""};
             tag += current.get(0, 2);
             tag += '"';
             if (req["If-Match"] != tag)
-                throw Failure{409, "revision_conflict"};
+                throw Failure{ErrorCode::revision_conflict};
             db.exec("DELETE FROM bacuri_media_sessions.monitor_layouts WHERE site_id=$1 AND id=$2", {site, id});
             res.result(http::status::no_content);
         } else {
@@ -71,28 +71,28 @@ void Playback::layouts(const Request& req, Response& res, const std::string& sit
                 name.find_first_not_of(" \t\r\n") == name.npos || !body.contains("shared") ||
                 !body.at("shared").is_boolean() || !body.contains("points") || !body.at("points").is_array() ||
                 body.at("points").empty() || body.at("points").size() > 16)
-                throw Failure{400, "invalid_request"};
+                throw Failure{ErrorCode::invalid_request};
             if (body.at("shared") == true && !admin)
-                throw Failure{403, "forbidden"};
+                throw Failure{ErrorCode::forbidden};
             if (revision != (current.size() ? current.get(0, 2) : "0"))
-                throw Failure{409, "revision_conflict"};
+                throw Failure{ErrorCode::revision_conflict};
             std::vector<std::string> points;
             std::set<std::string> unique;
             for (const auto& item : body.at("points")) {
                 if (!item.is_string() || !canonical_id(item.get_ref<const std::string&>()))
-                    throw Failure{400, "invalid_request"};
+                    throw Failure{ErrorCode::invalid_request};
                 auto p = item.get<std::string>();
                 if (!unique.insert(p).second)
-                    throw Failure{400, "invalid_request"};
+                    throw Failure{ErrorCode::invalid_request};
                 if (!inventory::point_exists(db, site, p) || !access::allowed(db, site, user, p, "view"))
-                    throw Failure{404, "not_found"};
+                    throw Failure{ErrorCode::not_found};
                 points.push_back(p);
             }
             if (!current.size() && db.exec("SELECT count(*)>=128 FROM bacuri_media_sessions.monitor_layouts WHERE "
                                            "site_id=$1 AND owner_id=$2",
                                            {site, user})
                                            .get(0) == "t")
-                throw Failure{429, "rate_limited"};
+                throw Failure{ErrorCode::rate_limited};
             auto saved = db.exec(
                 "INSERT INTO bacuri_media_sessions.monitor_layouts(id,site_id,owner_id,name,shared,points) "
                 "VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id) DO UPDATE SET "
@@ -102,7 +102,7 @@ void Playback::layouts(const Request& req, Response& res, const std::string& sit
                 "revision+1 WHERE monitor_layouts.site_id=excluded.site_id RETURNING revision",
                 {id, site, user, name, body.at("shared").dump(), array_parameter(points)});
             if (!saved.size())
-                throw Failure{409, "revision_conflict"};
+                throw Failure{ErrorCode::revision_conflict};
             respond(res, {{"id", id}, {"revision", saved.get(0)}});
         }
     }

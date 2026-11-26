@@ -1,4 +1,5 @@
 #include "control/transport/alert_socket.hpp"
+#include "control/api.hpp"
 #include "observability/metrics.hpp"
 
 #include <boost/asio/as_tuple.hpp>
@@ -158,7 +159,8 @@ net::awaitable<void> exchange(std::shared_ptr<TlsStream> connection, Workers& wo
         Response response;
         auto expectation = parser.get()[http::field::expect];
         if (!error && !expectation.empty() && !beast::iequals(expectation, "100-continue")) {
-            response.result(http::status::expectation_failed);
+            response = request_response();
+            problem(response, Failure{ErrorCode::expectation_failed});
         } else {
             if (!error && !expectation.empty() && !parser.is_done()) {
                 http::response<http::empty_body> interim{http::status::continue_, parser.get().version()};
@@ -172,10 +174,11 @@ net::awaitable<void> exchange(std::shared_ptr<TlsStream> connection, Workers& wo
                 if (error.category() != make_error_code(http::error::bad_method).category()) {
                     break;
                 }
-                response.result(error == http::error::body_limit ? http::status::payload_too_large
-                                : error == http::error::header_limit
-                                    ? http::status::request_header_fields_too_large
-                                    : http::status::bad_request);
+                response = request_response();
+                const auto cause = error == http::error::body_limit     ? ErrorCode::payload_too_large
+                                   : error == http::error::header_limit ? ErrorCode::headers_too_large
+                                                                        : ErrorCode::invalid_request;
+                problem(response, Failure{cause});
             } else {
                 const auto request = parser.release();
                 // Blocking database, camera and password operations run on the pool of their workload.

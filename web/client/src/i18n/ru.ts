@@ -175,44 +175,6 @@ export const ru = {
   },
   "camera.error.revision_conflict":
     "Конфигурация изменилась. Заново сравните версии.",
-  "camera.error.camera_image_unsupported":
-    "Канал не поддерживает выбранную яркость.",
-  "camera.error.camera_image_unconfirmed":
-    "Камера не подтвердила значение яркости.",
-  "camera.error.camera_batch_limit":
-    "В одну партию можно включить до 64 каналов.",
-  "camera.error.camera_authentication_failed":
-    "Камера отклонила имя или пароль.",
-  "camera.error.camera_audio_missing": "В выбранный момент звук не записан.",
-  "camera.error.camera_audio_unavailable":
-    "Камера не подтвердила доступность звукового канала.",
-  "camera.error.camera_audio_unsupported":
-    "Камера не поддерживает это направление звука.",
-  "camera.error.camera_ptz_busy": "Камерой управляет другой оператор.",
-  "camera.error.camera_command_unsent":
-    "Соединение недоступно. Команда не отправлена.",
-  "camera.error.camera_command_rejected": "Камера отклонила команду.",
-  "camera.error.camera_ptz_unknown":
-    "Нет подтверждения камеры. Проверьте её положение в эфире.",
-  "camera.error.camera_ptz_unsupported":
-    "Профиль камеры не поддерживает эту команду.",
-  "camera.error.camera_tls_error":
-    "Проверьте имя камеры и доверенный сертификат.",
-  "camera.error.camera_incompatible_profiles":
-    "Для подключения нужны два разных видеопрофиля H.264 или H.265.",
-  "camera.error.camera_transport_denied":
-    "Адрес или транспорт камеры запрещён настройками площадки.",
-  "camera.error.camera_protocol_error":
-    "Камера вернула неподдерживаемый ответ ONVIF.",
-  "camera.error.camera_already_registered":
-    "Эта камера уже подключена на площадке.",
-  "camera.error.camera_binding_conflict":
-    "Камера точки изменилась. Выберите точку заново.",
-  "camera.error.camera_selection_expired":
-    "Повторите обнаружение и выбор профилей.",
-  "camera.error.camera_discovery_unavailable":
-    "Нет доступного интерфейса в разрешённом сегменте камер.",
-  "camera.error.camera_unavailable": "Камера не ответила вовремя.",
   "ptz.left": "Влево",
   "ptz.right": "Вправо",
   "ptz.up": "Вверх",
@@ -232,15 +194,6 @@ export const ru = {
   "ptz.wiper_off": "Выключить очиститель",
   "ptz.relay_on": "Активировать выход",
   "ptz.relay_off": "Отключить выход",
-  "media.bandwidthLimit":
-    "Сетевой бюджет исчерпан. Выберите дополнительный поток или освободите ячейку.",
-  "media.sessionLimit":
-    "Все подключения к эфиру заняты. Освободите ячейку на одном из постов.",
-  "media.transcoderLimit":
-    "Преобразование в H.264 занято. Освободите просмотр или используйте клиент с поддержкой HEVC.",
-  "media.sourceUnavailable": "Рекордер пока не получил видеопоток камеры.",
-  "media.pendingCatalog": "Запись добавляется в каталог. Повторите проверку.",
-  "media.recordingGap": "В выбранном интервале пропуск записи.",
   "media.sessionExpired": "Сеанс входа истёк. Войдите снова.",
   "media.forbidden": "Нет доступа к точке или записи.",
   "media.viewExpired": "Время просмотра истекло. Откройте видео снова.",
@@ -911,11 +864,6 @@ export const ru = {
   "packages.state.installing": "Установка",
   "packages.state.installed": "Установлен",
   "packages.state.failed": "Ошибка установки",
-  "packages.failure.checksum": "Контрольная сумма не совпала",
-  "packages.failure.range":
-    "Сервер каталога не поддержал запрошенный диапазон байтов",
-  "packages.failure.catalog": "Файл недоступен в каталоге",
-  "packages.failure.storage": "Не удалось сохранить файл на диске",
   "packages.size": "{value} МиБ",
   "packages.uploadProgress": "Загрузка файла {percent}%",
   "packages.selected": "Выбрано регионов: {count}",
@@ -1084,12 +1032,6 @@ export const ru = {
   "access.role.administrator": "Администратор",
   "access.user": "Пользователь",
   "access.loadFailed": "Не удалось получить актуальные права. Обновите данные.",
-  "access.conflict":
-    "Другой администратор изменил политику. Проверьте обновлённые данные.",
-  "access.lastAdministrator": "На площадке нужен действующий администратор.",
-  "access.accountConflict": "Имя пользователя занято.",
-  "access.identityConflict": "Эта внешняя учётная запись уже привязана.",
-  "access.groupConflict": "Название группы занято.",
   "access.saveFailed": "Не удалось сохранить изменение. Проверьте значения.",
   "access.saved": "Изменение сохранено.",
   "access.disconnected": "Связь прервана. Обновите данные перед повтором.",
@@ -1242,6 +1184,144 @@ export const ru = {
   "rp.failed": "ошибок: {count}",
   "rp.forecast": "Прогноз по текущей скорости записи",
   "rp.daysShort": "сут.",
+  "audit.change.policy_deleted": "Удалена политика {policy}, версия {revision}",
+  "audit.change.policy_saved": "Сохранена политика {policy}, версия {revision}",
+  "audit.change.manual_recording_started": "Начата запись на {seconds} с",
+  "audit.change.manual_recording_stopped": "Запись остановлена",
+  "audit.change.storage_changed": "Срок {days} дн., резерв {reserve_percent} %",
+  // Causes of failures from the error catalog, shown wherever a screen has no more specific text.
+  "error.assignment_mismatch":
+    "Запрос относится к другой площадке, тому или источнику.",
+  "error.media_scope_denied":
+    "Нет разрешённого медиасеанса для этого блока, интервала или экспорта.",
+  "error.privacy_policy_changed":
+    "Политика приватности точки изменилась после открытия просмотра.",
+  "error.representation_unavailable":
+    "Сеансу нужен вид с маской или оригинал записи ему недоступен.",
+  "error.binding_changed": "Привязка камеры к точке изменилась.",
+  "error.replay_busy": "Рекордер уже загружает запись этой камеры.",
+  "error.live_setup_timeout": "Подключение к эфиру не установилось вовремя.",
+  "error.recorder_feature_unavailable":
+    "Рекордер не поддерживает эту операцию.",
+  "error.account_conflict": "Имя пользователя занято.",
+  "error.alert_result_required": "Для закрытия тревоги укажите результат.",
+  "error.alert_state_conflict":
+    "Тревогу уже взял в работу или закрыл другой оператор.",
+  "error.authorization_unavailable":
+    "Проверка прав недоступна. Повторите позже.",
+  "error.camera_already_registered": "Эта камера уже подключена на площадке.",
+  "error.camera_audio_missing": "У камеры нет звукового канала.",
+  "error.camera_audio_unavailable":
+    "Камера не подтвердила доступность звукового канала.",
+  "error.camera_audio_unsupported":
+    "Камера не поддерживает это направление звука.",
+  "error.camera_authentication_failed": "Камера отклонила имя или пароль.",
+  "error.camera_batch_limit": "В одну партию можно включить до 64 каналов.",
+  "error.camera_binding_conflict":
+    "Камера точки изменилась. Выберите точку заново.",
+  "error.camera_clock_uncertain":
+    "Часы камеры нельзя достаточно точно сопоставить со временем площадки.",
+  "error.camera_command_rejected": "Камера отклонила команду.",
+  "error.camera_command_unsent":
+    "Соединение недоступно. Команда не отправлена.",
+  "error.camera_discovery_unavailable":
+    "Нет доступного интерфейса в разрешённом сегменте камер.",
+  "error.camera_image_unconfirmed": "Камера не подтвердила значение яркости.",
+  "error.camera_image_unsupported": "Канал не поддерживает выбранную яркость.",
+  "error.camera_incompatible_profiles":
+    "Для подключения нужны два разных видеопрофиля H.264 или H.265.",
+  "error.camera_position_changed":
+    "Камера сместилась после калибровки. Откалибруйте обзор снова.",
+  "error.camera_protocol_error": "Камера вернула неподдерживаемый ответ ONVIF.",
+  "error.camera_ptz_busy": "Камерой управляет другой оператор.",
+  "error.camera_ptz_unknown":
+    "Нет подтверждения камеры. Проверьте её положение в эфире.",
+  "error.camera_ptz_unsupported": "Профиль камеры не поддерживает эту команду.",
+  "error.camera_selection_expired": "Повторите обнаружение и выбор профилей.",
+  "error.camera_tls_error": "Проверьте имя камеры и доверенный сертификат.",
+  "error.camera_transport_denied":
+    "Адрес или транспорт камеры запрещён настройками площадки.",
+  "error.camera_unavailable": "Камера не ответила вовремя.",
+  "error.invalid_catalog": "В каталоге карт некорректные данные регионов.",
+  "error.invalid_package":
+    "Выберите корректный пакет карт в формате ZIP или MBTiles.",
+  "error.network_unavailable": "Сервер карт недоступен. Повторите позже.",
+  "error.installation_failed": "Не удалось установить регион карты.",
+  "error.catalog_unavailable": "Файл недоступен в каталоге",
+  "error.checksum_mismatch": "Контрольная сумма не совпала",
+  "error.connection_lost":
+    "Связь с площадкой прервана. Проверьте сеть и повторите.",
+  "error.conflict":
+    "Текущее состояние объекта не позволяет выполнить действие.",
+  "error.dependency_unavailable":
+    "Служба площадки недоступна. Повторите позже.",
+  "error.download_unavailable":
+    "Пакет карты сейчас не удаётся загрузить из источника.",
+  "error.edge_recording_unavailable":
+    "Запись на камере за этот интервал недоступна.",
+  "error.enrollment_required":
+    "Для первого входа нужен ключ безопасности. Используйте код регистрации от администратора.",
+  "error.export_too_large":
+    "Экспорт превышает допустимый размер. Выберите интервал короче.",
+  "error.forbidden": "Недостаточно прав для этого действия.",
+  "error.georeference_changed": "Привязка плана изменилась. Обновите данные.",
+  "error.grant_conflict": "Такое право уже выдано.",
+  "error.group_conflict": "Название группы занято.",
+  "error.idempotency_conflict":
+    "Запрос с этим ключом уже выполнялся с другими данными.",
+  "error.identity_conflict": "Эта внешняя учётная запись уже привязана.",
+  "error.identity_unavailable": "Корпоративный провайдер входа недоступен.",
+  "error.internal_error": "Сбой службы. Сообщите администратору код запроса.",
+  "error.invalid_credentials": "Неверное имя пользователя или пароль.",
+  "error.invalid_factor": "Ключ безопасности не подтвердил вход.",
+  "error.invalid_georeference":
+    "Опорные точки не задают положение плана на карте.",
+  "error.invalid_identity":
+    "Не удалось подтвердить личность или требуемый уровень MFA.",
+  "error.invalid_range":
+    "Сервер каталога не поддержал запрошенный диапазон байтов",
+  "error.invalid_request":
+    "Запрос не соответствует ожиданиям сервера. Проверьте введённые значения.",
+  "error.last_administrator": "На площадке нужен действующий администратор.",
+  "error.manual_recording_disabled":
+    "Политика записи точки не допускает ручную запись.",
+  "error.media_service_unavailable":
+    "Сервис видео недоступен. Повторите подключение.",
+  "error.media_session_closed":
+    "Время просмотра истекло. Откройте видео снова.",
+  "error.media_unavailable": "В архиве нет записи для этого интервала.",
+  "error.payload_too_large": "Тело запроса превышает допустимый размер.",
+  "error.headers_too_large": "Заголовки запроса превышают допустимый размер.",
+  "error.expectation_failed":
+    "Сервер не поддерживает значение заголовка Expect.",
+  "error.method_not_allowed":
+    "Сервер не поддерживает это действие для объекта.",
+  "error.not_found": "Объект не найден или недоступен.",
+  "error.pending_catalog": "Запись добавляется в каталог. Повторите проверку.",
+  "error.position_from_plan": "Положение точки задаёт её план этажа.",
+  "error.precondition_required":
+    "Изменение требует прочитанной версии объекта. Обновите данные.",
+  "error.precondition_failed":
+    "Объект изменился после чтения. Обновите данные и повторите изменение.",
+  "error.rate_limited":
+    "Слишком много запросов. Повторите через несколько секунд.",
+  "error.recording_gap": "В выбранном интервале пропуск записи.",
+  "error.recording_policy_managed": "Запись точки задаёт групповая политика.",
+  "error.region_busy":
+    "Пакет карты региона сейчас устанавливается или удаляется.",
+  "error.revision_conflict":
+    "Данные изменились после чтения. Обновите их и повторите изменение.",
+  "error.source_unavailable": "Источник пакета карт недоступен.",
+  "error.storage_unavailable": "Не удалось сохранить файл на диске",
+  "error.unauthenticated": "Сеанс входа завершён. Войдите снова.",
+  "error.video_bandwidth_limit":
+    "Сетевой бюджет исчерпан. Выберите дополнительный поток или освободите ячейку.",
+  "error.video_session_limit":
+    "Все подключения к эфиру заняты. Освободите ячейку на одном из постов.",
+  "error.video_source_unavailable":
+    "Рекордер пока не получил видеопоток камеры.",
+  "error.video_transcoder_limit":
+    "Преобразование в H.264 занято. Освободите просмотр или используйте клиент с поддержкой HEVC.",
 } as const satisfies Record<string, Message>;
 
 export type MessageKey = keyof typeof ru;

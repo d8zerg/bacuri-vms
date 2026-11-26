@@ -12,6 +12,7 @@ import {
 } from "react-router";
 import type { Feed, Point, Services, Session } from "../contracts/workspace";
 import { HttpFailure } from "../adapters/api";
+import { describeError } from "../adapters/errors";
 import { SubsectionSlot } from "./SubsectionMenu";
 import { cameraSetup, Installer } from "./installer";
 import "../ui-kit/media-panels.css";
@@ -45,7 +46,11 @@ function Login({
   message: string;
 }) {
   const t = useT();
-  const [notice, setNotice] = useState(message),
+  // A failed corporate sign-in returns here with the cause of the error catalog.
+  const [notice, setNotice] = useState(() => {
+      const cause = new URLSearchParams(location.search).get("sign_in_error");
+      return cause ? describeError(new HttpFailure(0, cause)) : message;
+    }),
     [busy, setBusy] = useState(false),
     [enroll, setEnroll] = useState(false);
   const [corporate, setCorporate] = useState(false);
@@ -94,16 +99,19 @@ function Login({
         setNotice(t("login.enrollmentRequired"));
         return;
       }
-      if (error instanceof HttpFailure && error.code === "invalid_credentials")
-        setNotice(t("login.invalid"));
-      else if (error instanceof HttpFailure && error.status === 429)
-        setNotice(t("login.rateLimited"));
-      else if (
-        (error instanceof HttpFailure && error.code === "invalid_factor") ||
-        (error instanceof DOMException && error.name === "NotAllowedError")
-      )
+      // The security key prompt refused by the person counts as a rejected factor.
+      if (error instanceof DOMException && error.name === "NotAllowedError")
         setNotice(t("login.keyRejected"));
-      else setNotice(t("login.failed"));
+      else
+        setNotice(
+          describeError(error, {
+            invalid_credentials: "login.invalid",
+            rate_limited: "login.rateLimited",
+            invalid_factor: "login.keyRejected",
+            internal_error: "login.failed",
+            invalid_request: "login.failed",
+          }),
+        );
     } finally {
       setBusy(false);
     }

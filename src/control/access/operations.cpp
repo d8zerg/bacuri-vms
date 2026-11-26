@@ -37,7 +37,7 @@ std::string site_role(Database& db, const std::string& site, const std::string& 
             : "SELECT role FROM bacuri_access.site_roles WHERE site_id=$1 AND user_id=$2 AND enabled",
         {site, user});
     if (!r.size())
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     return r.get(0);
 }
 bool lock_point_grant(Database& db, const std::string& site, const std::string& point, const std::string& user)
@@ -70,7 +70,7 @@ std::string role_for_existing_point(Database& db, const std::string& site, const
 {
     const auto role = site_role(db, site, user, RoleLock::read);
     if (!allowed(db, site, user, point, "view"))
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     return role;
 }
 std::vector<std::string> granted_point_ids(Database& db, const std::string& site, const std::string& user,
@@ -139,14 +139,14 @@ std::string export_permission(Database& db, const std::string& site, const std::
 {
     if (!allowed(db, site, user, point, "view", "", begin, end) ||
         (!derivative && !export_regions(db, site, point).empty()))
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     auto rows = db.exec("SELECT grant_id FROM bacuri_access.effective_grants WHERE site_id=$1 AND point_id=$2 "
                         "AND user_id=$3 AND (action='export' OR ($6::boolean AND action='export_masked')) AND "
                         "(begin_us IS NULL OR (begin_us<=$4 AND end_us>=$5)) "
                         "ORDER BY (action='export_masked') DESC,grant_id LIMIT 1",
                         {site, point, user, begin, end, derivative ? "true" : "false"});
     if (!rows.size())
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     return rows.get(0);
 }
 std::optional<ExportLease> export_lease(Database& db, const std::string& browser, const std::string& grant,

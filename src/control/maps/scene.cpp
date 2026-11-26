@@ -17,12 +17,12 @@ namespace
 void valid(bool condition)
 {
     if (!condition)
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
 }
 void found(bool condition)
 {
     if (!condition)
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
 }
 
 bool has_bearing(const Json& marker)
@@ -224,7 +224,7 @@ Json add_plan(Database& db, const Request& req, const std::string& site)
     try {
         image = read_map_png(bytes, false);
     } catch (const std::invalid_argument&) {
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     }
     found(inventory::lock_site(db, site));
     valid(db.exec("SELECT coalesce(sum(octet_length(image)),0)+$2::integer<=16777216 FROM bacuri_maps.floor_plans "
@@ -258,7 +258,7 @@ void place(Database& db, const Request& req, const std::string& site)
         db.exec("SELECT FROM bacuri_maps.point_placements WHERE site_id=$1 AND point_id=$2 AND geo_primary",
                 {site, point})
             .size())
-        throw Failure{409, "position_from_plan"};
+        throw Failure{ErrorCode::position_from_plan};
     if (plan.empty())
         found(db.exec("SELECT FROM bacuri_maps.map_regions WHERE site_id=$1 FOR SHARE", {site}).size());
     else
@@ -296,7 +296,7 @@ void maps(const Request& req, Response& res, const Sessions& sessions, const std
         db.exec("BEGIN");
         auto identity = sessions.authenticate(db, req, mutate, mutate);
         if (access::site_role(db, site, identity.user, access::RoleLock::shared) != "administrator")
-            throw Failure{403, "forbidden"};
+            throw Failure{ErrorCode::forbidden};
         map_packages::manage(req, res, db, site, path);
         db.exec("COMMIT");
         return;
@@ -315,7 +315,7 @@ void maps(const Request& req, Response& res, const Sessions& sessions, const std
     const auto role =
         access::site_role(db, site, identity.user, write ? access::RoleLock::shared : access::RoleLock::read);
     if (write && role != "administrator")
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     if (placement || calibration || preview || reference)
         maps_geo::lock_geography(db, site);
     if (preview || reference) {

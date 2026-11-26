@@ -19,7 +19,7 @@ std::string reference_headers(xmlNode* reference)
             std::string_view{reinterpret_cast<const char*>(n->ns->href)} == soap ||
             std::string_view{reinterpret_cast<const char*>(n->ns->href)}.starts_with(
                 "http://docs.oasis-open.org/wss/"))
-            throw Failure{502, "camera_protocol_error"};
+            throw Failure{ErrorCode::camera_protocol_error};
         Doc copy{xmlNewDoc(BAD_CAST "1.0"), xmlFreeDoc};
         auto* item = xmlDocCopyNode(n, copy.get(), 1);
         xmlDocSetRootElement(copy.get(), item);
@@ -30,10 +30,10 @@ std::string reference_headers(xmlNode* reference)
         xmlSetNsProp(item, addr, BAD_CAST "IsReferenceParameter", BAD_CAST "true");
         std::unique_ptr<xmlBuffer, decltype(&xmlBufferFree)> buffer{xmlBufferCreate(), xmlBufferFree};
         if (xmlNodeDump(buffer.get(), copy.get(), item, 0, 0) < 0)
-            throw Failure{502, "camera_protocol_error"};
+            throw Failure{ErrorCode::camera_protocol_error};
         headers += reinterpret_cast<const char*>(xmlBufferContent(buffer.get()));
         if (headers.size() > 8192)
-            throw Failure{502, "camera_protocol_error"};
+            throw Failure{ErrorCode::camera_protocol_error};
     }
     return headers;
 }
@@ -45,7 +45,7 @@ CameraTime camera_time(const std::string& stamp)
 {
     Timestamp timestamp;
     if (!ProtoTime::FromString(stamp, &timestamp))
-        throw Failure{502, "camera_protocol_error"};
+        throw Failure{ErrorCode::camera_protocol_error};
     std::int64_t precision = 1000000;
     auto dot = stamp.find('.');
     if (dot != stamp.npos)
@@ -137,7 +137,7 @@ void read_motion(const std::stop_token& stop, const CameraNetworks& networks, co
             client.call(url, wsn, "Unsubscribe", {},
                         {"http://docs.oasis-open.org/wsn/bw-2/SubscriptionManager/UnsubscribeRequest", headers});
         } catch (const Failure& e) {
-            std::fprintf(stderr, "ONVIF subscription cleanup %s\n", e.code.c_str());
+            std::fprintf(stderr, "ONVIF subscription cleanup %s\n", std::string{e.code()}.c_str());
         }
     };
     try {
@@ -148,7 +148,7 @@ void read_motion(const std::stop_token& stop, const CameraNetworks& networks, co
                     {std::string{events} + "/PullPointSubscription/SetSynchronizationPointRequest", headers});
             } catch (const Failure& error) {
                 // Devices without property synchronization still publish subsequent changes.
-                if (error.code != "camera_protocol_error")
+                if (error.error != ErrorCode::camera_protocol_error)
                     throw;
             }
         }

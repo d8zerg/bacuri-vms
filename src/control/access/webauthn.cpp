@@ -12,7 +12,7 @@ using Bytes = std::vector<unsigned char>;
 void require(bool ok)
 {
     if (!ok)
-        throw Failure{403, "invalid_factor"};
+        throw Failure{ErrorCode::invalid_factor};
 }
 std::string encode(const unsigned char* p, std::size_t n)
 {
@@ -81,7 +81,7 @@ Json begin_webauthn(Database& db, const Key& key, const std::string& origin, con
     auto cred = db.exec("SELECT credential_id FROM bacuri_access.webauthn_credentials WHERE user_id=$1", {user});
     if (!cred.size()) {
         if (!body.contains("enrollment_code"))
-            throw Failure{403, "enrollment_required"};
+            throw Failure{ErrorCode::enrollment_required};
         const auto secret = string_field(body, "enrollment_code", 64);
         require(db.exec("SELECT FROM bacuri_access.webauthn_enrollment WHERE user_id=$1 AND code_hash=$2 AND "
                         "expires_at>clock_timestamp()",

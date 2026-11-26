@@ -1,6 +1,7 @@
 """Exercise the real recorder, WebRTC transport and HTTPS client on a private database."""
 
 from contextlib import ExitStack
+from datetime import datetime, timezone
 import signal
 import os
 from pathlib import Path
@@ -77,6 +78,27 @@ def linked(call, link):
     return uuid.UUID(call("POST", "/execute/sync", {"script": "return window.liveSession", "args": []}))
 
 
+def check_offer_problem(call):
+    def js(source):
+        return call("POST", "/execute/sync", {"script": source, "args": []})
+
+    button = "document.querySelector('.ws-submenu button[aria-label=\"Эфир\"]:not(:disabled)')"
+    control.wait_for(lambda: js(f"return !!{button}"), "live mode button")
+    js("""
+        const original = window.fetch.bind(window);
+        window.fetch = (url, init) => {
+            if (!String(url).endsWith('/offer')) return original(url, init);
+            window.fetch = original;
+            const code = 'video_session_limit';
+            return Promise.resolve(Response.json(
+                {status: 429, code, title: code, type: 'urn:bacuri:vms:problem:' + code, request_id: crypto.randomUUID()},
+                {status: 429, headers: {'Content-Type': 'application/problem+json'}}));
+        };
+    """ + button + ".click()")
+    control.wait_for(lambda: js("return document.querySelector('.ws-player')?.innerText.includes("
+                                "'Все подключения к эфиру заняты')"), "localized media offer limit")
+
+
 def verify_cutoff(link, change, label):
     initial = link.last_packet
     control.wait_for(lambda: link.last_packet > initial, "active video before " + label)
@@ -128,8 +150,9 @@ def run():
         assert status == 201, camera
         point = camera["point_id"]
         route = f"sites/{control.SITE}/points/{point}/media-sessions"
-        # The monitor opens in archive mode, so live video starts only when the test selects it.
-        monitor = f"/monitor?point={point}&mode=archive"
+        # Give the archive an explicit position so the first click follows a fully specified route.
+        at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        monitor = f"/monitor?point={point}&mode=archive&at={at}"
         headers = {**viewer, "Idempotency-Key": str(uuid.uuid4())}
         assert control.http("POST", route, {"mode": "live"}, headers)[0] == 404
         subprocess.run([control.CORE, "grant-point", "operator", point], check=True)
@@ -163,6 +186,8 @@ def run():
         for browser in ["chrome", "firefox"]:
             with browser_session(browser, viewer, monitor) as (call, version):
                 print(browser, version, frame(call), flush=True)
+        with browser_session("chrome", viewer, monitor) as (call, _):
+            check_offer_problem(call)
         # The media service measures the same wait on the server and exports it for the site.
         served = control.wait_for(lambda: control.metric("media", "bacuri_live_first_frame_seconds_count"),
                                   "first frame metrics")

@@ -1,4 +1,10 @@
 import {
+  catalogMessage,
+  describeError,
+  errorCode,
+  retryOf,
+} from "../adapters/errors";
+import {
   FilterPanel,
   matchesQuery,
   needsListSearch,
@@ -31,17 +37,6 @@ const states = {
   failed: "packages.state.failed",
 } as const satisfies Record<string, MessageKey>;
 const stateKeys = Object.keys(states) as (keyof typeof states)[];
-const failureLabels: Record<string, MessageKey> = {
-  checksum_mismatch: "packages.failure.checksum",
-  invalid_range: "packages.failure.range",
-  catalog_unavailable: "packages.failure.catalog",
-  storage_unavailable: "packages.failure.storage",
-};
-// The reason of a failed installation, or an empty string for an unknown code.
-function failure(code: string) {
-  const key = failureLabels[code];
-  return key ? translate(key) : "";
-}
 const size = (n: number) =>
   translate("packages.size", {
     value: formatNumber(n / 1048576, { maximumFractionDigits: 1 }),
@@ -150,7 +145,11 @@ export function MapPackages({ site, services, regions, placements }: Props) {
             failures = 0;
           } catch (error) {
             ctl.signal.throwIfAborted();
-            if (++failures > 3) throw error;
+            if (
+              ++failures > 3 ||
+              (errorCode(error) !== "conflict" && retryOf(error) !== "later")
+            )
+              throw error;
             const state = await services.inspectMapSource(site, id, ctl.signal);
             offset = state.received;
           }
@@ -165,7 +164,14 @@ export function MapPackages({ site, services, regions, placements }: Props) {
       for (;;) {
         const state = await services.inspectMapSource(site, id, ctl.signal);
         ctl.signal.throwIfAborted();
-        if (state.state === "failed") throw Error("source");
+        if (state.state === "failed") {
+          say(
+            catalogMessage(state.error, {
+              catalog_unavailable: "packages.catalogFailed",
+            }) ?? t(file ? "packages.fileFailed" : "packages.catalogFailed"),
+          );
+          return;
+        }
         if (state.state === "ready") {
           setSource(id);
           setOptions(state.regions);
@@ -175,9 +181,15 @@ export function MapPackages({ site, services, regions, placements }: Props) {
         await new Promise((r) => setTimeout(r, 700));
         ctl.signal.throwIfAborted();
       }
-    } catch {
+    } catch (error) {
       if (!ctl.signal.aborted)
-        say(file ? t("packages.fileFailed") : t("packages.catalogFailed"));
+        say(
+          describeError(error, {
+            internal_error: file
+              ? "packages.fileFailed"
+              : "packages.catalogFailed",
+          }),
+        );
     } finally {
       if (!ctl.signal.aborted) setBusy(false);
     }
@@ -203,8 +215,8 @@ export function MapPackages({ site, services, regions, placements }: Props) {
     try {
       await services.pauseMapDownload(site, id, paused);
       refresh((v) => v + 1);
-    } catch {
-      say(t("packages.stateFailed"));
+    } catch (error) {
+      say(describeError(error, { internal_error: "packages.stateFailed" }));
     }
   }
   async function submit() {
@@ -219,8 +231,8 @@ export function MapPackages({ site, services, regions, placements }: Props) {
       open(mode);
       say(t("packages.queued"));
       refresh((v) => v + 1);
-    } catch {
-      say(t("packages.queueFailed"));
+    } catch (error) {
+      say(describeError(error, { internal_error: "packages.queueFailed" }));
     } finally {
       setBusy(false);
     }
@@ -433,9 +445,9 @@ export function MapPackages({ site, services, regions, placements }: Props) {
           {jobs.map((j) => (
             <li key={j.id}>
               {j.name} · {t(states[j.state])}
-              {j.state === "failed" &&
-                failure(j.error) &&
-                " · " + failure(j.error)}
+              {(j.state === "failed" || j.state === "retrying") &&
+                j.error &&
+                " · " + (catalogMessage(j.error) ?? t("packages.stateFailed"))}
               {["paused", "retrying", "downloading"].includes(j.state) &&
                 " · " + Math.floor((j.received * 100) / j.bytes) + "%"}
               {j.online &&
@@ -465,8 +477,12 @@ export function MapPackages({ site, services, regions, placements }: Props) {
                           regions: [j.region_id],
                         });
                         refresh((v) => v + 1);
-                      } catch {
-                        say(t("packages.reopen"));
+                      } catch (error) {
+                        say(
+                          describeError(error, {
+                            internal_error: "packages.reopen",
+                          }),
+                        );
                       }
                     })();
                   }}

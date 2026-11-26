@@ -151,6 +151,13 @@ def qualify(wait, button, raw):
             _,
         ):
             button(call, "Установить регионы")
+            invalid = c.ROOT / "invalid.zip"
+            invalid.write_bytes(b"not a map package")
+            upload(call, invalid)
+            wait(
+                call, "document.querySelector('.ws-map-packages').innerText.includes('Выберите корректный пакет карт')",
+                "localized invalid package",
+            )
             upload(call, archive)
             node = wait(
                 call,
@@ -284,6 +291,10 @@ def qualify(wait, button, raw):
         failed = next(j for j in api("GET", "/management")["jobs"] if j["region_id"] == "North")
         assert failed["error"] == "checksum_mismatch", failed
         assert installed()["North"]["revision"] == current
+        (server.folder / "catalog.json").write_text("{}")
+        invalid_source = api("POST", "/sources", {"kind": "online", "url": url}, 201)["id"]
+        c.wait_for(lambda: api("GET", "/sources/" + invalid_source)["error"] == "invalid_catalog",
+                   "invalid catalog metadata")
         print(
             f"HTTPS resumed at byte {INTERRUPT_AT} after disconnect and at byte {paused_offset} after manual pause; "
             "selection, restart and SHA-256 verified",

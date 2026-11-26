@@ -26,6 +26,7 @@ def validator(registry, ref):
 
 def check_rest(api, registry):
     resolver = registry.resolver(API_URI)
+    catalog = read_yaml("contracts/v1/errors.yaml")["errors"]
     operations = {}
     for path, path_item in api["paths"].items():
         escaped_path = path.replace("~", "~0").replace("/", "~1")
@@ -52,8 +53,10 @@ def check_rest(api, registry):
                 assert "content" not in resource and "response" not in fixture
                 continue
             response = fixture["response"]
-            payload_validator(f"{operation}/responses/{status}").validate(response)
-            if status >= 400 and response["status"] != status:
+            responses = resolver.lookup(f"{operation}/responses").contents
+            key = str(status) if str(status) in responses else "default"
+            payload_validator(f"{operation}/responses/{key}").validate(response)
+            if status >= 400 and (response["status"] != status or catalog[response["code"]]["http"] != status):
                 raise ValueError("problem status does not match the HTTP status")
         except Exception as error:
             raise ValueError(f"REST example {name}: {error}") from error

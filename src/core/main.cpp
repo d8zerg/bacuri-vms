@@ -149,7 +149,7 @@ try {
     }
     return 0;
 } catch (const bacuri::vms::control::Failure& error) {
-    std::cerr << error.code << '\n';
+    std::cerr << error.code() << '\n';
     return 1;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

@@ -1,0 +1,672 @@
+# Error catalog of Bacuri VMS. Each code names one cause. The catalog is the source for the server failure type,
+# the Problem codes of the HTTP API, the status codes of the service gRPC, the client messages and the error
+# reference. Messages shown to people live in the client catalogs under the key "error.<code>".
+#
+# category  - the class of the cause, used for grouping in the reference and for default handling.
+# http      - the HTTP status of a Problem response with this code.
+# grpc      - the gRPC status code when the cause crosses a service boundary.
+# retry     - what the caller can do: never (change the request), after_change (read the current state and
+#             decide again), later (repeat after a pause, automatic retries are allowed), user_action (the person
+#             signs in, confirms or completes a step).
+# surface   - defaults to problem. map_state, browser and grpc identify causes outside HTTP Problem responses.
+# audience  - who is told about it: operators, administrators or services (only services and the journal see it).
+categories:
+  request: The request is malformed, names unknown fields or values outside the contract.
+  authentication: The caller is not signed in or the presented identity is not valid.
+  permission: The caller is signed in but may not perform the operation.
+  not_found: The named object does not exist or is not visible to the caller.
+  conflict: The current state of the object prevents the operation.
+  limit: A capacity or rate limit of the site is reached for now.
+  device: The camera or the camera network refused or failed the operation.
+  media: The recording or the media delivery cannot serve the requested interval or view.
+  dependency: A service of the site that the operation needs is unavailable.
+  internal: The service failed unexpectedly. The request identifier leads to the journal entry.
+errors:
+  invalid_request:
+    category: request
+    http: 400
+    grpc: INVALID_ARGUMENT
+    retry: never
+    audience: administrators
+    description: The request body, a parameter or a header does not match the API contract.
+  payload_too_large:
+    category: request
+    http: 413
+    grpc: RESOURCE_EXHAUSTED
+    retry: never
+    audience: services
+    description: The request body exceeds the size limit for the operation.
+  headers_too_large:
+    category: request
+    http: 431
+    grpc: RESOURCE_EXHAUSTED
+    retry: never
+    audience: services
+    description: The request headers exceed the site limit.
+  expectation_failed:
+    category: request
+    http: 417
+    grpc: UNIMPLEMENTED
+    retry: never
+    audience: services
+    description: The server does not support the requested HTTP expectation.
+  method_not_allowed:
+    category: request
+    http: 405
+    grpc: UNIMPLEMENTED
+    retry: never
+    audience: services
+    description: The resource does not accept this HTTP method.
+  precondition_required:
+    category: request
+    http: 428
+    grpc: FAILED_PRECONDITION
+    retry: never
+    audience: services
+    description: A change of a revisioned object needs the If-Match header with the read revision.
+  invalid_georeference:
+    category: request
+    http: 400
+    grpc: INVALID_ARGUMENT
+    retry: never
+    audience: administrators
+    description: The reference points of a floor plan do not define a valid placement on the map.
+  camera_selection_expired:
+    category: request
+    http: 400
+    grpc: INVALID_ARGUMENT
+    retry: user_action
+    audience: administrators
+    description: The selection of a discovered camera is too old. Discover or inspect the camera again.
+
+  unauthenticated:
+    category: authentication
+    http: 401
+    grpc: UNAUTHENTICATED
+    retry: user_action
+    audience: operators
+    description: The browser session is missing or ended. Sign in again.
+  invalid_credentials:
+    category: authentication
+    http: 401
+    grpc: UNAUTHENTICATED
+    retry: user_action
+    audience: operators
+    description: The user name or the password is not correct.
+  invalid_identity:
+    category: authentication
+    http: 401
+    grpc: UNAUTHENTICATED
+    retry: user_action
+    audience: operators
+    description: The corporate identity provider did not confirm the identity or the required authentication level.
+  invalid_factor:
+    category: authentication
+    http: 403
+    grpc: PERMISSION_DENIED
+    retry: user_action
+    audience: operators
+    description: The security key did not confirm the sign-in.
+  enrollment_required:
+    category: authentication
+    http: 403
+    grpc: PERMISSION_DENIED
+    retry: user_action
+    audience: operators
+    description: The account needs a security key before the first sign-in. Use the enrollment code from the administrator.
+
+  forbidden:
+    category: permission
+    http: 403
+    grpc: PERMISSION_DENIED
+    retry: never
+    audience: operators
+    description: The role or the grants of the user do not allow the operation.
+  last_administrator:
+    category: permission
+    http: 409
+    grpc: FAILED_PRECONDITION
+    retry: never
+    audience: administrators
+    description: The change would leave the site without an active administrator.
+
+  not_found:
+    category: not_found
+    http: 404
+    grpc: NOT_FOUND
+    retry: never
+    audience: operators
+    description: The object does not exist or the user may not see it.
+  camera_audio_missing:
+    category: not_found
+    http: 404
+    grpc: NOT_FOUND
+    retry: never
+    audience: operators
+    description: The camera has no audio channel.
+
+  revision_conflict:
+    category: conflict
+    http: 409
+    grpc: ABORTED
+    retry: after_change
+    audience: administrators
+    description: The object changed since it was read. Read it again and repeat the change.
+  precondition_failed:
+    category: conflict
+    http: 412
+    grpc: ABORTED
+    retry: after_change
+    audience: administrators
+    description: The object changed since it was read, its version differs from the If-Match header. Read it again and repeat the change.
+  idempotency_conflict:
+    category: conflict
+    http: 409
+    grpc: ALREADY_EXISTS
+    retry: never
+    audience: services
+    description: The idempotency key was already used for a different request.
+  conflict:
+    category: conflict
+    http: 409
+    grpc: ABORTED
+    retry: after_change
+    audience: administrators
+    description: The state of the object prevents the operation.
+  account_conflict:
+    category: conflict
+    http: 409
+    grpc: ALREADY_EXISTS
+    retry: never
+    audience: administrators
+    description: An account with this user name already exists.
+  group_conflict:
+    category: conflict
+    http: 409
+    grpc: ALREADY_EXISTS
+    retry: never
+    audience: administrators
+    description: A resource group with this name already exists.
+  grant_conflict:
+    category: conflict
+    http: 409
+    grpc: ALREADY_EXISTS
+    retry: never
+    audience: administrators
+    description: The grant already exists.
+  identity_conflict:
+    category: conflict
+    http: 409
+    grpc: ALREADY_EXISTS
+    retry: never
+    audience: administrators
+    description: The corporate identity is already linked to another account.
+  camera_already_registered:
+    category: conflict
+    http: 409
+    grpc: ALREADY_EXISTS
+    retry: never
+    audience: administrators
+    description: The camera is already registered on the site.
+  camera_binding_conflict:
+    category: conflict
+    http: 409
+    grpc: ABORTED
+    retry: after_change
+    audience: administrators
+    description: The observation point or the camera is bound differently than the request expects.
+  camera_ptz_busy:
+    category: conflict
+    http: 409
+    grpc: ABORTED
+    retry: later
+    audience: operators
+    description: Another operator controls the PTZ camera now.
+  camera_position_changed:
+    category: conflict
+    http: 409
+    grpc: ABORTED
+    retry: after_change
+    audience: administrators
+    description: The camera moved after its view was calibrated. Calibrate the view again.
+  camera_clock_uncertain:
+    category: conflict
+    http: 409
+    grpc: FAILED_PRECONDITION
+    retry: later
+    audience: administrators
+    description: The camera clock cannot be related to the site time well enough for the operation.
+  position_from_plan:
+    category: conflict
+    http: 409
+    grpc: FAILED_PRECONDITION
+    retry: never
+    audience: administrators
+    description: The position of the point follows its floor plan and cannot be changed on the map.
+  georeference_changed:
+    category: conflict
+    http: 409
+    grpc: ABORTED
+    retry: after_change
+    audience: administrators
+    description: The placement of the floor plan changed since it was read.
+  region_busy:
+    category: conflict
+    http: 409
+    grpc: ABORTED
+    retry: later
+    audience: administrators
+    description: A map package of the region is being installed or removed.
+  alert_state_conflict:
+    category: conflict
+    http: 409
+    grpc: ABORTED
+    retry: after_change
+    audience: operators
+    description: The alert was taken or closed by someone else.
+  alert_result_required:
+    category: conflict
+    http: 409
+    grpc: FAILED_PRECONDITION
+    retry: user_action
+    audience: operators
+    description: Closing the alert needs the result of its processing.
+  recording_policy_managed:
+    category: conflict
+    http: 409
+    grpc: FAILED_PRECONDITION
+    retry: never
+    audience: administrators
+    description: The recording of the point follows a group policy and is changed in the group.
+  manual_recording_disabled:
+    category: conflict
+    http: 409
+    grpc: FAILED_PRECONDITION
+    retry: never
+    audience: operators
+    description: The recording policy of the point does not allow manual recording.
+
+  rate_limited:
+    category: limit
+    http: 429
+    grpc: RESOURCE_EXHAUSTED
+    retry: later
+    audience: operators
+    description: Too many requests in a short time.
+  video_session_limit:
+    category: limit
+    http: 429
+    grpc: RESOURCE_EXHAUSTED
+    retry: later
+    audience: operators
+    description: The site serves the largest number of video views it allows.
+  video_bandwidth_limit:
+    category: limit
+    http: 429
+    grpc: RESOURCE_EXHAUSTED
+    retry: later
+    audience: operators
+    description: The video bandwidth of the site is used up.
+  video_transcoder_limit:
+    category: limit
+    http: 429
+    grpc: RESOURCE_EXHAUSTED
+    retry: later
+    audience: operators
+    description: All video conversion slots are busy. Close another view or use a client with HEVC support.
+  export_too_large:
+    category: limit
+    http: 413
+    grpc: RESOURCE_EXHAUSTED
+    retry: never
+    audience: operators
+    description: The export exceeds the size limit. Select a shorter interval.
+  camera_batch_limit:
+    category: limit
+    http: 422
+    grpc: RESOURCE_EXHAUSTED
+    retry: never
+    audience: administrators
+    description: The batch contains more cameras than one batch allows.
+
+  camera_unavailable:
+    category: device
+    http: 503
+    grpc: UNAVAILABLE
+    retry: later
+    audience: administrators
+    description: The camera does not answer on the camera network.
+  camera_tls_error:
+    category: device
+    http: 502
+    grpc: UNAVAILABLE
+    retry: never
+    audience: administrators
+    description: The TLS connection to the camera failed or its certificate is not trusted.
+  camera_transport_denied:
+    category: device
+    http: 422
+    grpc: FAILED_PRECONDITION
+    retry: never
+    audience: administrators
+    description: The transport policy of the site does not allow this connection to the camera.
+  camera_authentication_failed:
+    category: device
+    http: 422
+    grpc: UNAUTHENTICATED
+    retry: never
+    audience: administrators
+    description: The camera rejected the stored credentials.
+  camera_protocol_error:
+    category: device
+    http: 502
+    grpc: INTERNAL
+    retry: later
+    audience: administrators
+    description: The camera answered with a response that does not follow its protocol.
+  camera_incompatible_profiles:
+    category: device
+    http: 422
+    grpc: FAILED_PRECONDITION
+    retry: never
+    audience: administrators
+    description: The stream profiles of the camera do not meet the recording requirements.
+  camera_discovery_unavailable:
+    category: device
+    http: 503
+    grpc: UNAVAILABLE
+    retry: later
+    audience: administrators
+    description: Discovery cannot run on the camera networks now.
+  camera_command_unsent:
+    category: device
+    http: 502
+    grpc: UNAVAILABLE
+    retry: later
+    audience: operators
+    description: The command did not reach the camera.
+  camera_command_rejected:
+    category: device
+    http: 422
+    grpc: FAILED_PRECONDITION
+    retry: never
+    audience: operators
+    description: The camera rejected the command.
+  camera_ptz_unknown:
+    category: device
+    http: 502
+    grpc: UNKNOWN
+    retry: after_change
+    audience: operators
+    description: The camera did not confirm the PTZ position.
+  camera_ptz_unsupported:
+    category: device
+    http: 422
+    grpc: UNIMPLEMENTED
+    retry: never
+    audience: operators
+    description: The camera does not support this PTZ command.
+  camera_audio_unavailable:
+    category: device
+    http: 503
+    grpc: UNAVAILABLE
+    retry: later
+    audience: operators
+    description: The audio channel of the camera does not answer.
+  camera_audio_unsupported:
+    category: device
+    http: 422
+    grpc: UNIMPLEMENTED
+    retry: never
+    audience: operators
+    description: The camera does not support the requested audio direction or format.
+  camera_image_unsupported:
+    category: device
+    http: 422
+    grpc: UNIMPLEMENTED
+    retry: never
+    audience: administrators
+    description: The camera does not support this image setting.
+  camera_image_unconfirmed:
+    category: device
+    http: 502
+    grpc: UNKNOWN
+    retry: after_change
+    audience: administrators
+    description: The camera did not confirm the image setting.
+  edge_recording_unavailable:
+    category: device
+    http: 409
+    grpc: FAILED_PRECONDITION
+    retry: later
+    audience: administrators
+    description: The recording on the camera is not available for the interval.
+
+  media_unavailable:
+    category: media
+    http: 409
+    grpc: NOT_FOUND
+    retry: never
+    audience: operators
+    description: The archive has no recording that can be shown for the interval.
+  recording_gap:
+    category: media
+    http: 409
+    grpc: NOT_FOUND
+    retry: never
+    audience: operators
+    description: The interval contains only a recording gap.
+  pending_catalog:
+    category: media
+    http: 409
+    grpc: UNAVAILABLE
+    retry: later
+    audience: operators
+    description: The recording is still being added to the archive catalog.
+  media_session_closed:
+    category: media
+    http: 410
+    grpc: CANCELLED
+    retry: user_action
+    audience: operators
+    description: The view ended. Open the video again.
+  video_source_unavailable:
+    category: media
+    http: 503
+    grpc: UNAVAILABLE
+    retry: later
+    audience: operators
+    description: The recording node has not received the video stream of the camera yet.
+
+  media_service_unavailable:
+    category: dependency
+    http: 503
+    grpc: UNAVAILABLE
+    retry: later
+    audience: operators
+    description: The media service of the site does not answer.
+  authorization_unavailable:
+    category: dependency
+    http: 503
+    grpc: UNAVAILABLE
+    retry: later
+    audience: operators
+    description: The permission check cannot complete because the database does not answer.
+  dependency_unavailable:
+    category: dependency
+    http: 503
+    grpc: UNAVAILABLE
+    retry: later
+    audience: administrators
+    description: A service of the site that the operation needs does not answer.
+  identity_unavailable:
+    category: dependency
+    http: 503
+    grpc: UNAVAILABLE
+    retry: later
+    audience: operators
+    description: The corporate identity provider does not answer.
+  source_unavailable:
+    category: dependency
+    http: 409
+    grpc: UNAVAILABLE
+    retry: later
+    audience: administrators
+    description: The source of the map package is not reachable.
+  download_unavailable:
+    category: dependency
+    http: 409
+    grpc: UNAVAILABLE
+    retry: later
+    audience: administrators
+    description: The map package cannot be downloaded from its source now.
+
+  internal_error:
+    category: internal
+    http: 500
+    grpc: INTERNAL
+    retry: later
+    audience: administrators
+    description: The service failed unexpectedly. The journal entry has the request identifier.
+
+  # Failures of a map package job. The job reports them as its state, never as a Problem response.
+  invalid_catalog:
+    category: request
+    http: 422
+    grpc: INVALID_ARGUMENT
+    retry: never
+    audience: administrators
+    description: The map catalog has an invalid format or invalid region metadata.
+    surface: map_state
+  invalid_package:
+    category: request
+    http: 422
+    grpc: INVALID_ARGUMENT
+    retry: never
+    audience: administrators
+    description: The uploaded map package could not be read as ZIP or MBTiles.
+    surface: map_state
+  network_unavailable:
+    category: dependency
+    http: 503
+    grpc: UNAVAILABLE
+    retry: later
+    audience: administrators
+    description: The connection to the map catalog or download server is unavailable.
+    surface: map_state
+  installation_failed:
+    category: internal
+    http: 500
+    grpc: INTERNAL
+    retry: after_change
+    audience: administrators
+    description: The map region could not be installed from the selected package.
+    surface: map_state
+  checksum_mismatch:
+    category: dependency
+    http: 502
+    grpc: DATA_LOSS
+    retry: later
+    audience: administrators
+    description: The downloaded map file does not match the checksum of the catalog.
+    surface: map_state
+  invalid_range:
+    category: dependency
+    http: 502
+    grpc: FAILED_PRECONDITION
+    retry: never
+    audience: administrators
+    description: The catalog server does not support the byte ranges needed to resume a download.
+    surface: map_state
+  catalog_unavailable:
+    category: dependency
+    http: 502
+    grpc: NOT_FOUND
+    retry: later
+    audience: administrators
+    description: The map file is not available in the catalog.
+    surface: map_state
+  storage_unavailable:
+    category: dependency
+    http: 507
+    grpc: RESOURCE_EXHAUSTED
+    retry: after_change
+    audience: administrators
+    description: The map file cannot be stored on the disk of the site.
+    surface: map_state
+
+  # A failure the browser detects itself: the request did not reach the site.
+  connection_lost:
+    category: dependency
+    http: 503
+    grpc: UNAVAILABLE
+    retry: later
+    audience: operators
+    description: The browser lost the connection to the site before the answer arrived.
+    surface: browser
+
+  # Causes between the services of a site. The journal shows them, people never see them.
+  assignment_mismatch:
+    category: permission
+    http: 403
+    grpc: PERMISSION_DENIED
+    retry: never
+    audience: services
+    description: The request names a site, a volume or a source assignment that the service does not serve.
+    surface: grpc
+  media_scope_denied:
+    category: permission
+    http: 403
+    grpc: PERMISSION_DENIED
+    retry: never
+    audience: services
+    description: No authorized media session covers the requested block, interval or export.
+    surface: grpc
+  privacy_policy_changed:
+    category: permission
+    http: 403
+    grpc: PERMISSION_DENIED
+    retry: after_change
+    audience: services
+    description: The privacy policy of the point changed after the media session was authorized.
+    surface: grpc
+  representation_unavailable:
+    category: permission
+    http: 403
+    grpc: PERMISSION_DENIED
+    retry: never
+    audience: services
+    description: The session needs a masked view, or the original of the recording is not available to it.
+    surface: grpc
+  binding_changed:
+    category: conflict
+    http: 409
+    grpc: FAILED_PRECONDITION
+    retry: after_change
+    audience: services
+    description: The binding of the camera to the point changed or is unknown to the service.
+    surface: grpc
+  replay_busy:
+    category: limit
+    http: 429
+    grpc: RESOURCE_EXHAUSTED
+    retry: later
+    audience: services
+    description: The recording node already replays the recording of a camera.
+    surface: grpc
+  live_setup_timeout:
+    category: media
+    http: 504
+    grpc: DEADLINE_EXCEEDED
+    retry: later
+    audience: services
+    description: The live connection was not established in time.
+    surface: grpc
+  recorder_feature_unavailable:
+    category: dependency
+    http: 503
+    grpc: FAILED_PRECONDITION
+    retry: never
+    audience: services
+    description: The recording node does not support the operation, such as archive protection.
+    surface: grpc

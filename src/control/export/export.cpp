@@ -25,7 +25,7 @@ struct Slot {
     Slot()
     {
         if (!export_slots.try_acquire())
-            throw Failure{429, "rate_limited"};
+            throw Failure{ErrorCode::rate_limited};
     }
     Slot(const Slot&) = delete;
     Slot& operator=(const Slot&) = delete;
@@ -70,7 +70,7 @@ class ExportBody final : public MediaBody
                               : 0;
         db.exec("COMMIT");
         if (ms <= 0)
-            throw Failure{403, "forbidden"};
+            throw Failure{ErrorCode::forbidden};
         return now + std::chrono::milliseconds{ms};
     }
     MediaChunk next() override
@@ -144,14 +144,14 @@ Json export_audio(const Json& source, std::int64_t begin, std::int64_t end, cons
         ctx.set_deadline(std::chrono::system_clock::now() + 2s);
         v1::AudioChunk chunk;
         if (!stub->ExchangeAudio(&ctx, q, &chunk).ok() || chunk.pcm().size() != static_cast<std::size_t>(length))
-            throw Failure{503, "media_unavailable"};
+            throw Failure{ErrorCode::media_service_unavailable};
         pcm += chunk.pcm();
         offset += length;
     }
     std::string wav = "RIFF";
     // A WAV file stores the sizes in 32 bits.
     if (pcm.size() > std::numeric_limits<std::uint32_t>::max() - 36)
-        throw Failure{413, "export_too_large"};
+        throw Failure{ErrorCode::export_too_large};
     const auto data_size = static_cast<std::uint32_t>(pcm.size());
     auto le = [&](std::uint32_t value, int count) {
         while (count--) {
@@ -191,13 +191,13 @@ void catalog_gaps(Database& db, Json& periods, const std::string& site, const st
     auto spans = recordings::coverage(db, site, point, std::to_string(a), std::to_string(b), "[]", revision);
     for (const auto& span : spans) {
         if (span.begin != a || span.state == "recorded")
-            throw Failure{409, "media_unavailable"};
+            throw Failure{ErrorCode::media_unavailable};
         const auto end = span.end;
         add_gap(periods, a, end, span.reason);
         a = end;
     }
     if (a != b)
-        throw Failure{409, "media_unavailable"};
+        throw Failure{ErrorCode::media_unavailable};
 }
 } // namespace
 static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response& res, const Sessions& sessions,
@@ -212,24 +212,24 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
     const auto browser = fingerprint(key, "session", who.cookie);
     const auto body = object_body(req, {"interval", "alert_id", "mode", "reason", "audio"});
     if (!body.contains("interval"))
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     const auto bounds = window(body.at("interval"));
     const auto mode = body.contains("mode") ? string_field(body, "mode", 16) : std::string{"selection"};
     if (mode != "selection" && mode != "original" && mode != "derivative")
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     if (body.contains("audio") && !body.at("audio").is_boolean())
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     const bool sound = body.value("audio", false), derivative = mode == "derivative";
     const auto reason = (mode != "selection" || sound || body.contains("reason"))
                             ? string_field(body, "reason", 512)
                             : std::string{};
     if ((mode != "selection" || sound) && reason.find_first_not_of(" \t\r\n") == reason.npos)
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     std::string alert;
     if (body.contains("alert_id")) {
         alert = string_field(body, "alert_id", 36);
         if (!canonical_id(alert))
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
     }
     const auto id = archive::uuid(), start = std::to_string(bounds.start), end = std::to_string(bounds.end);
     const Json details{
@@ -247,23 +247,23 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
         stream->sound = sound;
         stream->regions = access::export_regions(db, site, point);
         if (sound && !access::allowed(db, site, who.user, point, "audio", "", start, end))
-            throw Failure{403, "forbidden"};
+            throw Failure{ErrorCode::forbidden};
         std::string revision;
         if (!alert.empty()) {
             auto anchor = events::archive_anchor(db, site, alert);
             if (!anchor || anchor->point != point)
-                throw Failure{404, "not_found"};
+                throw Failure{ErrorCode::not_found};
             const auto allowed = alert_window(anchor->time);
             if (bounds.start < allowed.start || bounds.end > allowed.end)
-                throw Failure{403, "forbidden"};
+                throw Failure{ErrorCode::forbidden};
             revision = anchor->revision;
         }
         recordings::require_available(db, site);
         auto blocks = recordings::manifests_for_export(db, site, point, start, end, revision);
         if (blocks.empty())
-            throw Failure{409, "media_unavailable"};
+            throw Failure{ErrorCode::media_unavailable};
         if (blocks.size() > 256)
-            throw Failure{413, "export_too_large"};
+            throw Failure{ErrorCode::export_too_large};
         std::vector<Json> sources;
         auto hashes = Json::object();
         std::int64_t available = archive::evidence_limit;
@@ -272,10 +272,10 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
             archive::validate_manifest(m);
             auto size = m.at("media").at("size_bytes").get<std::int64_t>();
             if (size > available)
-                throw Failure{413, "export_too_large"};
+                throw Failure{ErrorCode::export_too_large};
             available -= size;
             if (!sources.empty() && sources.back().at("end_utc_us") > m.at("begin_utc_us"))
-                throw Failure{409, "media_unavailable"};
+                throw Failure{ErrorCode::media_unavailable};
             hashes[m.at("block_id").get<std::string>()] = m.at("media").at("sha256");
             sources.push_back(std::move(m));
         }
@@ -286,7 +286,7 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
             if (!alert.empty()) {
                 auto anchor = events::archive_anchor(db, site, alert);
                 if (!anchor || first < alert_window(anchor->time).start || last > alert_window(anchor->time).end)
-                    throw Failure{403, "forbidden"};
+                    throw Failure{ErrorCode::forbidden};
             }
             stream->begin = std::to_string(first);
             stream->end = std::to_string(last);
@@ -322,7 +322,7 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
             const auto input = stream->root / "source.mp4";
             copy_export_block(session, m, browser, input);
             if (m.at("media").at("sha256") != archive::file_digest(input).sha256)
-                throw Failure{503, "media_unavailable"};
+                throw Failure{ErrorCode::media_service_unavailable};
             Json clip{{"source", m}, {"state", "recorded"}, {"file", file}, {"transform", "original"}};
             if (mode == "original" || (!derivative && a == from && b == until)) {
                 fs::rename(input, dir / file);
@@ -344,7 +344,7 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
             }
             const auto digest = archive::file_digest(dir / file);
             if (digest.bytes > available)
-                throw Failure{413, "export_too_large"};
+                throw Failure{ErrorCode::export_too_large};
             available -= digest.bytes;
             clip.update(Json{{"sha256", digest.sha256},
                              {"size_bytes", digest.bytes},
@@ -363,7 +363,7 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
                 if (!clip.at("audio").is_null()) {
                     const auto bytes = clip.at("audio").at("size_bytes").get<std::int64_t>();
                     if (bytes > available)
-                        throw Failure{413, "export_too_large"};
+                        throw Failure{ErrorCode::export_too_large};
                     available -= bytes;
                     clips.push_back(clip.at("audio").at("file").get<std::string>());
                 }
@@ -373,7 +373,7 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
             add_gap(periods, until, cursor, "no_frame");
         }
         if (clips.empty())
-            throw Failure{409, "media_unavailable"};
+            throw Failure{ErrorCode::media_unavailable};
         catalog_gaps(db, periods, site, point, revision, cursor, bounds.end);
         Json manifest{{"format", "bacuri.vms.export.v1"},
                       {"site_id", site},
@@ -392,7 +392,7 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
             manifest["alert_id"] = alert;
         const auto description = manifest.dump(2);
         if (description.size() > 4uz * 1024 * 1024)
-            throw Failure{413, "export_too_large"};
+            throw Failure{ErrorCode::export_too_large};
         write_text(dir / "manifest.json", description);
         write_text(dir / "manifest.sig",
                    archive::sign_description(load_key(setting("BACURI_EXPORT_KEY_FILE")), description));
@@ -416,11 +416,12 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
         res.media = stream;
         return stream;
     } catch (const Failure& error) {
-        events::record_export(auth, site, point, who.user, alert, "denied", error.code, details.dump());
+        events::record_export(auth, site, point, who.user, alert, "denied", std::string{error.code()},
+                              details.dump());
         throw;
     } catch (const std::exception&) {
         events::record_export(auth, site, point, who.user, alert, "denied", "media_unavailable", details.dump());
-        throw Failure{503, "media_unavailable"};
+        throw Failure{ErrorCode::media_service_unavailable};
     }
 }
 void export_fragment(const Request& req, Response& res, const Sessions& sessions, const Key& key,
@@ -438,10 +439,10 @@ void export_case(const Request& req, Response& res, const Sessions& sessions, co
     const auto reason = string_field(options, "reason", 512), mode = string_field(options, "mode", 16),
                revision = string_field(options, "revision", 19);
     if (mode != "original" && mode != "derivative")
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     auto file = recordings::case_for_export(auth, site, id, who.user);
     if (file.at("revision") != revision)
-        throw Failure{409, "revision_conflict"};
+        throw Failure{ErrorCode::revision_conflict};
     auto capacity = std::make_shared<Slot>();
     auto stream = std::make_shared<ExportBody>(capacity);
     auto dir = stream->root / "data";
@@ -469,7 +470,7 @@ void export_case(const Request& req, Response& res, const Sessions& sessions, co
         for (const auto& entry : fs::directory_iterator(dir / name)) {
             bytes += entry.file_size();
             if (bytes > archive::evidence_limit)
-                throw Failure{413, "export_too_large"};
+                throw Failure{ErrorCode::export_too_large};
         }
         auto bounds = window(item.at("interval"));
         manifest["parts"].push_back(
@@ -488,7 +489,7 @@ void export_case(const Request& req, Response& res, const Sessions& sessions, co
     stream->group_lease = [grants = std::move(grants), site, id, user = who.user, revision] {
         Database db;
         if (recordings::case_for_export(db, site, id, user).at("revision") != revision)
-            throw Failure{403, "forbidden"};
+            throw Failure{ErrorCode::forbidden};
         auto deadline = std::chrono::steady_clock::time_point::max();
         for (const auto& grant : grants)
             deadline = std::min(deadline, grant->authorize());
@@ -498,7 +499,7 @@ void export_case(const Request& req, Response& res, const Sessions& sessions, co
     const auto tar = stream->root / "export.tar";
     stream->input.open(tar, std::ios::binary);
     if (!stream->input)
-        throw Failure{503, "media_unavailable"};
+        throw Failure{ErrorCode::media_service_unavailable};
     for (const auto& item : file.at("materials"))
         events::record_export(
             auth, site, item.at("point_id"), who.user, "", "applied", reason,

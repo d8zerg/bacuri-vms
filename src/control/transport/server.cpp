@@ -45,7 +45,7 @@ void workspace_file(const Request& req, Response& res, std::string_view path)
             name.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.") !=
                 name.npos ||
             name.find("..") != name.npos) {
-            throw Failure{404, "not_found"};
+            throw Failure{ErrorCode::not_found};
         }
         if (name.ends_with(".js")) {
             mime = "text/javascript; charset=utf-8";
@@ -60,13 +60,13 @@ void workspace_file(const Request& req, Response& res, std::string_view path)
         } else if (name.ends_with(".woff2")) {
             mime = "font/woff2";
         } else {
-            throw Failure{404, "not_found"};
+            throw Failure{ErrorCode::not_found};
         }
         file_name = "build/web-client/assets/" + std::string{name};
     }
     std::ifstream file{file_name, std::ios::binary};
     if (!file) {
-        throw workspace_page(path) ? Failure{503, "dependency_unavailable"} : Failure{404, "not_found"};
+        throw workspace_page(path) ? Failure{ErrorCode::dependency_unavailable} : Failure{ErrorCode::not_found};
     }
     res.result(http::status::ok);
     res.set(http::field::content_type, mime);
@@ -101,11 +101,11 @@ void alert_feed(const Request& req, Response& res, const Sessions& sessions, con
     if (!stream)
         return respond(res, feed->snapshot());
     if (req.count(http::field::origin) != 1 || req[http::field::origin] != origin) {
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     }
     if (!boost::beast::websocket::is_upgrade(req) || req.count(http::field::sec_websocket_protocol) != 1 ||
         req[http::field::sec_websocket_protocol] != alert_protocol || !req.body().empty()) {
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     }
     feed->authorize();
     res.alerts = std::move(feed);
@@ -127,7 +127,7 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
             .add("api/v1/media-sessions/{id}/*",
                  [&](const PathMatch& m) { playback.session(req, res, m.values[0], m.rest); });
         if (!media.dispatch(path.substr(1)))
-            throw Failure{404, "not_found"};
+            throw Failure{ErrorCode::not_found};
         return;
     }
     constexpr std::string_view oidc = "/api/v1/session/oidc/";
@@ -137,18 +137,12 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
             return sessions.corporate(req, res, path.substr(oidc.size()));
         } catch (const Failure& e) {
             if (!std::string_view(req[http::field::accept]).contains("text/html") ||
-                (e.code != "invalid_identity" && e.code != "identity_unavailable"))
+                (e.error != ErrorCode::invalid_identity && e.error != ErrorCode::identity_unavailable))
                 throw;
-            res.result(static_cast<unsigned>(e.status));
-            res.set(http::field::content_type, "text/html; charset=utf-8");
-            res.set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
-            res.body() = "<!doctype html><html lang=ru><meta charset=utf-8><meta name=viewport "
-                         "content='width=device-width,initial-scale=1'>"
-                         "<title>Вход | Bacuri VMS</title><main><h1>Корпоративный вход</h1><p>";
-            res.body() += e.status == 503 ? "Провайдер недоступен."
-                                          : "Не удалось подтвердить личность или требуемый уровень MFA.";
-            res.body() +=
-                "</p><p>" + e.code + "</p><a href='/monitor'>Вернуться к локальному входу</a></main></html>";
+            // The browser returns to the sign-in of the workspace, which names the cause in the interface
+            // language.
+            res.result(http::status::see_other);
+            res.set(http::field::location, "/monitor?sign_in_error=" + std::string{e.code()});
             return;
         }
     }
@@ -161,12 +155,12 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     }
     constexpr std::string_view prefix = "/api/v1/sites/";
     if (!path.starts_with(prefix)) {
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     }
     path.remove_prefix(prefix.size());
     const auto separator = path.find('/');
     if (separator == path.npos || !canonical_id(path.substr(0, separator))) {
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     }
     const std::string site{path.substr(0, separator)};
     path.remove_prefix(separator + 1);
@@ -267,7 +261,7 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
              [&](const PathMatch& m) {
                  const auto& action = m.values[2];
                  if (action != "apply" && action != "rollback")
-                     throw Failure{404, "not_found"};
+                     throw Failure{ErrorCode::not_found};
                  allow(req, res, {http::verb::post});
                  registry.batch(req, res, site, m.values[0], m.values[1], action);
              })
@@ -297,22 +291,7 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
         });
     if (routes.dispatch(relative))
         return;
-    throw Failure{404, "not_found"};
-}
-
-void problem(Response& res, const Failure& error, const char* id)
-{
-    if (error.status == 429 && !res.count(http::field::retry_after)) {
-        res.set(http::field::retry_after, "1");
-    }
-    Json body{{"status", error.status},
-              {"code", error.code},
-              {"title", error.code},
-              {"type", "urn:bacuri:vms:problem:" + error.code},
-              {"request_id", id}};
-    body.update(error.fields);
-    respond(res, body, error.status);
-    res.set(http::field::content_type, "application/problem+json");
+    throw Failure{ErrorCode::not_found};
 }
 
 unsigned short listen_port()
@@ -360,25 +339,27 @@ void serve()
     std::jthread worker{
         [&key, policy = std::move(policy)](const std::stop_token& stop) { deliver(stop, key, policy); }};
     const auto handle = [&](const Request& req, const std::string& peer) {
-        Response res;
-        std::unique_ptr<char, decltype(&g_free)> id{g_uuid_string_random(), g_free};
-        res.set(http::field::cache_control, "no-store");
-        res.set("X-Content-Type-Options", "nosniff");
-        res.set("X-Request-Id", id.get());
-        try {
-            if (req.version() == 11 && (req.count(http::field::host) != 1 || req[http::field::host].empty())) {
-                throw Failure{400, "invalid_request"};
-            }
-            route(req, res, peer, sessions, registry, playback, key, origin);
-        } catch (const Failure& failure) {
-            problem(res, failure, id.get());
-        } catch (const std::exception& error) {
+        auto res = request_response();
+        auto fail_request = [&](ErrorCode cause, const std::exception& error) {
             // The client receives a generic problem. The cause stays in the service journal. The query
             // string is omitted because it can carry an authorization code.
             const std::string_view target{req.target().data(), req.target().size()};
             const std::string path{target.substr(0, target.find('?'))};
-            std::fprintf(stderr, "control request %s %s failed: %s\n", id.get(), path.c_str(), error.what());
-            problem(res, Failure{503, "authorization_unavailable"}, id.get());
+            std::fprintf(stderr, "control request %s %s failed: %s\n", std::string{res["X-Request-Id"]}.c_str(),
+                         path.c_str(), error.what());
+            problem(res, Failure{cause});
+        };
+        try {
+            if (req.version() == 11 && (req.count(http::field::host) != 1 || req[http::field::host].empty())) {
+                throw Failure{ErrorCode::invalid_request};
+            }
+            route(req, res, peer, sessions, registry, playback, key, origin);
+        } catch (const Failure& failure) {
+            problem(res, failure);
+        } catch (const DatabaseUnavailable& error) {
+            fail_request(ErrorCode::dependency_unavailable, error);
+        } catch (const std::exception& error) {
+            fail_request(ErrorCode::internal_error, error);
         }
         return res;
     };

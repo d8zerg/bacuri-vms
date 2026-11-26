@@ -1,5 +1,6 @@
 #include "control/inventory/telemetry.hpp"
 #include "control/inventory/registry.hpp"
+#include "platform/rpc_status.hpp"
 #include "control/recordings/policies.hpp"
 #include "control/inventory/enrollment.hpp"
 #include "control/inventory/operations.hpp"
@@ -30,7 +31,7 @@ Json camera(Database& db, const std::string& site, const std::string& device)
     auto rows = db.exec("SELECT body FROM bacuri_inventory.camera_state WHERE site_id=$1 AND device_id=$2",
                         {site, device});
     if (!rows.size()) {
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     }
     return Json::parse(rows.get(0));
 }
@@ -38,7 +39,7 @@ Json camera(Database& db, const std::string& site, const std::string& device)
 std::string site_role(Database& db, const Identity& identity, const std::string& site)
 {
     if (!canonical_id(site)) {
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     }
     return access::site_role(db, site, identity.user, access::RoleLock::shared);
 }
@@ -49,25 +50,25 @@ Json read_configuration(const Request& request)
                                       "replace_device_id", "onvif_selection"});
     const auto name = string_field(body, "name", 256);
     if (name.find_first_not_of(" \r\t\n") == name.npos) {
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     }
     for (const auto* field : {"main_url", "secondary_url"}) {
         string_field(body, field, 2048);
     }
     if (body.contains("point_id") && !canonical_id(string_field(body, "point_id", 36))) {
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     }
     if (body.contains("credentials") && !body.at("credentials").is_null()) {
         const auto& credentials = body.at("credentials");
         if (!credentials.is_object() || credentials.size() != 2) {
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         }
         string_field(credentials, "username", 128);
         string_field(credentials, "password", 1024, true);
     }
     if (body.contains("replace_device_id") &&
         (!body.contains("point_id") || !canonical_id(string_field(body, "replace_device_id", 36))))
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     if (body.contains("onvif_selection"))
         string_field(body, "onvif_selection", 24576);
     return body;
@@ -123,7 +124,7 @@ std::string register_device(Database& db, const std::string& site, const Json& b
         if (!db.exec("SELECT 1 FROM bacuri_inventory.observation_points WHERE site_id=$1 AND point_id=$2",
                      {site, point})
                  .size()) {
-            throw Failure{404, "not_found"};
+            throw Failure{ErrorCode::not_found};
         }
         if (body.contains("replace_device_id")) {
             if (!db.exec("DELETE FROM bacuri_inventory.camera_registry WHERE site_id=$1 AND point_id=$2 AND "
@@ -131,12 +132,12 @@ std::string register_device(Database& db, const std::string& site, const Json& b
                          "device_id",
                          {site, point, body.at("replace_device_id").get<std::string>()})
                      .size())
-                throw Failure{409, "camera_binding_conflict"};
+                throw Failure{ErrorCode::camera_binding_conflict};
         }
         if (db.exec("SELECT 1 FROM bacuri_inventory.camera_registry WHERE site_id=$1 AND point_id=$2",
                     {site, point})
                 .size()) {
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         }
     } else {
         point = db.exec("INSERT INTO bacuri_inventory.observation_points VALUES ($1,gen_random_uuid(),$2) "
@@ -172,9 +173,9 @@ Json channel_configuration(const Key& key, const Json& selection, const std::str
     const auto first = profiles.find(fingerprint(key, "onvif-stream", main));
     const auto second = profiles.find(fingerprint(key, "onvif-stream", secondary));
     if (first == profiles.end() || second == profiles.end())
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     if (main == secondary || first->value("channel", std::string{}) != second->value("channel", std::string{}))
-        throw Failure{422, "camera_incompatible_profiles"};
+        throw Failure{ErrorCode::camera_incompatible_profiles};
     auto control = selection.at("control");
     control.update(*first);
     control["secondary_profile"] = second->at("profile");
@@ -216,10 +217,10 @@ Json registered_channel(Database& db, const std::string& site, const Json& confi
     for (int i = 0; i < rows.size(); ++i) {
         const auto source = rows.get(i, 1);
         if (!channel.empty() && source.empty())
-            throw Failure{409, "camera_binding_conflict"};
+            throw Failure{ErrorCode::camera_binding_conflict};
         if (channel.empty() || channel == source) {
             if (!match.is_null())
-                throw Failure{409, "camera_binding_conflict"};
+                throw Failure{ErrorCode::camera_binding_conflict};
             match = Json::parse(rows.get(i));
         }
     }
@@ -234,7 +235,7 @@ void CameraRegistry::onvif(const Request& req, Response& res, const std::string&
         db.exec("BEGIN");
         const auto identity = sessions_.authenticate(db, req, true);
         if (site_role(db, identity, site) != "administrator")
-            throw Failure{403, "forbidden"};
+            throw Failure{ErrorCode::forbidden};
         db.exec("COMMIT");
     }
     if (inspect) {
@@ -252,7 +253,7 @@ void CameraRegistry::issues(const Request& req, Response& res, const std::string
     db.exec("BEGIN");
     auto identity = sessions_.authenticate(db, req, false);
     if (site_role(db, identity, site) != "administrator")
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     camera(db, site, device);
     db.exec("COMMIT");
     v1::CameraIssueQuery query;
@@ -263,7 +264,7 @@ void CameraRegistry::issues(const Request& req, Response& res, const std::string
     rpc.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds{1});
     v1::CameraIssues result;
     if (!recorder->GetCameraIssues(&rpc, query, &result).ok())
-        throw Failure{503, "media_unavailable"};
+        throw Failure{ErrorCode::media_service_unavailable};
     auto label = [](v1::StreamIssue issue) {
         return issue == v1::STREAM_ISSUE_TLS            ? "certificate_error"
                : issue == v1::STREAM_ISSUE_INCOMPATIBLE ? "incompatible"
@@ -279,12 +280,12 @@ void CameraRegistry::previous_recording(const Request& req, Response& res, const
     db.exec("BEGIN");
     auto identity = sessions_.authenticate(db, req, false);
     if (site_role(db, identity, site) != "administrator")
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     const auto current = camera(db, site, device);
     const auto recording =
         recordings::previous_binding_recording(db, site, current.at("point_id"), current.at("binding_revision"));
     if (!recording)
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     db.exec("COMMIT");
     respond(res, {{"binding_revision", recording->revision},
                   {"interval", Window{recording->start, recording->end}.json()}});
@@ -298,7 +299,7 @@ void CameraRegistry::edge_archive(const Request& req, Response& res, const std::
     const bool recover = req.method() == http::verb::post;
     auto identity = sessions_.authenticate(db, req, recover);
     if (site_role(db, identity, site) != "administrator")
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     auto row = db.exec(
         "SELECT v.settings->'onvif_control', "
         "r.secret_revision,r.sealed_credentials,r.point_id,b.binding_revision,b.valid_from_utc_us "
@@ -311,7 +312,7 @@ void CameraRegistry::edge_archive(const Request& req, Response& res, const std::
         "WHERE r.site_id=$1 AND r.device_id=$2 FOR SHARE OF r",
         {site, device});
     if (!row.size())
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     const auto point = row.get(0, 3), binding = row.get(0, 4);
     EdgeSelection selection;
     const auto since = std::stoll(row.get(0, 5));
@@ -319,14 +320,14 @@ void CameraRegistry::edge_archive(const Request& req, Response& res, const std::
     if (recover) {
         auto body = object_body(req, {"recording", "binding_revision", "interval"});
         if (!body.contains("interval"))
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         range = window(body.at("interval"));
         selection.id = string_field(body, "recording", 64);
         if (selection.id.size() != 64 || selection.id.find_first_not_of("0123456789abcdef") != selection.id.npos)
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         if (string_field(body, "binding_revision", 19) != binding || range.start < since ||
             range.end > g_get_real_time() - 15000000)
-            throw Failure{409, "camera_binding_conflict"};
+            throw Failure{ErrorCode::camera_binding_conflict};
     }
     auto gaps = recordings::edge_gaps(db, site, point, binding, range.start, range.end);
     Json result{{"supported", false}, {"recordings", Json::array()}};
@@ -343,7 +344,7 @@ void CameraRegistry::edge_archive(const Request& req, Response& res, const std::
             result["gaps"].push_back(Window{gap.begin, gap.end}.json());
     } else {
         if (selection.uri.empty())
-            throw Failure{409, "edge_recording_unavailable"};
+            throw Failure{ErrorCode::edge_recording_unavailable};
         Json progress{{"blocks", 0}, {"duration_us", 0}, {"outcome", "no_frames"}, {"next", nullptr}};
         for (const auto& gap : gaps) {
             bool attempted = false;
@@ -375,10 +376,12 @@ void CameraRegistry::edge_archive(const Request& req, Response& res, const std::
                     ctx.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds{35});
                     auto status = v1::RecorderControl::NewStub(media::local_channel("BACURI_SOCKET"))
                                       ->RecoverGap(&ctx, q, &reply);
+                    if (const auto cause = platform::rpc_problem(status))
+                        throw Failure{*cause};
                     if (status.error_code() == grpc::StatusCode::RESOURCE_EXHAUSTED)
-                        throw Failure{429, "rate_limited"};
+                        throw Failure{ErrorCode::rate_limited};
                     if (!status.ok())
-                        throw Failure{503, "media_unavailable"};
+                        throw Failure{ErrorCode::media_service_unavailable};
                     // A partial copy continues after the copied media, so the rest of the window is retried.
                     const auto resume = reply.outcome() == "partial" && reply.covered_until_us() > a &&
                                                 reply.covered_until_us() < b
@@ -413,13 +416,13 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
     const bool visible = role == "administrator" ? inventory::lock_point(db, site, point)
                                                  : access::lock_point_grant(db, site, point, user.user);
     if (!visible)
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     if (!access::allowed(db, site, user.user, point, "ptz")) {
         if (write) {
             events::record_camera_control(db, site, point, user.user, "denied", "forbidden", {});
             db.exec("COMMIT");
         }
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     }
     const auto body = write ? object_body(req, {"device_id", "command", "target"}) : Json::object();
     const auto expected = write ? string_field(body, "device_id", 36) : "";
@@ -427,7 +430,7 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
     const auto target = body.contains("target") ? string_field(body, "target", 256, true) : "";
     const std::string request_key{req["Idempotency-Key"]};
     if (write && (!canonical_id(expected) || !canonical_id(request_key)))
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     auto binding_sql = std::string{R"sql(
         SELECT v.settings->'onvif_control', r.secret_revision, r.sealed_credentials,r.device_id,p.desired_revision
         FROM bacuri_inventory.camera_registry r JOIN bacuri_inventory.configuration_progress p USING(site_id,device_id)
@@ -436,18 +439,18 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
     )sql"} + (write ? " FOR NO KEY UPDATE OF r" : " FOR KEY SHARE OF r");
     auto rows = db.exec(binding_sql.c_str(), {site, point});
     if (!rows.size() || (write && rows.get(0, 3) != expected))
-        throw Failure{409, "camera_binding_conflict"};
+        throw Failure{ErrorCode::camera_binding_conflict};
     const auto device = rows.get(0, 3);
     if (!write) {
         if (rows.get(0).empty() || rows.get(0, 2).empty())
-            throw Failure{422, "camera_ptz_unsupported"};
+            throw Failure{ErrorCode::camera_ptz_unsupported};
         auto credentials = Json::parse(unseal(rows.get(0, 2), key_, site + "/" + device + "/" + rows.get(0, 1)));
         Json catalog{{"actions", Json::array()}, {"inputs", Json::array()}};
         try {
             const auto control = Json::parse(rows.get(0));
             catalog = device_family(control).read_controls(networks_, control, credentials);
         } catch (const Failure& e) {
-            catalog["capability_error"] = e.code;
+            catalog["capability_error"] = std::string{e.code()};
         }
         for (auto& item : catalog["actions"]) {
             item.erase("amount");
@@ -498,7 +501,7 @@ void CameraRegistry::preset(const std::string& site, const std::string& point, s
     access::lock_policy(db, site, true);
     const auto role = access::site_role(db, site, user, access::RoleLock::shared);
     if (!access::allowed(db, site, user, point, "configure") || !access::allowed(db, site, user, point, "ptz"))
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     auto rows = db.exec(
         "SELECT v.settings->'onvif_control',r.secret_revision,r.sealed_credentials,r.device_id,p.desired_revision "
         "FROM bacuri_inventory.camera_registry r JOIN bacuri_inventory.configuration_progress p "
@@ -511,7 +514,7 @@ void CameraRegistry::preset(const std::string& site, const std::string& point, s
         "WHERE r.site_id=$1 AND r.point_id=$2 AND b.binding_revision=$3 FOR NO KEY UPDATE OF r",
         {site, point, std::to_string(binding)});
     if (!rows.size())
-        throw Failure{409, "camera_binding_conflict"};
+        throw Failure{ErrorCode::camera_binding_conflict};
     dispatch_ptz(rows, site, point, user, request, "preset_goto", target, role);
     db.exec("COMMIT");
 }
@@ -533,17 +536,17 @@ void CameraRegistry::dispatch_ptz(const Rows& rows, const std::string& site, con
             return false;
         if (saved.get(0) != device || saved.get(0, 1) != point || saved.get(0, 2) != command ||
             saved.get(0, 5) != target)
-            throw Failure{409, "idempotency_conflict"};
+            throw Failure{ErrorCode::idempotency_conflict};
         if (saved.get(0, 3).empty())
-            throw Failure{502, "camera_ptz_unknown"};
-        auto status = std::stoi(saved.get(0, 3));
-        if (status != 204)
-            throw Failure{status, saved.get(0, 4)};
+            throw Failure{ErrorCode::camera_ptz_unknown};
+        // A stored refusal of the camera keeps its cause, a cause outside the catalog stays a protocol error.
+        if (std::stoi(saved.get(0, 3)) != 204)
+            throw Failure{parse_error(saved.get(0, 4)).value_or(ErrorCode::camera_protocol_error)};
         return true;
     };
     if (!replay()) {
         if (rows.get(0).empty() || rows.get(0, 2).empty())
-            throw Failure{422, "camera_ptz_unsupported"};
+            throw Failure{ErrorCode::camera_ptz_unsupported};
         auto control = Json::parse(rows.get(0));
         const auto& allowed = control.at("directions");
         auto credentials = Json::parse(unseal(rows.get(0, 2), key_, site + "/" + device + "/" + rows.get(0, 1)));
@@ -556,7 +559,7 @@ void CameraRegistry::dispatch_ptz(const Rows& rows, const std::string& site, con
                     break;
                 }
             if (action.is_null())
-                throw Failure{422, "camera_ptz_unsupported"};
+                throw Failure{ErrorCode::camera_ptz_unsupported};
         }
         const int lease = command == "stop" || command == "focus_stop" || command == "tour_stop" ? 0
                           : action.is_object() ? action.value("duration", 1)
@@ -566,7 +569,7 @@ void CameraRegistry::dispatch_ptz(const Rows& rows, const std::string& site, con
                                   "ORDER BY started_at DESC LIMIT 1",
                                   {site, device});
         if (owner.size() && owner.get(0, 1) == "t" && owner.get(0) != user && role != "administrator")
-            throw Failure{409, "camera_ptz_busy"};
+            throw Failure{ErrorCode::camera_ptz_busy};
         journal.exec("BEGIN");
         auto created = journal.exec("INSERT INTO "
                                     "bacuri_inventory.ptz_commands(site_id,user_id,request_key,device_id,point_id,"
@@ -598,17 +601,19 @@ void CameraRegistry::dispatch_ptz(const Rows& rows, const std::string& site, con
             } catch (const Failure& e) {
                 // A missing SOAP acknowledgement leaves the outcome unknown even when the request reached the
                 // device.
-                const auto failure = (e.code == "camera_unavailable" || e.code == "camera_protocol_error")
-                                         ? Failure{e.status, "camera_ptz_unknown"}
-                                         : e;
+                const auto failure =
+                    (e.error == ErrorCode::camera_unavailable || e.error == ErrorCode::camera_protocol_error)
+                        ? Failure{ErrorCode::camera_ptz_unknown}
+                        : e;
                 journal.exec("BEGIN");
-                events::record_camera_control(journal, site, point, user,
-                                              failure.code == "camera_ptz_unknown" ? "unknown" : "rejected",
-                                              command, target);
-                journal.exec("UPDATE bacuri_inventory.ptz_commands SET status=$4,failure_code=$5 WHERE site_id=$1 "
-                             "AND user_id=$2 "
-                             "AND request_key=$3",
-                             {site, user, request_key, std::to_string(failure.status), failure.code});
+                events::record_camera_control(
+                    journal, site, point, user,
+                    failure.error == ErrorCode::camera_ptz_unknown ? "unknown" : "rejected", command, target);
+                journal.exec(
+                    "UPDATE bacuri_inventory.ptz_commands SET status=$4,failure_code=$5 WHERE site_id=$1 "
+                    "AND user_id=$2 "
+                    "AND request_key=$3",
+                    {site, user, request_key, std::to_string(failure.status()), std::string{failure.code()}});
                 journal.exec("COMMIT");
                 throw failure;
             }
@@ -621,7 +626,7 @@ void CameraRegistry::dispatch_ptz(const Rows& rows, const std::string& site, con
                          {site, user, request_key, std::to_string(lease)});
             journal.exec("COMMIT");
         } else if (!replay())
-            throw Failure{503, "dependency_unavailable"};
+            throw Failure{ErrorCode::dependency_unavailable};
     }
 }
 
@@ -712,18 +717,18 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
     const auto identity = sessions_.authenticate(db, req, write);
     const bool admin = site_role(db, identity, site) == "administrator";
     if (!device.empty() && !canonical_id(device)) {
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     }
     std::vector<std::string> configurable;
     if (!admin) {
         configurable = access::granted_point_ids(db, site, identity.user, "configure");
         if (create || configurable.empty())
-            throw Failure{403, "forbidden"};
+            throw Failure{ErrorCode::forbidden};
         if (!device.empty() && !db.exec("SELECT FROM bacuri_inventory.camera_registry WHERE site_id=$1 AND "
                                         "device_id=$2 AND point_id=ANY($3::uuid[])",
                                         {site, device, array_parameter(configurable)})
                                     .size())
-            throw Failure{403, "forbidden"};
+            throw Failure{ErrorCode::forbidden};
     }
 
     if (!write) {
@@ -753,7 +758,7 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
     Json selected;
     if (create) {
         if (!canonical_id(request_key)) {
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         }
         digest = fingerprint(key_, "registration", body.dump());
         db.exec("DELETE FROM bacuri_inventory.registration_requests WHERE site_id=$1 AND expires_at<=now()",
@@ -764,7 +769,7 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
                     {site, identity.user, request_key});
         if (replay.size()) {
             if (replay.get(0) != digest) {
-                throw Failure{409, "idempotency_conflict"};
+                throw Failure{ErrorCode::idempotency_conflict};
             }
             result = Json::parse(replay.get(0, 1));
             device = result.at("id").get<std::string>();
@@ -774,18 +779,18 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
                 auto channel = inventory::channel_configuration(key_, selected, body.at("main_url"),
                                                                 body.at("secondary_url"));
                 if (!inventory::registered_channel(db, site, channel).is_null())
-                    throw Failure{409, "camera_already_registered"};
+                    throw Failure{ErrorCode::camera_already_registered};
             }
             device = inventory::register_device(db, site, body);
         }
     } else {
         if (body.contains("replace_device_id"))
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         auto current = camera(db, site, device);
         if (current.contains("endpoint_id")) {
             if (body["main_url"] != current["main_url"] || body["secondary_url"] != current["secondary_url"]) {
                 if (!body.contains("onvif_selection"))
-                    throw Failure{409, "camera_binding_conflict"};
+                    throw Failure{ErrorCode::camera_binding_conflict};
             }
             for (const auto* field :
                  {"endpoint_id", "model", "manufacturer", "firmware", "serial", "ptz", "events"})
@@ -804,14 +809,14 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
         }
         auto tag = req[http::field::if_match];
         if (tag.empty()) {
-            throw Failure{428, "precondition_required"};
+            throw Failure{ErrorCode::precondition_required};
         }
         if (tag != etag(key_, current)) {
             res.set("ETag", etag(key_, current));
-            throw Failure{412, "revision_conflict", {{"current", current}}};
+            throw Failure{ErrorCode::precondition_failed, {{"current", current}}};
         }
         if (body.contains("point_id") && body["point_id"] != current.at("point_id")) {
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         }
         revision = db.exec("SELECT desired_revision+1 FROM bacuri_inventory.configuration_progress WHERE "
                            "site_id=$1 AND device_id=$2",
@@ -823,23 +828,23 @@ void CameraRegistry::cameras(const Request& req, Response& res, const std::strin
     if (result.is_null()) {
         if (!networks_.permits(body.at("main_url").get_ref<const std::string&>()) ||
             !networks_.permits(body.at("secondary_url").get_ref<const std::string&>())) {
-            throw Failure{400, "camera_transport_denied"};
+            throw Failure{ErrorCode::camera_transport_denied};
         }
         if (body.contains("onvif_selection")) {
             if (!create) {
                 selected = device_family_named("onvif").read_selection(key_, site, body.at("onvif_selection"));
                 const auto id = selected.at("endpoint_id").get<std::string>();
                 if (!onvif.empty() && onvif["endpoint_id"] != id)
-                    throw Failure{409, "camera_binding_conflict"};
+                    throw Failure{ErrorCode::camera_binding_conflict};
             }
             auto config =
                 inventory::channel_configuration(key_, selected, body.at("main_url"), body.at("secondary_url"));
             if (!create) {
                 auto match = inventory::registered_channel(db, site, config);
                 if (!match.is_null() && match.at("id") != device)
-                    throw Failure{409, "camera_already_registered"};
+                    throw Failure{ErrorCode::camera_already_registered};
                 if (!onvif.empty() && match.is_null())
-                    throw Failure{409, "camera_binding_conflict"};
+                    throw Failure{ErrorCode::camera_binding_conflict};
             }
             onvif = config.at("onvif");
             body["onvif_control"] = config.at("onvif_control");

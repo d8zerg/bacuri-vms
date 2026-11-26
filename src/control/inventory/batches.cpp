@@ -52,26 +52,26 @@ Json template_settings(Database& db, const std::string& site, const Json& body)
     if (body.contains("template_id")) {
         const auto id = string_field(body, "template_id", 36);
         if (!canonical_id(id) || body.contains("record_quality") || body.contains("brightness"))
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         auto saved = latest_template(db, site, id);
         if (saved.is_null())
-            throw Failure{404, "not_found"};
+            throw Failure{ErrorCode::not_found};
         if (saved.at("revision") != string_field(body, "template_revision", 19))
-            throw Failure{409, "revision_conflict"};
+            throw Failure{ErrorCode::revision_conflict};
         return saved;
     }
     Json settings = Json::object();
     if (body.contains("template_revision"))
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     if (body.contains("record_quality")) {
         const auto quality = string_field(body, "record_quality", 8);
         if (quality != "high" && quality != "low")
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         settings["record_quality"] = quality;
     }
     if (body.contains("brightness")) {
         if (!body.at("brightness").is_number())
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         settings["brightness"] = body.at("brightness");
     }
     return settings;
@@ -83,12 +83,12 @@ Json resolve_profiles(const Key& key, const std::string& site, const Json& body,
         device_family_named("onvif").read_selection(key, site, string_field(body, "selection", 24576));
     if (record_quality.empty()) {
         if (body.contains("channel"))
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         return inventory::channel_configuration(key, selection, string_field(body, "main_url", 2048),
                                                 string_field(body, "secondary_url", 2048));
     }
     if (body.contains("main_url") || body.contains("secondary_url"))
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     const auto channel = string_field(body, "channel", 256, true);
     std::vector<std::pair<std::int64_t, std::string>> options;
     for (const auto& profile : selection.at("profiles")) {
@@ -97,7 +97,7 @@ Json resolve_profiles(const Key& key, const std::string& site, const Json& body,
                                  profile.at("stream_url").get<std::string>());
     }
     if (options.size() < 2)
-        throw Failure{422, "camera_incompatible_profiles"};
+        throw Failure{ErrorCode::camera_incompatible_profiles};
     std::ranges::sort(options);
     auto& high = options.back().second;
     auto& low = options.front().second;
@@ -113,13 +113,13 @@ Preview preview(Database& db, const Key& key, const CameraNetworks& networks, co
     const auto& meta = config.at("onvif");
     const auto& control = config.at("onvif_control");
     if (!control.contains("device_service"))
-        throw Failure{400, "camera_selection_expired"};
+        throw Failure{ErrorCode::camera_selection_expired};
     const auto username = string_field(body, "username", 128);
     const auto password = string_field(body, "password", 1024, true);
     config["credentials"] = {{"username", username}, {"password", password}};
     config["name"] = string_field(body, "name", 256);
     if (config.at("name").get_ref<const std::string&>().find_first_not_of(" \t\n\r") == std::string::npos)
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     auto current = inventory::registered_channel(db, site, config);
     Json previous = nullptr;
     if (!current.is_null()) {
@@ -138,13 +138,13 @@ Preview preview(Database& db, const Key& key, const CameraNetworks& networks, co
     if (body.contains("point_id")) {
         auto point = string_field(body, "point_id", 36);
         if (!canonical_id(point) || !inventory::point_exists(db, site, point))
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         if ((!current.is_null() && current.at("point_id") != point) ||
             (current.is_null() &&
              db.exec("SELECT FROM bacuri_inventory.camera_registry WHERE site_id=$1 AND point_id=$2",
                      {site, point})
                  .size()))
-            throw Failure{409, "camera_binding_conflict"};
+            throw Failure{ErrorCode::camera_binding_conflict};
         config["point_id"] = point;
     }
     auto image = device_family(control).brightness(networks, control, config.at("credentials"));
@@ -152,9 +152,9 @@ Preview preview(Database& db, const Key& key, const CameraNetworks& networks, co
     if (settings.contains("brightness")) {
         brightness = settings.at("brightness");
         if (!brightness.is_number())
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         if (image.is_null() || brightness < image.at("min") || brightness > image.at("max"))
-            throw Failure{422, "camera_image_unsupported"};
+            throw Failure{ErrorCode::camera_image_unsupported};
     }
     Json before = current.is_null() ? Json(nullptr) : public_settings(current);
     if (!before.is_null())
@@ -190,15 +190,15 @@ void change_channel(Database& db, const Key& key, const CameraNetworks& networks
     const auto expected = committed ? receipt.at("revision") : receipt.at("expected_revision");
     if (expected.is_null()) {
         if (!current.is_null())
-            throw Failure{409, "revision_conflict"};
+            throw Failure{ErrorCode::revision_conflict};
         if (next.contains("point_id") &&
             db.exec("SELECT FROM bacuri_inventory.camera_registry WHERE site_id=$1 AND point_id=$2",
                     {site, next.at("point_id")})
                 .size())
-            throw Failure{409, "camera_binding_conflict"};
+            throw Failure{ErrorCode::camera_binding_conflict};
     } else if (current.is_null() || current.at("desired_revision") != expected ||
                current.at("id") != (committed ? receipt.at("device_id") : plan.at("device")))
-        throw Failure{409, "revision_conflict"};
+        throw Failure{ErrorCode::revision_conflict};
 
     const auto next_control = next.value("control", Json::object());
     const auto& family = device_family(next_control);
@@ -226,7 +226,7 @@ void change_channel(Database& db, const Key& key, const CameraNetworks& networks
         const auto& settings = rollback ? plan.at("previous") : next;
         for (const auto* field : {"main_url", "secondary_url"})
             if (!networks.permits(settings.at(field).get_ref<const std::string&>()))
-                throw Failure{422, "camera_transport_denied"};
+                throw Failure{ErrorCode::camera_transport_denied};
         db.exec("UPDATE bacuri_inventory.devices SET name=$3 WHERE site_id=$1 AND device_id=$2",
                 {site, id, settings.at("name")});
         inventory::write_version(db, key, site, id, revision, settings);
@@ -250,7 +250,7 @@ void CameraRegistry::templates(const Request& req, Response& res, const std::str
     access::lock_policy(db, site, true);
     auto user = sessions_.authenticate(db, req, !id.empty(), !id.empty()).user;
     if (access::site_role(db, site, user, access::RoleLock::shared) != "administrator")
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     if (id.empty()) {
         auto rows =
             db.exec("SELECT DISTINCT ON(template_id) settings || "
@@ -268,7 +268,7 @@ void CameraRegistry::templates(const Request& req, Response& res, const std::str
     auto expected = string_field(body, "expected_revision", 19);
     auto name = string_field(body, "name", 128);
     if (name.find_first_not_of(" \t\r\n") == name.npos || !body.contains("record_quality"))
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     auto settings = template_settings(db, site, body);
     settings["name"] = name;
     inventory::lock_site(db, site);
@@ -281,12 +281,12 @@ void CameraRegistry::templates(const Request& req, Response& res, const std::str
         current = latest_template(db, site, id);
     } else {
         if (current.is_null())
-            throw Failure{409, "revision_conflict"};
+            throw Failure{ErrorCode::revision_conflict};
         auto saved = current;
         saved.erase("id");
         saved.erase("revision");
         if (saved != settings || expected != std::to_string(std::stoll(version) - 1))
-            throw Failure{409, "revision_conflict"};
+            throw Failure{ErrorCode::revision_conflict};
     }
     db.exec("COMMIT");
     respond(res, current);
@@ -302,7 +302,7 @@ void CameraRegistry::batch(const Request& req, Response& res, const std::string&
         auto identity =
             sessions_.authenticate(db, req, req.method() != http::verb::get, req.method() != http::verb::get);
         if (access::site_role(db, site, identity.user, access::RoleLock::shared) != "administrator")
-            throw Failure{403, "forbidden"};
+            throw Failure{ErrorCode::forbidden};
         return identity.user;
     };
     const auto user = administrator();
@@ -347,14 +347,14 @@ void CameraRegistry::batch(const Request& req, Response& res, const std::string&
         auto digest = fingerprint(key_, context, body.dump());
         if (rows.size()) {
             if (rows.get(0) != digest)
-                throw Failure{409, "idempotency_conflict"};
+                throw Failure{ErrorCode::idempotency_conflict};
             receipt = Json::parse(rows.get(0, 2));
         } else {
             if (std::stoi(db.exec("SELECT count(*) FROM bacuri_inventory.camera_batch_items WHERE site_id=$1 AND "
                                   "user_id=$2 AND batch_id=$3",
                                   {site, user, batch})
                               .get(0)) >= 64)
-                throw Failure{422, "camera_batch_limit"};
+                throw Failure{ErrorCode::camera_batch_limit};
             auto draft = preview(db, key_, networks_, site, body);
             receipt = std::move(draft.receipt);
             receipt["item_id"] = item;
@@ -365,7 +365,7 @@ void CameraRegistry::batch(const Request& req, Response& res, const std::string&
         }
     } else {
         if (!rows.size())
-            throw Failure{404, "not_found"};
+            throw Failure{ErrorCode::not_found};
         receipt = Json::parse(rows.get(0, 2));
         const bool rollback = action == "rollback";
         const auto state = receipt.at("state");
@@ -394,7 +394,7 @@ void CameraRegistry::batch(const Request& req, Response& res, const std::string&
             db.exec("COMMIT");
             db.exec("BEGIN");
             if (administrator() != user)
-                throw Failure{403, "forbidden"};
+                throw Failure{ErrorCode::forbidden};
             inventory::lock_site(db, site);
             receipt = Json::parse(db.exec("SELECT receipt FROM bacuri_inventory.camera_batch_items WHERE "
                                           "site_id=$1 AND user_id=$2 AND batch_id=$3 AND item_id=$4 FOR UPDATE",
@@ -415,7 +415,7 @@ void CameraRegistry::batch(const Request& req, Response& res, const std::string&
             } catch (const Failure& e) {
                 db.exec("ROLLBACK TO SAVEPOINT camera_change");
                 receipt["state"] = rollback ? "rollback_failed" : "failed";
-                receipt["error"] = e.code;
+                receipt["error"] = std::string{e.code()};
             }
         } else if (rollback && state == "prepared") {
             receipt["state"] = "rolled_back";

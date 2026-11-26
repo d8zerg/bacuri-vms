@@ -112,6 +112,9 @@ def postgres_outage():
     measurement = Measurement()
     known = set(catalog())
     fault("stop postgres")
+    status, headers, problem = c.http("GET", "session")
+    assert (status, problem["code"]) == (503, "dependency_unavailable"), problem
+    assert problem["request_id"] == headers["X-Request-Id"]
     committed = local("SELECT count(*) FROM committed_blocks")[0][0]
     c.wait_for(lambda: local("SELECT count(*) FROM committed_blocks")[0][0] >= committed + 2, "offline writes")
     backlog = {r[0] for r in local("SELECT block_id FROM committed_blocks WHERE registered_at_utc_us IS NULL")}

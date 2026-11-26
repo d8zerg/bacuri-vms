@@ -68,7 +68,7 @@ void listen(std::stop_token stop, const CameraNetworks& networks, const Key& key
         try {
             device_family(camera.control).read_motion(stop, networks, camera.control, camera.credentials, accept);
         } catch (const Failure& e) {
-            std::fprintf(stderr, "ONVIF events %s %s\n", camera.device.c_str(), e.code.c_str());
+            std::fprintf(stderr, "ONVIF events %s %s\n", camera.device.c_str(), std::string{e.code()}.c_str());
             delay(stop, 20);
         } catch (const std::exception&) {
             delay(stop, 20);

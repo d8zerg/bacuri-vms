@@ -4,6 +4,8 @@
 
 ### Added
 
+- An error catalog names every cause of a failure with its category, HTTP status, gRPC status code, retry class and audience. The server, the API contract, the service gRPC and the web client take their codes from it, and the client shows each cause in the interface language. [Error reference](docs/errors.md) · [ADR-020. Error catalog](docs/adr/020-error-catalog.md)
+
 - The workplace interface switches between Russian and English without a reload. The switch is next to the theme selection, the choice is saved, and the browser language is used by default. Dates, times and numbers are formatted in the selected language.
 
 - The control and mixed recording series take 5 minutes per mode. The archive protection check compares two copies of a five-minute recording from each of four cameras after the volume is filled and the catalog is recovered. [Test profile](docs/test-profile.md#archive-and-investigation-check)
@@ -101,6 +103,12 @@
 - An alarm feed over WSS with permission checks, resumption by cursor and the transition to an archive frame that takes into account the binding revision and the clock uncertainty. `task alerts:check` checks the end-to-end scenario in Chrome and Firefox.
 
 ### Changed
+
+- Each error code has one HTTP status. A wrong method returns `method_not_allowed`, an unavailable media service `media_service_unavailable`, and a changed object behind `If-Match` `precondition_failed`, which replaces `policy_conflict`. An unexpected failure returns `internal_error` instead of `authorization_unavailable`. The service gRPC sends the code of the cause as the status message.
+
+- HTTP request size limits and unsupported expectations return a Problem with a request ID. The workspace displays the reported cause for failed media offers, archive reads and map installations. Recording policy changes can be found in the journal by policy ID.
+
+- The server no longer writes text for people. A failed corporate sign-in returns to the workspace with the code of the cause, and changes of recording settings are journaled as codes with their values.
 
 - The control sources live in the directories of their owning modules. The ONVIF adapter is split into SOAP transport, discovery, stream profiles, imaging, PTZ, camera recordings and events, and is built as a library. Core calls it through the `DeviceFamily` interface, which selects the adapter of a camera from its control settings. [ADR-018. Core and pluggable modules](docs/adr/018-core-module-boundary.md)
 

@@ -166,44 +166,6 @@ export const en = {
   },
   "camera.error.revision_conflict":
     "The configuration changed. Compare the versions again.",
-  "camera.error.camera_image_unsupported":
-    "The channel does not support the selected brightness.",
-  "camera.error.camera_image_unconfirmed":
-    "The camera did not confirm the brightness value.",
-  "camera.error.camera_batch_limit": "A batch can include up to 64 channels.",
-  "camera.error.camera_authentication_failed":
-    "The camera rejected the user name or password.",
-  "camera.error.camera_audio_missing":
-    "No sound was recorded at the selected moment.",
-  "camera.error.camera_audio_unavailable":
-    "The camera did not confirm that the audio channel is available.",
-  "camera.error.camera_audio_unsupported":
-    "The camera does not support this audio direction.",
-  "camera.error.camera_ptz_busy": "Another operator controls the camera.",
-  "camera.error.camera_command_unsent":
-    "The connection is unavailable. The command was not sent.",
-  "camera.error.camera_command_rejected": "The camera rejected the command.",
-  "camera.error.camera_ptz_unknown":
-    "The camera did not confirm. Check its position in live video.",
-  "camera.error.camera_ptz_unsupported":
-    "The camera profile does not support this command.",
-  "camera.error.camera_tls_error":
-    "Check the camera name and the trusted certificate.",
-  "camera.error.camera_incompatible_profiles":
-    "Connecting requires two different H.264 or H.265 video profiles.",
-  "camera.error.camera_transport_denied":
-    "The site settings forbid the camera address or transport.",
-  "camera.error.camera_protocol_error":
-    "The camera returned an unsupported ONVIF response.",
-  "camera.error.camera_already_registered":
-    "This camera is already connected to the site.",
-  "camera.error.camera_binding_conflict":
-    "The camera of the point changed. Choose the point again.",
-  "camera.error.camera_selection_expired":
-    "Repeat discovery and profile selection.",
-  "camera.error.camera_discovery_unavailable":
-    "No interface is available in the permitted camera segment.",
-  "camera.error.camera_unavailable": "The camera did not respond in time.",
   "ptz.left": "Left",
   "ptz.right": "Right",
   "ptz.up": "Up",
@@ -223,17 +185,6 @@ export const en = {
   "ptz.wiper_off": "Turn the wiper off",
   "ptz.relay_on": "Activate the output",
   "ptz.relay_off": "Deactivate the output",
-  "media.bandwidthLimit":
-    "The network budget is exhausted. Choose the secondary stream or free a tile.",
-  "media.sessionLimit":
-    "All live connections are in use. Free a tile on one of the posts.",
-  "media.transcoderLimit":
-    "H.264 conversion is busy. Close a view or use a client with HEVC support.",
-  "media.sourceUnavailable":
-    "The recorder has not received the camera video stream yet.",
-  "media.pendingCatalog":
-    "The recording is being added to the catalog. Check again.",
-  "media.recordingGap": "The selected interval is a recording gap.",
   "media.sessionExpired": "The sign-in session expired. Sign in again.",
   "media.forbidden": "No access to the point or recording.",
   "media.viewExpired": "The viewing time expired. Open the video again.",
@@ -912,11 +863,6 @@ export const en = {
   "packages.state.installing": "Installing",
   "packages.state.installed": "Installed",
   "packages.state.failed": "Installation failed",
-  "packages.failure.checksum": "The checksum did not match",
-  "packages.failure.range":
-    "The catalog server did not support the requested byte range",
-  "packages.failure.catalog": "The file is unavailable in the catalog",
-  "packages.failure.storage": "The file could not be saved to disk",
   "packages.size": "{value} MiB",
   "packages.uploadProgress": "Uploading the file {percent}%",
   "packages.selected": "Regions selected: {count}",
@@ -1086,12 +1032,6 @@ export const en = {
   "access.user": "User",
   "access.loadFailed":
     "The current permissions could not be obtained. Refresh the data.",
-  "access.conflict":
-    "Another administrator changed the policy. Check the updated data.",
-  "access.lastAdministrator": "The site needs an active administrator.",
-  "access.accountConflict": "The user name is taken.",
-  "access.identityConflict": "This external account is already linked.",
-  "access.groupConflict": "The group name is taken.",
   "access.saveFailed": "The change could not be saved. Check the values.",
   "access.saved": "Change saved.",
   "access.disconnected":
@@ -1245,4 +1185,157 @@ export const en = {
   "rp.failed": "errors: {count}",
   "rp.forecast": "Forecast at the current recording rate",
   "rp.daysShort": "days",
+  "audit.change.policy_deleted": "Policy {policy} deleted, version {revision}",
+  "audit.change.policy_saved": "Policy {policy} saved, version {revision}",
+  "audit.change.manual_recording_started": "Recording started for {seconds} s",
+  "audit.change.manual_recording_stopped": "Recording stopped",
+  "audit.change.storage_changed":
+    "Retention {days} days, reserve {reserve_percent} %",
+  // Causes of failures from the error catalog, shown wherever a screen has no more specific text.
+  "error.assignment_mismatch":
+    "The request belongs to another site, volume or source.",
+  "error.media_scope_denied":
+    "No authorized media session covers this block, interval or export.",
+  "error.privacy_policy_changed":
+    "The privacy policy of the point changed after the view was opened.",
+  "error.representation_unavailable":
+    "The session needs a masked view, or the original recording is not available to it.",
+  "error.binding_changed": "The binding of the camera to the point changed.",
+  "error.replay_busy":
+    "The recorder already replays the recording of this camera.",
+  "error.live_setup_timeout":
+    "The live connection was not established in time.",
+  "error.recorder_feature_unavailable":
+    "The recorder does not support this operation.",
+  "error.account_conflict": "The user name is taken.",
+  "error.alert_result_required": "Enter the result to close the alert.",
+  "error.alert_state_conflict":
+    "Another operator already took or closed the alert.",
+  "error.authorization_unavailable":
+    "The permission check is unavailable. Try again later.",
+  "error.camera_already_registered":
+    "This camera is already connected to the site.",
+  "error.camera_audio_missing": "The camera has no audio channel.",
+  "error.camera_audio_unavailable":
+    "The camera did not confirm that the audio channel is available.",
+  "error.camera_audio_unsupported":
+    "The camera does not support this audio direction.",
+  "error.camera_authentication_failed":
+    "The camera rejected the user name or password.",
+  "error.camera_batch_limit": "A batch can include up to 64 channels.",
+  "error.camera_binding_conflict":
+    "The camera of the point changed. Choose the point again.",
+  "error.camera_clock_uncertain":
+    "The camera clock cannot be matched to the site time accurately enough.",
+  "error.camera_command_rejected": "The camera rejected the command.",
+  "error.camera_command_unsent":
+    "The connection is unavailable. The command was not sent.",
+  "error.camera_discovery_unavailable":
+    "No interface is available in the permitted camera segment.",
+  "error.camera_image_unconfirmed":
+    "The camera did not confirm the brightness value.",
+  "error.camera_image_unsupported":
+    "The channel does not support the selected brightness.",
+  "error.camera_incompatible_profiles":
+    "Connecting requires two different H.264 or H.265 video profiles.",
+  "error.camera_position_changed":
+    "The camera moved after calibration. Calibrate the view again.",
+  "error.camera_protocol_error":
+    "The camera returned an unsupported ONVIF response.",
+  "error.camera_ptz_busy": "Another operator controls the camera.",
+  "error.camera_ptz_unknown":
+    "The camera did not confirm. Check its position in live video.",
+  "error.camera_ptz_unsupported":
+    "The camera profile does not support this command.",
+  "error.camera_selection_expired": "Repeat discovery and profile selection.",
+  "error.camera_tls_error":
+    "Check the camera name and the trusted certificate.",
+  "error.camera_transport_denied":
+    "The site settings forbid the camera address or transport.",
+  "error.camera_unavailable": "The camera did not respond in time.",
+  "error.invalid_catalog": "The map catalog contains invalid region data.",
+  "error.invalid_package": "Choose a valid ZIP or MBTiles map package.",
+  "error.network_unavailable":
+    "The map server is unreachable. Try again later.",
+  "error.installation_failed": "The map region could not be installed.",
+  "error.catalog_unavailable": "The file is unavailable in the catalog",
+  "error.checksum_mismatch": "The checksum did not match",
+  "error.connection_lost":
+    "The connection to the site was lost. Check the network and try again.",
+  "error.conflict":
+    "The current state of the object does not allow the action.",
+  "error.dependency_unavailable":
+    "A site service is unavailable. Try again later.",
+  "error.download_unavailable":
+    "The map package cannot be downloaded from its source now.",
+  "error.edge_recording_unavailable":
+    "The recording on the camera is not available for this interval.",
+  "error.enrollment_required":
+    "The first sign-in needs a security key. Use the enrollment code from the administrator.",
+  "error.export_too_large":
+    "The export exceeds the size limit. Select a shorter interval.",
+  "error.forbidden": "You do not have permission for this action.",
+  "error.georeference_changed":
+    "The placement of the plan changed. Refresh the data.",
+  "error.grant_conflict": "This permission is already granted.",
+  "error.group_conflict": "The group name is taken.",
+  "error.idempotency_conflict":
+    "A request with this key was already made with different data.",
+  "error.identity_conflict": "This external account is already linked.",
+  "error.identity_unavailable":
+    "The corporate identity provider is unavailable.",
+  "error.internal_error":
+    "The service failed. Give the request code to the administrator.",
+  "error.invalid_credentials": "The user name or the password is not correct.",
+  "error.invalid_factor": "The security key did not confirm the sign-in.",
+  "error.invalid_georeference":
+    "The reference points do not place the plan on the map.",
+  "error.invalid_identity":
+    "The identity or the required MFA level could not be confirmed.",
+  "error.invalid_range":
+    "The catalog server did not support the requested byte range",
+  "error.invalid_request":
+    "The server did not accept the request. Check the entered values.",
+  "error.last_administrator": "The site needs an active administrator.",
+  "error.manual_recording_disabled":
+    "The recording policy of the point does not allow manual recording.",
+  "error.media_service_unavailable":
+    "The video service is unavailable. Connect again.",
+  "error.media_session_closed":
+    "The viewing time expired. Open the video again.",
+  "error.media_unavailable": "The archive has no recording for this interval.",
+  "error.payload_too_large": "The request body is too large.",
+  "error.headers_too_large": "The request headers are too large.",
+  "error.expectation_failed":
+    "The request uses an unsupported HTTP expectation.",
+  "error.method_not_allowed":
+    "The server does not support this action for the object.",
+  "error.not_found": "The object was not found or is not available.",
+  "error.pending_catalog":
+    "The recording is being added to the catalog. Check again.",
+  "error.position_from_plan":
+    "The position of the point follows its floor plan.",
+  "error.precondition_required":
+    "The change needs the read version of the object. Refresh the data.",
+  "error.precondition_failed":
+    "The object changed after it was read. Refresh the data and repeat the change.",
+  "error.rate_limited": "Too many requests. Try again in a few seconds.",
+  "error.recording_gap": "The selected interval is a recording gap.",
+  "error.recording_policy_managed":
+    "The recording of the point follows a group policy.",
+  "error.region_busy":
+    "A map package of the region is being installed or removed.",
+  "error.revision_conflict":
+    "The data changed after it was read. Refresh it and repeat the change.",
+  "error.source_unavailable": "The source of the map package is not reachable.",
+  "error.storage_unavailable": "The file could not be saved to disk",
+  "error.unauthenticated": "The session ended. Sign in again.",
+  "error.video_bandwidth_limit":
+    "The network budget is exhausted. Choose the secondary stream or free a tile.",
+  "error.video_session_limit":
+    "All live connections are in use. Free a tile on one of the posts.",
+  "error.video_source_unavailable":
+    "The recorder has not received the camera video stream yet.",
+  "error.video_transcoder_limit":
+    "H.264 conversion is busy. Close a view or use a client with HEVC support.",
 } satisfies Record<MessageKey, Message>;

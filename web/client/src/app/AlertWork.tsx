@@ -1,3 +1,4 @@
+import { catalogMessage, describeError, retryOf } from "../adapters/errors";
 import {
   FilterPanel,
   matchesQuery,
@@ -58,10 +59,36 @@ const reasons: Record<string, MessageKey> = {
   alert_result_required: "alert.reasons.alert_result_required",
   idempotency_conflict: "alert.reasons.idempotency_conflict",
 };
-// The name of a refusal reason, or the code itself when the reason is unknown.
+// The name of a refusal reason: the wording of the journal, the cause of the error catalog, or the code itself.
 function reasonText(code: string) {
   const key = reasons[code];
-  return key ? translate(key) : code;
+  if (key) return translate(key);
+  return catalogMessage(code) ?? code;
+}
+const changes = {
+  policy_deleted: "audit.change.policy_deleted",
+  policy_saved: "audit.change.policy_saved",
+  manual_recording_started: "audit.change.manual_recording_started",
+  manual_recording_stopped: "audit.change.manual_recording_stopped",
+  storage_changed: "audit.change.storage_changed",
+} as const satisfies Record<string, MessageKey>;
+// A change of recording settings named by its code with its values. Entries written before the codes keep their
+// recorded text.
+function changeText(
+  code: string,
+  details: Record<string, string | number | boolean> = {},
+) {
+  return Object.hasOwn(changes, code)
+    ? translate(
+        changes[code as keyof typeof changes],
+        Object.fromEntries(
+          Object.entries(details).map(([k, v]) => [
+            k,
+            typeof v === "boolean" ? String(v) : v,
+          ]),
+        ),
+      )
+    : code;
 }
 type Context = { services: Services; site: string };
 
@@ -110,7 +137,11 @@ function Entries({
                   e.action === "delegate" ||
                   e.action === "revoke"
                 ? ""
-                : e.reason;
+                : e.action === "recording_policy" ||
+                    e.action === "manual_recording" ||
+                    e.action === "recording_storage"
+                  ? changeText(e.reason, e.details)
+                  : e.reason;
         return (
           <li key={e.id}>
             <details>
@@ -426,10 +457,13 @@ export function AlertWorkPanel({
       setNote("");
       setNotice(t("alert.saved"));
     } catch (e) {
-      if (e instanceof HttpFailure && e.status < 500) {
+      if (e instanceof HttpFailure && retryOf(e) !== "later") {
         setRetry(null);
         setNotice(
-          e.status === 409 ? t("alert.changed") : t("alert.unavailableAction"),
+          describeError(e, {
+            alert_state_conflict: "alert.changed",
+            forbidden: "alert.unavailableAction",
+          }),
         );
       } else {
         setRetry({ body, key });

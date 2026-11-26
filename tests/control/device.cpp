@@ -20,8 +20,8 @@ TEST(DeviceFamily, AnUnknownFamilyIsRefused)
         (void)device_family(Json{{"family", "unknown"}});
         FAIL() << "An unknown family was accepted";
     } catch (const Failure& failure) {
-        EXPECT_EQ(failure.status, 400);
-        EXPECT_EQ(failure.code, "invalid_request");
+        EXPECT_EQ(failure.error, ErrorCode::invalid_request);
+        EXPECT_EQ(failure.status(), 400);
     }
 }
 } // namespace

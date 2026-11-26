@@ -27,7 +27,7 @@ EPOCH = str(uuid.uuid4())
 def send(q, error=None):
     p = subprocess.run([SOURCE], input=json.dumps(q), text=True, capture_output=True, timeout=8)
     if error is not None:
-        assert p.returncode and p.stderr.startswith(str(error) + " "), p.stderr
+        assert p.returncode and p.stderr.strip() == error, p.stderr
     else:
         assert p.returncode == 0, p.stderr
     return p.stdout.strip()
@@ -133,16 +133,16 @@ def run():
         empty = snapshot(viewer)
         assert not empty["items"]
         event = motion(point)
-        send({**event, "sourceId": str(uuid.uuid4())}, 7)
-        send({**event, "binding": {"pointId": point, "revision": 50}}, 5)
-        send({**event, "attributesJson": "W10="}, 3)
+        send({**event, "sourceId": str(uuid.uuid4())}, "7 assignment_mismatch")
+        send({**event, "binding": {"pointId": point, "revision": 50}}, "5 not_found")
+        send({**event, "attributesJson": "W10="}, "3 invalid_request")
         with ThreadPoolExecutor(4) as pool:
             states = list(pool.map(send, [event] * 4))
         assert (
             states.count("REGISTRATION_STATE_COMMITTED") == 1
             and states.count("REGISTRATION_STATE_REPLAYED") == 3
         ), states
-        send({**event, "attributesJson": "eyJ4IjoxfQ=="}, 6)
+        send({**event, "attributesJson": "eyJ4IjoxfQ=="}, "6 idempotency_conflict")
         first = snapshot(viewer)["items"][0]
         assert len(snapshot(viewer)["items"]) == 1
         assert c.query("SELECT count(*) FROM bacuri_events.alert_outbox") == "1"
@@ -151,7 +151,7 @@ def run():
             "ALTER TABLE bacuri_events.alert_outbox ADD CONSTRAINT test_failure CHECK (position<2) NOT VALID"
         )
         fail = motion(point)
-        send(fail, 14)
+        send(fail, "14 dependency_unavailable")
         assert (
             c.query(
                 f"SELECT count(*) FROM bacuri_events.observations WHERE observation_id='{fail['observationId']}'"

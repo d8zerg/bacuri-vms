@@ -16,7 +16,7 @@ namespace
 void require(bool ok)
 {
     if (!ok)
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
 }
 void lock(Database& db, const std::string& site)
 {
@@ -66,7 +66,7 @@ std::string authorize(Database& db, const Request& req, const Sessions& sessions
     access::lock_policy(db, site, true);
     auto user = sessions.authenticate(db, req, req.method() != http::verb::get).user;
     if (access::site_role(db, site, user, access::RoleLock::shared) != "administrator" && admin)
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     return user;
 }
 } // namespace
@@ -140,7 +140,7 @@ void policies(const Request& req, Response& res, const Sessions& sessions, const
         else {
             auto item = std::ranges::find_if(list, [&](const auto& row) { return row.at("id") == id; });
             if (item == list.end())
-                throw Failure{404, "not_found"};
+                throw Failure{ErrorCode::not_found};
             respond(res, *item);
         }
     } else {
@@ -150,16 +150,16 @@ void policies(const Request& req, Response& res, const Sessions& sessions, const
                                {site, id});
         if (req.method() == http::verb::delete_) {
             if (!current.size())
-                throw Failure{404, "not_found"};
+                throw Failure{ErrorCode::not_found};
             std::string tag{"\""};
             tag += current.get(0);
             tag += '"';
             if (req["If-Match"] != tag)
-                throw Failure{409, "revision_conflict"};
+                throw Failure{ErrorCode::revision_conflict};
             db.exec("DELETE FROM bacuri_archive.recording_policies WHERE site_id=$1 AND id=$2", {site, id});
             events::record_recording_change(db, site, current.get(0, 1) == "point" ? current.get(0, 2) : "", user,
-                                            "recording_policy",
-                                            "Удалена политика " + id + ", версия " + current.get(0));
+                                            "recording_policy", "policy_deleted",
+                                            {{"policy", id}, {"revision", current.get(0)}});
             res.result(http::status::no_content);
         } else {
             auto body = object_body(req, {"scope", "target", "priority", "rule", "revision"});
@@ -171,18 +171,18 @@ void policies(const Request& req, Response& res, const Sessions& sessions, const
             try {
                 archive::parse_capture_rule(body.at("rule"));
             } catch (const std::exception&) {
-                throw Failure{400, "invalid_request"};
+                throw Failure{ErrorCode::invalid_request};
             }
             if (revision != (current.size() ? current.get(0) : "0"))
-                throw Failure{409, "revision_conflict"};
+                throw Failure{ErrorCode::revision_conflict};
             if (scope == "point" ? !inventory::point_exists(db, site, target)
                                  : !access::group_memberships(db, site).contains(target))
-                throw Failure{404, "not_found"};
+                throw Failure{ErrorCode::not_found};
             if (db.exec("SELECT FROM bacuri_archive.recording_policies WHERE site_id=$1 AND scope=$2 AND "
                         "target=$3 AND id<>$4",
                         {site, scope, target, id})
                     .size())
-                throw Failure{409, "revision_conflict"};
+                throw Failure{ErrorCode::revision_conflict};
             auto saved = db.exec(
                 "INSERT INTO bacuri_archive.recording_policies(site_id,id,scope,target,priority,rule,changed_us) "
                 "VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(site_id,id) DO UPDATE SET "
@@ -191,7 +191,7 @@ void policies(const Request& req, Response& res, const Sessions& sessions, const
                 {site, id, scope, target, body["priority"].dump(), body["rule"].dump(),
                  std::to_string(clock_us(db))});
             events::record_recording_change(db, site, scope == "point" ? target : "", user, "recording_policy",
-                                            "Сохранена политика " + id + ", версия " + saved.get(0));
+                                            "policy_saved", {{"policy", id}, {"revision", saved.get(0)}});
             respond(res, {{"id", id}, {"revision", saved.get(0)}});
         }
         advance_point_retention(db, site, effective(db, site, listed(db, site)));
@@ -207,7 +207,7 @@ void manual_recording(const Request& req, Response& res, const Sessions& session
     auto user = authorize(db, req, sessions, site, false);
     if (!access::allowed(db, site, user, point, "view", "live") ||
         !access::allowed(db, site, user, point, "record"))
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     lock(db, site);
     auto plan = effective(db, site, listed(db, site));
     auto p = plan.find(point);
@@ -231,24 +231,25 @@ void manual_recording(const Request& req, Response& res, const Sessions& session
             require(seconds.is_number_integer() && seconds >= 1 && seconds <= 3600);
             if (b.at("active") == true && p->at("rule").at("audio") == true &&
                 !access::allowed(db, site, user, point, "audio_record", "live"))
-                throw Failure{403, "forbidden"};
+                throw Failure{ErrorCode::forbidden};
             if (b.at("active") == true && !until) {
                 until = stamp + seconds.get<int>() * std::int64_t{1000000};
                 db.exec("INSERT INTO bacuri_archive.recording_windows VALUES($1,$2,$3,$4,$5,'manual',$6,$7)",
                         {site, point, binding, id, revision, std::to_string(stamp), std::to_string(until)});
                 events::record_recording_change(db, site, point, user, "manual_recording",
-                                                "Начата запись на " + seconds.dump() + " с");
+                                                "manual_recording_started", {{"seconds", seconds}});
             } else if (b.at("active") == false && until) {
                 db.exec("UPDATE bacuri_archive.recording_windows SET end_us=greatest(begin_us,$6) WHERE "
                         "site_id=$1 AND point_id=$2 AND policy_id=$3 AND revision=$4 AND binding=$5 AND "
                         "kind='manual' AND end_us>$6",
                         {site, point, id, revision, binding, std::to_string(stamp)});
-                events::record_recording_change(db, site, point, user, "manual_recording", "Запись остановлена");
+                events::record_recording_change(db, site, point, user, "manual_recording",
+                                                "manual_recording_stopped");
                 until = 0;
             }
         }
     } else if (req.method() == http::verb::put)
-        throw Failure{409, "manual_recording_disabled"};
+        throw Failure{ErrorCode::manual_recording_disabled};
     db.exec("COMMIT");
     respond(res,
             {{"enabled", enabled}, {"active", until > stamp}, {"until_us", until ? Json(until) : Json(nullptr)}});
@@ -266,14 +267,13 @@ void volumes(const Request& req, Response& res, const Sessions& sessions, const 
         auto current =
             db.exec("SELECT revision FROM bacuri_archive.archive_retention WHERE site_id=$1 FOR UPDATE", {site});
         if (revision != (current.size() ? current.get(0) : "0"))
-            throw Failure{409, "revision_conflict"};
+            throw Failure{ErrorCode::revision_conflict};
         require(b.contains("days") && b["days"].is_number_integer() && b["days"] >= 1 && b["days"] <= 36500 &&
                 b.contains("reserve_percent") && b["reserve_percent"].is_number_integer() &&
                 b["reserve_percent"] >= 1 && b["reserve_percent"] <= 90);
         change_retention(db, site, b.at("days"), b.at("reserve_percent"));
-        events::record_recording_change(db, site, "", user, "recording_storage",
-                                        "Срок " + b.at("days").dump() + " дн., резерв " +
-                                            b.at("reserve_percent").dump() + " %");
+        events::record_recording_change(db, site, "", user, "recording_storage", "storage_changed",
+                                        {{"days", b.at("days")}, {"reserve_percent", b.at("reserve_percent")}});
     }
     auto config = db.exec(
         "SELECT days,reserve_percent,revision FROM bacuri_archive.archive_retention WHERE site_id=$1", {site});

@@ -11,7 +11,7 @@ constexpr double radians = std::numbers::pi / 180, radius = 6378137, latitude_li
 void require(bool condition)
 {
     if (!condition)
-        throw Failure{400, "invalid_georeference"};
+        throw Failure{ErrorCode::invalid_georeference};
 }
 double number(const Json& j, const char* key, double low, double high)
 {
@@ -114,7 +114,7 @@ Json georeference(Database& db, const Request& req, const std::string& site, boo
         db.exec("SELECT width,height,georeference FROM bacuri_maps.floor_plans WHERE site_id=$1 AND plan_id=$2",
                 {site, id});
     if (!plan.size())
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     const auto& definition = body.at("definition");
     std::optional<PlanTransform> transform;
     Json preview{{"cameras", Json::array()}}, choices = body.value("choices", Json::object());
@@ -167,7 +167,7 @@ Json georeference(Database& db, const Request& req, const std::string& site, boo
     if (!save)
         return preview;
     if (body.value("token", Json()) != preview.at("token"))
-        throw Failure{409, "georeference_changed"};
+        throw Failure{ErrorCode::georeference_changed};
     require(choices.size() == conflicts.size());
     for (const auto& point : conflicts)
         require(choices.contains(point) && (choices.at(point) == "keep" || choices.at(point) == "plan"));

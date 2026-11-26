@@ -23,12 +23,12 @@ void record_camera_control(Database& db, const std::string& site, const std::str
         {site, point, user, outcome, target.empty() ? command : command + " / " + target});
 }
 void record_recording_change(Database& db, const std::string& site, const std::string& point,
-                             const std::string& user, const std::string& action, const std::string& reason)
+                             const std::string& user, const std::string& action, const std::string& change,
+                             const Json& details)
 {
-    db.exec(
-        "INSERT INTO bacuri_events.alert_audit(site_id,point_id,initiator_id,actor_kind,action,outcome,reason) "
-        "VALUES($1,nullif($2,'')::uuid,$3,'user',$4,'applied',$5)",
-        {site, point, user, action, reason});
+    db.exec("INSERT INTO bacuri_events.alert_audit(site_id,point_id,initiator_id,actor_kind,action,outcome,reason,"
+            "details) VALUES($1,nullif($2,'')::uuid,$3,'user',$4,'applied',$5,$6::jsonb)",
+            {site, point, user, action, change, details.dump()});
 }
 void record_export(Database& db, const std::string& site, const std::string& point, const std::string& user,
                    const std::string& alert, const std::string& outcome, const std::string& reason,

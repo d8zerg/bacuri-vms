@@ -2,6 +2,8 @@
 // random access point with its own decode clock.
 import type { components } from "../../../../build/contracts/api";
 import { t } from "../i18n";
+import { HttpFailure } from "./api";
+import { describeError } from "./errors";
 
 type Manifest = components["schemas"]["PlaybackManifest"];
 type Part = Manifest["parts"][number] & { start: number; end: number };
@@ -174,7 +176,7 @@ export class ArchivePlayer {
         "/api/v1/media-sessions/" + this.session + "/parts/" + id,
         { cache: "no-store", signal },
       );
-      if (!response.ok) throw new Error(t("media.partUnavailable"));
+      if (!response.ok) throw await HttpFailure.fromResponse(response);
       return response.arrayBuffer();
     };
     const append = async (target: SourceBuffer, data: ArrayBuffer) => {
@@ -244,7 +246,13 @@ export class ArchivePlayer {
       } catch (error) {
         if (!signal.aborted) {
           this.video.pause();
-          this.onStatus(error instanceof Error ? error.message : String(error));
+          this.onStatus(
+            error instanceof HttpFailure
+              ? describeError(error)
+              : error instanceof Error
+                ? error.message
+                : t("media.partUnavailable"),
+          );
         }
       } finally {
         busy = false;

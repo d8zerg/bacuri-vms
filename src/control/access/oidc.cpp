@@ -18,7 +18,7 @@ using namespace std::chrono_literals;
 void valid(bool condition)
 {
     if (!condition)
-        throw Failure{401, "invalid_identity"};
+        throw Failure{ErrorCode::invalid_identity};
 }
 bool issuer_url(const std::string& s)
 {
@@ -75,7 +75,7 @@ Json fetch(const std::string& url, const std::string& fields = {})
 {
     std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> curl{curl_easy_init(), curl_easy_cleanup};
     if (!curl)
-        throw Failure{503, "identity_unavailable"};
+        throw Failure{ErrorCode::identity_unavailable};
     auto* c = curl.get();
     std::string body;
     curl_easy_setopt(c, CURLOPT_URL, url.c_str());
@@ -90,13 +90,13 @@ Json fetch(const std::string& url, const std::string& fields = {})
     if (!fields.empty())
         curl_easy_setopt(c, CURLOPT_POSTFIELDS, fields.c_str());
     if (curl_easy_perform(c) != CURLE_OK)
-        throw Failure{503, "identity_unavailable"};
+        throw Failure{ErrorCode::identity_unavailable};
     long status{};
     curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &status);
     if (status == 400 || status == 401 || status == 403)
-        throw Failure{401, "invalid_identity"};
+        throw Failure{ErrorCode::invalid_identity};
     if (status != 200)
-        throw Failure{503, "identity_unavailable"};
+        throw Failure{ErrorCode::identity_unavailable};
     auto result = Json::parse(body, nullptr, false);
     valid(result.is_object());
     return result;
@@ -118,7 +118,7 @@ Provider provider(Database& db, const std::string& site, const Key& key)
                      "site_id=$1 AND enabled FOR SHARE",
                      {site});
     if (!r.size())
-        throw Failure{503, "identity_unavailable"};
+        throw Failure{ErrorCode::identity_unavailable};
     return {r.get(0), r.get(0, 1), unseal(r.get(0, 2), key, "oidc-provider/" + site), r.get(0, 3)};
 }
 Json claims(const Provider& config, const std::string& jwt)
@@ -196,7 +196,7 @@ Json oidc_provider(Database& db, const Request& req, const Key& key, const std::
         return rows.size() ? Json::parse(rows.get(0)) : Json{{"enabled", false}};
     }
     if (req.method() != http::verb::put)
-        throw Failure{405, "invalid_request"};
+        throw Failure{ErrorCode::method_not_allowed};
     return configure_provider(db, key, site,
                               object_body(req, {"enabled", "issuer", "client_id", "client_secret", "admin_acr"}));
 }
@@ -206,7 +206,7 @@ Json configure_provider(Database& db, const Key& key, const std::string& site, c
          acr = string_field(body, "admin_acr", 128);
     if (!issuer_url(issuer) || !body.contains("enabled") || !body["enabled"].is_boolean() || acr == "0" ||
         acr == "1")
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     std::string secret;
     if (body.contains("client_secret"))
         secret = seal(key, "oidc-provider/" + site, string_field(body, "client_secret", 2048));
@@ -215,7 +215,7 @@ Json configure_provider(Database& db, const Key& key, const std::string& site, c
                            "issuer=$2 AND client_id=$3",
                            {site, issuer, client});
         if (!old.size())
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         secret = old.get(0);
     }
     db.exec("INSERT INTO bacuri_access.identity_providers VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT(site_id) DO "
@@ -230,7 +230,7 @@ Json configure_provider(Database& db, const Key& key, const std::string& site, c
 Json external_identity(Database& db, const Request& req, const std::string& site, const std::string& user)
 {
     if (req.method() != http::verb::delete_ && req.method() != http::verb::put)
-        throw Failure{405, "invalid_request"};
+        throw Failure{ErrorCode::method_not_allowed};
     return bind_identity(db, site, user,
                          req.method() == http::verb::delete_ ? Json(nullptr)
                                                              : object_body(req, {"issuer", "subject"}));
@@ -240,19 +240,19 @@ Json bind_identity(Database& db, const std::string& site, const std::string& use
     if (!canonical_id(user) ||
         !db.exec("SELECT FROM bacuri_access.site_roles WHERE site_id=$1 AND user_id=$2 FOR UPDATE", {site, user})
              .size())
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     if (body.is_null())
         db.exec("DELETE FROM bacuri_access.external_identities WHERE site_id=$1 AND user_id=$2", {site, user});
     else {
         auto issuer = string_field(body, "issuer", 1024), subject = string_field(body, "subject", 255);
         if (!db.exec("SELECT FROM bacuri_access.identity_providers WHERE site_id=$1 AND issuer=$2", {site, issuer})
                  .size())
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         if (db.exec("SELECT FROM bacuri_access.external_identities WHERE issuer=$1 AND subject=$2 AND "
                     "(site_id,user_id)<>($3,$4)",
                     {issuer, subject, site, user})
                 .size())
-            throw Failure{409, "identity_conflict"};
+            throw Failure{ErrorCode::identity_conflict};
         db.exec("INSERT INTO bacuri_access.external_identities VALUES ($1,$2,$3,$4) ON CONFLICT(site_id,user_id) "
                 "DO UPDATE SET "
                 "issuer=excluded.issuer,subject=excluded.subject",
@@ -283,7 +283,7 @@ void Sessions::corporate(const Request& req, Response& res, std::string_view pat
         auto metadata = fetch(config.issuer + "/.well-known/openid-configuration");
         if (metadata.value("issuer", "") != config.issuer ||
             metadata.value("authorization_endpoint", "") != config.endpoint("auth"))
-            throw Failure{503, "identity_unavailable"};
+            throw Failure{ErrorCode::identity_unavailable};
         const auto state = token(), browser = token(), verifier = token(), nonce = token();
         db.exec("DELETE FROM bacuri_access.oidc_requests WHERE expires_at<=now()");
         db.exec("INSERT INTO bacuri_access.oidc_requests VALUES($1,$2,$3,$4,$5,now()+interval '5 minutes')",
@@ -301,7 +301,7 @@ void Sessions::corporate(const Request& req, Response& res, std::string_view pat
         return;
     }
     if (path != "callback")
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     const auto target = std::string{req.target()};
     auto pos = target.find('?');
     valid(pos != target.npos);
@@ -375,7 +375,7 @@ void refresh_identities(const std::stop_token& stop, const Key& key)
                         {hash,
                          seal(key, "oidc-session/" + hash, refreshed.at("refresh_token").get<std::string>())});
                 } catch (const Failure& f) {
-                    if (f.status == 401)
+                    if (f.status() == 401)
                         db.exec("DELETE FROM bacuri_access.browser_sessions WHERE token_hash=$1", {hash});
                     else
                         throw;

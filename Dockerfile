@@ -205,7 +205,7 @@ FROM bookworm-base AS bookworm-builder
 RUN --mount=from=bookworm-postgres,source=/sdk,target=/pg-sdk \
     --mount=from=bookworm-postgres,source=/lib,target=/pg-lib \
     apt-get update && apt-get install -y --no-install-recommends /pg-lib/*.deb /pg-sdk/*.deb \
-    cmake ninja-build g++ git python3 pkg-config libgrpc++-dev libprotobuf-dev protobuf-compiler-grpc \
+    cmake ninja-build g++ git python3 python3-yaml pkg-config libgrpc++-dev libprotobuf-dev protobuf-compiler-grpc \
     libsqlite3-dev libpng-dev libarchive-dev libcurl4-openssl-dev libssl-dev libxml2-dev \
     libfido2-dev libsodium-dev libgstrtspserver-1.0-dev && rm -rf /var/lib/apt/lists/*
 COPY packaging/maintenance/webrtc-sdk /usr/local/bin/webrtc-sdk

@@ -886,10 +886,12 @@ for (const route of ["monitor", "installer"])
         style:
           "video::-webkit-media-controls {display:none} video {pointer-events:none}",
       };
-      // Native video compositing can round a few high-contrast edge pixels differently.
+      // Native video compositing can round a few high-contrast edge pixels differently. Firefox rounds up to 40
+      // of them on the frame of the monitor, which stays below 0.01 of the screen.
+      const videoEdges = info.project.name.startsWith("firefox") ? 64 : 16;
       await expect(page).toHaveScreenshot(filename, {
         ...capture,
-        ...(route === "monitor" ? { maxDiffPixels: 16 } : {}),
+        ...(route === "monitor" ? { maxDiffPixels: videoEdges } : {}),
       });
       const shot = info.outputPath(filename);
       await page.screenshot({ ...capture, path: shot });

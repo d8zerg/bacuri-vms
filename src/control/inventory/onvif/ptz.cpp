@@ -14,7 +14,7 @@ Json read_ptz_position(const CameraNetworks& networks, const Json& control, cons
                                "</tptz:ProfileToken>");
     auto* status = child(response(doc, ptz, "GetStatusResponse"), ptz, "PTZStatus");
     if (!status || (child(status, schema, "Error") && child(status, schema, "Error")->children))
-        throw Failure{502, "camera_protocol_error"};
+        throw Failure{ErrorCode::camera_protocol_error};
     auto* position = child(status, schema, "Position");
     auto* pan = child(position, schema, "PanTilt");
     auto number = [](xmlNode* node, const char* key) -> std::optional<double> {
@@ -24,7 +24,7 @@ Json read_ptz_position(const CameraNetworks& networks, const Json& control, cons
         char* end{};
         double n = g_ascii_strtod(text.c_str(), &end);
         if (*end || !std::isfinite(n))
-            throw Failure{502, "camera_protocol_error"};
+            throw Failure{ErrorCode::camera_protocol_error};
         return n;
     };
     auto space = attribute(pan, "space");
@@ -32,7 +32,7 @@ Json read_ptz_position(const CameraNetworks& networks, const Json& control, cons
         space = control.value("pan_space", std::string{});
     auto x = number(pan, "x");
     if (x && std::abs(*x) > 1e9)
-        throw Failure{502, "camera_protocol_error"};
+        throw Failure{ErrorCode::camera_protocol_error};
     if (!x || space.empty())
         return nullptr;
     Json sample{{"pan", *x}, {"space", space}};
@@ -62,7 +62,7 @@ Json read_ptz_position(const CameraNetworks& networks, const Json& control, cons
     const auto stamp = value(child(status, schema, "UtcTime"));
     Timestamp parsed;
     if (!ProtoTime::FromString(stamp, &parsed))
-        throw Failure{502, "camera_protocol_error"};
+        throw Failure{ErrorCode::camera_protocol_error};
     sample["source_time"] = ProtoTime::ToString(parsed);
     return sample;
 }
@@ -86,7 +86,7 @@ Json read_camera_controls(const CameraNetworks& networks, const Json& control, c
             consume(response(doc, ns, (std::string(op) + "Response").c_str()));
         } catch (const Failure& error) {
             // An optional service may not implement an operation. Transport and trust failures are actionable.
-            if (error.code != "camera_protocol_error")
+            if (error.error != ErrorCode::camera_protocol_error)
                 throw;
         }
     };
@@ -209,7 +209,7 @@ void operate_camera(const CameraNetworks& networks, const Json& control, const J
                 try {
                     stop();
                 } catch (const Failure&) {
-                    throw Failure{502, "camera_ptz_unknown"};
+                    throw Failure{ErrorCode::camera_ptz_unknown};
                 }
             }
             throw;
@@ -219,7 +219,7 @@ void operate_camera(const CameraNetworks& networks, const Json& control, const J
             try {
                 stop();
             } catch (const Failure&) {
-                throw Failure{502, "camera_ptz_unknown"};
+                throw Failure{ErrorCode::camera_ptz_unknown};
             }
         }
         return;

@@ -449,7 +449,8 @@ tasks:
     cmd: '{{.DEV_RUN}} sh tests/check-contracts.sh'
 
   api:types:
-    desc: Generate and type-check TypeScript definitions from OpenAPI
+    deps: [dev:image]
+    desc: Generate and type-check TypeScript definitions from OpenAPI and the error catalog
     cmds:
       - docker compose build api-types
       - >-
@@ -457,6 +458,7 @@ tasks:
         'mkdir -p build/contracts &&
         openapi-typescript contracts/v1/openapi.yaml --output build/contracts/api.d.ts &&
         tsc --noEmit --strict build/contracts/api.d.ts'
+      - '{{.BUILD_RUN}} python3 tools/errors.py json build/contracts/errors.json'
 
   web:build:
     desc: Build the typed HTTPS workspace and isolated performance reference

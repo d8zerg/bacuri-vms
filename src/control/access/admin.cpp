@@ -12,7 +12,7 @@ namespace
 void require(bool ok)
 {
     if (!ok)
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
 }
 std::string identifier(const Json& body, const char* key)
 {
@@ -36,12 +36,12 @@ void member(Database& db, const std::string& site, const std::string& user)
 {
     if (!db.exec("SELECT FROM bacuri_access.site_roles WHERE site_id=$1 AND user_id=$2 FOR UPDATE", {site, user})
              .size())
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
 }
 void check_point(Database& db, const std::string& site, const std::string& point)
 {
     if (!inventory::lock_point(db, site, point))
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
 }
 std::string role(const Json& body)
 {
@@ -62,7 +62,7 @@ Json users(Database& db, const Request& req, const std::string& site, const std:
         auto body = object_body(req, {"username", "password", "role"});
         auto name = string_field(body, "username", 128);
         if (db.exec("SELECT FROM bacuri_access.local_users WHERE username=$1", {name}).size())
-            throw Failure{409, "account_conflict"};
+            throw Failure{ErrorCode::account_conflict};
         provision_user(db, site, {name, role(body)}, string_field(body, "password", 1024), false);
         return {{"id", db.exec("SELECT user_id FROM bacuri_access.local_users WHERE username=$1", {name}).get(0)}};
     }
@@ -76,7 +76,7 @@ Json users(Database& db, const Request& req, const std::string& site, const std:
                  "AND enabled",
                  {site, id})
              .size())
-        throw Failure{409, "last_administrator"};
+        throw Failure{ErrorCode::last_administrator};
     db.exec("UPDATE bacuri_access.site_roles SET role=$3,enabled=$4 WHERE site_id=$1 AND user_id=$2 "
             "AND (role,enabled) IS DISTINCT FROM ($3,$4::boolean)",
             {site, id, target, enabled ? "true" : "false"});
@@ -105,7 +105,7 @@ Json groups(Database& db, const Request& req, const std::string& site, const std
                 "FROM nullif($3,'')::uuid",
                 {site, name, id})
             .size())
-        throw Failure{409, "group_conflict"};
+        throw Failure{ErrorCode::group_conflict};
     auto row =
         create
             ? db.exec("INSERT INTO bacuri_access.resource_groups(site_id,name) VALUES($1,$2) RETURNING group_id",
@@ -114,7 +114,7 @@ Json groups(Database& db, const Request& req, const std::string& site, const std
                       "RETURNING group_id",
                       {site, id, name});
     if (!row.size())
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     auto group = row.get(0);
     db.exec("DELETE FROM bacuri_access.group_points WHERE site_id=$1 AND group_id=$2", {site, group});
     db.exec("INSERT INTO bacuri_access.group_points SELECT $1,$2,value::uuid FROM "
@@ -141,7 +141,7 @@ Json grants(Database& db, const Request& req, const std::string& site, const std
                 "JOIN bacuri_access.local_users u USING(user_id) WHERE g.site_id=$1 AND g.grant_id=$2 LIMIT 1",
                 {site, id});
             if (!old.size())
-                throw Failure{404, "not_found"};
+                throw Failure{ErrorCode::not_found};
             GrantTarget target{site, old.get(0), old.get(0, 1)};
             if (old.get(0, 2) == "export")
                 revoke_export(db, target);
@@ -165,7 +165,7 @@ Json grants(Database& db, const Request& req, const std::string& site, const std
         group = identifier(body, "group_id");
         if (!db.exec("SELECT FROM bacuri_access.resource_groups WHERE site_id=$1 AND group_id=$2", {site, group})
                  .size())
-            throw Failure{404, "not_found"};
+            throw Failure{ErrorCode::not_found};
     }
     if (body.contains("interval")) {
         require(action == "view" || action == "export" || action == "export_masked");
@@ -180,14 +180,14 @@ Json grants(Database& db, const Request& req, const std::string& site, const std
                 "WHERE md5(site_id::text||user_id::text||point_id::text)::uuid=$1",
                 {id})
             .size())
-        throw Failure{409, "grant_conflict"};
+        throw Failure{ErrorCode::grant_conflict};
     auto row = db.exec(R"sql(INSERT INTO bacuri_access.scoped_grants AS g VALUES($1,$2,$3,nullif($4,'')::uuid,
          nullif($5,'')::uuid,$6,nullif($7,'')::bigint,nullif($8,'')::bigint) ON CONFLICT(grant_id) DO UPDATE SET
          user_id=excluded.user_id,point_id=excluded.point_id,group_id=excluded.group_id,action=excluded.action,
          begin_us=excluded.begin_us,end_us=excluded.end_us WHERE g.site_id=excluded.site_id RETURNING grant_id)sql",
                        {id, site, user, point, group, action, begin, end});
     if (!row.size())
-        throw Failure{409, "grant_conflict"};
+        throw Failure{ErrorCode::grant_conflict};
     return {{"id", id}};
 }
 Json privacy(Database& db, const Request& req, const std::string& site, const std::string& id)
@@ -233,16 +233,16 @@ bool administration(const Request& req, Response& res, const Sessions& sessions,
         lock_policy(db, site);
     auto who = sessions.authenticate(db, req, req.method() != http::verb::get, write);
     if (site_role(db, site, who.user, RoleLock::shared) != "administrator")
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     std::string id{slash == path.npos ? std::string_view{} : path.substr(slash + 1)};
     if (write) {
         const auto revision = scope_revision(db, site);
         const auto tag = "\"" + revision + "\"";
         res.set("ETag", tag);
         if (req.count("If-Match") != 1)
-            throw Failure{428, "precondition_required"};
+            throw Failure{ErrorCode::precondition_required};
         if (req["If-Match"] != tag)
-            throw Failure{412, "policy_conflict"};
+            throw Failure{ErrorCode::precondition_failed};
         db.exec("SELECT set_config('bacuri.actor',$1,true),set_config('bacuri.auth',login_method,true) FROM "
                 "bacuri_access.browser_sessions WHERE token_hash=$2",
                 {who.user, fingerprint(key, "session", who.cookie)});

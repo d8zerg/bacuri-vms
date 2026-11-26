@@ -15,7 +15,7 @@ struct Actor {
 void require(bool condition)
 {
     if (!condition)
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
 }
 std::string uuid_field(const Json& body, const char* name)
 {
@@ -35,7 +35,7 @@ const events::WorkAction& work_action(const Json& body)
     for (const auto& action : events::work_actions)
         if (action.name == name)
             return action;
-    throw Failure{400, "invalid_request"};
+    throw Failure{ErrorCode::invalid_request};
 }
 events::AlertWork work_state(const Rows& row)
 {
@@ -92,12 +92,12 @@ Actor command_actor(Database& db, const Sessions& sessions, const Key& key, cons
     const std::string_view auth = req[http::field::authorization];
     if (req.count(http::field::authorization) != 1 || req.count(http::field::cookie) ||
         !auth.starts_with("Bearer ") || auth.size() != 71)
-        throw Failure{401, "unauthenticated"};
+        throw Failure{ErrorCode::unauthenticated};
     auto row = db.exec("SELECT issuer_id,delegation_id,point_id,action FROM bacuri_events.alert_delegations WHERE "
                        "site_id=$1 AND token_hash=$2 FOR SHARE",
                        {site, fingerprint(key, "alert-delegation", auth.substr(7))});
     if (!row.size())
-        throw Failure{401, "unauthenticated"};
+        throw Failure{ErrorCode::unauthenticated};
     return {row.get(0), row.get(0, 1), row.get(0, 2), row.get(0, 3)};
 }
 
@@ -121,11 +121,11 @@ struct Audit {
                    action, outcome, reason, from, to, version, request_key})
             .get(0);
     }
-    [[noreturn]] void reject(Database& db, int status, const char* code) const
+    [[noreturn]] void reject(Database& db, ErrorCode error) const
     {
-        append(db, status == 409 ? "conflict" : "denied", code);
+        append(db, info(error).http == 409 ? "conflict" : "denied", std::string{info(error).code}.c_str());
         db.exec("COMMIT");
-        throw Failure{status, code};
+        throw Failure{error};
     }
 };
 
@@ -150,17 +150,17 @@ void command(Database& db, Response& res, const Request& req, const Sessions& se
                        "WHERE site_id=$1 AND alert_id=$2 FOR UPDATE",
                        {site, id});
     if (!row.size())
-        audit.reject(db, 404, "not_found");
+        audit.reject(db, ErrorCode::not_found);
     audit.point = row.get(0);
     if (!point_access(db, site, actor.user, audit.point, admin))
-        audit.reject(db, 404, "not_found");
+        audit.reject(db, ErrorCode::not_found);
     if (!actor.delegation.empty()) {
         if (actor.point != audit.point || actor.action != action ||
             !db.exec("SELECT FROM bacuri_events.alert_delegations WHERE delegation_id=$1 AND revoked_at IS NULL "
                      "AND expires_at>clock_timestamp()",
                      {actor.delegation})
                  .size())
-            audit.reject(db, 403, "forbidden");
+            audit.reject(db, ErrorCode::forbidden);
     }
     const auto replay = db.exec(R"sql(
         SELECT event_id,version,alert_id,action,reason FROM bacuri_events.alert_audit
@@ -171,18 +171,18 @@ void command(Database& db, Response& res, const Request& req, const Sessions& se
     if (replay.size()) {
         if (replay.get(0, 2) != id || replay.get(0, 3) != action || replay.get(0, 4) != reason ||
             std::stoi(replay.get(0, 1)) != expected + 1)
-            audit.reject(db, 409, "idempotency_conflict");
+            audit.reject(db, ErrorCode::idempotency_conflict);
         respond(res, {{"event_id", replay.get(0)}, {"version", expected + 1}});
         return;
     }
     const auto work = work_state(row);
     switch (work.evaluate(transition, actor.user, expected)) {
     case events::WorkDecision::state_conflict:
-        audit.reject(db, 409, "alert_state_conflict");
+        audit.reject(db, ErrorCode::alert_state_conflict);
     case events::WorkDecision::different_owner:
-        audit.reject(db, 403, "forbidden");
+        audit.reject(db, ErrorCode::forbidden);
     case events::WorkDecision::missing_result:
-        audit.reject(db, 409, "alert_result_required");
+        audit.reject(db, ErrorCode::alert_result_required);
     case events::WorkDecision::allowed:
         break;
     }
@@ -210,7 +210,7 @@ Json detail(Database& db, const std::string& site, const Identity& viewer, const
     )sql",
                        {site, id});
     if (!row.size())
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     access::role_for_existing_point(db, site, row.get(0), user);
     auto actions = Json::array();
     const auto work = work_state(row);
@@ -267,9 +267,12 @@ Json search(Database& db, const Request& req, const std::string& site, const std
         )
         SELECT )sql"} +
         std::string{audit_fields} +
-        R"sql( || CASE WHEN export_details IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('export',export_details) END,
+        R"sql( || CASE WHEN export_details IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('export',export_details) END
+               || CASE WHEN e.details IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('details',e.details) END,
                event_id FROM accessible e LEFT JOIN bacuri_events.alert_delegations d USING(delegation_id) WHERE ($3='' OR alert_id=nullif($3,'')::uuid)
-        AND (strpos(lower(reason),lower($4))>0 OR export_details->>'id'=$4) AND ($5='' OR (recorded_at,event_id)<(
+        AND (strpos(lower(reason),lower($4))>0 OR export_details->>'id'=$4 OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(e.details) detail WHERE strpos(lower(detail.value),lower($4))>0))
+        AND ($5='' OR (recorded_at,event_id)<(
             SELECT recorded_at,event_id FROM accessible WHERE event_id=nullif($5,'')::uuid))
         ORDER BY recorded_at DESC,event_id DESC LIMIT 51
     )sql";
@@ -290,7 +293,7 @@ void issue(Database& db, Response& res, const Request& req, const Key& key, cons
     const auto ttl = integer_field(body, "ttl_seconds", 1, 86400);
     require(name.find_first_not_of(" \t\r\n") != name.npos);
     if (!point_access(db, site, user, point, role(db, site, user) == "administrator"))
-        Audit{site, point, {}, "delegate", {}, {user, {}, {}, {}}}.reject(db, 404, "not_found");
+        Audit{site, point, {}, "delegate", {}, {user, {}, {}, {}}}.reject(db, ErrorCode::not_found);
     auto secret = token();
     auto row = db.exec(
         R"sql(
@@ -309,7 +312,7 @@ void revoke(Database& db, Response& res, const std::string& site, const std::str
                        "site_id=$1 AND delegation_id=$2 FOR UPDATE",
                        {site, id});
     if (!row.size() || (!admin && row.get(0, 1) != user))
-        Audit{site, {}, {}, "revoke", {}, {user, {}, {}, {}}}.reject(db, 404, "not_found");
+        Audit{site, {}, {}, "revoke", {}, {user, {}, {}, {}}}.reject(db, ErrorCode::not_found);
     if (row.get(0, 2) == "t") {
         db.exec("UPDATE bacuri_events.alert_delegations SET revoked_at=clock_timestamp() WHERE delegation_id=$1",
                 {id});
@@ -325,7 +328,7 @@ void alert_work(const Request& req, Response& res, const Sessions& sessions, con
     require(std::string_view{req.target()}.find('?') == std::string_view::npos);
     if (req.count(http::field::authorization) &&
         !(path.starts_with("alerts/") && path.ends_with("/work") && req.method() == http::verb::post))
-        throw Failure{401, "unauthenticated"};
+        throw Failure{ErrorCode::unauthenticated};
     Database db;
     const bool read = req.method() == http::verb::get;
     db.exec(read || path == "alert-audit/search" ? "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY" : "BEGIN");
@@ -353,7 +356,7 @@ void alert_work(const Request& req, Response& res, const Sessions& sessions, con
         revoke(db, res, site, sessions.authenticate(db, req, true).user,
                std::string{path.substr(std::string_view{"alert-delegations/"}.size())});
     } else
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     db.exec("COMMIT");
 }
 } // namespace bacuri::vms::control

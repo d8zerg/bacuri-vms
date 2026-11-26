@@ -14,7 +14,7 @@ namespace
 void require(bool value)
 {
     if (!value)
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
 }
 bool can_view(Database& db, const std::string& site, const std::string& user, const std::string& point,
               Window span)
@@ -30,18 +30,18 @@ void protect(Database& db, const std::string& site, const std::string& actor, Wi
     const auto begin = std::to_string(span.start), end = std::to_string(span.end);
     if (!can_view(db, site, actor, point, span) ||
         !access::allowed(db, site, actor, point, "protect", "", begin, end))
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     if (!db.exec("SELECT FROM bacuri_archive.retained_blocks WHERE site_id=$1 AND point_id=$2 AND "
                  "unavailable_reason IS NULL "
                  "AND int8range(begin_utc_us,end_utc_us,'[)') && int8range($3,$4,'[)') LIMIT 1",
                  {site, point, begin, end})
              .size())
-        throw Failure{409, "media_unavailable"};
+        throw Failure{ErrorCode::media_unavailable};
     auto saved = db.exec("INSERT INTO bacuri_archive.archive_holds VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO "
                          "NOTHING RETURNING id",
                          {site, id, point, begin, end, owner, reason, std::to_string(expiry)});
     if (!saved.size())
-        throw Failure{409, "revision_conflict"};
+        throw Failure{ErrorCode::revision_conflict};
     db.exec("INSERT INTO bacuri_archive.held_blocks SELECT site_id,$2,block_id FROM "
             "bacuri_archive.retained_blocks WHERE site_id=$1 AND point_id=$3 "
             "AND int8range(begin_utc_us,end_utc_us,'[)') && int8range($4,$5,'[)')",
@@ -120,17 +120,17 @@ void case_recipients(const Request& req, Response& res, const Sessions& sessions
     access::site_role(db, site, user, access::RoleLock::read);
     auto body = object_body(req, {"materials"});
     if (!body.contains("materials") || !body.at("materials").is_array() || body.at("materials").size() > 32)
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     Json spans = Json::array(), out = Json::array();
     for (const auto& m : body.at("materials")) {
         auto point = string_field(m, "point_id", 36);
         if (!canonical_id(point) || !m.contains("interval"))
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         auto span = window(m.at("interval"));
         if (!can_view(db, site, user, point, span) ||
             !access::allowed(db, site, user, point, "protect", "", std::to_string(span.start),
                              std::to_string(span.end)))
-            throw Failure{403, "forbidden"};
+            throw Failure{ErrorCode::forbidden};
         spans.push_back({{"point", point}, {"a", span.start}, {"b", span.end}});
     }
     if (spans.empty())
@@ -148,10 +148,10 @@ Json case_for_export(Database& db, const std::string& site, const std::string& i
                      "site_id=$1 AND id=$2 AND (owner_id=$3 OR $4='administrator')",
                      {site, id, user, role});
     if (!r.size())
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     auto materials = Json::parse(r.get(0, 3));
     if (!visible(db, site, user, materials))
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     return {{"id", id},
             {"number", r.get(0)},
             {"assignee", r.get(0, 1)},
@@ -194,7 +194,7 @@ void investigation(const Request& req, Response& res, const Sessions& sessions, 
     }
     if (!write) {
         if (!id.empty() && list.empty())
-            throw Failure{404, "not_found"};
+            throw Failure{ErrorCode::not_found};
         respond(res, id.empty() ? list : list.front());
     } else {
         auto body =
@@ -206,16 +206,16 @@ void investigation(const Request& req, Response& res, const Sessions& sessions, 
                 !body.at("materials").empty() && body.at("materials").size() <= 32);
         auto expiry = expires(body);
         if (rows.size() && list.empty())
-            throw Failure{404, "not_found"};
+            throw Failure{ErrorCode::not_found};
         if (revision != (list.empty() ? "0" : list.front().at("revision").get<std::string>()))
-            throw Failure{409, "revision_conflict"};
+            throw Failure{ErrorCode::revision_conflict};
         access::site_role(db, site, owner, access::RoleLock::shared);
         if (!list.empty())
             for (const auto& old : list.front().at("materials")) {
                 auto span = window(old.at("interval"));
                 if (!access::allowed(db, site, user, old.at("point_id"), "protect", "", std::to_string(span.start),
                                      std::to_string(span.end)))
-                    throw Failure{403, "forbidden"};
+                    throw Failure{ErrorCode::forbidden};
             }
         auto materials = body.at("materials");
         for (auto& m : materials) {
@@ -225,7 +225,7 @@ void investigation(const Request& req, Response& res, const Sessions& sessions, 
             require(canonical_id(point));
             const auto span = window(m.at("interval"));
             if (!can_view(db, site, owner, point, span))
-                throw Failure{403, "forbidden"};
+                throw Failure{ErrorCode::forbidden};
             for (const auto& mark : m.at("bookmarks")) {
                 require(mark.is_object() && mark.size() == 2);
                 auto at = parse_utc(string_field(mark, "at", 32));
@@ -244,7 +244,7 @@ void investigation(const Request& req, Response& res, const Sessions& sessions, 
         if (db.exec("SELECT FROM bacuri_archive.investigations WHERE site_id=$1 AND number=$2 AND id<>$3",
                     {site, number, id})
                 .size())
-            throw Failure{409, "revision_conflict"};
+            throw Failure{ErrorCode::revision_conflict};
         auto saved = db.exec(
             "INSERT INTO bacuri_archive.investigations AS c VALUES($1,$2,$3,$4,$5,$6,$7,1) "
             "ON CONFLICT(site_id,id) DO UPDATE SET "
@@ -253,7 +253,7 @@ void investigation(const Request& req, Response& res, const Sessions& sessions, 
             "OR $10='administrator') RETURNING revision",
             {site, id, number, owner, notes, materials.dump(), std::to_string(expiry), revision, user, role});
         if (!saved.size())
-            throw Failure{409, "revision_conflict"};
+            throw Failure{ErrorCode::revision_conflict};
         events::record_recording_change(db, site, materials.front().at("point_id"), user, "case_change",
                                         number + " - " + reason);
         respond(res, {{"id", id}, {"revision", saved.get(0)}});

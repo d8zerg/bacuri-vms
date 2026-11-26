@@ -1,4 +1,5 @@
 #include "archive/replica.hpp"
+#include "platform/rpc_status.hpp"
 #include "archive/mp4.hpp"
 #include "archive/clip.hpp"
 #include <sys/mman.h>
@@ -50,7 +51,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
                           grpc::ServerWriter<v1::PartChunk>* stream) override
     {
         if (!request->scope().has_archive() || !platform::canonical_id(request->block_id())) {
-            return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid block identity"};
+            return platform::rpc_status(ErrorCode::invalid_request);
         }
         try {
             Lease lease{request->scope()};
@@ -86,7 +87,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
                     block.at("media").at("sha256") != request->sha256() ||
                     block.at("begin_utc_us") != Time::TimestampToMicroseconds(scope.archive().start()) ||
                     block.at("end_utc_us") != Time::TimestampToMicroseconds(scope.archive().end())) {
-                    return {grpc::StatusCode::PERMISSION_DENIED, "Block outside authorized scope"};
+                    return platform::rpc_status(ErrorCode::media_scope_denied);
                 }
                 Descriptor media{
                     openat(directory.fd, "media.mp4", O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)};
@@ -101,11 +102,11 @@ class Delivery final : public v1::ArchiveDelivery::Service
                 std::shared_ptr<Descriptor> copy;
                 const bool masked = !scope.privacy_regions().empty();
                 if (masked && !scope.archive_h264())
-                    return {grpc::StatusCode::PERMISSION_DENIED, "Masked representation required"};
+                    return platform::rpc_status(ErrorCode::representation_unavailable);
                 const bool converted =
                     scope.archive_h264() && (masked || block.at("media").at("tracks").at(0).at("codec") == "h265");
                 if (complete && (masked || scope.archive_h264()))
-                    return {grpc::StatusCode::PERMISSION_DENIED, "Original representation unavailable"};
+                    return platform::rpc_status(ErrorCode::representation_unavailable);
                 if (converted) {
                     copy = compatible_block(request->sha256(), media.fd,
                                             Time::TimestampToMicroseconds(scope.archive().end()) -
@@ -157,7 +158,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
                 return serve(copies.fd);
             }
         } catch (const std::exception&) {
-            return {grpc::StatusCode::UNAVAILABLE, "Archive delivery unavailable"};
+            return platform::rpc_status(ErrorCode::dependency_unavailable);
         }
     }
 

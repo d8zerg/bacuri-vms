@@ -283,7 +283,7 @@ def run():
             media_negative(admin, "localhost", other_cert, other_key)
             # The fixture IP is the only cleartext exception inside the allowed camera networks.
             addresses = {"name": "Legacy", "main_url": "rtsp://127.0.0.1:8554/main", "secondary_url": "rtsp://127.0.0.1:8554/sub"}
-            expect(post(CAMERAS, addresses, admin, str(uuid.uuid4())), 400, "camera_transport_denied")
+            expect(post(CAMERAS, addresses, admin, str(uuid.uuid4())), 422, "camera_transport_denied")
             base = "rtsp://" + os.environ["BACURI_TEST_CAMERA_HOST"] + ":8554"
             code, legacy = post(CAMERAS, dict(addresses, main_url=base+"/main", secondary_url=base+"/sub"), admin, str(uuid.uuid4()))
             assert code == 201

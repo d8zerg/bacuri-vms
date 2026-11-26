@@ -1,4 +1,5 @@
 #include "platform/camera_networks.hpp"
+#include "platform/rpc_status.hpp"
 #include "platform/identifiers.hpp"
 #include "platform/secrets.hpp"
 #include "platform/settings.hpp"
@@ -91,10 +92,10 @@ class Recorder final : public v1::RecorderControl::Service
             q->end_us() - q->begin_us() > max_replay_interval.count() || q->uncertainty_us() < 0 ||
             q->uncertainty_us() > max_replay_uncertainty.count() || q->offset_us() < -max_replay_offset.count() ||
             q->offset_us() > max_replay_offset.count())
-            return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid replay scope"};
+            return platform::rpc_status(ErrorCode::invalid_request);
         std::unique_lock slot{replay_mutex_, std::try_to_lock};
         if (!slot.owns_lock())
-            return {grpc::StatusCode::RESOURCE_EXHAUSTED, "Replay busy"};
+            return platform::rpc_status(ErrorCode::replay_busy);
         try {
             archive::ReplayRequest job;
             {
@@ -104,10 +105,10 @@ class Recorder final : public v1::RecorderControl::Service
                            c.binding_revision() == q->binding() && q->binding() > 0;
                 });
                 if (it == active_.cameras().end())
-                    return {grpc::StatusCode::FAILED_PRECONDITION, "Binding changed"};
+                    return platform::rpc_status(ErrorCode::binding_changed);
                 auto pinned = networks_.stream_url(q->uri());
                 if (!pinned)
-                    return {grpc::StatusCode::PERMISSION_DENIED, "Replay transport unavailable"};
+                    return platform::rpc_status(ErrorCode::media_scope_denied);
                 job = {{it->point_id(), it->device_id(), it->channel_id(), it->main_profile_id(), q->binding()},
                        q->recording_id(),
                        {*pinned, it->credentials().username(), it->credentials().password()},
@@ -123,18 +124,18 @@ class Recorder final : public v1::RecorderControl::Service
             out->set_covered_until_us(result.covered_until_us);
             return grpc::Status::OK;
         } catch (const std::exception&) {
-            return {grpc::StatusCode::UNAVAILABLE, "Replay unavailable"};
+            return platform::rpc_status(ErrorCode::dependency_unavailable);
         }
     }
 
     grpc::Status ExchangeAudio(grpc::ServerContext*, const v1::AudioRequest* q, v1::AudioChunk* out) override
     {
         if (q->site_id() != site_ || !canonical_id(q->point_id()))
-            return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid audio scope"};
+            return platform::rpc_status(ErrorCode::invalid_request);
         try {
             if (q->mode() == v1::AudioRequest::ARCHIVE) {
                 if (q->at_us() < 0 || q->at_us() > 256000 || !q->pcm().empty())
-                    return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid audio position"};
+                    return platform::rpc_status(ErrorCode::invalid_request);
                 out->set_pcm(volume_.read_audio(
                     {q->block_id(), q->sha256(), static_cast<std::size_t>(q->at_us()), q->length()}));
                 return grpc::Status::OK;
@@ -145,7 +146,7 @@ class Recorder final : public v1::RecorderControl::Service
                 audio = sources_.audio(q->point_id(), q->device_id());
             }
             if (!audio)
-                return {grpc::StatusCode::FAILED_PRECONDITION, "Camera binding changed"};
+                return platform::rpc_status(ErrorCode::binding_changed);
             switch (q->mode()) {
             case v1::AudioRequest::LISTEN: {
                 auto sound = audio->listen(q->at_us());
@@ -164,11 +165,11 @@ class Recorder final : public v1::RecorderControl::Service
                 audio->mute(q->talk_session_id());
                 break;
             default:
-                return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid audio direction"};
+                return platform::rpc_status(ErrorCode::invalid_request);
             }
             return grpc::Status::OK;
         } catch (const std::exception&) {
-            return {grpc::StatusCode::UNAVAILABLE, "Audio channel unavailable"};
+            return platform::rpc_status(ErrorCode::camera_audio_unavailable);
         }
     }
 
@@ -176,7 +177,7 @@ class Recorder final : public v1::RecorderControl::Service
                                   v1::VideoProfiles* result) override
     {
         if (point->site_id() != site_ || !canonical_id(point->point_id()))
-            return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid point"};
+            return platform::rpc_status(ErrorCode::invalid_request);
         std::scoped_lock lock{mutex_};
         *result = sources_.video_profiles(point->point_id());
         return grpc::Status::OK;
@@ -185,7 +186,7 @@ class Recorder final : public v1::RecorderControl::Service
                                  v1::CameraIssues* result) override
     {
         if (query->site_id() != site_ || !canonical_id(query->device_id()))
-            return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid camera scope"};
+            return platform::rpc_status(ErrorCode::invalid_request);
         std::scoped_lock lock{mutex_};
         *result = sources_.issues(query->device_id());
         return grpc::Status::OK;
@@ -195,7 +196,7 @@ class Recorder final : public v1::RecorderControl::Service
                                   v1::StorageStatus* out) override
     {
         if (q->site_id() != site_ || q->recording_node_id() != node_)
-            return {grpc::StatusCode::PERMISSION_DENIED, "Different volume"};
+            return platform::rpc_status(ErrorCode::assignment_mismatch);
         try {
             auto status = volume_.status();
             std::scoped_lock guard{mutex_};
@@ -203,14 +204,14 @@ class Recorder final : public v1::RecorderControl::Service
             out->set_status_json(status.dump());
             return grpc::Status::OK;
         } catch (const std::exception&) {
-            return {grpc::StatusCode::UNAVAILABLE, "Volume unavailable"};
+            return platform::rpc_status(ErrorCode::dependency_unavailable);
         }
     }
 
     grpc::Status GetPointStates(grpc::ServerContext*, const v1::PointStatesQuery* q, v1::PointStates* out) override
     {
         if (q->site_id() != site_)
-            return {grpc::StatusCode::PERMISSION_DENIED, "Different site"};
+            return platform::rpc_status(ErrorCode::assignment_mismatch);
         try {
             {
                 std::scoped_lock lock{mutex_};
@@ -230,7 +231,7 @@ class Recorder final : public v1::RecorderControl::Service
             return grpc::Status::OK;
         } catch (const std::exception& error) {
             std::fprintf(stderr, "recorder point states unavailable: %s\n", error.what());
-            return {grpc::StatusCode::UNAVAILABLE, "Point states unavailable"};
+            return platform::rpc_status(ErrorCode::dependency_unavailable);
         }
     }
 
@@ -239,7 +240,7 @@ class Recorder final : public v1::RecorderControl::Service
     {
         if (q->point().site_id() != site_ || !canonical_id(q->point().point_id()) ||
             q->begin_us() >= q->end_us() || (q->has_binding_revision() && q->binding_revision() < 1)) {
-            return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid archive selection"};
+            return platform::rpc_status(ErrorCode::invalid_request);
         }
         try {
             for (const auto& [begin, end] : volume_.pending_intervals(
@@ -253,7 +254,7 @@ class Recorder final : public v1::RecorderControl::Service
             }
             return grpc::Status::OK;
         } catch (const std::exception&) {
-            return {grpc::StatusCode::UNAVAILABLE, "Archive journal unavailable"};
+            return platform::rpc_status(ErrorCode::dependency_unavailable);
         }
     }
 
@@ -261,15 +262,15 @@ class Recorder final : public v1::RecorderControl::Service
     {
         std::scoped_lock lock{mutex_};
         if (request->site_id() != site_ || request->recording_node_id() != node_) {
-            return {grpc::StatusCode::PERMISSION_DENIED, "Different recording assignment"};
+            return platform::rpc_status(ErrorCode::assignment_mismatch);
         }
         if (request->revision() <= 0) {
-            return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid revision"};
+            return platform::rpc_status(ErrorCode::invalid_request);
         }
         try {
             return apply(*request, *result);
         } catch (const std::exception&) {
-            return {grpc::StatusCode::UNAVAILABLE, "Recorder configuration unavailable"};
+            return platform::rpc_status(ErrorCode::dependency_unavailable);
         }
     }
 
@@ -306,7 +307,7 @@ class Recorder final : public v1::RecorderControl::Service
         sqlite3_bind_int64(prior.get(), 1, request.revision());
         if (next(prior.get())) {
             if (column(prior.get(), 0) != digest) {
-                return {grpc::StatusCode::ALREADY_EXISTS, "Revision content differs"};
+                return platform::rpc_status(ErrorCode::idempotency_conflict);
             }
             result.set_state(static_cast<v1::ApplyState>(sqlite3_column_int(prior.get(), 1)));
             if (result.state() == v1::APPLY_STATE_REJECTED) {
@@ -414,12 +415,12 @@ class PreviewSource final : public v1::PreviewSource::Service
     {
         using namespace std::chrono_literals;
         if (!slots_.try_acquire()) {
-            return {grpc::StatusCode::RESOURCE_EXHAUSTED, "Preview capacity reached"};
+            return platform::rpc_status(ErrorCode::video_session_limit);
         }
         platform::ScopeExit slot{[this] { slots_.release(); }};
         auto queue = recorder_.preview(point, main);
         if (!queue) {
-            return {grpc::StatusCode::NOT_FOUND, "Preview unavailable"};
+            return platform::rpc_status(ErrorCode::not_found);
         }
         auto last = std::chrono::steady_clock::now();
         while (!context->IsCancelled()) {
@@ -433,7 +434,7 @@ class PreviewSource final : public v1::PreviewSource::Service
                 }
                 last = std::chrono::steady_clock::now();
             } else if (std::chrono::steady_clock::now() >= last + 5s) {
-                return {grpc::StatusCode::UNAVAILABLE, "Preview interrupted"};
+                return platform::rpc_status(ErrorCode::video_source_unavailable);
             }
         }
         return grpc::Status::OK;

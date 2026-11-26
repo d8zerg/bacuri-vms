@@ -15,7 +15,7 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
     auto uri = https_uri(url);
     Object<GInetAddress> peer{g_inet_address_new_from_string(ip.c_str()), g_object_unref};
     if (!peer || !networks.contains(peer.get()))
-        throw Failure{422, "camera_transport_denied"};
+        throw Failure{ErrorCode::camera_transport_denied};
     CameraClient client{body, ip, g_uri_get_host(uri.get()), Clock::now() + 15s};
     auto info = client.call(url, device, "GetDeviceInformation");
     auto* identity = response(info, device, "GetDeviceInformationResponse");
@@ -66,7 +66,7 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         }
     } catch (const Failure& error) {
         // Earlier devices only implement GetCapabilities.
-        if (error.code != "camera_protocol_error")
+        if (error.error != ErrorCode::camera_protocol_error)
             throw;
     }
     if (control.contains("PTZ")) {
@@ -88,12 +88,12 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
             control.erase("Events");
     }
     if (service.address.empty())
-        throw Failure{422, "camera_incompatible_profiles"};
+        throw Failure{ErrorCode::camera_incompatible_profiles};
     Doc profiles{nullptr, xmlFreeDoc};
     try {
         profiles = service.profiles(client);
     } catch (const Failure& err) {
-        if (service.ns != media2 || !legacy_media || err.code != "camera_protocol_error")
+        if (service.ns != media2 || !legacy_media || err.error != ErrorCode::camera_protocol_error)
             throw;
         service = {value(legacy_media), media};
         profiles = service.profiles(client);
@@ -114,10 +114,10 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
             continue;
         std::unique_ptr<xmlChar, xmlFreeFunc> token{xmlGetProp(p, BAD_CAST "token"), xmlFree};
         if (!token || xmlStrlen(token.get()) > 128 || !*token)
-            throw Failure{502, "camera_protocol_error"};
+            throw Failure{ErrorCode::camera_protocol_error};
         const std::string id = reinterpret_cast<const char*>(token.get());
         if (!tokens.insert(id).second || tokens.size() > 16)
-            throw Failure{502, "camera_protocol_error"};
+            throw Failure{ErrorCode::camera_protocol_error};
         auto address = service.stream(client, id);
         Uri stream_uri{g_uri_parse(address.c_str(), G_URI_FLAGS_ENCODED, nullptr), g_uri_unref};
         if (!stream_uri ||
@@ -172,7 +172,7 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
                 char* end = nullptr;
                 auto n = g_ascii_strtoull(s.c_str(), &end, 10);
                 if (*end || n == 0 || n > 65535)
-                    throw Failure{502, "camera_protocol_error"};
+                    throw Failure{ErrorCode::camera_protocol_error};
                 return n;
             };
             option["width"] = dimension("Width");
@@ -185,14 +185,15 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         options.push_back(std::move(option));
     }
     if (options.size() < 2)
-        throw Failure{422, denied_transport ? "camera_transport_denied" : "camera_incompatible_profiles"};
+        throw Failure{denied_transport ? ErrorCode::camera_transport_denied
+                                       : ErrorCode::camera_incompatible_profiles};
     Json enrollment = result;
     enrollment["control"] = std::move(control);
     enrollment["profiles"] = std::move(controls);
     result["profiles"] = std::move(options);
     result["selection"] = ticket(key, "camera/" + site, std::move(enrollment));
     if (result.at("selection").get_ref<const std::string&>().size() > 24576)
-        throw Failure{502, "camera_protocol_error"};
+        throw Failure{ErrorCode::camera_protocol_error};
     return result;
 }
 
@@ -206,7 +207,7 @@ void verify_camera_channel(const CameraNetworks& networks, const Json& config)
     if (value(child(identity, device, "SerialNumber")) != expected.at("serial").get_ref<const std::string&>() ||
         value(child(identity, device, "Model")) != expected.at("model").get_ref<const std::string&>() ||
         value(child(identity, device, "FirmwareVersion")) != expected.at("firmware").get_ref<const std::string&>())
-        throw Failure{409, "camera_binding_conflict"};
+        throw Failure{ErrorCode::camera_binding_conflict};
     MediaService service{control.at("media_service"), control.value("media2", false) ? media2 : media};
     auto profiles = service.profiles(client);
     std::set<std::string> compatible;
@@ -226,10 +227,10 @@ void verify_camera_channel(const CameraNetworks& networks, const Json& config)
     for (auto [profile, url] :
          {std::pair{"profile", "main_url"}, std::pair{"secondary_profile", "secondary_url"}}) {
         if (!compatible.contains(control.at(profile).get_ref<const std::string&>()))
-            throw Failure{409, "camera_binding_conflict"};
+            throw Failure{ErrorCode::camera_binding_conflict};
         auto uri = service.stream(client, control.at(profile));
         if (uri != config.at(url).get_ref<const std::string&>() || !networks.permits(uri))
-            throw Failure{409, "camera_binding_conflict"};
+            throw Failure{ErrorCode::camera_binding_conflict};
     }
 }
 

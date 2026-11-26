@@ -16,7 +16,7 @@ Json read_edge_archive(const CameraNetworks& networks, const Json& control, cons
     std::map<std::string_view, std::string> endpoints;
     auto* root = response(services, device, "GetServicesResponse");
     if (!root)
-        throw Failure{502, "camera_protocol_error"};
+        throw Failure{ErrorCode::camera_protocol_error};
     for (auto* item = root->children; item; item = item->next) {
         if (!named(item, device, "Service"))
             continue;
@@ -38,20 +38,20 @@ Json read_edge_archive(const CameraNetworks& networks, const Json& control, cons
     auto list = client.call(endpoints.at(recording), recording, "GetRecordings");
     auto* body = response(list, recording, "GetRecordingsResponse");
     if (!body)
-        throw Failure{502, "camera_protocol_error"};
+        throw Failure{ErrorCode::camera_protocol_error};
     std::set<std::string> seen;
     for (auto* item = body->children; item; item = item->next) {
         if (!named(item, recording, "RecordingItem"))
             continue;
         auto token = value(child(item, recording, "RecordingToken"));
         if (seen.size() >= 64 || token.size() > 256 || !seen.insert(token).second)
-            throw Failure{502, "camera_protocol_error"};
+            throw Failure{ErrorCode::camera_protocol_error};
         auto info = client.call(endpoints.at(search), search, "GetRecordingInformation",
                                 "<tse:RecordingToken>" + escape(token) + "</tse:RecordingToken>");
         auto* record =
             child(response(info, search, "GetRecordingInformationResponse"), search, "RecordingInformation");
         if (!record)
-            throw Failure{502, "camera_protocol_error"};
+            throw Failure{ErrorCode::camera_protocol_error};
         Json tracks = Json::array();
         for (auto* track = record->children; track; track = track->next) {
             if (!named(track, schema, "Track"))
@@ -65,13 +65,13 @@ Json read_edge_archive(const CameraNetworks& networks, const Json& control, cons
             if (from && to) {
                 Timestamp a, b;
                 if (!ProtoTime::FromString(value(from), &a) || !ProtoTime::FromString(value(to), &b))
-                    throw Failure{502, "camera_protocol_error"};
+                    throw Failure{ErrorCode::camera_protocol_error};
                 if (ProtoTime::TimestampToMicroseconds(a) < ProtoTime::TimestampToMicroseconds(b))
                     bounds = Window{ProtoTime::TimestampToMicroseconds(a), ProtoTime::TimestampToMicroseconds(b)}
                                  .json();
             }
             if (tracks.size() >= 64)
-                throw Failure{502, "camera_protocol_error"};
+                throw Failure{ErrorCode::camera_protocol_error};
             tracks.push_back({{"kind", kind}, {"bounds", bounds}});
         }
         const auto id =
@@ -82,7 +82,7 @@ Json read_edge_archive(const CameraNetworks& networks, const Json& control, cons
         result["recordings"].push_back({{"id", id}, {"name", label}, {"tracks", tracks}});
         if (selected && selected->id == id) {
             if (std::ranges::count_if(tracks, [](const Json& t) { return t.at("kind") == "Video"; }) != 1)
-                throw Failure{422, "edge_recording_unavailable"};
+                throw Failure{ErrorCode::edge_recording_unavailable};
             const auto reply =
                 client.call(endpoints.at(replay), replay, "GetReplayUri",
                             "<trp:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</"
@@ -93,7 +93,7 @@ Json read_edge_archive(const CameraNetworks& networks, const Json& control, cons
             Uri parsed{g_uri_parse(uri.c_str(), G_URI_FLAGS_ENCODED, nullptr), g_uri_unref};
             if (!parsed || !g_uri_get_host(parsed.get()) ||
                 g_ascii_strcasecmp(client.host.c_str(), g_uri_get_host(parsed.get())) || !networks.permits(uri))
-                throw Failure{422, "camera_transport_denied"};
+                throw Failure{ErrorCode::camera_transport_denied};
             selected->uri = uri;
             const auto before = g_get_real_time();
             const auto clock = client.call(control.at("device_service"), device, "GetSystemDateAndTime");
@@ -104,7 +104,7 @@ Json read_edge_archive(const CameraNetworks& networks, const Json& control, cons
             auto number = [&](const char* part, const char* field) {
                 const auto v = value(child(child(utc, schema, part), schema, field));
                 if (v.size() > 4 || v.find_first_not_of("0123456789") != v.npos)
-                    throw Failure{502, "camera_protocol_error"};
+                    throw Failure{ErrorCode::camera_protocol_error};
                 return std::stoi(v);
             };
             std::unique_ptr<GDateTime, decltype(&g_date_time_unref)> time{
@@ -112,7 +112,7 @@ Json read_edge_archive(const CameraNetworks& networks, const Json& control, cons
                                     number("Time", "Hour"), number("Time", "Minute"), number("Time", "Second")),
                 g_date_time_unref};
             if (!time || after < before || after - before > 4000000)
-                throw Failure{409, "camera_clock_uncertain"};
+                throw Failure{ErrorCode::camera_clock_uncertain};
             selected->offset_us =
                 before + (after - before) / 2 - (g_date_time_to_unix(time.get()) * G_USEC_PER_SEC + 500000);
             selected->uncertainty_us = 500000 + (after - before + 1) / 2;

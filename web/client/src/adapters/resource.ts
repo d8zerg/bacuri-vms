@@ -2,6 +2,7 @@
 // screen closes, retries of transient failures and optional polling.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HttpFailure } from "./api";
+import { errorCode, retryOf } from "./errors";
 
 export type Resource<T> = {
   // The last value read for the key, also while a newer read is running.
@@ -37,11 +38,10 @@ function cache(scope: object) {
   return entries;
 }
 
-// Failures of the network or of an unavailable service are repeated; refusals of the request are not.
 export function transient(error: unknown) {
-  if (error instanceof HttpFailure)
-    return error.status === 502 || error.status === 503 || error.status === 504;
-  return error instanceof TypeError;
+  return error instanceof HttpFailure
+    ? retryOf(error) === "later"
+    : errorCode(error) === "connection_lost";
 }
 
 function delay(ms: number, signal: AbortSignal) {

@@ -18,7 +18,7 @@ Json discover_onvif(const CameraNetworks& networks, const Key& key, const std::s
         g_socket_new(G_SOCKET_FAMILY_IPV4, G_SOCKET_TYPE_DATAGRAM, G_SOCKET_PROTOCOL_UDP, nullptr),
         g_object_unref};
     if (!sock)
-        throw Failure{503, "camera_unavailable"};
+        throw Failure{ErrorCode::camera_unavailable};
     const int fd = g_socket_get_fd(sock.get());
     sockaddr_in dest{};
     dest.sin_family = AF_INET;
@@ -26,7 +26,7 @@ Json discover_onvif(const CameraNetworks& networks, const Key& key, const std::s
     inet_pton(AF_INET, "239.255.255.250", &dest.sin_addr);
     ifaddrs* addresses{};
     if (getifaddrs(&addresses) != 0)
-        throw Failure{503, "camera_unavailable"};
+        throw Failure{ErrorCode::camera_unavailable};
     std::unique_ptr<ifaddrs, decltype(&freeifaddrs)> interfaces{addresses, freeifaddrs};
     bool sent = false;
     for (auto* entry = addresses; entry; entry = entry->ifa_next) {
@@ -48,7 +48,7 @@ Json discover_onvif(const CameraNetworks& networks, const Key& key, const std::s
             sent = true;
     }
     if (!sent)
-        throw Failure{503, "camera_discovery_unavailable"};
+        throw Failure{ErrorCode::camera_discovery_unavailable};
     Json found = Json::array();
     std::set<std::string> seen;
     const auto end = Clock::now() + 1200ms;

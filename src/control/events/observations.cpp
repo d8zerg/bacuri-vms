@@ -1,4 +1,5 @@
 #include "control/inventory/operations.hpp"
+#include "platform/rpc_status.hpp"
 #include "control/events/observations.hpp"
 #include "control/events/video_rules.hpp"
 #include "control/recordings/policies.hpp"
@@ -66,7 +67,7 @@ grpc::Status Observations::SubmitObservation(grpc::ServerContext*, const Request
                                              v1::RegistrationResult* result)
 {
     if (q->site_id() != site_ || q->source_id() != source_) {
-        return {grpc::StatusCode::PERMISSION_DENIED, "Different source assignment"};
+        return platform::rpc_status(ErrorCode::assignment_mismatch);
     }
     return store_observation(*q, *result, 0);
 }
@@ -75,7 +76,7 @@ grpc::Status store_observation(const RequestData& q, v1::RegistrationResult& res
                                bool detector)
 {
     if (!valid(q)) {
-        return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid observation"};
+        return platform::rpc_status(ErrorCode::invalid_request);
     }
     bool supported = true;
     auto accept = [&](int depth, Json::parse_event_t, Json& value) {
@@ -86,7 +87,7 @@ grpc::Status store_observation(const RequestData& q, v1::RegistrationResult& res
     };
     const auto attributes = Json::parse(q.attributes_json(), accept, false);
     if (!supported || !attributes.is_object()) {
-        return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid attributes"};
+        return platform::rpc_status(ErrorCode::invalid_request);
     }
     try {
         Database db;
@@ -94,13 +95,14 @@ grpc::Status store_observation(const RequestData& q, v1::RegistrationResult& res
         const auto point = q.binding().point_id();
         const auto revision = q.has_binding() ? std::to_string(q.binding().revision()) : "";
         if (q.has_binding() && !inventory::has_binding(db, q.site_id(), point, revision, detector)) {
-            return {grpc::StatusCode::NOT_FOUND, "Unknown binding"};
+            // The named binding revision does not exist for the point.
+            return platform::rpc_status(ErrorCode::not_found);
         }
         if (camera_revision) {
             // Serialize acceptance with replacement and reject detached event readers.
             if (!inventory::lock_camera_revision(db, q.site_id(), point, q.source_id(),
                                                  std::to_string(camera_revision)))
-                return {grpc::StatusCode::NOT_FOUND, "Camera configuration changed"};
+                return platform::rpc_status(ErrorCode::binding_changed);
         }
         const auto source_time = q.has_source_time_us() ? std::to_string(q.source_time_us()) : "";
         const auto epoch = q.clock().epoch_id();
@@ -135,7 +137,7 @@ grpc::Status store_observation(const RequestData& q, v1::RegistrationResult& res
         )sql",
                                          args)
                                      .size()) {
-            return {grpc::StatusCode::ALREADY_EXISTS, "Observation identity has different content"};
+            return platform::rpc_status(ErrorCode::idempotency_conflict);
         }
         if (inserted.size() && q.type() == "motion") {
             const auto decision = events::evaluate_observation(db, q.site_id(), point, revision, q.source_id(),
@@ -159,7 +161,7 @@ grpc::Status store_observation(const RequestData& q, v1::RegistrationResult& res
         result.set_state(inserted.size() ? v1::REGISTRATION_STATE_COMMITTED : v1::REGISTRATION_STATE_REPLAYED);
         return grpc::Status::OK;
     } catch (const std::exception&) {
-        return {grpc::StatusCode::UNAVAILABLE, "Observation journal unavailable"};
+        return platform::rpc_status(ErrorCode::dependency_unavailable);
     }
 }
 } // namespace bacuri::vms::control

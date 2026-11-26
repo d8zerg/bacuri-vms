@@ -121,7 +121,7 @@ def run():
         try:
             altered = {**blocks[0], "device_id": str(uuid.uuid4())}
             manifest_file.write_text(json.dumps(altered))
-            reject("changed_source_identity", (503, "media_unavailable"))
+            reject("changed_source_identity", (503, "media_service_unavailable"))
         finally:
             manifest_file.write_bytes(original)
         stopped_after = playback.slow_reader(path, viewer, replace_grant, {"interval": playback.interval(5, 6)})

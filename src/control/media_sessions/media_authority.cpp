@@ -1,4 +1,5 @@
 #include "control/access/operations.hpp"
+#include "platform/rpc_status.hpp"
 #include "control/recordings/operations.hpp"
 #include "control/media_sessions/media_authority.hpp"
 #include "control/playback_time.hpp"
@@ -31,14 +32,14 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
         if (!canonical_id(q->media_session_id()) || !canonical_id(q->point().site_id()) ||
             !canonical_id(q->point().point_id()) ||
             !(q->has_live() || (q->has_archive() && q->archive().has_start() && q->archive().has_end()))) {
-            return {grpc::StatusCode::PERMISSION_DENIED, "Invalid scope"};
+            return platform::rpc_status(ErrorCode::media_scope_denied);
         }
         const Window bounds{utc_us(q->archive().start()), utc_us(q->archive().end())};
         Database db;
         db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
         if (q->export_source()) {
             if (!q->has_archive() || q->archive_h264() || !q->privacy_regions().empty())
-                return {grpc::StatusCode::PERMISSION_DENIED, "Invalid export source"};
+                return platform::rpc_status(ErrorCode::media_scope_denied);
             const auto source =
                 db.exec("SELECT presentation FROM bacuri_media_sessions.media_sessions WHERE id=$1 AND browser=$2 "
                         "AND site_id=$3 AND point_id=$4 "
@@ -47,13 +48,13 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
                         {q->media_session_id(), q->browser_session_id(), q->point().site_id(),
                          q->point().point_id(), std::to_string(bounds.start), std::to_string(bounds.end)});
             if (!source.size())
-                return {grpc::StatusCode::PERMISSION_DENIED, "Unknown export session"};
+                return platform::rpc_status(ErrorCode::media_scope_denied);
             auto p = Json::parse(source.get(0));
             auto grant = access::export_lease(db, q->browser_session_id(), p.at("export_grant"),
                                               q->point().point_id(), p.at("begin"), p.at("end"),
                                               p.at("derivative"), p.at("regions"), p.at("sound"));
             if (!grant || grant->milliseconds <= 0)
-                return {grpc::StatusCode::PERMISSION_DENIED, "Export permission expired"};
+                return platform::rpc_status(ErrorCode::media_scope_denied);
             db.exec("COMMIT");
             lease->set_valid_for_ms(static_cast<std::uint32_t>(
                 std::min<std::int64_t>(grant->milliseconds, std::numeric_limits<std::uint32_t>::max())));
@@ -63,13 +64,13 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
         if (!q->privacy_regions().empty() &&
             access::delivery_regions(db, q->point().site_id(), q->point().point_id(), surface) !=
                 q->privacy_regions())
-            return {grpc::StatusCode::PERMISSION_DENIED, "Privacy policy changed"};
+            return platform::rpc_status(ErrorCode::privacy_policy_changed);
         const auto expiry = access::browser_point_expiry(
             db, q->browser_session_id(), q->point().site_id(), q->point().point_id(),
             q->privacy_regions().empty() ? surface : "", q->has_live() ? "" : std::to_string(bounds.start),
             q->has_live() ? "" : std::to_string(bounds.end));
         if (!expiry)
-            return {grpc::StatusCode::PERMISSION_DENIED, "No applicable media session"};
+            return platform::rpc_status(ErrorCode::media_scope_denied);
         const auto rows =
             db.exec(R"sql(
           SELECT least(5000,floor(extract(epoch FROM least(expires_at,$8::timestamptz)-clock_timestamp())*1000))::bigint
@@ -81,26 +82,26 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
                      std::to_string(bounds.start), std::to_string(bounds.end), q->has_live() ? "true" : "false",
                      *expiry, q->privacy_regions(), q->archive_h264() ? "true" : "false"});
         if (!rows.size()) {
-            return {grpc::StatusCode::PERMISSION_DENIED, "No applicable media session"};
+            return platform::rpc_status(ErrorCode::media_scope_denied);
         }
         std::int64_t ms = std::stoll(rows.get(0));
         if (q->has_archive()) {
             const auto limit =
                 recordings::delivery_lifetime_ms(db, q->point().site_id(), q->point().point_id(), bounds.end);
             if (!limit)
-                return {grpc::StatusCode::PERMISSION_DENIED, "No applicable media session"};
+                return platform::rpc_status(ErrorCode::media_scope_denied);
             ms = std::min(ms, *limit);
         }
         db.exec("COMMIT");
         if (ms <= 0) {
-            return {grpc::StatusCode::FAILED_PRECONDITION, "Media session expired"};
+            return platform::rpc_status(ErrorCode::media_session_closed);
         }
         lease->set_valid_for_ms(static_cast<unsigned>(ms));
         return grpc::Status::OK;
     } catch (const Failure&) {
-        return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid archive interval"};
+        return platform::rpc_status(ErrorCode::invalid_request);
     } catch (const std::exception&) {
-        return {grpc::StatusCode::UNAVAILABLE, "Media authorization unavailable"};
+        return platform::rpc_status(ErrorCode::authorization_unavailable);
     }
 }
 grpc::Status MediaAuthority::CloseLive(grpc::ServerContext*, const v1::AuthorizeDeliveryRequest* q,
@@ -108,7 +109,7 @@ grpc::Status MediaAuthority::CloseLive(grpc::ServerContext*, const v1::Authorize
 {
     if (!q->has_live() || !canonical_id(q->media_session_id()) || !canonical_id(q->point().site_id()) ||
         !canonical_id(q->point().point_id())) {
-        return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid live scope"};
+        return platform::rpc_status(ErrorCode::invalid_request);
     }
     try {
         Database db;
@@ -118,7 +119,7 @@ grpc::Status MediaAuthority::CloseLive(grpc::ServerContext*, const v1::Authorize
                 {q->media_session_id(), q->browser_session_id(), q->point().site_id(), q->point().point_id()});
         return grpc::Status::OK;
     } catch (const std::exception&) {
-        return {grpc::StatusCode::UNAVAILABLE, "Media authorization unavailable"};
+        return platform::rpc_status(ErrorCode::authorization_unavailable);
     }
 }
 } // namespace bacuri::vms::control

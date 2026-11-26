@@ -10,7 +10,7 @@ namespace
 void check(bool valid)
 {
     if (!valid)
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
 }
 Json management(Database& db, const std::string& site)
 {
@@ -61,11 +61,11 @@ void append(Database& db, const Request& req, Response& res, const std::string& 
                         "AND kind='file' FOR UPDATE",
                         {site, id});
     if (!rows.size())
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     auto offset = std::stoull(rows.get(0)), total = std::stoull(rows.get(0, 1));
     auto header = req["X-Upload-Offset"];
     if (header != std::to_string(offset) || rows.get(0, 2) != "uploading")
-        throw Failure{409, "conflict", {{"received", offset}}};
+        throw Failure{ErrorCode::conflict, {{"received", offset}}};
     check(!req.body().empty() && req.body().size() <= 1048576 && req.body().size() <= total - offset);
     const auto file = directory(id) / "upload";
     if (!offset) {
@@ -94,7 +94,7 @@ void queue(Database& db, const Request& req, Response& res, const std::string& s
                           "state='ready' RETURNING entries",
                           {site, source});
     if (!result.size())
-        throw Failure{409, "source_unavailable"};
+        throw Failure{ErrorCode::source_unavailable};
     auto entries = Json::parse(result.get(0));
     std::set<std::string> seen;
     for (const auto& id : b["regions"]) {
@@ -116,7 +116,7 @@ void queue(Database& db, const Request& req, Response& res, const std::string& s
                                          "source_id=$3 AND mode=$4 AND state NOT IN ('installed','failed')",
                                          {site, id, source, mode})
                                      .size())
-            throw Failure{409, "region_busy"};
+            throw Failure{ErrorCode::region_busy};
     }
     res.result(http::status::no_content);
 }
@@ -144,7 +144,7 @@ void manage(const Request& req, Response& res, Database& db, const std::string& 
         allow(req, res, {http::verb::put});
         auto part = path.substr(std::string_view{"maps/jobs/"}.size());
         if (part.size() != 45 || !part.ends_with("/download") || !canonical_id(part.substr(0, 36)))
-            throw Failure{404, "not_found"};
+            throw Failure{ErrorCode::not_found};
         auto body = object_body(req, {"paused"});
         check(body.contains("paused") && body["paused"].is_boolean());
         const bool paused = body["paused"];
@@ -155,25 +155,25 @@ void manage(const Request& req, Response& res, Database& db, const std::string& 
                                "AND j.state IN ('queued','downloading','retrying','paused') RETURNING j.id",
                                {site, std::string(part.substr(0, 36)), paused ? "true" : "false"});
         if (!changed.size())
-            throw Failure{409, "download_unavailable"};
+            throw Failure{ErrorCode::download_unavailable};
         res.result(http::status::no_content);
     } else {
         auto part = path.substr(std::string_view{"maps/sources/"}.size());
         auto id = std::string(part.substr(0, 36));
         if (!canonical_id(id))
-            throw Failure{404, "not_found"};
+            throw Failure{ErrorCode::not_found};
         if (part.substr(36) == "/chunks") {
             allow(req, res, {http::verb::put});
             append(db, req, res, site, id);
         } else {
             if (part.size() != 36)
-                throw Failure{404, "not_found"};
+                throw Failure{ErrorCode::not_found};
             allow(req, res, {http::verb::get});
             auto r = db.exec(
                 "SELECT state,received,error,entries FROM bacuri_maps.map_sources WHERE site_id=$1 AND id=$2",
                 {site, id});
             if (!r.size())
-                throw Failure{404, "not_found"};
+                throw Failure{ErrorCode::not_found};
             auto entries = Json::parse(r.get(0, 3));
             for (auto& e : entries) {
                 e.erase("file");

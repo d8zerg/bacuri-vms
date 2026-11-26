@@ -68,6 +68,17 @@ archive_sql(archive_insert storage/postgresql/insert-block.sql)
 archive_sql(archive_read storage/postgresql/read-block-manifest.sql)
 archive_sql(archive_search storage/postgresql/search-archive.sql)
 configure_file(src/archive/sql.hpp.in "${generated_dir}/archive_sql.hpp" @ONLY)
+# The error catalog: ErrorCode and the properties of each code for every service.
+set(error_catalog_dir "${CMAKE_CURRENT_BINARY_DIR}/error-catalog")
+set(error_catalog_header "${error_catalog_dir}/errors/catalog.hpp")
+add_custom_command(OUTPUT "${error_catalog_header}"
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/tools/errors.py" cpp "${error_catalog_header}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/contracts/v1/errors.yaml" "${CMAKE_CURRENT_SOURCE_DIR}/tools/errors.py"
+    VERBATIM)
+add_custom_target(bacuri-error-catalog DEPENDS "${error_catalog_header}")
+add_library(bacuri-vms-errors INTERFACE)
+target_include_directories(bacuri-vms-errors INTERFACE "${error_catalog_dir}")
+add_dependencies(bacuri-vms-errors bacuri-error-catalog)
 add_custom_command(
     OUTPUT "${generated_dir}/control.pb.cc" "${generated_dir}/control.pb.h"
            "${generated_dir}/control.grpc.pb.cc" "${generated_dir}/control.grpc.pb.h"
@@ -89,7 +100,7 @@ add_library(bacuri-vms-identifiers STATIC src/platform/identifiers.cpp)
 target_link_libraries(bacuri-vms-identifiers PUBLIC bacuri-vms-domain)
 add_library(bacuri-vms-platform STATIC src/platform/settings.cpp src/platform/secrets.cpp
     src/platform/camera_networks.cpp)
-target_link_libraries(bacuri-vms-platform PUBLIC bacuri-vms-identifiers PkgConfig::SODIUM PkgConfig::GIO)
+target_link_libraries(bacuri-vms-platform PUBLIC bacuri-vms-errors bacuri-vms-identifiers PkgConfig::SODIUM PkgConfig::GIO)
 pkg_check_modules(GST REQUIRED IMPORTED_TARGET gstreamer-app-1.0>=1.22 gstreamer-rtp-1.0 gstreamer-rtsp-1.0 gstreamer-video-1.0)
 add_library(bacuri-vms-ingest STATIC src/recorder/frame_clock.cpp src/recorder/frame_queue.cpp
     src/recorder/ingest.cpp src/recorder/replay.cpp src/recorder/rtsp_session.cpp src/recorder/audio.cpp)
@@ -149,7 +160,7 @@ target_include_directories(bacuri-vms-recording-status PUBLIC src)
 # Request and response helpers shared by the HTTP handlers of the Core modules.
 add_library(bacuri-vms-control-api STATIC src/control/api.cpp)
 target_include_directories(bacuri-vms-control-api PUBLIC src)
-target_link_libraries(bacuri-vms-control-api PUBLIC bacuri-vms-platform nlohmann_json::nlohmann_json PostgreSQL::PostgreSQL
+target_link_libraries(bacuri-vms-control-api PUBLIC bacuri-vms-errors bacuri-vms-platform nlohmann_json::nlohmann_json PostgreSQL::PostgreSQL
     Boost::headers PkgConfig::GIO)
 # The ONVIF family adapter of the inventory module. Core reaches it only through DeviceFamily.
 add_library(bacuri-vms-onvif STATIC src/control/inventory/onvif/discovery.cpp src/control/inventory/onvif/profiles.cpp src/control/inventory/onvif/imaging.cpp src/control/inventory/onvif/ptz.cpp src/control/inventory/onvif/recording.cpp src/control/inventory/onvif/events.cpp src/control/inventory/onvif/adapter.cpp)
@@ -200,9 +211,10 @@ if(BUILD_TESTING)
     target_link_libraries(bacuri-vms-domain-test PRIVATE bacuri-vms-domain GTest::gmock_main)
     gtest_discover_tests(bacuri-vms-domain-test DISCOVERY_MODE PRE_TEST)
     add_executable(bacuri-vms-control-test tests/control/support.cpp tests/control/alert_workflow.cpp
-        tests/control/recording_status.cpp tests/control/routes.cpp tests/control/device.cpp src/control/transport/routes.cpp)
+        tests/control/recording_status.cpp tests/control/routes.cpp tests/control/device.cpp tests/control/rpc_status.cpp
+        src/control/transport/routes.cpp)
     target_link_libraries(bacuri-vms-control-test PRIVATE bacuri-vms-onvif bacuri-vms-platform bacuri-vms-recording-status
-        GTest::gtest_main)
+        PkgConfig::GRPC GTest::gtest_main)
     gtest_discover_tests(bacuri-vms-control-test DISCOVERY_MODE PRE_TEST)
     add_executable(bacuri-vms-metrics-test tests/observability/metrics.cpp)
     target_link_libraries(bacuri-vms-metrics-test PRIVATE bacuri-vms-metrics GTest::gtest_main)

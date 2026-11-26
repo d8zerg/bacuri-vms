@@ -222,11 +222,11 @@ export function createServices(): Services {
       throw new HttpFailure(403, "invalid_factor");
     },
     async logout() {
-      const { response } = await api.DELETE("/session", {
+      const { response, error } = await api.DELETE("/session", {
         params: { header: auth() },
       });
       if (!response.ok && response.status !== 401)
-        throw Error(String(response.status));
+        throw new HttpFailure(response.status, error?.code ?? "");
       csrf = "";
     },
     async exportFragment(siteId, pointId, interval, alert, signal, options) {
@@ -300,25 +300,37 @@ export function createServices(): Services {
       );
     },
     async linkPlan(siteId, body) {
-      const { response } = await api.PUT("/sites/{siteId}/maps/georeference", {
-        params: { path: { siteId }, header: auth() },
-        body,
-      });
-      if (!response.ok) throw Error(String(response.status));
+      const { response, error } = await api.PUT(
+        "/sites/{siteId}/maps/georeference",
+        {
+          params: { path: { siteId }, header: auth() },
+          body,
+        },
+      );
+      if (!response.ok)
+        throw new HttpFailure(response.status, error?.code ?? "");
     },
     async calibrate(siteId, body) {
-      const { response } = await api.PUT("/sites/{siteId}/maps/calibration", {
-        params: { path: { siteId }, header: auth() },
-        body,
-      });
-      if (!response.ok) throw Error(String(response.status));
+      const { response, error } = await api.PUT(
+        "/sites/{siteId}/maps/calibration",
+        {
+          params: { path: { siteId }, header: auth() },
+          body,
+        },
+      );
+      if (!response.ok)
+        throw new HttpFailure(response.status, error?.code ?? "");
     },
     async place(siteId, body) {
-      const { response } = await api.PUT("/sites/{siteId}/maps/placement", {
-        params: { path: { siteId }, header: auth() },
-        body,
-      });
-      if (!response.ok) throw Error(String(response.status));
+      const { response, error } = await api.PUT(
+        "/sites/{siteId}/maps/placement",
+        {
+          params: { path: { siteId }, header: auth() },
+          body,
+        },
+      );
+      if (!response.ok)
+        throw new HttpFailure(response.status, error?.code ?? "");
     },
     async mapManagement(siteId, signal) {
       return data(
@@ -359,11 +371,10 @@ export function createServices(): Services {
           signal,
         },
       );
-      if (!response.ok)
-        throw new HttpFailure(response.status, "map_upload_failed");
+      if (!response.ok) throw await HttpFailure.fromResponse(response);
     },
     async pauseMapDownload(siteId, jobId, paused) {
-      const { response } = await api.PUT(
+      const { response, error } = await api.PUT(
         "/sites/{siteId}/maps/jobs/{jobId}/download",
         {
           params: { path: { siteId, jobId }, header: auth() },
@@ -371,15 +382,15 @@ export function createServices(): Services {
         },
       );
       if (!response.ok)
-        throw new HttpFailure(response.status, "download_unavailable");
+        throw new HttpFailure(response.status, error?.code ?? "");
     },
     async queueMapRegions(siteId, body) {
-      const { response } = await api.POST("/sites/{siteId}/maps/jobs", {
+      const { response, error } = await api.POST("/sites/{siteId}/maps/jobs", {
         params: { path: { siteId }, header: auth() },
         body,
       });
       if (!response.ok)
-        throw new HttpFailure(response.status, "map_selection_failed");
+        throw new HttpFailure(response.status, error?.code ?? "");
     },
     async addPlan(siteId, name, png) {
       return data(

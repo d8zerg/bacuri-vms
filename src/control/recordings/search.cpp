@@ -43,7 +43,7 @@ void search_index(const Request& req, Response& res, const Sessions& sessions, c
         req, {"points", "interval", "region", "threshold", "min_cells", "motion", "plan", "event_query"});
     if (!body.contains("points") || !body.at("points").is_array() || body.at("points").empty() ||
         body.at("points").size() > 4 || !body.contains("interval"))
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     const auto span = window(body.at("interval"));
     int threshold = 24, minimum = 1;
     bool motion = true;
@@ -57,18 +57,18 @@ void search_index(const Request& req, Response& res, const Sessions& sessions, c
         if (threshold < 1 || threshold > 255 || minimum < 1 || minimum > 192)
             throw std::invalid_argument("Invalid motion threshold");
     } catch (const std::exception&) {
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     }
     const auto plan = body.contains("plan") ? string_field(body, "plan", 36) : "",
                event = body.contains("event_query") ? string_field(body, "event_query", 128, true) : "";
     if (!plan.empty() && !canonical_id(plan))
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     Json result = Json::array();
     std::set<std::string> unique;
     for (const auto& entry : body.at("points")) {
         if (!entry.is_string() || !canonical_id(entry.get<std::string>()) ||
             !unique.insert(entry.get<std::string>()).second)
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         const std::string point = entry;
         std::vector<archive::MotionArea> masks;
         bool permitted = true;

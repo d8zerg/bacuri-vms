@@ -71,8 +71,10 @@ const [selection, done] = arguments;
     seek(selection.target);
     seek(selection.gap);
     await wait(() => video.paused && player().querySelector(".ws-overlay"), "stop at the gap");
-    if (slider.valueAsNumber !== Date.parse(selection.gap))
-        throw new Error("The player did not stop at the last requested position");
+    // The monitor keeps the selected position in the address.
+    const shown = new URLSearchParams(location.search).get("at");
+    if (Date.parse(shown) !== Date.parse(selection.gap))
+        throw new Error("The player did not stop at the last requested position: " + shown);
     return {
         firstFrameMs: first.elapsedMs,
         seekErrorMs: errorMs,

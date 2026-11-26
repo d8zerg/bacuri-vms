@@ -1,4 +1,5 @@
 #include "media/live.hpp"
+#include "platform/rpc_status.hpp"
 #include "media/lease.hpp"
 #include "media/webrtc.hpp"
 #include "platform/identifiers.hpp"
@@ -98,11 +99,11 @@ void run(const std::stop_token& stop, const v1::LiveOffer& offer, std::promise<R
         }
     } catch (const std::invalid_argument&) {
         if (!answered) {
-            result.set_value({{grpc::StatusCode::INVALID_ARGUMENT, "Unsupported SDP offer"}, {}});
+            result.set_value({platform::rpc_status(ErrorCode::invalid_request), {}});
         }
     } catch (const std::exception&) {
         if (!answered) {
-            result.set_value({{grpc::StatusCode::UNAVAILABLE, "Live delivery unavailable"}, {}});
+            result.set_value({platform::rpc_status(ErrorCode::media_service_unavailable), {}});
         }
     }
 }
@@ -111,7 +112,7 @@ grpc::Status LiveDelivery::Negotiate(grpc::ServerContext* context, const v1::Liv
                                      v1::LiveAnswer* answer)
 {
     if (!offer->scope().has_live() || !platform::canonical_id(offer->scope().media_session_id())) {
-        return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid live session"};
+        return platform::rpc_status(ErrorCode::invalid_request);
     }
     std::promise<Result> ready;
     auto future = ready.get_future();
@@ -120,10 +121,10 @@ grpc::Status LiveDelivery::Negotiate(grpc::ServerContext* context, const v1::Liv
         std::erase_if(peers_, [](const auto& entry) { return entry.second->done.load(); });
         auto id = offer->scope().media_session_id();
         if (peers_.contains(id)) {
-            return {grpc::StatusCode::ALREADY_EXISTS, "Session already negotiated"};
+            return platform::rpc_status(ErrorCode::idempotency_conflict);
         }
         if (peers_.size() >= 16) {
-            return {grpc::StatusCode::RESOURCE_EXHAUSTED, "Live capacity reached"};
+            return platform::rpc_status(ErrorCode::video_session_limit);
         }
         auto peer = std::make_unique<Peer>();
         peer->worker = std::jthread{[entry = peer.get(), request = *offer,
@@ -134,7 +135,7 @@ grpc::Status LiveDelivery::Negotiate(grpc::ServerContext* context, const v1::Liv
         peers_.emplace(std::move(id), std::move(peer));
     }
     if (future.wait_until(context->deadline()) != std::future_status::ready) {
-        return {grpc::StatusCode::DEADLINE_EXCEEDED, "Live setup timed out"};
+        return platform::rpc_status(ErrorCode::live_setup_timeout);
     }
     auto [status, sdp] = future.get();
     answer->set_sdp(std::move(sdp));

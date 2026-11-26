@@ -77,7 +77,7 @@ const DeviceFamily& device_family_named(std::string_view name)
     static const Onvif onvif;
     if (name == onvif.name())
         return onvif;
-    throw Failure{400, "invalid_request"};
+    throw Failure{ErrorCode::invalid_request};
 }
 
 const DeviceFamily& device_family(const Json& control)

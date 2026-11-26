@@ -6,6 +6,7 @@
 #include "control/playback_time.hpp"
 #include "domain/time.hpp"
 #include "media/lease.hpp"
+#include "platform/rpc_status.hpp"
 #include <charconv>
 #include <fstream>
 
@@ -30,12 +31,12 @@ Json query_parameters(std::string_view target)
         auto key = pair.substr(0, eq);
         if (eq == pair.npos || (key != "start" && key != "end" && key != "cursor" && key != "presentation") ||
             fields.contains(key)) {
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         }
         const std::unique_ptr<char, decltype(&g_free)> value{
             g_uri_unescape_segment(pair.data() + eq + 1, pair.data() + pair.size(), nullptr), g_free};
         if (!value) {
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         }
         fields[key] = value.get();
         if (end == target.npos) {
@@ -57,14 +58,14 @@ Json search(Database& db, const Key& key, const PointAccess& access, Json params
     const bool continued = params.erase("cursor") != 0;
     const auto presentation = params.value("presentation", "");
     if (!presentation.empty() && presentation != "masked")
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     params.erase("presentation");
     const auto bounds = window(params);
     const auto mask =
         presentation == "masked" ? access::delivery_regions(db, access.site, access.point, "archive") : "";
     if (!access::allowed(db, access.site, access.user, access.point, "view", mask.empty() ? "archive" : "",
                          std::to_string(bounds.start), std::to_string(bounds.end)))
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     recordings::require_available(db, access.site);
     auto position = bounds.start;
     const auto context =
@@ -81,7 +82,7 @@ Json search(Database& db, const Key& key, const PointAccess& access, Json params
                 throw std::invalid_argument("Invalid cursor");
             }
         } catch (const std::exception&) {
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         }
     }
     auto recorder = v1::RecorderControl::NewStub(media::local_channel("BACURI_SOCKET"));
@@ -147,7 +148,7 @@ unsigned video_limit(const char* name, unsigned fallback)
     unsigned n{};
     const auto [last, error] = std::from_chars(value.begin(), value.end(), n);
     if (error != std::errc{} || last != value.end() || n > 1000000)
-        throw Failure{503, "media_unavailable"};
+        throw Failure{ErrorCode::media_service_unavailable};
     return n;
 }
 Json live_video(Database& db, const PointAccess& access, const Json& options, bool masked)
@@ -158,7 +159,7 @@ Json live_video(Database& db, const PointAccess& access, const Json& options, bo
                 "IS NULL) FROM "
                 "bacuri_media_sessions.media_sessions WHERE NOT closed AND expires_at>now()");
     if (std::stoul(usage.get(0, 2)) >= 16)
-        throw Failure{429, "video_session_limit"};
+        throw Failure{ErrorCode::video_session_limit};
     const auto used = std::stoul(usage.get(0));
     auto budget = video_limit("BACURI_VIDEO_BUDGET_KBPS", 64000);
     auto free = used < budget ? budget - static_cast<unsigned>(used) : 0;
@@ -177,9 +178,9 @@ Json live_video(Database& db, const PointAccess& access, const Json& options, bo
              .ok() ||
         available.profiles().empty()) {
         if (!options.empty())
-            throw Failure{503, "video_source_unavailable"};
+            throw Failure{ErrorCode::video_source_unavailable};
         if (free < 768)
-            throw Failure{429, "video_bandwidth_limit"};
+            throw Failure{ErrorCode::video_bandwidth_limit};
         return Json::object();
     }
     const auto width = options.value("cell_width", 640u);
@@ -223,7 +224,7 @@ Json live_video(Database& db, const PointAccess& access, const Json& options, bo
             }
         }
     }
-    throw Failure{429, copy_denied ? "video_transcoder_limit" : "video_bandwidth_limit"};
+    throw Failure{copy_denied ? ErrorCode::video_transcoder_limit : ErrorCode::video_bandwidth_limit};
 }
 
 Json create(Database& db, const Key& key, const PointAccess& access, const Request& req)
@@ -235,7 +236,7 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     if (mode == "archive" && body.contains("interval")) {
         range = window(body.at("interval"));
     } else if (mode != "live" || body.contains("interval") || body.contains("binding_revision")) {
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     }
     auto options = body;
     for (const char* field : {"mode", "interval", "binding_revision"})
@@ -246,20 +247,20 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
         (options.contains("accept_masked") && !options.at("accept_masked").is_boolean()) ||
         (options.contains("quality") && options.at("quality") != "auto" && options.at("quality") != "main" &&
          options.at("quality") != "secondary"))
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     for (auto field : {"cell_width", "bandwidth_kbps"})
         if (options.contains(field)) {
             const auto& value = options.at(field);
             if (!value.is_number_unsigned() || value < 1 ||
                 value > (std::string_view(field) == "cell_width" ? 16384 : 1000000))
-                throw Failure{400, "invalid_request"};
+                throw Failure{ErrorCode::invalid_request};
         }
     const auto begin = range ? std::to_string(range->start) : std::string{};
     const auto end = range ? std::to_string(range->end) : std::string{};
     const auto mask =
         options.value("accept_masked", false) ? access::delivery_regions(db, access.site, access.point, mode) : "";
     if (!access::allowed(db, access.site, access.user, access.point, "view", mask.empty() ? mode : "", begin, end))
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     if (range)
         recordings::require_available(db, access.site);
     Json selection = options;
@@ -273,7 +274,7 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
         auto [endptr, err] = std::from_chars(revision.data(), revision.data() + revision.size(), value);
         if (err != std::errc{} || endptr != revision.data() + revision.size() || value <= 0 ||
             revision.front() == '0')
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         binding = value;
         selection["binding_revision"] = revision;
     }
@@ -282,7 +283,7 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     }
     const std::string request_key{req["Idempotency-Key"]};
     if (req.count("Idempotency-Key") != 1 || !canonical_id(request_key)) {
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     }
     db.exec("SELECT pg_advisory_xact_lock(486324029)");
     db.exec("UPDATE bacuri_media_sessions.media_sessions SET request_key=NULL WHERE browser=$1 AND request_key=$2 "
@@ -308,7 +309,7 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
     if (previous.size()) {
         if (previous.get(0, 4) == "t" || previous.get(0, 1) != begin || previous.get(0, 2) != end ||
             previous.get(0, 5) != revision || Json::parse(previous.get(0, 6)) != options) {
-            throw Failure{409, "idempotency_conflict"};
+            throw Failure{ErrorCode::idempotency_conflict};
         }
         video = Json::parse(previous.get(0, 7));
         return result(previous.get(0), previous.get(0, 3));
@@ -317,7 +318,7 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
                 "AND expires_at>now()",
                 {access.browser})
             .get(0) == "t") {
-        throw Failure{429, "rate_limited"};
+        throw Failure{ErrorCode::rate_limited};
     }
     if (!range)
         video = live_video(db, access, options, !mask.empty());
@@ -344,21 +345,24 @@ Json create(Database& db, const Key& key, const PointAccess& access, const Reque
         const auto page = search(db, key, access, params, binding);
         const auto& items = page.at("items");
         if (std::ranges::any_of(items, [](const Json& entry) { return entry.at("state") == "pending_catalog"; })) {
-            throw Failure{409, "pending_catalog"};
+            throw Failure{ErrorCode::pending_catalog};
         }
         if (!items.empty() &&
             std::ranges::all_of(items, [](const Json& entry) { return entry.at("state") == "gap"; })) {
-            throw Failure{409, "recording_gap"};
+            throw Failure{ErrorCode::recording_gap};
         }
-        throw Failure{409, "media_unavailable"};
+        throw Failure{ErrorCode::media_unavailable};
     }
     if (!options.value("hevc", false) || !mask.empty()) {
         const auto parts = recordings::playback_manifest(db, session.get(0));
         if (!mask.empty() || std::ranges::any_of(parts, [](const auto& p) { return p.codec == "h265"; })) {
+            // A repeated request for a session that already converts does not count against itself.
             if (std::stoul(db.exec("SELECT count(*) FROM bacuri_media_sessions.media_sessions WHERE "
-                                   "presentation->>'converted'='true' AND NOT closed AND expires_at>now()")
+                                   "presentation->>'converted'='true' AND NOT closed AND expires_at>now() "
+                                   "AND id<>$1",
+                                   {session.get(0)})
                                .get(0)) >= video_limit("BACURI_VIDEO_TRANSCODERS", 1))
-                throw Failure{429, "video_transcoder_limit"};
+                throw Failure{ErrorCode::video_transcoder_limit};
             video["converted"] = true;
             db.exec("UPDATE bacuri_media_sessions.media_sessions SET presentation=$2 WHERE id=$1",
                     {session.get(0), video.dump()});
@@ -378,7 +382,7 @@ class RemotePart final : public MediaBody
         context_.set_deadline(std::chrono::system_clock::now() + 30s);
         reader_ = stub_->ReadPart(&context_, request);
         if (!reader_->Read(&chunk_) || !chunk_.total_bytes()) {
-            throw Failure{503, "media_unavailable"};
+            throw Failure{ErrorCode::media_service_unavailable};
         }
         size = chunk_.total_bytes();
     }
@@ -451,13 +455,13 @@ void copy_export_block(const std::string& session, const Json& source, const std
     q.set_complete_block_manifest(source.dump());
     RemotePart stream{q};
     if (stream.size != source.at("media").at("size_bytes").get<std::uint64_t>())
-        throw Failure{503, "media_unavailable"};
+        throw Failure{ErrorCode::media_service_unavailable};
     std::ofstream out(destination, std::ios::binary);
     out.exceptions(std::ios::badbit | std::ios::failbit);
     for (auto remaining = stream.size; remaining;) {
         auto chunk = stream.next();
         if (chunk.bytes.empty() || chunk.bytes.size() > remaining)
-            throw Failure{503, "media_unavailable"};
+            throw Failure{ErrorCode::media_service_unavailable};
         out.write(chunk.bytes.data(), static_cast<std::streamsize>(chunk.bytes.size()));
         remaining -= chunk.bytes.size();
     }
@@ -471,7 +475,7 @@ void Playback::point(const Request& req, Response& res, const std::string& site,
     db.exec("BEGIN");
     auto who = sessions_.authenticate(db, req, !searching);
     if (!inventory::point_exists(db, site, point))
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     PointAccess access{site, point, fingerprint(key_, "session", who.cookie),
                        access::site_role(db, site, who.user, access::RoleLock::read), who.user};
     if (searching) {
@@ -503,34 +507,34 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
         "bacuri_media_sessions.media_sessions WHERE id=$1 AND browser=$2 AND NOT presentation ? 'export_grant'",
         {id, browser});
     if (!session.size())
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     const auto surface = session.get(0, 2).empty() ? "live" : "archive";
     const auto video = Json::parse(session.get(0, 7));
     const std::string mask = video.value("mask", "");
     if (!mask.empty() && access::delivery_regions(db, session.get(0), session.get(0, 1), surface) != mask)
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     const auto expiry =
         access::browser_point_expiry(db, browser, session.get(0), session.get(0, 1), mask.empty() ? surface : "",
                                      session.get(0, 2), session.get(0, 3));
     if (!expiry)
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     const bool live = session.get(0, 2).empty();
     if (!live && recordings::recovery_status(db, session.get(0)) != "available")
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     if (session.get(0, 4) == "t" || db.exec("SELECT $1::timestamptz<=clock_timestamp()", {*expiry}).get(0) == "t")
-        throw Failure{410, "media_session_closed"};
+        throw Failure{ErrorCode::media_session_closed};
     db.exec("COMMIT");
     if (live != offer) {
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     }
     if (offer) {
         if (req[http::field::content_type] != "application/sdp" || req.body().empty() ||
             req.body().size() > 65536 || req.body().contains('\0')) {
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         }
         if (db.exec("SELECT live_negotiated FROM bacuri_media_sessions.media_sessions WHERE id=$1", {id}).get(0) ==
             "t") {
-            throw Failure{409, "idempotency_conflict"};
+            throw Failure{ErrorCode::idempotency_conflict};
         }
         auto stub = v1::LiveDelivery::NewStub(media::local_channel("BACURI_MEDIA_SOCKET"));
         grpc::ClientContext rpc;
@@ -540,24 +544,27 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
         input.set_sdp(req.body());
         v1::LiveAnswer answer;
         auto status = stub->Negotiate(&rpc, input, &answer);
+        if (const auto cause = platform::rpc_problem(status))
+            throw Failure{*cause};
+        // Older peers and transport errors supply only the gRPC status.
         switch (status.error_code()) {
         case grpc::StatusCode::OK:
             break;
         case grpc::StatusCode::INVALID_ARGUMENT:
-            throw Failure{400, "invalid_request"};
+            throw Failure{ErrorCode::invalid_request};
         case grpc::StatusCode::RESOURCE_EXHAUSTED:
-            throw Failure{429, "rate_limited"};
+            throw Failure{ErrorCode::rate_limited};
         case grpc::StatusCode::ALREADY_EXISTS:
-            throw Failure{409, "idempotency_conflict"};
+            throw Failure{ErrorCode::idempotency_conflict};
         default:
-            throw Failure{503, "media_unavailable"};
+            throw Failure{ErrorCode::media_service_unavailable};
         }
         if (!db.exec("UPDATE bacuri_media_sessions.media_sessions SET live_negotiated=true WHERE id=$1 AND NOT "
                      "live_negotiated AND NOT "
                      "closed AND expires_at>clock_timestamp() RETURNING id",
                      {id})
                  .size()) {
-            throw Failure{410, "media_session_closed"};
+            throw Failure{ErrorCode::media_session_closed};
         }
         res.result(http::status::ok);
         res.set(http::field::content_type, "application/sdp");
@@ -580,11 +587,11 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
         return;
     }
     if (!operation.starts_with("parts/") || !canonical_id(operation.substr(6))) {
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     }
     auto part = recordings::playback_part(db, id, std::string{operation.substr(6)});
     if (!part) {
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     }
     v1::ReadPartRequest q;
     *q.mutable_scope() = scope(session, Window{part->begin, part->end});
@@ -606,11 +613,11 @@ void Playback::alert_archive(const Request& req, Response& res, const std::strin
     auto who = sessions_.authenticate(db, req, false);
     auto anchor = events::archive_anchor(db, site, id);
     if (!anchor)
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     const auto& point = anchor->point;
     auto role = access::role_for_existing_point(db, site, point, who.user);
     if (!access::allowed(db, site, who.user, point, "view", "archive"))
-        throw Failure{404, "not_found"};
+        throw Failure{ErrorCode::not_found};
     recordings::require_available(db, site);
     const auto time = anchor->time;
     Json link{{"point_id", point}, {"state", "uncertain_time"}, {"archive_interval", alert_window(time).json()}};

@@ -52,7 +52,7 @@ Json session_body(Database& db, const Key& key, const Identity& identity)
 void check_origin(const Request& request, const std::string& origin)
 {
     if (request.count(http::field::origin) != 1 || request[http::field::origin] != origin) {
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     }
 }
 
@@ -65,7 +65,7 @@ Identity Sessions::authenticate(Database& db, const Request& request, bool mutat
 {
     auto value = cookie(request);
     if (value.empty()) {
-        throw Failure{401, "unauthenticated"};
+        throw Failure{ErrorCode::unauthenticated};
     }
     const auto rows =
         db.exec(activity ? "UPDATE bacuri_access.browser_sessions SET last_active=now() WHERE token_hash=$1 AND "
@@ -78,16 +78,16 @@ Identity Sessions::authenticate(Database& db, const Request& request, bool mutat
                            "last_active>now()-interval '30 minutes'",
                 {fingerprint(key_, "session", value)});
     if (!rows.size()) {
-        throw Failure{401, "unauthenticated"};
+        throw Failure{ErrorCode::unauthenticated};
     }
     const std::string_view target{request.target()};
     constexpr std::string_view sites = "/api/v1/sites/";
     if (!rows.get(0, 1).empty() && target.starts_with(sites) && target.substr(sites.size(), 36) != rows.get(0, 1))
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     if (mutation) {
         check_origin(request, origin_);
         if (request.count("X-CSRF-Token") != 1 || request["X-CSRF-Token"] != fingerprint(key_, "csrf", value)) {
-            throw Failure{403, "forbidden"};
+            throw Failure{ErrorCode::forbidden};
         }
     }
     return {rows.get(0), std::move(value)};
@@ -109,16 +109,16 @@ void Sessions::login(const Request& request, Response& response, const std::stri
                                   {peer});
     if (std::stoi(attempts.get(0)) > 12) {
         response.set("Retry-After", "60");
-        throw Failure{429, "rate_limited"};
+        throw Failure{ErrorCode::rate_limited};
     }
     db.exec("BEGIN");
     auto user = db.exec("SELECT user_id,password_hash FROM bacuri_access.local_users WHERE username=$1 FOR UPDATE",
                         {username});
     if (!password_matches(user.size() ? user.get(0, 1) : dummy_hash_, password) || !user.size()) {
-        throw Failure{401, "invalid_credentials"};
+        throw Failure{ErrorCode::invalid_credentials};
     }
     if (!db.exec("SELECT FROM bacuri_access.site_roles WHERE user_id=$1 AND enabled", {user.get(0)}).size())
-        throw Failure{401, "invalid_credentials"};
+        throw Failure{ErrorCode::invalid_credentials};
     if (db.exec("SELECT FROM bacuri_access.site_roles WHERE user_id=$1 AND enabled AND role='administrator'",
                 {user.get(0)})
             .size()) {
@@ -196,7 +196,7 @@ void Sessions::handle(const Request& request, Response& response, const std::str
     }
     default:
         response.set(http::field::allow, "GET, POST, DELETE");
-        throw Failure{405, "invalid_request"};
+        throw Failure{ErrorCode::method_not_allowed};
     }
 }
 void Sessions::logout(const Request& request, Response& response) const
@@ -216,7 +216,7 @@ void Sessions::logout(const Request& request, Response& response) const
             db.exec("DELETE FROM bacuri_access.browser_sessions WHERE token_hash=$1",
                     {fingerprint(key_, "session", identity.cookie)});
         } catch (const Failure& error) {
-            if (error.status != 401) {
+            if (error.status() != 401) {
                 throw;
             }
         }

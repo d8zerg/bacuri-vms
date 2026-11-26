@@ -3,11 +3,18 @@
 #include <libpq-fe.h>
 #include <initializer_list>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace bacuri::vms::control
 {
+
+class DatabaseUnavailable : public std::runtime_error
+{
+  public:
+    using std::runtime_error::runtime_error;
+};
 
 class Rows
 {

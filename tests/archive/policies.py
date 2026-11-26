@@ -193,6 +193,10 @@ def run():
         assert api("GET", "recording-policies", admin)["effective"][point]["id"] == group_policy
         c.query(f"INSERT INTO bacuri_archive.archive_recovery VALUES('{c.SITE}','verifying')")
         put(point_policy, "point", point, "0", rule)
+        changes = api("POST", "alert-audit/search", admin, {"query": point_policy})["items"]
+        assert [(e["reason"], e["details"]) for e in changes] == [
+            ("policy_saved", {"policy": point_policy, "revision": "1"})
+        ], changes
         wait(
             lambda: applied(point, point_policy, "1"),
             "new recording policy remains available during archive verification",

@@ -1,4 +1,5 @@
 #include "control/events/video_rules.hpp"
+#include "platform/rpc_status.hpp"
 #include "control/events/observations.hpp"
 #include "control/recordings/archive_catalog.hpp"
 #include "archive/analysis.hpp"
@@ -44,13 +45,13 @@ grpc::Status ArchiveCatalog::ReportMotion(grpc::ServerContext*, const v1::Submit
                                           v1::RegistrationResult* out)
 {
     if (q->site_id() != owner_.site || q->source_id() != owner_.node || q->type() != "motion" || !q->has_binding())
-        return {grpc::StatusCode::PERMISSION_DENIED, "Different detector assignment"};
+        return platform::rpc_status(ErrorCode::assignment_mismatch);
     return store_observation(*q, *out, 0, true);
 }
 grpc::Status ArchiveCatalog::NextIndex(grpc::ServerContext*, const v1::RetentionQuery* q, v1::IndexJob* out)
 {
     if (q->site_id() != owner_.site || q->recording_node_id() != owner_.node)
-        return {grpc::StatusCode::PERMISSION_DENIED, "Different archive assignment"};
+        return platform::rpc_status(ErrorCode::assignment_mismatch);
     try {
         Database db;
         auto row = db.exec(R"sql(WITH job AS (
@@ -70,7 +71,7 @@ grpc::Status ArchiveCatalog::NextIndex(grpc::ServerContext*, const v1::Retention
             out->set_manifest(row.get(0));
         return grpc::Status::OK;
     } catch (const std::exception&) {
-        return {grpc::StatusCode::UNAVAILABLE, "Motion catalog unavailable"};
+        return platform::rpc_status(ErrorCode::dependency_unavailable);
     }
 }
 grpc::Status ArchiveCatalog::CommitIndex(grpc::ServerContext*, const v1::IndexResult* q, google::protobuf::Empty*)
@@ -79,7 +80,7 @@ grpc::Status ArchiveCatalog::CommitIndex(grpc::ServerContext*, const v1::IndexRe
         auto m = archive::Json::parse(q->manifest());
         archive::validate_manifest(m);
         if (m.at("site_id") != owner_.site || m.at("recording_node_id") != owner_.node)
-            return {grpc::StatusCode::PERMISSION_DENIED, "Different archive assignment"};
+            return platform::rpc_status(ErrorCode::assignment_mismatch);
         auto index = archive::Json::parse(q->analysis());
         archive::validate_analysis(index, m.at("end_utc_us").get<std::int64_t>() -
                                               m.at("begin_utc_us").get<std::int64_t>());
@@ -94,7 +95,7 @@ grpc::Status ArchiveCatalog::CommitIndex(grpc::ServerContext*, const v1::IndexRe
              q->manifest(), q->analysis()});
         return grpc::Status::OK;
     } catch (const std::exception&) {
-        return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid motion index"};
+        return platform::rpc_status(ErrorCode::invalid_request);
     }
 }
 
@@ -102,7 +103,7 @@ grpc::Status ArchiveCatalog::AdvanceRetention(grpc::ServerContext*, const v1::Re
                                               v1::RetentionPolicy* result)
 {
     if (q->site_id() != owner_.site || q->recording_node_id() != owner_.node)
-        return {grpc::StatusCode::PERMISSION_DENIED, "Different archive assignment"};
+        return platform::rpc_status(ErrorCode::assignment_mismatch);
     try {
         Database db;
         db.exec("BEGIN");
@@ -116,7 +117,7 @@ grpc::Status ArchiveCatalog::AdvanceRetention(grpc::ServerContext*, const v1::Re
             "h.expires_us>bacuri_archive.retention_now_us()",
             {owner_.site});
         if (protected_ids.size() && !q->supports_holds())
-            return {grpc::StatusCode::FAILED_PRECONDITION, "Archive protection requires recorder support"};
+            return platform::rpc_status(ErrorCode::recorder_feature_unavailable);
         for (const auto& id : protected_ids.column())
             result->add_protected_blocks(id);
         for (const auto& point : events::detector_points(db, owner_.site))
@@ -152,7 +153,7 @@ grpc::Status ArchiveCatalog::AdvanceRetention(grpc::ServerContext*, const v1::Re
         result->set_cutoff_us(cutoff);
         return grpc::Status::OK;
     } catch (const std::exception&) {
-        return {grpc::StatusCode::UNAVAILABLE, "Retention catalog unavailable"};
+        return platform::rpc_status(ErrorCode::dependency_unavailable);
     }
 }
 grpc::Status ArchiveCatalog::RegisterBlock(grpc::ServerContext*, const v1::RegisterBlockRequest* request,
@@ -167,10 +168,10 @@ grpc::Status ArchiveCatalog::RegisterBlock(grpc::ServerContext*, const v1::Regis
         m = archive::Json::parse(request->manifest_json());
         archive::validate_manifest(m);
     } catch (const std::exception&) {
-        return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid archive manifest"};
+        return platform::rpc_status(ErrorCode::invalid_request);
     }
     if (m.at("site_id") != owner_.site || m.at("recording_node_id") != owner_.node) {
-        return {grpc::StatusCode::PERMISSION_DENIED, "Different archive assignment"};
+        return platform::rpc_status(ErrorCode::assignment_mismatch);
     }
     try {
         Database db;
@@ -189,7 +190,7 @@ grpc::Status ArchiveCatalog::RegisterBlock(grpc::ServerContext*, const v1::Regis
         if (!inserted) {
             auto prior = db.exec(archive::sql::read_block, {owner_.site, id, epoch, generation});
             if (archive::Json::parse(prior.get(0)) != m) {
-                return {grpc::StatusCode::ALREADY_EXISTS, "Block identity has different content"};
+                return platform::rpc_status(ErrorCode::idempotency_conflict);
             }
         }
         const auto reason = request->availability() == v1::BLOCK_AVAILABILITY_MISSING   ? "missing"
@@ -206,18 +207,18 @@ grpc::Status ArchiveCatalog::RegisterBlock(grpc::ServerContext*, const v1::Regis
         result->set_state(inserted ? v1::REGISTRATION_STATE_COMMITTED : v1::REGISTRATION_STATE_REPLAYED);
         return grpc::Status::OK;
     } catch (const std::exception&) {
-        return {grpc::StatusCode::UNAVAILABLE, "Archive catalog unavailable"};
+        return platform::rpc_status(ErrorCode::dependency_unavailable);
     }
 }
 grpc::Status ArchiveCatalog::RegisterGap(grpc::ServerContext*, const v1::RegisterGapRequest* q,
                                          v1::RegistrationResult* result)
 {
     if (q->point().site_id() != owner_.site || q->recording_node_id() != owner_.node) {
-        return {grpc::StatusCode::PERMISSION_DENIED, "Different archive assignment"};
+        return platform::rpc_status(ErrorCode::assignment_mismatch);
     }
     if (!canonical_id(q->point().point_id()) || q->binding_revision() < 1 ||
         q->interval().begin_us() >= q->interval().end_us() || !domain::parse_gap_reason(q->reason())) {
-        return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid gap"};
+        return platform::rpc_status(ErrorCode::invalid_request);
     }
     try {
         Database db;
@@ -235,7 +236,7 @@ grpc::Status ArchiveCatalog::RegisterGap(grpc::ServerContext*, const v1::Registe
         result->set_state(rows.size() ? v1::REGISTRATION_STATE_COMMITTED : v1::REGISTRATION_STATE_REPLAYED);
         return grpc::Status::OK;
     } catch (const std::exception&) {
-        return {grpc::StatusCode::UNAVAILABLE, "Gap catalog unavailable"};
+        return platform::rpc_status(ErrorCode::dependency_unavailable);
     }
 }
 } // namespace bacuri::vms::control

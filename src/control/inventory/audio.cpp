@@ -4,6 +4,7 @@
 #include "control/recordings/operations.hpp"
 #include "control/recordings/policies.hpp"
 #include "media/lease.hpp"
+#include "platform/rpc_status.hpp"
 #include <sodium.h>
 
 namespace bacuri::vms::control
@@ -16,16 +17,16 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
     const bool archive = mode == "archive", talk = mode == "talk" || mode == "mute",
                record = mode == "record" || mode == "record_stop";
     if (!archive && !talk && !record && mode != "listen")
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     const auto device = string_field(body, "device_id", 36);
     if (!canonical_id(device))
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     if (body.contains("at_us") &&
         (!body["at_us"].is_number_integer() || body["at_us"] < 0 || body["at_us"] > 9007199254740991LL))
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     auto at = body.value("at_us", std::int64_t{});
     if (archive && !at)
-        throw Failure{400, "invalid_request"};
+        throw Failure{ErrorCode::invalid_request};
     Database db;
     db.exec("BEGIN");
     access::lock_policy(db, site, true);
@@ -35,15 +36,15 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
     const std::string surface = archive ? "archive" : "live";
     const bool stopping = mode == "mute" || mode == "record_stop";
     if (!stopping && !access::allowed(db, site, user.user, point, "view", surface, begin, end))
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     if (!stopping && !access::allowed(db, site, user.user, point,
                                       talk     ? "audio_talk"
                                       : record ? "audio_record"
                                                : "audio",
                                       surface, begin, end))
-        throw Failure{403, "forbidden"};
+        throw Failure{ErrorCode::forbidden};
     if (mode == "record" && recordings::recording_plan(db, site).contains(point))
-        throw Failure{409, "recording_policy_managed"};
+        throw Failure{ErrorCode::recording_policy_managed};
     v1::AudioRequest q;
     q.set_operator_id(user.user);
     q.set_site_id(site);
@@ -77,7 +78,7 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
             break;
         }
         if (q.block_id().empty())
-            throw Failure{404, "camera_audio_missing"};
+            throw Failure{ErrorCode::camera_audio_missing};
     } else {
         auto row = db.exec(
             "SELECT cfg.settings#>>'{onvif_control,audio_input}',cfg.settings#>>'{onvif_control,audio_output}' "
@@ -88,16 +89,16 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
             "WHERE r.site_id=$1 AND r.point_id=$2 AND r.device_id=$3 FOR NO KEY UPDATE OF r",
             {site, point, device});
         if (!row.size())
-            throw Failure{409, "camera_binding_conflict"};
+            throw Failure{ErrorCode::camera_binding_conflict};
         if (row.get(0, talk ? 1 : 0) != "true")
-            throw Failure{422, "camera_audio_unsupported"};
+            throw Failure{ErrorCode::camera_audio_unsupported};
         q.set_mode(talk ? v1::AudioRequest::TALK : record ? v1::AudioRequest::RECORD : v1::AudioRequest::LISTEN);
         if (mode == "record_stop")
             q.set_mode(v1::AudioRequest::RECORD_STOP);
         if (talk) {
             const auto session = string_field(body, "session", 36);
             if (!canonical_id(session))
-                throw Failure{400, "invalid_request"};
+                throw Failure{ErrorCode::invalid_request};
             q.set_talk_session_id(session);
             Database journal;
             if (mode == "mute") {
@@ -107,7 +108,7 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
                                "WHERE site_id=$1 AND device_id=$2 AND session_id=$3 AND user_id=$4 RETURNING 1",
                                {site, device, session, user.user})
                          .size())
-                    throw Failure{409, "camera_ptz_busy"};
+                    throw Failure{ErrorCode::camera_ptz_busy};
                 q.set_mode(v1::AudioRequest::MUTE);
             } else {
                 const auto encoded = string_field(body, "pcm", 11000);
@@ -118,7 +119,7 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
                                       sodium_base64_VARIANT_ORIGINAL) != 0 ||
                     !bytes || bytes % 320 != 0 || !body.contains("sequence") ||
                     !body["sequence"].is_number_unsigned() || body["sequence"] > 65535)
-                    throw Failure{400, "invalid_request"};
+                    throw Failure{ErrorCode::invalid_request};
                 pcm.resize(bytes);
                 q.set_pcm(std::move(pcm));
                 auto seq = body["sequence"].get<int>();
@@ -127,7 +128,7 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
                                       "device_id=$2 AND session_id=$3",
                                       {site, device, session})
                                 .size())
-                    throw Failure{409, "camera_ptz_busy"};
+                    throw Failure{ErrorCode::camera_ptz_busy};
                 auto acquired = journal.exec(R"sql(
                     INSERT INTO bacuri_inventory.camera_talk_sessions AS current VALUES($1,$2,$3,$4,$5,clock_timestamp()+interval '3 seconds',clock_timestamp()+interval '30 seconds')
                     ON CONFLICT(site_id,device_id) DO UPDATE SET user_id=excluded.user_id,session_id=excluded.session_id,
@@ -142,7 +143,7 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
                                              {site, device, user.user, session, std::to_string(seq),
                                               role == "administrator" ? "true" : "false"});
                 if (!acquired.size() || acquired.get(0) == "0")
-                    throw Failure{409, "camera_ptz_busy"};
+                    throw Failure{ErrorCode::camera_ptz_busy};
                 q.set_talk_ttl_ms(static_cast<std::uint32_t>(std::stoul(acquired.get(0))));
             }
         }
@@ -152,10 +153,13 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
     context.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds{3});
     v1::AudioChunk chunk;
     auto status = recorder->ExchangeAudio(&context, q, &chunk);
-    if (!status.ok())
-        throw Failure{status.error_code() == grpc::StatusCode::FAILED_PRECONDITION ? 409 : 502,
-                      status.error_code() == grpc::StatusCode::FAILED_PRECONDITION ? "camera_binding_conflict"
-                                                                                   : "camera_audio_unavailable"};
+    if (!status.ok()) {
+        if (const auto cause = platform::rpc_problem(status))
+            throw Failure{*cause};
+        throw Failure{status.error_code() == grpc::StatusCode::FAILED_PRECONDITION
+                          ? ErrorCode::camera_binding_conflict
+                          : ErrorCode::camera_audio_unavailable};
+    }
     db.exec("COMMIT");
     Json reply = Json::object();
     if (!chunk.pcm().empty()) {

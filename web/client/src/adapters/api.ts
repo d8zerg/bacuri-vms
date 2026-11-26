@@ -12,6 +12,17 @@ export class HttpFailure extends Error {
   ) {
     super(String(status));
   }
+  static async fromResponse(response: Response) {
+    const problem: unknown = await response.json().catch(() => null);
+    const code =
+      problem && typeof problem === "object" && "code" in problem
+        ? problem.code
+        : undefined;
+    return new HttpFailure(
+      response.status,
+      typeof code === "string" ? code : "",
+    );
+  }
 }
 export function data<T>(result: {
   data?: T;

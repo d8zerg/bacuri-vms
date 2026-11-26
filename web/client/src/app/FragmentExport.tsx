@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ExportOptions, Interval, Services } from "../contracts/workspace";
 import "./fragment-export.css";
-import { HttpFailure } from "../adapters/api";
+import { describeError } from "../adapters/errors";
 import { Button, TextField } from "../ui-kit/FormControls";
 import { useT } from "../i18n";
 
@@ -62,18 +62,15 @@ export default function FragmentExport({
       );
       if (!ctl.signal.aborted) setUrl(URL.createObjectURL(file));
     } catch (cause) {
-      const status = cause instanceof HttpFailure ? cause.status : 0;
       if (!ctl.signal.aborted)
         setError(
-          status === 403
-            ? t("export.forbidden")
-            : status === 400
-              ? t("export.badInterval")
-              : status === 409
-                ? t("export.ambiguous")
-                : status === 413
-                  ? t("export.tooLarge")
-                  : t("export.failed"),
+          describeError(cause, {
+            forbidden: "export.forbidden",
+            invalid_request: "export.badInterval",
+            media_unavailable: "export.ambiguous",
+            export_too_large: "export.tooLarge",
+            internal_error: "export.failed",
+          }),
         );
     } finally {
       controller.current = null;
