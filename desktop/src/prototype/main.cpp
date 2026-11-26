@@ -8,6 +8,8 @@
 
 #include <QCommandLineParser>
 #include <QFile>
+#include <QFileInfo>
+#include <QUrl>
 #include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -52,6 +54,23 @@ double cpu_seconds()
         return static_cast<double>(value.tv_sec) + static_cast<double>(value.tv_usec) / 1e6;
     };
     return seconds(usage.ru_utime) + seconds(usage.ru_stime);
+}
+
+QJsonObject to_json(const Distribution& value);
+
+// Render count and render time of the map, or null without a map.
+QJsonValue map_report(QQuickWindow* window)
+{
+    auto* map = find_item(window->contentItem(), QStringLiteral("map"));
+    if (map == nullptr)
+        return QJsonValue::Null;
+    QVariantMap statistics;
+    QMetaObject::invokeMethod(map, "statistics", Q_RETURN_ARG(QVariantMap, statistics));
+    std::vector<double> renders;
+    for (const auto& value : statistics.value("render_ms").toList())
+        renders.push_back(value.toDouble());
+    return QJsonObject{{"renders", static_cast<qint64>(renders.size())},
+                       {"render_ms", to_json(distribution(renders))}};
 }
 
 QJsonObject to_json(const Distribution& value)
@@ -112,12 +131,16 @@ int main(int argc, char* argv[])
     parser.addOptions({
         {"source", "MP4 file or rtsp:// address.", "source"},
         {"codec", "h264 or h265.", "codec", "h264"},
-        {"decoder", "hardware or software.", "decoder", "hardware"},
+        {"decoder", "auto, hardware or software.", "decoder", "auto"},
+        {"fault-decoder-at", "Seconds after the start to report a hardware decoder failure, -1 to skip.",
+         "seconds", "-1"},
         {"cells", "Number of cells showing the source.", "cells", "1"},
         {"seconds", "Duration of the run.", "seconds", "20"},
         {"warmup", "Seconds before the frame time is measured.", "warmup", "3"},
         {"seek-frame", "Frame to seek to in the middle of the run, -1 to skip.", "frame", "-1"},
+        {"map", "MapLibre style shown next to the grid.", "style"},
         {"report", "Path of the JSON report.", "report"},
+        {"screenshot", "Path of a PNG capture of the window taken before the end.", "path"},
     });
     parser.process(application);
     const auto cell_count = parser.value("cells").toInt();
@@ -130,14 +153,19 @@ int main(int argc, char* argv[])
 
     std::vector<std::unique_ptr<VideoCell>> cells;
     for (int index = 0; index < cell_count; ++index) {
-        cells.push_back(
-            std::make_unique<VideoCell>(index, CellOptions{parser.value("source"), parser.value("codec"),
-                                                           parser.value("decoder") == "hardware"}));
+        const auto choice = parser.value("decoder") == "hardware"   ? DecoderChoice::hardware
+                            : parser.value("decoder") == "software" ? DecoderChoice::software
+                                                                    : DecoderChoice::automatic;
+        cells.push_back(std::make_unique<VideoCell>(
+            index, CellOptions{parser.value("source"), parser.value("codec"), choice}));
         cells.back()->create();
     }
 
     QQmlApplicationEngine engine;
-    engine.setInitialProperties({{"cellCount", cell_count}});
+    const auto map_style = parser.isSet("map")
+                               ? QUrl::fromLocalFile(QFileInfo{parser.value("map")}.absoluteFilePath()).toString()
+                               : QString{};
+    engine.setInitialProperties({{"cellCount", cell_count}, {"mapStyle", map_style}});
     engine.loadFromModule("Bacuri.Prototype", "Main");
     if (engine.rootObjects().isEmpty())
         return 1;
@@ -165,6 +193,17 @@ int main(int argc, char* argv[])
                 cell->seek_to_frame(seek_frame);
         });
     }
+    const auto fault_at = parser.value("fault-decoder-at").toInt();
+    if (fault_at >= 0) {
+        QTimer::singleShot(std::chrono::seconds{fault_at}, window, [&cells] {
+            for (auto& cell : cells)
+                cell->inject_decoder_fault();
+        });
+    }
+    if (parser.isSet("screenshot")) {
+        QTimer::singleShot(std::chrono::milliseconds{seconds * 1000 - 1500}, window,
+                           [window, path = parser.value("screenshot")] { window->grabWindow().save(path); });
+    }
     int status = 0;
     QTimer::singleShot(std::chrono::seconds{seconds}, window, [&] {
         const auto wall = std::chrono::duration<double>(Clock::now() - started).count();
@@ -187,6 +226,7 @@ int main(int argc, char* argv[])
                 {"render_ms", to_json(distribution(times.render))},
                 {"cpu_percent_of_one_core", (cpu_seconds() - cpu_start) / wall * 100.0},
                 {"cells_report", reports},
+                {"map", map_report(window)},
             };
         }
         const auto json = QJsonDocument(report).toJson();

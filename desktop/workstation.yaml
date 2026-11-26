@@ -26,8 +26,12 @@ build:
   qt: 6.8.2
   gstreamer: 1.26.2
   sdl: 3.2.10
+  maplibre: MapLibre Native for Qt 3.0.0 core, built from source without the Qt Location integration
   compilers: [GCC 14, Clang 19]
   gpu_runtime: NVIDIA Container Toolkit with graphics, video, compute and utility capabilities
+  services:
+    desktop-gpu: The stand display and the GPU, hardware OpenGL and NVDEC
+    desktop-cpu: The stand display without the GPU, Mesa llvmpipe and software decoding
 
 stations:
   stand:
@@ -81,6 +85,12 @@ media:
       h264-1080p25.mp4: H.264 High, 1920x1080, 25 fps, keyframe every 50 frames, 60 s, fragmented MP4
       h265-1080p25.mp4: H.265 Main 8-bit, 1920x1080, 25 fps, keyframe every 50 frames, 60 s, fragmented MP4
     marks: Every frame shows its number from zero at the top left and its buffer time at the bottom right
+  test_map:
+    tool: tools/desktop_map_fixture.py
+    location: build/desktop/map/monaco
+    source: Monaco extract of OpenStreetMap from Geofabrik, SHA-256 and replication time in metadata.json
+    tiles: Raster PNG tiles of zoom 12 to 17 in the dark palette of the operator workspace with a MapLibre style
+    license: Data (c) OpenStreetMap contributors, Open Database License
   stand_camera:
     source: Synthetic RTSP camera of the Compose stand
     profiles:

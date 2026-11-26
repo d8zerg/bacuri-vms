@@ -122,7 +122,7 @@ RUN dpkg -i /tmp/conan.deb && rm /tmp/conan.deb && conan --version
 ENV XDG_CACHE_HOME=/tmp/bacuri-vms-cache
 WORKDIR /workspace
 
-FROM toolchain AS desktop
+FROM toolchain AS desktop-base
 RUN apt-get -o Acquire::Retries=3 update \
     && apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
         gstreamer1.0-gl \
@@ -150,6 +150,40 @@ RUN apt-get -o Acquire::Retries=3 update \
     && rm -rf /var/lib/apt/lists/*
 ENV LANG=C.UTF-8
 WORKDIR /workspace
+
+# MapLibre Native for Qt is not packaged in Debian. Its core library is built from the pinned
+# release commit with its submodules and installed into /opt/maplibre-native-qt. The Qt Location
+# integration needs private Qt Location headers that Debian does not ship, so the client draws
+# the map with its own Qt Quick item on top of the core library. The core and MapLibre Native are
+# BSD-2-Clause, the LGPL and GPL sources of the Qt Location integration are not built.
+FROM desktop-base AS maplibre-qt
+ARG MAPLIBRE_QT_TAG=v3.0.0
+ARG MAPLIBRE_QT_COMMIT=d929c783737120787b43417d9ef05da88da75dfd
+RUN apt-get -o Acquire::Retries=3 update \
+    && apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+        libicu-dev qt6-base-private-dev qt6-declarative-private-dev zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch "$MAPLIBRE_QT_TAG" --recurse-submodules --shallow-submodules \
+        https://github.com/maplibre/maplibre-native-qt.git /src/maplibre-native-qt \
+    && test "$(git -C /src/maplibre-native-qt rev-parse HEAD)" = "$MAPLIBRE_QT_COMMIT"
+# The library tests need the widgets module, which the client does not build.
+RUN sed -i '/^add_subdirectory(test)$/d' /src/maplibre-native-qt/CMakeLists.txt \
+    && cmake -S /src/maplibre-native-qt -B /tmp/maplibre-build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc-14 -DCMAKE_CXX_COMPILER=g++-14 \
+        -DCMAKE_INSTALL_PREFIX=/opt/maplibre-native-qt -DMLN_QT_WITH_LOCATION=OFF -DMLN_QT_WITH_WIDGETS=OFF \
+    && cmake --build /tmp/maplibre-build \
+    && cmake --install /tmp/maplibre-build \
+    && cp -r /src/maplibre-native-qt/LICENSES /opt/maplibre-native-qt/LICENSES \
+    && rm -rf /tmp/maplibre-build
+
+FROM desktop-base AS desktop
+RUN apt-get -o Acquire::Retries=3 update \
+    && apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+        libicu76 libqt6sql6-sqlite osmium-tool python3-pil python3-pyosmium \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=maplibre-qt /opt/maplibre-native-qt /opt/maplibre-native-qt
+ENV QMapLibre_DIR=/opt/maplibre-native-qt \
+    LD_LIBRARY_PATH=/opt/maplibre-native-qt/lib
 
 FROM node:24-trixie-slim@sha256:af02d57b57719b9657a45199a79264a9437940cd55b3c7b3fc99615654f124a0 AS api-types
 WORKDIR /opt/bacuri-api-tools

@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "build/desktop/reports/video"
 PROTOTYPE = "build/desktop/gcc/bacuri-desktop-prototype"
 REFERENCE = "build/desktop/reference"
+MAP = "build/desktop/map/monaco/style.json"
 SEEK_FRAME = 537  # Not a keyframe: the decoder starts from frame 500.
 
 
@@ -41,13 +42,13 @@ def sample_gpu(stop: threading.Event, samples: list[dict]) -> None:
         stop.wait(0.5)
 
 
-def run(name: str, arguments: list[str], seconds: int, environment: dict[str, str]) -> dict:
+def run(name: str, arguments: list[str], seconds: int, environment: dict[str, str], service: str = "desktop-gpu") -> dict:
     report = OUTPUT / f"{name}.json"
     report.unlink(missing_ok=True)
     command = ["docker", "compose", "run", "--rm", "--no-deps", "-T", "--user", f"{os.getuid()}:{os.getgid()}"]
     for key in environment:
         command += ["-e", key]
-    command += ["desktop-gpu", PROTOTYPE, *arguments, "--seconds", str(seconds),
+    command += [service, PROTOTYPE, *arguments, "--seconds", str(seconds),
                 "--report", str(report.relative_to(ROOT))]
     samples: list[dict] = []
     stop = threading.Event()
@@ -66,6 +67,8 @@ def run(name: str, arguments: list[str], seconds: int, environment: dict[str, st
     result["nvdec_percent"] = round(statistics.mean(sample["decoder"] for sample in steady), 1) if steady else None
     result["gpu_memory_mib"] = max((sample["memory_mib"] for sample in steady), default=None)
     result["name"] = name
+    # Addresses of live sources may name internal equipment and stay out of the reports.
+    result["arguments"] = " ".join("rtsp" if value.startswith("rtsp://") else value for value in arguments)
     report.write_text(json.dumps(result, indent=2))
     return result
 
@@ -84,6 +87,14 @@ def verdict(result: dict, reference: bool, seek: bool) -> list[str]:
         if seek and cell.get("seek_frame") != cell.get("seek_target"):
             problems.append(f"cell {cell['cell']}: frame {cell.get('seek_frame')} after the seek instead of "
                             f"{cell.get('seek_target')}")
+        fallback = cell.get("fallback")
+        if "--fault-decoder-at" in result.get("arguments", "") and not fallback:
+            problems.append(f"cell {cell['cell']}: no fallback after the decoder failure")
+        if fallback and fallback.get("first_frame_after") is not None and \
+                fallback.get("last_frame_before") is not None and \
+                fallback["first_frame_after"] - fallback["last_frame_before"] not in (0, 1):
+            problems.append(f"cell {cell['cell']}: resumed at frame {fallback['first_frame_after']} after "
+                            f"{fallback['last_frame_before']}")
         if result["decoder"] == "hardware" and cell.get("system_memory_copies_per_frame") != 0:
             problems.append(f"cell {cell['cell']}: decoder output in {cell.get('decoder_output')}")
     return problems
@@ -100,7 +111,23 @@ def summary_row(result: dict, problems: list[str]) -> str:
     return (f"| {result['name']} | {cells[0]['decoder']} | {cells[0]['system_memory_copies_per_frame']} | "
             f"{shown:.0f} | {max(first, default=0):.0f} | {max(seek, default=0):.0f} | "
             f"{ui['p50']:.1f} / {ui['p99']:.1f} | {result['cpu_percent_of_one_core']:.0f} | "
-            f"{result['gpu_percent']} / {result['nvdec_percent']} | {'ok' if not problems else '; '.join(problems)} |")
+            f"{result['gpu_percent']} / {result['nvdec_percent']} | {map_cost(result)}{fallback_note(cells)}"
+            f"{'ok' if not problems else '; '.join(problems)} |")
+
+
+def map_cost(result: dict) -> str:
+    if not result.get("map"):
+        return ""
+    return f"map render p50 {result['map']['render_ms']['p50']:.2f} ms, "
+
+
+def fallback_note(cells: list[dict]) -> str:
+    resumed = [cell["fallback"]["resumed_after_ms"] for cell in cells if "resumed_after_ms" in cell.get("fallback", {})]
+    if resumed:
+        return f"software after {max(resumed):.0f} ms, "
+    if any(cell.get("fallback") for cell in cells):
+        return "software from the start, "
+    return ""
 
 
 def main() -> int:
@@ -120,6 +147,15 @@ def main() -> int:
                 runs.append((f"reference-{codec}-{decoder}-{cells}",
                              ["--source", f"{REFERENCE}/{codec}-1080p25.mp4", "--codec", codec, "--decoder", decoder,
                               "--cells", str(cells), "--seek-frame", str(SEEK_FRAME)], {}, True, True))
+    # The map next to the grid, and the work without a GPU: a decoder failure during playback and a
+    # workstation without GPU access at all.
+    h264 = ["--source", f"{REFERENCE}/h264-1080p25.mp4", "--codec", "h264"]
+    if (ROOT / MAP).exists():
+        runs.append(("map-h264-hardware-16", [*h264, "--decoder", "hardware", "--cells", "16", "--map", MAP], {}, True, False))
+    runs.append(("fallback-h264-auto-4", [*h264, "--decoder", "auto", "--cells", "4", "--fault-decoder-at", "6"], {}, True,
+                 False))
+    runs.append(("cpu-h264-auto-4", [*h264, "--decoder", "auto", "--cells", "4", "--seek-frame", str(SEEK_FRAME)], {},
+                 True, True, "desktop-cpu"))
     if arguments.live:
         stand = subprocess.run(["docker", "compose", "ps", "--status", "running", "-q", "rtsp-camera"], cwd=ROOT,
                                capture_output=True, text=True).stdout.strip()
@@ -146,8 +182,8 @@ def main() -> int:
         runs = [entry for entry in runs if arguments.only in entry[0]]
     runs = [(f"{name}-{attempt}" if arguments.repeat > 1 else name, *rest)
             for name, *rest in runs for attempt in range(1, arguments.repeat + 1)]
-    for name, prototype_arguments, environment, reference, seek in runs:
-        result = run(name, prototype_arguments, arguments.seconds, environment)
+    for name, prototype_arguments, environment, reference, seek, *service in runs:
+        result = run(name, prototype_arguments, arguments.seconds, environment, *service)
         problems = verdict(result, reference, seek)
         failed |= bool(problems)
         rows.append(summary_row(result, problems))

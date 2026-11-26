@@ -202,6 +202,7 @@ For each mandatory requirement, record the scenario, the revision, the ADR, the 
 | [ADR-019. Data loading in the web client](adr/019-client-data-loading.md) | The UI Kit screen tests show loading, failure and refresh on the fixture. The end-to-end scenarios of the monitor, the maps, the access settings and the investigations read the same screens from the server |
 | [ADR-020. Error catalog and localized failure messages](adr/020-error-catalog.md) | `task api:check` compares the catalog with the Problem codes, the server sources, the client messages and the error reference. The client type check rejects a code without a message |
 | [ADR-021. Placement of video analytics](adr/021-video-analytics.md) | The labeled video set gives precision, recall and false alarms per camera-hour for each analyzer. A repeated analysis of the same archive gives the same observations. Stopping the service keeps recording and live video |
+| [ADR-022. Video and map path of the desktop client](adr/022-desktop-video-path.md) | `task desktop:video` checks the first frame, the frame after a seek and after the decoder fallback, the decoder output memory, the map next to 16 cells and a station without GPU access |
 
 ## Single web client acceptance
 

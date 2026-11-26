@@ -8,9 +8,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_compile_options(-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion)
 
 include(CTest)
-find_package(Qt6 6.8 REQUIRED COMPONENTS Gui Qml Quick)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Gui OpenGL Qml Quick)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GST REQUIRED IMPORTED_TARGET gstreamer-1.0>=1.26 gstreamer-video-1.0)
+find_package(QMapLibre 3.0 REQUIRED COMPONENTS Core)
 qt_standard_project_setup(REQUIRES 6.8)
 
 # Measurement helpers without Qt or GStreamer, tested on their own.
@@ -19,6 +20,7 @@ target_include_directories(bacuri-desktop-measure PUBLIC src)
 
 qt_add_executable(bacuri-desktop-prototype
     src/prototype/main.cpp
+    src/prototype/map_item.cpp
     src/prototype/video_cell.cpp
 )
 qt_add_qml_module(bacuri-desktop-prototype
@@ -28,8 +30,10 @@ qt_add_qml_module(bacuri-desktop-prototype
     NO_RESOURCE_TARGET_PATH
     NO_IMPORT_SCAN
 )
+# The QML type registration includes the headers of the module by their file names.
+target_include_directories(bacuri-desktop-prototype PRIVATE src/prototype)
 target_link_libraries(bacuri-desktop-prototype PRIVATE
-    bacuri-desktop-measure Qt6::Gui Qt6::Qml Qt6::Quick PkgConfig::GST)
+    bacuri-desktop-measure Qt6::Gui Qt6::OpenGL Qt6::Qml Qt6::Quick QMapLibre::Core PkgConfig::GST)
 
 if(BUILD_TESTING)
     find_package(GTest REQUIRED)

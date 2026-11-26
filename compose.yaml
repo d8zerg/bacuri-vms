@@ -115,13 +115,29 @@ services:
     image: ${COMPOSE_PROJECT_NAME}-desktop
     pull_policy: never
     gpus: all
-    environment:
+    environment: &desktop-display
       TMPDIR: /tmp/bacuri-tests
       XDG_RUNTIME_DIR: /tmp/bacuri-tests
       DISPLAY: ${DISPLAY:-:0}
       XAUTHORITY: /tmp/bacuri-xauthority
       QT_QPA_PLATFORM: xcb
       NVIDIA_DRIVER_CAPABILITIES: graphics,video,compute,utility
+    tmpfs:
+      - /tmp/bacuri-tests:size=2g,mode=1777
+    volumes:
+      - .:/workspace
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      - ${XAUTHORITY:-/dev/null}:/tmp/bacuri-xauthority:ro
+
+  # The same workstation without a GPU: software OpenGL through Mesa and software decoding.
+  desktop-cpu:
+    profiles: ["tools"]
+    image: ${COMPOSE_PROJECT_NAME}-desktop
+    pull_policy: never
+    environment:
+      <<: *desktop-display
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      GALLIUM_DRIVER: llvmpipe
     tmpfs:
       - /tmp/bacuri-tests:size=2g,mode=1777
     volumes:

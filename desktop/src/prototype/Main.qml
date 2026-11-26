@@ -1,14 +1,17 @@
 import QtQuick
 import QtQuick.Window
 import org.freedesktop.gstreamer.Qt6GLVideoItem
+import Bacuri.Prototype
 
 // Measurement window of the video prototype: a grid of video cells and a bar that moves
 // continuously, so the scene graph renders at the display rate and the frame time of the
-// interface is measured independently of the video frame rate.
+// interface is measured independently of the video frame rate. With a map style the map is
+// shown next to the grid and turns slowly, so it renders continuously beside the video.
 Window {
     id: root
 
     required property int cellCount
+    required property string mapStyle
     readonly property int columns: Math.ceil(Math.sqrt(cellCount))
     readonly property int rows: Math.ceil(cellCount / columns)
     readonly property int gap: 4
@@ -22,7 +25,10 @@ Window {
     Grid {
         id: grid
 
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: root.mapStyle === "" ? root.width - 16 : root.width * 0.66
         anchors.margins: 8
         anchors.bottomMargin: 28
         columns: root.columns
@@ -42,6 +48,32 @@ Window {
                     objectName: "video" + parent.index
                     anchors.fill: parent
                 }
+            }
+        }
+    }
+
+    Loader {
+        active: root.mapStyle !== ""
+        anchors.left: grid.right
+        anchors.leftMargin: 8
+        anchors.right: parent.right
+        anchors.rightMargin: 8
+        anchors.top: parent.top
+        anchors.topMargin: 8
+        anchors.bottom: grid.bottom
+
+        sourceComponent: MapItem {
+            objectName: "map"
+            styleUrl: root.mapStyle
+            latitude: 43.7375
+            longitude: 7.4225
+            zoom: 15.5
+
+            NumberAnimation on bearing {
+                from: 0
+                to: 360
+                duration: 60000
+                loops: Animation.Infinite
             }
         }
     }

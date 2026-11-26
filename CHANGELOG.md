@@ -4,7 +4,7 @@
 
 ### Added
 
-- A Qt Quick video prototype of the desktop client plays H.264 and H.265 in 1 to 16 cells with NVDEC or software decoding and reports the decoder output memory, the first frame and the frame after a seek, the interface frame time and the CPU and GPU load. `task desktop:video` runs the series on the stand with reference recordings and live cameras.
+- A Qt Quick video prototype of the desktop client plays H.264 and H.265 in 1 to 16 cells with NVDEC or software decoding next to a MapLibre map and reports the decoder output memory, the first frame and the frame after a seek, the interface frame time and the CPU and GPU load. A failed hardware decoder falls back to software decoding from the last shown frame, and a station without a GPU uses software decoding and drawing. `task desktop:video` runs the series on the stand with reference recordings, a Monaco test map and live cameras. [ADR-022](docs/adr/022-desktop-video-path.md)
 
 - The desktop workstation passport names the build image, the stand hardware, the media sources and the server profile. `task desktop:passport` compares it with the stand and the desktop image with the GPU, and `task desktop:reference` writes and verifies H.264 and H.265 reference recordings with a frame number in every frame. [Workstation passport](desktop/workstation.yaml)
 

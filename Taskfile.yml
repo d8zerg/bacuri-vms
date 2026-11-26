@@ -502,6 +502,11 @@ tasks:
     deps: [desktop:build]
     cmd: python3 tools/desktop_prototype.py {{.CLI_ARGS}}
 
+  desktop:map:
+    desc: Download the Monaco OpenStreetMap extract and render the raster test map of the desktop client
+    deps: [desktop:image]
+    cmd: '{{.COMPOSE_RUN}} -T desktop python3 tools/desktop_map_fixture.py'
+
   desktop:reference:
     desc: Write the H.264 and H.265 reference recordings with frame numbers to build/desktop/reference
     deps: [desktop:image]
