@@ -51,6 +51,8 @@ struct Pipeline {
         if (!pipeline)
             throw std::runtime_error("Cannot create export pipeline");
     }
+    Pipeline(const Pipeline&) = delete;
+    Pipeline& operator=(const Pipeline&) = delete;
     ~Pipeline()
     {
         gst_element_set_state(pipeline.get(), GST_STATE_NULL);

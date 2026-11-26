@@ -1,16 +1,18 @@
 #include "archive/delivery.hpp"
 #include "archive/analysis.hpp"
 #include "archive/mp4.hpp"
+#include "observability/metrics.hpp"
 #include <fcntl.h>
 #include <unistd.h>
 #include "control.grpc.pb.h"
+#include "platform/scope_exit.hpp"
 #include <grpcpp/grpcpp.h>
 #include <algorithm>
 #include <condition_variable>
 
 namespace bacuri::vms::archive
 {
-void index_blocks(std::stop_token stop, Volume& volume, const std::filesystem::path& root,
+void index_blocks(const std::stop_token& stop, Volume& volume, const std::filesystem::path& root,
                   const std::string& socket)
 {
     using namespace std::chrono_literals;
@@ -38,17 +40,14 @@ void index_blocks(std::stop_token stop, Volume& volume, const std::filesystem::p
                 auto m = Json::parse(job.manifest());
                 validate_manifest(m);
                 const auto input = root / "blocks" / m.at("block_id").get<std::string>() / "media.mp4";
-                struct Input {
-                    int fd;
-                    ~Input()
-                    {
-                        if (fd >= 0)
-                            close(fd);
-                    }
-                } handle{open(input.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)};
-                if (handle.fd < 0 || m.at("media").at("sha256") != digest_media(handle.fd).sha256)
+                const int fd = open(input.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK);
+                platform::ScopeExit close_input{[fd] {
+                    if (fd >= 0)
+                        close(fd);
+                }};
+                if (fd < 0 || m.at("media").at("sha256") != digest_media(fd).sha256)
                     throw std::runtime_error("Archive integrity failure");
-                auto index = analyze_recording(std::filesystem::path{"/proc/self/fd"} / std::to_string(handle.fd),
+                auto index = analyze_recording(std::filesystem::path{"/proc/self/fd"} / std::to_string(fd),
                                                m.at("end_utc_us").get<std::int64_t>() -
                                                    m.at("begin_utc_us").get<std::int64_t>());
                 v1::IndexResult data;
@@ -66,7 +65,44 @@ void index_blocks(std::stop_token stop, Volume& volume, const std::filesystem::p
         timer.wait_for(guard, stop, delay, [] { return false; });
     }
 }
-void deliver_blocks(std::stop_token stop, Volume& volume, const std::string& socket)
+void verify_blocks(const std::stop_token& stop, Volume& volume)
+{
+    using namespace std::chrono_literals;
+    using Clock = std::chrono::steady_clock;
+    // New blocks are verified when published, so an idle volume only waits for the next periodic check.
+    constexpr auto idle = 30s, failure_backoff = 5s;
+    std::condition_variable_any timer;
+    std::mutex mutex;
+    std::unique_lock guard{mutex};
+    auto eligible = Clock::now();
+    while (!stop.stop_requested()) {
+        auto wake = Clock::now() + idle;
+        try {
+            if (const auto result = volume.verify_next()) {
+                auto& metrics = observability::Registry::process();
+                metrics
+                    .counter({.name = "bacuri_archive_verified_bytes_total",
+                              .help = "Archive bytes read by integrity verification."})
+                    .increment(static_cast<double>(result->bytes_read));
+                metrics
+                    .counter({.name = "bacuri_archive_verified_blocks_total",
+                              .help = "Archive blocks verified by outcome."},
+                             {{"outcome", result->available ? "available" : "unavailable"}})
+                    .increment();
+                eligible = std::max(eligible, Clock::now()) +
+                           std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>{
+                               static_cast<double>(result->bytes_read) / verification_bytes_per_second});
+                wake = eligible;
+            }
+        } catch (const std::exception& error) {
+            std::fprintf(stderr, "archive verification deferred: %s\n", error.what());
+            wake = Clock::now() + failure_backoff;
+        }
+        timer.wait_until(guard, stop, wake, [] { return false; });
+    }
+}
+
+void deliver_blocks(const std::stop_token& stop, Volume& volume, const std::string& socket)
 {
     using namespace std::chrono_literals;
     auto catalog = v1::ArchiveCatalog::NewStub(

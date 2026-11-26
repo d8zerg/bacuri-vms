@@ -5,12 +5,23 @@
 #include <array>
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
 namespace bacuri::vms::domain
 {
+
+// Archive and export sound: mono signed 16-bit little-endian PCM at 8000 Hz.
+struct ArchiveSound {
+    static constexpr std::int64_t sample_rate = 8000;
+    static constexpr std::int64_t sample_period_us = 1'000'000 / sample_rate;
+    static constexpr std::int64_t bytes_per_sample = 2;
+    // Largest sound transfer between processes: one second.
+    static constexpr std::int64_t max_chunk_bytes = sample_rate * bytes_per_sample;
+};
 
 struct BlockKey {
     SiteId site;
@@ -65,8 +76,14 @@ enum class GapReason {
     source_offline,
     storage_failure,
     overload,
+    // The camera sent no keyframe within the block limits and the following frames were discarded.
+    keyframe_interval,
 };
+std::string_view name(GapReason) noexcept;
+std::optional<GapReason> parse_gap_reason(std::string_view) noexcept;
 
+// Identifiers have no default value, so the type is built only with all fields.
+// NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
 struct RecordingGap {
     BindingKey binding;
     UtcInterval interval;

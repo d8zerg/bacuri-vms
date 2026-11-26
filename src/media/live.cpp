@@ -1,9 +1,12 @@
 #include "media/live.hpp"
 #include "media/lease.hpp"
 #include "media/webrtc.hpp"
-#include "control/support.hpp"
+#include "platform/identifiers.hpp"
+#include "observability/metrics.hpp"
+#include "platform/scope_exit.hpp"
 #include <cstdio>
 #include <future>
+#include <utility>
 
 namespace bacuri::vms::media
 {
@@ -11,8 +14,19 @@ namespace
 {
 using namespace std::chrono_literals;
 using Result = std::pair<grpc::Status, std::string>;
-void run(std::stop_token stop, const v1::LiveOffer& offer, std::promise<Result> result)
+// Time from the start of negotiation to the first frame handed to the WebRTC connection.
+void first_frame(Clock::duration elapsed)
 {
+    observability::Registry::process()
+        .histogram({.name = "bacuri_live_first_frame_seconds",
+                    .help = "Time from a live offer to the first frame sent to the viewer."},
+                   observability::interaction_buckets)
+        .observe(elapsed);
+}
+
+void run(const std::stop_token& stop, const v1::LiveOffer& offer, std::promise<Result> result)
+{
+    const auto negotiated = Clock::now();
     bool answered = false;
     try {
         Lease lease{offer.scope()};
@@ -33,17 +47,11 @@ void run(std::stop_token stop, const v1::LiveOffer& offer, std::promise<Result> 
         std::atomic_bool ended{};
         std::atomic<Clock::time_point> authorized_until{};
         std::jthread source;
-        struct Shutdown {
-            WebRtcPeer& peer;
-            grpc::ClientContext& rpc;
-            Lease& lease;
-            ~Shutdown()
-            {
-                peer.stop();
-                rpc.TryCancel();
-                lease.close_live();
-            }
-        } shutdown{peer, source_context, lease};
+        platform::ScopeExit shutdown{[&] {
+            peer.stop();
+            source_context.TryCancel();
+            lease.close_live();
+        }};
 
         bool connected = false;
         while (!stop.stop_requested() && !ended) {
@@ -57,16 +65,19 @@ void run(std::stop_token stop, const v1::LiveOffer& offer, std::promise<Result> 
                 connected = true;
                 source = std::jthread{[&] {
                     try {
-                        auto stub = v1::PreviewSource::NewStub(local_channel("BACURI_PREVIEW_SOCKET"));
+                        auto stub = v1::PreviewSource::NewStub(dedicated_channel("BACURI_PREVIEW_SOCKET"));
                         v1::PreviewRequest request;
                         *request.mutable_point() = offer.scope().point();
                         request.set_main(video.main());
                         auto reader = stub->SubscribeProfile(&source_context, request);
                         v1::PreviewFrame frame;
+                        bool first = true;
                         while (reader->Read(&frame) && Clock::now() < authorized_until.load()) {
                             if (frame.codec() != source_codec)
                                 break;
                             peer.push(frame.access_unit(), frame.keyframe());
+                            if (std::exchange(first, false))
+                                first_frame(Clock::now() - negotiated);
                         }
                         source_context.TryCancel();
                         reader->Finish();
@@ -74,6 +85,7 @@ void run(std::stop_token stop, const v1::LiveOffer& offer, std::promise<Result> 
                         std::fputs("Preview stream interrupted\n", stderr);
                     }
                     ended = true;
+                    peer.notify();
                 }};
             }
             if (state == GST_WEBRTC_PEER_CONNECTION_STATE_FAILED ||
@@ -81,8 +93,8 @@ void run(std::stop_token stop, const v1::LiveOffer& offer, std::promise<Result> 
                 state == GST_WEBRTC_PEER_CONNECTION_STATE_DISCONNECTED) {
                 break;
             }
-            const auto next_check = std::min(valid, Clock::now() + 40ms);
-            std::this_thread::sleep_until(connected ? next_check : std::min(next_check, setup));
+            // Wakes on a connection change, the end of the source, the lease deadline or the setup deadline.
+            peer.wait(stop, connected ? valid : std::min(valid, setup));
         }
     } catch (const std::invalid_argument&) {
         if (!answered) {
@@ -98,7 +110,7 @@ void run(std::stop_token stop, const v1::LiveOffer& offer, std::promise<Result> 
 grpc::Status LiveDelivery::Negotiate(grpc::ServerContext* context, const v1::LiveOffer* offer,
                                      v1::LiveAnswer* answer)
 {
-    if (!offer->scope().has_live() || !control::canonical_id(offer->scope().media_session_id())) {
+    if (!offer->scope().has_live() || !platform::canonical_id(offer->scope().media_session_id())) {
         return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid live session"};
     }
     std::promise<Result> ready;
@@ -114,11 +126,11 @@ grpc::Status LiveDelivery::Negotiate(grpc::ServerContext* context, const v1::Liv
             return {grpc::StatusCode::RESOURCE_EXHAUSTED, "Live capacity reached"};
         }
         auto peer = std::make_unique<Peer>();
-        peer->worker = std::jthread{
-            [entry = peer.get(), request = *offer, result = std::move(ready)](std::stop_token stop) mutable {
-                run(stop, request, std::move(result));
-                entry->done = true;
-            }};
+        peer->worker = std::jthread{[entry = peer.get(), request = *offer,
+                                     result = std::move(ready)](const std::stop_token& stop) mutable {
+            run(stop, request, std::move(result));
+            entry->done = true;
+        }};
         peers_.emplace(std::move(id), std::move(peer));
     }
     if (future.wait_until(context->deadline()) != std::future_status::ready) {

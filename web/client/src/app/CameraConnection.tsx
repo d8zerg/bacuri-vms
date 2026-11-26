@@ -10,6 +10,7 @@ import { useCameraConnectionCheck } from "../workflows/useCameraConnectionCheck"
 import { Button } from "../ui-kit/FormControls";
 import { SessionPlayer } from "./media";
 import { cameraError } from "./cameraError";
+import { useT } from "../i18n";
 export default function Connection({
   services,
   site,
@@ -23,6 +24,7 @@ export default function Connection({
   connectionNotice: string;
   initial: CameraDraft;
 }) {
+  const t = useT();
   const [camera, setCamera] = useState<Camera | null>(null);
   const [phase, setPhase] = useState<
     | "idle"
@@ -154,7 +156,7 @@ export default function Connection({
       setAttempt((n) => n + 1);
     } catch {
       if (!ctl.signal.aborted)
-        setHistoryNotice("Предыдущая запись недоступна.");
+        setHistoryNotice(t("connect.previousUnavailable"));
     } finally {
       if (recording.current === ctl) recording.current = null;
     }
@@ -172,7 +174,7 @@ export default function Connection({
         <div ref={group}>
           {!online && <p role="status">{connectionNotice}</p>}
           {initial.replace_device_id && (
-            <p>Замена камеры точки «{initial.name}»</p>
+            <p>{t("connect.replace", { name: initial.name })}</p>
           )}
           <fieldset className="ws-form-fields" disabled={!online}>
             <CameraConnectionForm
@@ -182,13 +184,17 @@ export default function Connection({
                 reset();
                 form.onCheck();
               }}
-              submitLabel="Подключить камеру"
+              submitLabel={t("connect.submit")}
             />
           </fieldset>
           {online && camera && (
             <section className="ws-panel ws-pad">
-              <h2>Проверка записи</h2>
-              <p>Конфигурация применена · версия {camera.applied_revision}</p>
+              <h2>{t("connect.recordCheck")}</h2>
+              <p>
+                {t("connect.applied", {
+                  revision: camera.applied_revision ?? "",
+                })}
+              </p>
               <div className="ws-actions">
                 <Button
                   variant={!target ? "primary" : "secondary"}
@@ -196,7 +202,7 @@ export default function Connection({
                   aria-disabled={phase === "recording"}
                   onClick={() => void record()}
                 >
-                  Создать тестовую запись
+                  {t("connect.createTest")}
                 </Button>
                 {target && (
                   <Button
@@ -208,12 +214,12 @@ export default function Connection({
                       setPhase("opening");
                     }}
                   >
-                    Открыть запись
+                    {t("connect.openRecording")}
                   </Button>
                 )}
                 {camera.binding_revision && camera.binding_revision !== "1" && (
                   <Button onClick={() => void openPrevious()}>
-                    Открыть предыдущую запись
+                    {t("connect.openPrevious")}
                   </Button>
                 )}
                 {historyNotice && <p role="status">{historyNotice}</p>}
@@ -224,7 +230,7 @@ export default function Connection({
                     disabled={phase === "confirmed"}
                     onClick={() => setPhase("confirmed")}
                   >
-                    Подтвердить запись
+                    {t("connect.confirm")}
                   </Button>
                 )}
               </div>
@@ -236,12 +242,12 @@ export default function Connection({
             key={attempt + ":" + String(playing) + ":" + (camera?.id ?? "")}
             services={services}
             site={site}
-            title={history ? "Предыдущая запись" : "Тестовая запись"}
+            title={history ? t("connect.previous") : t("connect.test")}
             mode="archive"
             target={online ? (history ?? (playing ? target : null)) : null}
             {...(history ? {} : { onFrame: frame, onFailure: interrupted })}
             {...(!history && phase === "confirmed"
-              ? { marker: "Запись подтверждена" }
+              ? { marker: t("connect.confirmed") }
               : {})}
             notice={connectionNotice}
             {...(!history && target && playing
@@ -260,34 +266,30 @@ export default function Connection({
             aria-labelledby="record-guide-heading"
           >
             <header className="ws-panel-head">
-              <h2 id="record-guide-heading">Проверка подключения</h2>
+              <h2 id="record-guide-heading">{t("connect.guide")}</h2>
             </header>
             <ol>
               <li aria-current={!camera ? "step" : undefined}>
-                <strong>Проверить два потока</strong>
+                <strong>{t("connect.checkStreams")}</strong>
                 <span>
-                  {camera
-                    ? "Оба потока доступны"
-                    : "Основной поток нужен для записи, дополнительный для эфира."}
+                  {camera ? t("connect.streamsOk") : t("connect.streamsHint")}
                 </span>
               </li>
               <li aria-current={camera && !target ? "step" : undefined}>
-                <strong>Создать тестовую запись</strong>
+                <strong>{t("connect.createTest")}</strong>
                 <span role="status">
                   {phase === "recording"
-                    ? "Ожидаем новый блок записи…"
+                    ? t("connect.waitBlock")
                     : phase === "error"
-                      ? "Не удалось получить новую запись. Повторите проверку."
+                      ? t("connect.recordFailed")
                       : target
-                        ? "Фрагмент сохранён"
-                        : "После подключения сохраните короткий фрагмент с камеры."}
+                        ? t("connect.saved")
+                        : t("connect.saveHint")}
                 </span>
               </li>
               <li aria-current={target ? "step" : undefined}>
-                <strong>Подтвердить кадр</strong>
-                <span>
-                  Откройте сохранённый фрагмент и проверьте изображение.
-                </span>
+                <strong>{t("connect.confirmFrame")}</strong>
+                <span>{t("connect.confirmHint")}</span>
               </li>
             </ol>
           </section>

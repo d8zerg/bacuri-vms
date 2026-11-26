@@ -1,3 +1,4 @@
+import ids from "./fixture-ids.json";
 import type {
   AlertWork,
   AuditEntry,
@@ -58,7 +59,7 @@ export function alertWorkFixture(
         reason: body.reason,
         actor_kind: "user",
         initiator: "Дежурный",
-        initiator_id: "installer",
+        initiator_id: ids.user,
         owner: work.owner,
         recorded_at: utc,
         service: null,

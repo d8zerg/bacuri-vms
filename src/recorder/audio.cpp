@@ -1,14 +1,17 @@
+#include "domain/archive.hpp"
 #include "recorder/audio.hpp"
 #include "recorder/rtsp_session.hpp"
 #include <gst/app/gstappsink.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/sdp/gstsdpmessage.h>
 #include <algorithm>
+#include <utility>
 
 namespace bacuri::vms::ingest
 {
 namespace
 {
+using Pcm = domain::ArchiveSound;
 using namespace std::chrono_literals;
 using Clock = std::chrono::steady_clock;
 template <class T, auto Release> struct Deleter {
@@ -28,6 +31,8 @@ struct Pipeline {
         if (!element || error)
             throw std::runtime_error("Audio pipeline unavailable");
     }
+    Pipeline(const Pipeline&) = delete;
+    Pipeline& operator=(const Pipeline&) = delete;
     ~Pipeline()
     {
         gst_element_set_state(element.get(), GST_STATE_NULL);
@@ -103,7 +108,7 @@ Sound CameraAudio::listen(std::int64_t after)
     std::unique_lock lock(mutex_);
     listen_until_ = Clock::now() + 3s;
     if (!capture_.joinable())
-        capture_ = std::jthread([this](std::stop_token stop) { capture(stop); });
+        capture_ = std::jthread([this](const std::stop_token& stop) { capture(stop); });
     ready_.notify_all();
     const auto since = after > 0 ? std::max(after, now_us() - 1000000) : now_us() - 250000;
     ready_.wait_for(
@@ -136,7 +141,7 @@ void CameraAudio::record(const std::string& owner, bool enable)
         return;
 
     if (!capture_.joinable())
-        capture_ = std::jthread([this](std::stop_token stop) { capture(stop); });
+        capture_ = std::jthread([this](const std::stop_token& stop) { capture(stop); });
     ready_.notify_all();
     if (!ready_.wait_for(lock, 2s,
                          [&] { return input_failed_ || (!samples_.empty() && samples_.back().record); }) ||
@@ -150,7 +155,7 @@ void CameraAudio::policy_record(bool enable)
         return;
     policy_recording_ = enable;
     if (enable && !capture_.joinable())
-        capture_ = std::jthread([this](std::stop_token stop) { capture(stop); });
+        capture_ = std::jthread([this](const std::stop_token& stop) { capture(stop); });
     ready_.notify_all();
 }
 Sound CameraAudio::recorded(std::int64_t from, std::chrono::microseconds duration)
@@ -162,20 +167,25 @@ Sound CameraAudio::recorded(std::int64_t from, std::chrono::microseconds duratio
         if (!item.record)
             continue;
         const auto& s = item.sound;
-        auto cut = [&](auto t) { return std::clamp<std::int64_t>((t - s.start_us) / 125, 0, s.pcm.size() / 2); };
-        auto begin = cut(from + 124), end = cut(until);
+        const auto samples = static_cast<std::int64_t>(s.pcm.size()) / Pcm::bytes_per_sample;
+        auto cut = [&](auto t) {
+            return std::clamp<std::int64_t>((t - s.start_us) / Pcm::sample_period_us, 0, samples);
+        };
+        auto begin = cut(from + Pcm::sample_period_us - 1), end = cut(until);
         if (end <= begin)
             continue;
-        auto stamp = s.start_us + begin * 125;
+        auto stamp = s.start_us + begin * Pcm::sample_period_us;
+        const auto recorded = static_cast<std::int64_t>(result.pcm.size()) / Pcm::bytes_per_sample;
         if (result.pcm.empty())
             result.start_us = stamp;
-        else if (std::abs(stamp - result.start_us - static_cast<std::int64_t>(result.pcm.size() / 2) * 125) > 1000)
+        else if (std::abs(stamp - result.start_us - recorded * Pcm::sample_period_us) > 1000)
             break;
-        result.pcm.append(s.pcm, begin * 2, (end - begin) * 2);
+        result.pcm.append(s.pcm, static_cast<std::size_t>(begin * Pcm::bytes_per_sample),
+                          static_cast<std::size_t>((end - begin) * Pcm::bytes_per_sample));
     }
     return result;
 }
-void CameraAudio::capture(std::stop_token stop)
+void CameraAudio::capture(const std::stop_token& stop)
 {
     while (!stop.stop_requested()) {
         std::unique_lock lock(mutex_);
@@ -218,9 +228,10 @@ void CameraAudio::capture(std::stop_token stop)
                 last = Clock::now();
                 auto* b = gst_sample_get_buffer(sample.get());
                 auto size = gst_buffer_get_size(b);
-                if (!size || size > 16000 || size % 2)
+                if (!size || size > static_cast<std::size_t>(Pcm::max_chunk_bytes) ||
+                    size % static_cast<std::size_t>(Pcm::bytes_per_sample))
                     continue;
-                auto length = static_cast<std::int64_t>(size / 2) * 125;
+                auto length = static_cast<std::int64_t>(size) / Pcm::bytes_per_sample * Pcm::sample_period_us;
                 auto received = now_us() - length;
                 if (!next || std::abs(received - next) > 200000)
                     next = received;
@@ -258,7 +269,7 @@ void CameraAudio::speak(const std::string& session, std::chrono::milliseconds tt
     }
     talk_until_ = Clock::now() + std::min(ttl, 2000ms);
     if (!transmit_.joinable())
-        transmit_ = std::jthread([this](std::stop_token stop) { transmit(stop); });
+        transmit_ = std::jthread([this](const std::stop_token& stop) { transmit(stop); });
     talk_ready_.notify_all();
     if (!talk_ready_.wait_for(lock, 2s, [&] { return output_ready_ || output_failed_; }) || !output_ready_ ||
         speech_.size() >= 2)
@@ -276,7 +287,7 @@ void CameraAudio::mute(const std::string& session)
     talk_until_ = {};
     talk_ready_.notify_all();
 }
-void CameraAudio::transmit(std::stop_token stop)
+void CameraAudio::transmit(const std::stop_token& stop)
 {
     while (!stop.stop_requested()) {
         std::unique_lock lock(talk_mutex_);

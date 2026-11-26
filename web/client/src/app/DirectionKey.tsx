@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 import { IconButton } from "../ui-kit/FormControls";
 import type { ControlIcon } from "../ui-kit/FormControls";
 import type { PtzCommand } from "../contracts/workspace";
-import { ptzLabels } from "./cameraCommands";
+import { ptzLabel } from "./cameraCommands";
 import { pause } from "../workflows/pause";
 
 // A tap requests one bounded step. A held key issues the next step only after acknowledgement.
@@ -69,7 +69,7 @@ export function DirectionKey({
   return (
     <IconButton
       icon={icon}
-      label={ptzLabels[command]}
+      label={ptzLabel(command)}
       data-command={command}
       data-held={held}
       aria-disabled={disabled && !held}

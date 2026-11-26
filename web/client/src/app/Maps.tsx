@@ -29,6 +29,7 @@ import {
 import { coveringRegion } from "./mapRegions";
 import { MapPackages } from "./MapPackages";
 import "./maps.css";
+import { dateTimeFormat, useT } from "../i18n";
 const RegionMap = lazy(() => import("./RegionMap"));
 const PlanGeoreference = lazy(() => import("./PlanGeoreference"));
 const fixed = (v: number) => String(Number(v.toFixed(6)));
@@ -40,6 +41,7 @@ type Props = {
   feed: Feed;
 };
 export default function Maps({ services, site, admin, points, feed }: Props) {
+  const t = useT();
   const [params, set] = useSearchParams();
   const [scene, show] = useState<MapScene | null>(null),
     [failed, fail] = useState(false),
@@ -262,7 +264,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
     if (admin && aim && marker) {
       const bearing = landmarkBearing(marker, x, y, plan);
       if (bearing === null) {
-        tell("Выберите ориентир в стороне от камеры");
+        tell(t("maps.aimAside"));
         return;
       }
       setLandmark({ bearing, camera: marker.camera });
@@ -309,9 +311,9 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
       });
       refresh((v) => v + 1);
       setDraft(null);
-      tell("Положение сохранено");
+      tell(t("maps.positionSaved"));
     } catch {
-      tell("Не удалось сохранить положение точки");
+      tell(t("maps.positionFailed"));
     } finally {
       lock(false);
     }
@@ -325,7 +327,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
       name = fields.get("name");
     if (typeof name !== "string") return;
     if (!(file instanceof File) || !file.size || file.size > 4194304) {
-      tell("Выберите PNG до 4 МиБ");
+      tell(t("maps.pngLimit"));
       return;
     }
     lock(true);
@@ -343,9 +345,9 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
       refresh((v) => v + 1);
       changeSurface(result.id);
       form.reset();
-      tell("План добавлен");
+      tell(t("maps.planAdded"));
     } catch {
-      tell("Не удалось добавить план. Проверьте формат и размер PNG.");
+      tell(t("maps.planFailed"));
     } finally {
       lock(false);
     }
@@ -377,15 +379,15 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
     <>
       {needsListSearch(otherPoints.length, pointQuery) && (
         <FilterPanel
-          label="Фильтры точек наблюдения"
-          queryLabel="Поиск точки"
+          label={t("maps.pointFilters")}
+          queryLabel={t("maps.pointSearch")}
           query={pointQuery}
           onQuery={setPointQuery}
           onReset={() => setPointQuery("")}
         />
       )}
       {!listedPoints.length && pointQuery && (
-        <p role="status">Точки не найдены.</p>
+        <p role="status">{t("maps.noPoints")}</p>
       )}
       <ul className="ws-map-list">
         {listedPoints.map((p) => (
@@ -399,7 +401,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
               {newAlerts.has(p.id) && (
                 <span className="ws-point-alert">
                   {" "}
-                  · Новых тревог: {newAlerts.get(p.id)}
+                  · {t("alerts.newCount", { count: newAlerts.get(p.id) ?? 0 })}
                 </span>
               )}
             </Button>
@@ -412,16 +414,16 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
     <>
       {scene && !(admin && plan && editingPlan === plan.id) && (
         <SubsectionMenu
-          label="Подразделы карт и планов"
+          label={t("maps.sections")}
           items={[
             {
-              label: "Карта региона",
+              label: t("map.region"),
               icon: "map",
               active: !surface,
               select: () => changeSurface(""),
             },
             {
-              label: "Планы",
+              label: t("maps.plans"),
               icon: "layers",
               active: !!surface,
               disabled: !scene.plans.length,
@@ -437,13 +439,9 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
         />
       )}
       {!scene ? (
-        <p role="status">
-          {failed
-            ? "Не удалось загрузить карты и планы"
-            : "Загрузка карт и планов…"}
-        </p>
+        <p role="status">{failed ? t("maps.loadFailed") : t("maps.loading")}</p>
       ) : admin && plan && editingPlan === plan.id ? (
-        <Suspense fallback={<p>Загрузка привязки…</p>}>
+        <Suspense fallback={<p>{t("maps.loadingGeoreference")}</p>}>
           <PlanGeoreference
             key={site + plan.id}
             plan={plan}
@@ -457,7 +455,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
               requestAnimationFrame(() => editPlanButton.current?.focus());
               if (saved) {
                 refresh((v) => v + 1);
-                tell("Привязка обновлена");
+                tell(t("maps.georeferenceUpdated"));
               }
             }}
           />
@@ -468,14 +466,14 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
             <div className="ws-map-toolbar">
               {surface && (scene.plans.length > 1 || !plan) && (
                 <label>
-                  План{" "}
+                  {t("maps.plan")}{" "}
                   <select
                     value={surface}
                     onChange={(e) => changeSurface(e.target.value)}
                   >
                     {!plan && (
                       <option value={surface} disabled>
-                        Выберите план
+                        {t("maps.choosePlan")}
                       </option>
                     )}
                     {scene.plans.map((p) => (
@@ -488,7 +486,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
               )}
               {!surface && scene.regions.length > 1 && (
                 <label>
-                  Регион{" "}
+                  {t("plan.region")}{" "}
                   <select
                     value={region?.id}
                     onChange={(e) =>
@@ -515,7 +513,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                   <div className="ws-plan-heading">
                     <h2>{plan.name}</h2>
                     <PlanZoom
-                      label="Масштаб плана"
+                      label={t("maps.planZoom")}
                       levels={[1, 2]}
                       value={scale}
                       onChange={(level) => update({ scale: String(level) })}
@@ -529,13 +527,13 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                           onClick={() => setEditingPlan(plan.id)}
                         >
                           {plan.footprint
-                            ? "Настроить привязку к карте"
-                            : "Привязать план к карте"}
+                            ? t("maps.configureGeoreference")
+                            : t("maps.georeference")}
                         </Button>
                       )}
                       {plan.footprint && region && (
                         <Button onClick={() => selectFloor(plan.id, true)}>
-                          Показать на геокарте
+                          {t("maps.showOnMap")}
                         </Button>
                       )}
                     </div>
@@ -590,19 +588,19 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                   </div>
                 </>
               ) : (
-                <p role="status">План недоступен</p>
+                <p role="status">{t("maps.planUnavailable")}</p>
               )
             ) : region ? (
               <>
                 <h2>{region.name}</h2>
                 {floors.length > 0 && (
                   <label>
-                    План на геокарте
+                    {t("maps.planOnMap")}
                     <select
                       value={floor?.id ?? ""}
                       onChange={(e) => selectFloor(e.target.value)}
                     >
-                      <option value="">Обзор территории</option>
+                      <option value="">{t("maps.overview")}</option>
                       {floors
                         .filter((p) => !p.building)
                         .map((p) => (
@@ -627,14 +625,10 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                     region ? [region] : [],
                     region,
                     floor.footprint?.center,
-                  ) && (
-                    <p role="status">
-                      План находится за пределами выбранного региона.
-                    </p>
-                  )}
+                  ) && <p role="status">{t("maps.outsideRegion")}</p>}
                 {floor && (
                   <label>
-                    Непрозрачность плана
+                    {t("plan.opacity")}
                     <input
                       type="range"
                       min="0"
@@ -645,7 +639,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                     />
                   </label>
                 )}
-                <Suspense fallback={<p>Загрузка карты…</p>}>
+                <Suspense fallback={<p>{t("maps.loadingMap")}</p>}>
                   <RegionMap
                     key={region.revision + "/" + (floor?.id ?? "")}
                     region={region}
@@ -676,7 +670,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                             return {
                               id: name,
                               text: count
-                                ? name + " · Новых тревог: " + count
+                                ? name + " · " + t("alerts.newCount", { count })
                                 : name,
                               lng: lng!,
                               lat: lat!,
@@ -702,9 +696,9 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                   />
                 </Suspense>
                 <p>
-                  Данные на{" "}
+                  {t("maps.dataAt")}{" "}
                   <time dateTime={region.source_time}>
-                    {new Intl.DateTimeFormat("ru-RU", {
+                    {dateTimeFormat({
                       dateStyle: "medium",
                       timeStyle: "short",
                       timeZone: "UTC",
@@ -718,24 +712,22 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                 </p>
               </>
             ) : (
-              <p role="status">Карта региона не установлена</p>
+              <p role="status">{t("maps.noRegion")}</p>
             )}
           </section>
           <section className="ws-panel ws-pad">
-            {(!point || (!admin && !marker)) && <h2>Точки наблюдения</h2>}
+            {(!point || (!admin && !marker)) && <h2>{t("maps.points")}</h2>}
             {otherPoints.length > 0 &&
               (point && (admin || marker) ? (
                 <details key={selected}>
-                  <summary>Сменить точку</summary>
+                  <summary>{t("maps.changePoint")}</summary>
                   {pointList}
                 </details>
               ) : (
                 pointList
               ))}
 
-            {!visibleMarkers.length && (
-              <p>На карте или плане пока нет доступных точек</p>
-            )}
+            {!visibleMarkers.length && <p>{t("maps.noMarkers")}</p>}
             {point && (admin || marker) && (
               <>
                 <h2
@@ -746,8 +738,12 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                   {point.name}
                 </h2>
                 <div className="ws-map-actions">
-                  <RouteButton to={target("live")}>Эфир</RouteButton>
-                  <RouteButton to={target("archive")}>Архив</RouteButton>
+                  <RouteButton to={target("live")}>
+                    {t("monitor.live")}
+                  </RouteButton>
+                  <RouteButton to={target("archive")}>
+                    {t("monitor.archive")}
+                  </RouteButton>
                 </div>
                 <CameraEvents
                   key={point.id}
@@ -761,7 +757,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                 />
                 {marker?.source_plan_id && (
                   <Button onClick={() => changeSurface(marker.source_plan_id!)}>
-                    Открыть план ·{" "}
+                    {t("maps.openPlan")} ·{" "}
                     {floors.find((p) => p.id === marker.source_plan_id)?.name}
                   </Button>
                 )}
@@ -803,7 +799,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                       if (!e.currentTarget.open) setDraft(null);
                     }}
                   >
-                    <summary>Изменить положение точки</summary>
+                    <summary>{t("maps.editPosition")}</summary>
                     {marker?.view && <p>{viewLabel(marker.view)}</p>}
                     <form
                       className="ws-placement-form"
@@ -814,8 +810,8 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                           {plan
                             ? axis.toUpperCase()
                             : axis === "x"
-                              ? "Долгота"
-                              : "Широта"}
+                              ? t("plan.axis.lng")
+                              : t("plan.axis.lat")}
                           <input
                             required
                             type="number"
@@ -833,16 +829,16 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                         </label>
                       ))}
                       <Button type="submit" disabled={!draft || busy}>
-                        Сохранить положение
+                        {t("maps.savePosition")}
                       </Button>
                     </form>
                   </details>
                 ) : (
                   marker && (
                     <details>
-                      <summary>Параметры точки</summary>
+                      <summary>{t("maps.pointSettings")}</summary>
                       <p>
-                        {plan ? "X, Y" : "Долгота, широта"} · {fixed(marker.x)},{" "}
+                        {plan ? "X, Y" : t("maps.lngLat")} · {fixed(marker.x)},{" "}
                         {fixed(marker.y)}
                       </p>
                       {marker.view && <p>{viewLabel(marker.view)}</p>}
@@ -853,14 +849,14 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
             )}
             {admin && (
               <details>
-                <summary>Добавить план</summary>
+                <summary>{t("maps.addPlan")}</summary>
                 <form onSubmit={(e) => void upload(e)}>
                   <label>
-                    Название плана
+                    {t("maps.planName")}
                     <input name="name" required maxLength={128} />
                   </label>
                   <label>
-                    Изображение PNG
+                    {t("maps.planImage")}
                     <input
                       name="image"
                       required
@@ -869,7 +865,7 @@ export default function Maps({ services, site, admin, points, feed }: Props) {
                     />
                   </label>
                   <Button type="submit" disabled={busy}>
-                    Загрузить план
+                    {t("maps.uploadPlan")}
                   </Button>
                 </form>
               </details>

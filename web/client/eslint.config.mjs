@@ -37,4 +37,22 @@ export default defineConfig(
       ],
     },
   },
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/i18n/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...[
+          "Literal[value=/[А-Яа-яЁё]/]",
+          "TemplateElement[value.raw=/[А-Яа-яЁё]/]",
+          "JSXText[value=/[А-Яа-яЁё]/]",
+        ].map((selector) => ({
+          selector,
+          message:
+            "Interface text belongs to the message catalogs in src/i18n.",
+        })),
+      ],
+    },
+  },
 );

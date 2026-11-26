@@ -32,8 +32,14 @@ def browser_session(browser, credential, page, *, workspace_coverage=None, softw
     capabilities = {"browserName": browser, "acceptInsecureCerts": True}
     if downloads:
         capabilities["se:downloadsEnabled"] = True
-    if software_map and browser == "chrome":
-        capabilities["goog:chromeOptions"] = {"args": ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]}
+    # The scenarios check Russian interface text, so the browser reports Russian as its language.
+    if browser == "chrome":
+        args = ["--lang=ru-RU"]
+        if software_map:
+            args += ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
+        capabilities["goog:chromeOptions"] = {"args": args, "prefs": {"intl.accept_languages": "ru-RU,ru"}}
+    elif browser == "firefox":
+        capabilities["moz:firefoxOptions"] = {"prefs": {"intl.accept_languages": "ru-RU, ru"}}
     result = call(
         "POST",
         "/session",

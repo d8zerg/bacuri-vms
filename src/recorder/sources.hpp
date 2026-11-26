@@ -1,6 +1,6 @@
 #pragma once
 
-#include "control/support.hpp"
+#include "platform/camera_networks.hpp"
 #include "archive/writer.hpp"
 #include "control.pb.h"
 #include "recorder/ingest.hpp"
@@ -13,15 +13,19 @@ namespace bacuri::vms::ingest
 class Sources
 {
   public:
-    Sources(const control::CameraNetworks& networks, archive::Volume& volume)
+    Sources(const platform::CameraNetworks& networks, archive::Volume& volume)
         : networks_{networks}, volume_{volume}
     {
     }
+    Sources(const Sources&) = delete;
+    Sources& operator=(const Sources&) = delete;
     ~Sources();
     v1::CameraIssues issues(const std::string& device) const;
     std::shared_ptr<CameraAudio> audio(const std::string& point, const std::string& device);
     void apply(const v1::ApplyConfigurationRequest& assignment);
     std::shared_ptr<FrameQueue> preview(const std::string& point, Profile profile);
+    // Stream reception and policy selection of every point assigned to this recorder.
+    v1::PointStates point_states();
     archive::Json recording_states();
     v1::VideoProfiles video_profiles(const std::string& point) const;
 
@@ -42,7 +46,7 @@ class Sources
         std::jthread detector;
     };
 
-    const control::CameraNetworks& networks_;
+    const platform::CameraNetworks& networks_;
     archive::Volume& volume_;
     std::map<Key, Entry> streams_;
 };

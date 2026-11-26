@@ -5,56 +5,27 @@ import {
 } from "../ui-kit/FilterPanel";
 import type { components } from "../../../../build/contracts/api";
 import { formatUtc } from "../ui-kit/utc";
+import { t, useT, type MessageKey } from "../i18n";
 type Event = components["schemas"]["AccessAuditEvent"];
-const operations: Record<string, readonly [string, string, string]> = {
-  site_roles: [
-    "Назначена роль на площадке",
-    "Изменена учётная запись на площадке",
-    "Удалена роль на площадке",
-  ],
-  point_grants: [
-    "Открыт доступ к точке",
-    "Изменён доступ к точке",
-    "Отозван доступ к точке",
-  ],
-  export_grants: [
-    "Разрешён экспорт записи",
-    "Изменено разрешение на экспорт",
-    "Отозвано разрешение на экспорт",
-  ],
-  scoped_grants: [
-    "Выдано разрешение",
-    "Изменено разрешение",
-    "Отозвано разрешение",
-  ],
-  resource_groups: ["Создана группа", "Изменена группа", "Удалена группа"],
-  group_points: [
-    "Точка добавлена в группу",
-    "Изменена привязка точки к группе",
-    "Точка удалена из группы",
-  ],
-  privacy_policies: [
-    "Добавлена политика приватности",
-    "Изменена политика приватности",
-    "Удалена политика приватности",
-  ],
-  identity_providers: [
-    "Добавлен провайдер входа",
-    "Изменён провайдер входа",
-    "Удалён провайдер входа",
-  ],
-  external_identities: [
-    "Привязана внешняя учётная запись",
-    "Изменена внешняя учётная запись",
-    "Отвязана внешняя учётная запись",
-  ],
-};
+const operations = new Set([
+  "export_grants",
+  "external_identities",
+  "group_points",
+  "identity_providers",
+  "point_grants",
+  "privacy_policies",
+  "resource_groups",
+  "scoped_grants",
+  "site_roles",
+]);
 function describe(code: string) {
-  if (code === "session.login") return "Вход в систему";
-  if (code === "session.logout") return "Выход из системы";
+  if (code === "session.login") return t("audit.login");
+  if (code === "session.logout") return t("audit.logout");
   const [table, verb] = code.split(".");
   const n = ["insert", "update", "delete"].indexOf(verb ?? "");
-  return operations[table ?? ""]?.[n] ?? "Событие управления доступом";
+  return table && n >= 0 && operations.has(table)
+    ? t(`audit.${table}.${verb}` as MessageKey)
+    : t("audit.unknown");
 }
 
 export function AccessAudit({
@@ -78,6 +49,7 @@ export function AccessAudit({
   groups: { id: string; name: string }[];
   points: { id: string; name: string }[];
 }) {
+  const t = useT();
   const names = new Map([
     ...users.map((u) => [u.id, u.username] as const),
     ...[...groups, ...points].map((r) => [r.id, r.name] as const),
@@ -87,8 +59,8 @@ export function AccessAudit({
       const actor =
         users.find((u) => u.id === e.actor)?.username ??
         (e.actor === "local-console"
-          ? "Локальная консоль"
-          : "Неизвестный исполнитель");
+          ? t("audit.localConsole")
+          : t("audit.unknownActor"));
       const target = e.resource
         .split("/")
         .filter((id) => !(e.action.startsWith("session.") && id === e.actor))
@@ -114,11 +86,9 @@ export function AccessAudit({
     <>
       <FilterPanel
         refresh={refresh}
-        label="Фильтры аудита доступа"
+        label={t("audit.filters")}
         queryLabel={
-          events.length === 200
-            ? "Поиск в последних 200 записях"
-            : "Действие, исполнитель или ресурс"
+          events.length === 200 ? t("audit.searchRecent") : t("audit.query")
         }
         query={query}
         onQuery={onQuery}
@@ -129,9 +99,9 @@ export function AccessAudit({
         }}
       >
         <label>
-          Способ доступа
+          {t("audit.method")}
           <select value={method} onChange={(e) => onMethod(e.target.value)}>
-            <option value="">Все способы</option>
+            <option value="">{t("audit.allMethods")}</option>
             {[...new Set(events.map((e) => e.method))].map((m) => (
               <option key={m}>{m}</option>
             ))}
@@ -140,7 +110,7 @@ export function AccessAudit({
       </FilterPanel>
       {!rows.length && (
         <p role="status">
-          {events.length ? "Записи не найдены." : "Записей пока нет."}
+          {events.length ? t("audit.notFound") : t("audit.empty")}
         </p>
       )}
       <ol className="ws-access-audit">
@@ -161,13 +131,13 @@ export function AccessAudit({
                   </span>
                 </summary>
                 <dl>
-                  <dt>Код действия</dt>
+                  <dt>{t("audit.action")}</dt>
                   <dd>{e.action}</dd>
-                  <dt>Ресурс</dt>
+                  <dt>{t("audit.resource")}</dt>
                   <dd>{e.resource}</dd>
-                  <dt>Исполнитель</dt>
+                  <dt>{t("audit.actor")}</dt>
                   <dd>{e.actor}</dd>
-                  <dt>Способ доступа</dt>
+                  <dt>{t("audit.method")}</dt>
                   <dd>{e.method}</dd>
                 </dl>
               </details>

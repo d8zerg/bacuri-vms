@@ -2,6 +2,7 @@ import { lazy, Suspense, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import type { CameraDraft, Point, Services } from "../contracts/workspace";
 import { SubsectionMenu } from "./SubsectionMenu";
+import { useT } from "../i18n";
 const VideoRules = lazy(() => import("./VideoRules"));
 const CameraCatalog = lazy(() => import("./CameraCatalog"));
 const Connection = lazy(() => import("./CameraConnection"));
@@ -29,6 +30,7 @@ export function Installer({
   points: Point[] | null;
   connectionNotice: string;
 }) {
+  const t = useT();
   const [params, setParams] = useSearchParams();
   const method = cameraSetup(params.get("setup"));
   const [initial, setInitial] = useState<CameraDraft>(empty);
@@ -44,33 +46,33 @@ export function Installer({
   return (
     <>
       <SubsectionMenu
-        label="Подразделы камер"
+        label={t("cameras.sections")}
         items={[
           {
-            label: "Каталог устройств",
-            short: "Каталог",
-            name: "Каталог подключённых устройств",
+            label: t("cameras.catalog"),
+            short: t("cameras.catalog.short"),
+            name: t("cameras.catalog.name"),
             icon: "cctv",
             active: !method,
             select: () => select(null),
           },
           {
-            label: "Запись и хранение",
-            short: "Запись",
+            label: t("cameras.recording"),
+            short: t("cameras.recording.short"),
             icon: "history",
             active: method === "recording",
             select: () => select("recording"),
           },
           {
-            label: "Видеоправила",
-            short: "Правила",
+            label: t("cameras.rules"),
+            short: t("cameras.rules.short"),
             icon: "scan-line",
             active: method === "rules",
             select: () => select("rules"),
           },
           {
-            label: "Подключение",
-            short: "Добавить",
+            label: t("cameras.connect"),
+            short: t("cameras.connect.short"),
             icon: "link-2",
             active: !!method && method !== "recording" && method !== "rules",
             select: () => {
@@ -83,26 +85,26 @@ export function Installer({
       {method && method !== "recording" && method !== "rules" && (
         <SubsectionMenu
           nested
-          label="Способы подключения"
+          label={t("cameras.methods")}
           items={[
             {
-              label: "Вручную",
-              name: "Единичное подключение",
+              label: t("cameras.manual"),
+              name: t("cameras.manual.name"),
               icon: "link-2",
               active: method === "manual",
               select: () => select("manual"),
             },
             {
-              label: "Поиск ONVIF",
-              name: "Поиск ONVIF и замена камеры",
+              label: t("cameras.onvif"),
+              name: t("cameras.onvif.name"),
               icon: "scan-line",
               active: method === "onvif",
               disabled: !points,
               select: () => select("onvif"),
             },
             {
-              label: "Массовое",
-              name: "Массовое подключение",
+              label: t("cameras.batch"),
+              name: t("cameras.batch.name"),
               icon: "layers",
               active: method === "batch",
               disabled: !points && method !== "batch",
@@ -111,7 +113,7 @@ export function Installer({
           ]}
         />
       )}
-      <Suspense fallback={<p role="status">Загрузка…</p>}>
+      <Suspense fallback={<p role="status">{t("action.loading")}</p>}>
         {method === "rules" && (
           <VideoRules services={services} site={site} points={points ?? []} />
         )}

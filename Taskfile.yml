@@ -32,12 +32,15 @@ tasks:
 
   lint:
     desc: Run clang-tidy on the C++ sources
+    vars:
+      # Analysis is CPU bound, so it uses every core unless JOBS is set.
+      JOBS: {sh: nproc}
     deps:
       - task: build
         vars: {PRESET: clang-debug}
     cmd: >-
       {{.BUILD_RUN}} run-clang-tidy-19 -p build/clang-debug
-      -clang-tidy-binary=/usr/bin/clang-tidy-19 -quiet -j 2
+      -clang-tidy-binary=/usr/bin/clang-tidy-19 -quiet -j {{.JOBS}}
       -clang-apply-replacements-binary=/usr/bin/clang-apply-replacements-19
       -config-file=/workspace/.clang-tidy
       '^/workspace/(src|tests)/'
@@ -546,16 +549,20 @@ tasks:
 
   ui-kit:check:
     deps: [api:types]
-    desc: Build the React UI Kit and Storybook, check types, keyboard, accessibility and browser coverage
+    desc: Build the React UI Kit and Storybook, check types, keyboard, accessibility, browser coverage and fixture contract
     run: once
     cmds:
       - docker compose build ui-kit-check
       - |
         set -eu
-        BACURI_UI_RESULTS="$PWD/$(sh tools/quality-report-dir ui-kit)"
+        results="$(sh tools/quality-report-dir ui-kit)"
+        BACURI_UI_RESULTS="$PWD/$results"
         export BACURI_UI_RESULTS
         echo "UI Kit results: $BACURI_UI_RESULTS"
         {{.COMPOSE_RUN}} -T ui-kit-check
+        # The Storybook fixture answers as the server does: its responses follow the OpenAPI contract.
+        {{.COMPOSE_RUN}} -T ui-kit-check node tests/fixture-responses.mjs /results/fixture-responses.json
+        {{.BUILD_RUN}} python3 tests/contracts/fixtures.py "$results/fixture-responses.json"
 
   ui-kit:up:
     deps: [api:types]

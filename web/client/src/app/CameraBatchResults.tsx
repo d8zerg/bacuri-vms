@@ -10,36 +10,38 @@ import { HttpFailure } from "../adapters/api";
 import { cameraError } from "./cameraError";
 
 import { channelName, groupChannels } from "./cameraChannels";
+import { useT, type MessageKey } from "../i18n";
 
 type Receipt = components["schemas"]["CameraBatchReceipt"];
 
 const labels = {
-  prepared: "Готов к применению",
-  applying: "Применяется",
-  failed: "Не применено",
-  saved: "Конфигурация сохранена",
-  rolling_back: "Выполняется откат",
-  rolled_back: "Откат выполнен",
-  rollback_failed: "Ошибка отката",
-};
+  prepared: "batch.receipt.prepared",
+  applying: "batch.receipt.applying",
+  failed: "batch.receipt.failed",
+  saved: "batch.receipt.saved",
+  rolling_back: "batch.receipt.rollingBack",
+  rolled_back: "batch.receipt.rolledBack",
+  rollback_failed: "batch.receipt.rollbackFailed",
+} as const satisfies Record<string, MessageKey>;
 
 function ReceiptStatus({ row }: { row: Receipt }) {
+  const t = useT();
   const { current, revision, state } = row;
-  let text = labels[state];
+  let text = t(labels[state]);
   let tone: "neutral" | "success" | "danger" =
     state === "failed" || state === "rollback_failed" ? "danger" : "neutral";
   if (state === "saved" && current) {
-    if (current.desired_revision !== revision) text = "Есть более новая версия";
+    if (current.desired_revision !== revision) text = t("batch.newer");
     else if (current.state === "rejected") {
-      text = "Рекордер отклонил";
+      text = t("batch.recorderRejected");
       tone = "danger";
     } else if (
       current.state === "applied" &&
       current.applied_revision === revision
     ) {
-      text = "Применено рекордером";
+      text = t("batch.recorderApplied");
       tone = "success";
-    } else text = "Ожидает рекордера";
+    } else text = t("batch.recorderWaiting");
   }
   return <StatusIndicator tone={tone}>{text}</StatusIndicator>;
 }
@@ -68,6 +70,7 @@ function ChannelRow({
   disabled: boolean;
   rollback: (row: Receipt) => void;
 }) {
+  const t = useT();
   const { current, camera, before, after, image } = row;
   return (
     <details className="ws-batch-channel">
@@ -84,13 +87,13 @@ function ChannelRow({
       </summary>
       <div className="ws-channel-detail">
         <dl>
-          <dt>Имя камеры</dt>
+          <dt>{t("batch.cameraName")}</dt>
           <ChangeValue before={before?.name} after={after.name} />
-          <dt>Точка</dt>
-          <dd>{current?.point_id || after.point_id || "Новая точка"}</dd>
-          <dt>Поток записи</dt>
+          <dt>{t("batch.point")}</dt>
+          <dd>{current?.point_id || after.point_id || t("batch.newPoint")}</dd>
+          <dt>{t("batch.recordStream")}</dt>
           <ChangeValue before={before?.main_url} after={after.main_url} />
-          <dt>Поток эфира</dt>
+          <dt>{t("batch.liveStream")}</dt>
           <ChangeValue
             before={before?.secondary_url}
             after={after.secondary_url}
@@ -99,63 +102,71 @@ function ChannelRow({
             row.brightness != null ||
             row.observed_brightness != null) && (
             <>
-              <dt>Яркость</dt>
+              <dt>{t("batch.brightnessShort")}</dt>
               <dd>
                 {image && (
                   <span>
-                    {image.value} (диапазон {image.min} - {image.max})
+                    {t("batch.range", {
+                      value: image.value,
+                      min: image.min,
+                      max: image.max,
+                    })}
                   </span>
                 )}
-                {row.brightness != null && <span>Задано {row.brightness}</span>}
+                {row.brightness != null && (
+                  <span>{t("batch.set", { value: row.brightness })}</span>
+                )}
                 {row.observed_brightness != null && (
-                  <span>Подтверждено {row.observed_brightness}</span>
+                  <span>
+                    {t("batch.confirmed", { value: row.observed_brightness })}
+                  </span>
                 )}
               </dd>
             </>
           )}
-          <dt>Возможности</dt>
+          <dt>{t("batch.capabilities")}</dt>
           <dd>
             {[
               camera.ptz && "PTZ",
-              camera.events && "События",
-              image && "Яркость",
+              camera.events && t("batch.events"),
+              image && t("batch.brightnessShort"),
             ]
               .filter(Boolean)
-              .join(", ") || "Нет дополнительных функций"}
+              .join(", ") || t("batch.noFeatures")}
           </dd>
           {camera.manufacturer && (
             <>
-              <dt>Производитель</dt>
+              <dt>{t("batch.manufacturer")}</dt>
               <dd>{camera.manufacturer}</dd>
             </>
           )}
           {camera.firmware && (
             <>
-              <dt>Прошивка</dt>
+              <dt>{t("batch.firmware")}</dt>
               <dd>{camera.firmware}</dd>
             </>
           )}
           {camera.serial && (
             <>
-              <dt>Серийный номер</dt>
+              <dt>{t("batch.serial")}</dt>
               <dd>{camera.serial}</dd>
             </>
           )}
           {camera.endpoint_id !== camera.serial && (
             <>
-              <dt>Устройство ONVIF</dt>
+              <dt>{t("batch.onvifDevice")}</dt>
               <dd>{camera.endpoint_id}</dd>
             </>
           )}
           {camera.channel_token && (
             <>
-              <dt>Канал ONVIF</dt>
+              <dt>{t("batch.onvifChannel")}</dt>
               <dd>{camera.channel_token}</dd>
             </>
           )}
           {row.template && (
             <>
-              <dt>Версия шаблона</dt>
+              <dt>{t("batch.templateRevision")}</dt>
               <dd>
                 {row.template.name} · {row.template.revision}
               </dd>
@@ -163,26 +174,26 @@ function ChannelRow({
           )}
           {row.expected_revision != null && (
             <>
-              <dt>Исходная версия</dt>
+              <dt>{t("batch.sourceRevision")}</dt>
               <dd>{row.expected_revision}</dd>
             </>
           )}
           {row.revision != null && (
             <>
-              <dt>Сохранённая версия</dt>
+              <dt>{t("batch.savedRevision")}</dt>
               <dd>{row.revision}</dd>
             </>
           )}
           {current && (
             <>
-              <dt>Текущая версия</dt>
+              <dt>{t("batch.currentRevision")}</dt>
               <dd>
                 {current.desired_revision} ·{" "}
                 {
                   {
-                    applied: "применена",
-                    applying: "ожидает рекордера",
-                    rejected: "отклонена",
+                    applied: t("batch.state.applied"),
+                    applying: t("batch.state.applying"),
+                    rejected: t("batch.state.rejected"),
                   }[current.state]
                 }
               </dd>
@@ -190,14 +201,14 @@ function ChannelRow({
           )}
           {current?.applied_revision != null && (
             <>
-              <dt>Версия рекордера</dt>
+              <dt>{t("batch.recorderRevision")}</dt>
               <dd>{current.applied_revision}</dd>
             </>
           )}
         </dl>
         {row.state !== "rolled_back" && (
           <Button disabled={disabled} onClick={() => rollback(row)}>
-            {row.state === "prepared" ? "Отменить изменение" : "Откатить канал"}
+            {row.state === "prepared" ? t("batch.cancel") : t("batch.rollback")}
           </Button>
         )}
       </div>
@@ -216,6 +227,7 @@ export function CameraBatchResults({
   disabled: boolean;
   rollback: (row: Receipt) => void;
 }) {
+  const t = useT();
   const groups = groupChannels(rows, (r) => ({
     device: r.camera,
     key: r.camera.endpoint_id,
@@ -244,9 +256,9 @@ export function CameraBatchResults({
   return (
     <div className="ws-batch-results ws-batch-receipts">
       <FilterPanel
-        label="Фильтры результатов подключения"
+        label={t("batch.resultFilters")}
         refresh={refresh}
-        queryLabel="Устройство или канал"
+        queryLabel={t("batch.resultQuery")}
         query={query}
         onQuery={setQuery}
         filtered={!!state}
@@ -256,18 +268,18 @@ export function CameraBatchResults({
         }}
       >
         <label>
-          Состояние операции
+          {t("batch.operationState")}
           <select value={state} onChange={(e) => setState(e.target.value)}>
-            <option value="">Все состояния</option>
+            <option value="">{t("batch.allStates")}</option>
             {Object.entries(labels).map(([v, text]) => (
               <option key={v} value={v}>
-                {text}
+                {t(text)}
               </option>
             ))}
           </select>
         </label>
       </FilterPanel>
-      {!visible.length && <p role="status">Каналы не найдены.</p>}
+      {!visible.length && <p role="status">{t("batch.noChannels")}</p>}
       {visible.map(({ key, title, items: group }) => {
         const { template } = group[0]!;
         const sharedTemplate =
@@ -281,7 +293,9 @@ export function CameraBatchResults({
           <section className="ws-batch-device" key={key}>
             <header>
               <h3>{title}</h3>
-              {sharedTemplate && <span>Шаблон «{template.name}»</span>}
+              {sharedTemplate && (
+                <span>{t("batch.templateNamed", { name: template.name })}</span>
+              )}
             </header>
             {group.map((row) => (
               <ChannelRow

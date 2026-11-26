@@ -1,5 +1,7 @@
+#include "platform/settings.hpp"
 #include "recorder/rtsp_session.hpp"
 #include "recorder/frame_clock.hpp"
+#include "platform/scope_exit.hpp"
 
 #include <gst/app/gstappsink.h>
 #include <gst/rtp/gstrtpbuffer.h>
@@ -209,9 +211,9 @@ bool configure_rtsp_source(GstElement* source, const Endpoint& endpoint)
         +[](gpointer uri, GClosure*) { g_uri_unref(static_cast<GUri*>(uri)); }, G_CONNECT_DEFAULT);
     g_object_set(source, "location", endpoint.url.c_str(), "user-id", endpoint.username.c_str(), "user-pw",
                  endpoint.password.c_str(), nullptr);
-    const auto* trust = g_getenv("BACURI_CAMERA_CA_FILE");
-    if (endpoint.url.starts_with("rtsps://") && trust && *trust) {
-        Handle<GTlsDatabase, g_object_unref> ca{g_tls_file_database_new(trust, nullptr)};
+    const auto trust = platform::optional_setting("BACURI_CAMERA_CA_FILE");
+    if (endpoint.url.starts_with("rtsps://") && trust) {
+        Handle<GTlsDatabase, g_object_unref> ca{g_tls_file_database_new(trust->c_str(), nullptr)};
         if (!ca)
             return false;
         g_object_set(source, "tls-database", ca.get(), nullptr);
@@ -219,7 +221,7 @@ bool configure_rtsp_source(GstElement* source, const Endpoint& endpoint)
     return true;
 }
 
-std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const Receive& receive,
+std::string receive_rtsp(const Endpoint& endpoint, const std::stop_token& stop, const Receive& receive,
                          std::optional<ReplayWindow> replay, const std::function<void()>& finished)
 {
     gst_init(nullptr, nullptr);
@@ -236,14 +238,10 @@ std::string receive_rtsp(const Endpoint& endpoint, std::stop_token stop, const R
                          "enable-last-sample=false",
                          &error)};
     Handle<GError, g_error_free> failure{error};
-    struct Finish {
-        const std::function<void()>& callback;
-        ~Finish()
-        {
-            if (callback)
-                callback();
-        }
-    } finish{finished};
+    platform::ScopeExit finish{[&finished] {
+        if (finished)
+            finished();
+    }};
     if (!pipeline || failure) {
         return "pipeline_error";
     }

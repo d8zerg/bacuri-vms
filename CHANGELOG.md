@@ -4,152 +4,170 @@
 
 ### Added
 
-- Контрольная и смешанная серии записи занимают по 5 минут на режим. Проверка защиты архива сверяет две копии пятиминутной записи с каждой из четырёх камер после заполнения тома и восстановления каталога. [Профиль испытаний](docs/test-profile.md#проверка-архива-и-расследований)
+- The workplace interface switches between Russian and English without a reload. The switch is next to the theme selection, the choice is saved, and the browser language is used by default. Dates, times and numbers are formatted in the selected language.
 
-- Добавлены догрузка архива камеры, видеоправила ONVIF и локального детектора, вторая проверяемая копия архива и удержание интервалов. В разделе «Расследования» доступны поиск движения и событий, синхронный просмотр четырёх точек и дела с подписанным экспортом оригинала или производной. [Работа с расследованием](docs/ui.md#расследования) · [Том копий](docs/maintenance.md#вторая-копия-архива)
+- The control and mixed recording series take 5 minutes per mode. The archive protection check compares two copies of a five-minute recording from each of four cameras after the volume is filled and the catalog is recovered. [Test profile](docs/test-profile.md#archive-and-investigation-check)
 
-- Политики записи камеры и группы объединяют расписание, движение с предзаписью и дозаписью, ручной и непрерывный режимы. В разделе «Запись и хранение» доступны звук, глубина архива, срок хранения и резерв тома. [Настройки записи](docs/ui.md#запись-и-хранение)
+- Camera archive recovery download, ONVIF and local detector video rules, a second verifiable archive copy and interval holds were added. The "Investigations" section provides motion and event search, synchronized viewing of four points and cases with a signed export of the original or a derivative. [Working with an investigation](docs/ui.md#investigations) · [Replica volume](docs/maintenance.md#second-archive-copy)
 
-- Оператор может открыть личную или общую раскладку, развернуть камеру и вывести сетку на видеостену. Для каждой ячейки видны фактические профиль, кодек и разрешение. Основной поток H.264 или HEVC Main записывается без перекодирования. При просмотре Core учитывает декодер клиента и общий бюджет постов. Защищённые области закрашиваются до передачи кадра. [Рабочее место](docs/ui.md) · [Проверка профилей и раскладок](docs/test-profile.md#профили-эфира-и-многоканальный-просмотр)
+- Camera and group recording policies combine a schedule, motion with pre-event and post-event recording, and manual and continuous modes. The "Recording and storage" section provides sound, archive depth, retention and the volume reserve. [Recording settings](docs/ui.md#recording-and-storage)
 
-- Пульт в окне эфира объединяет поворот, остановку, зум, фокус, предустановки, патрули и звук. Оптикой можно управлять с клавиатуры. При полноэкранном просмотре пульт остаётся рядом с кадром. [Управление камерой и звук](docs/ui.md#управление-камерой-и-звук)
-- В эфире оператор управляет зумом, фокусом, предустановками, патрулями, подсветкой, очистителем и реле в пределах возможностей ONVIF-профиля. Видны состояния цифровых входов, владелец управления и результат команды. При потере подтверждения журнал сохраняет неизвестный исход. Мастер подключения поддерживает адресное обнаружение камер за маршрутизатором. [Управление PTZ](docs/rtsp-compatibility.md#управление-ptz-и-приём-движения)
-- Появились независимые права и органы управления для прослушивания камеры, записи звука в архив и передачи речи. Записанный звук привязан к исходному видеоблоку и проверяется по SHA-256. [Управление камерой и звук](docs/ui.md#управление-камерой-и-звук)
+- The operator can open a personal or shared layout, expand a camera and show the grid on the video wall. Each cell shows the actual profile, codec and resolution. The H.264 or HEVC Main main stream is recorded without re-encoding. For viewing, Core takes into account the client decoder and the common budget of the posts. Protected areas are painted over before a frame is sent. [Workplace](docs/ui.md) · [Profile and layout check](docs/test-profile.md#live-profiles-and-multi-camera-viewing)
 
-- В разделе «Камеры» администратор может подготовить партию ONVIF-каналов, сравнить настройки с шаблоном площадки и проверить версию, применённую рекордером. Список сгруппирован по устройствам и показывает состояние каждого канала. В раскрытой строке доступны сравнение потоков, версии и откат. [Партии камер](docs/ui.md#партии-камер)
+- The console in the live window combines pan, stop, zoom, focus, presets, patrols and sound. The optics can be controlled from the keyboard. In full screen viewing the console stays next to the frame. [Camera control and sound](docs/ui.md#camera-control-and-sound)
+- In live video the operator controls zoom, focus, presets, patrols, the illuminator, the wiper and the relays within the capabilities of the ONVIF profile. The states of the digital inputs, the control owner and the command result are visible. When an acknowledgement is lost, the log keeps an unknown outcome. The connection wizard supports unicast discovery of cameras behind a router. [PTZ control](docs/rtsp-compatibility.md#ptz-control-and-motion-intake)
+- Independent permissions and controls for listening to the camera, recording sound to the archive and speech transmission. The recorded sound is bound to the original video block and verified by SHA-256. [Camera control and sound](docs/ui.md#camera-control-and-sound)
 
-- В верхней панели рабочего места появились переключатель системной, тёмной и светлой тем и иконка выхода. Браузер сохраняет выбранный режим.
+- In the "Cameras" section the administrator can prepare a batch of ONVIF channels, compare the settings with the site template and check the revision applied by the recorder. The list is grouped by device and shows the state of each channel. The expanded row provides the stream comparison, the revisions and a rollback. [Camera batches](docs/ui.md#camera-batches)
 
-- В разделе «Доступ» администратор управляет пользователями, группами точек, разрешениями, приватностью и привязками Keycloak. Сервер проверяет область при выдаче видео и экспорта, записывает изменения в аудит. Корпоративный вход опционален, локальный вход с WebAuthn работает автономно. [Управление доступом](docs/ui.md#управление-доступом)
+- The top bar of the workplace got a switch of the system, dark and light themes and a sign-out icon. The browser keeps the selected mode.
 
-- Для веб- и настольного клиентов описан общий контракт входа. Для испытаний заданы реестр требований и измеримые критерии приёмки. `task docs:check` сверяет операции, ссылки и тестовые векторы реестра. [Реестр](docs/release-register.md) · [Профиль приёмки](docs/release-profile.md)
+- In the "Access" section the administrator manages users, point groups, permissions, privacy and Keycloak bindings. The server checks the scope when video and exports are delivered and writes changes to the audit. Corporate sign-in is optional, local sign-in with WebAuthn works autonomously. [Access management](docs/ui.md#access-management)
 
-- Подписанные автономные комплекты для Debian на amd64 включают PostgreSQL. Установщик проверяет ОС и архитектуру до запуска APT. [Установка](docs/install.md)
+- A common sign-in contract is described for the web and desktop clients. For testing, a requirement register and measurable acceptance criteria are defined. `task docs:check` checks the operations, links and test vectors of the register. [Register](docs/release-register.md) · [Acceptance profile](docs/release-profile.md)
 
-- Новые индексы ускоряют поиск по архивному таймлайну, выборку камер плана и обработку очереди карт. Добавлено воспроизводимое сравнение планов запросов. [Измерения PostgreSQL](docs/postgresql-performance.md)
+- Signed offline kits for Debian on amd64 include PostgreSQL. The installer checks the operating system and the architecture before running APT. [Installation](docs/install.md)
 
-- На карте и планах оператор видит новые тревоги у камер, проверяет запись выбранного события рядом с планом и переключается на эфир. Из предпросмотра можно открыть карточку обработки. [Проверка события на карте](docs/ui.md#проверка-события-на-карте)
+- New indexes speed up the archive timeline search, the selection of plan cameras and the map queue processing. A reproducible comparison of query plans was added. [PostgreSQL measurements](docs/postgresql-performance.md)
 
-- Добавлена опциональная привязка плана к геокарте по двум ориентирам или по одному ориентиру, ширине и азимуту. На карте видны здание, выбранный этаж и направления камер. При совмещении администратор проверяет наложение и выбирает источник координат для ранее размещённых точек. [Привязка плана к геокарте](docs/ui.md#привязка-плана-к-геокарте)
+- On the map and plans the operator sees new alarms at the cameras, checks the recording of the selected event next to the plan and switches to live video. The handling card can be opened from the preview. [Checking an event on the map](docs/ui.md#checking-an-event-on-the-map)
 
-- На картах и планах появились значки камер и калибровка сектора по ориентиру. Для PTZ рабочее место показывает подтверждённую камерой ориентацию и изменение угла обзора при зуме, при потере связи сохраняет время последнего измерения. [Камеры и секторы обзора](docs/ui.md#камеры-и-секторы-обзора)
+- Optional georeferencing of a plan to the map by two landmarks, or by one landmark, the width and the azimuth. The map shows the building, the selected floor and the camera directions. When aligning, the administrator checks the overlay and chooses the coordinate source for previously placed points. [Georeferencing a plan to the map](docs/ui.md#georeferencing-a-plan-to-the-map)
 
-- Администратор может выбрать несколько регионов для установки из HTTPS-каталога или ZIP и обновить установленные карты из любого источника. После разрыва связи или перезапуска Core загрузка из каталога продолжается с сохранённой позиции. Администратор может поставить отдельный регион на паузу и возобновить загрузку позднее. [Управление регионами](docs/ui.md#установка-и-обновление-регионов)
+- Camera icons and sector calibration by a landmark appeared on maps and plans. For PTZ the workplace shows the orientation confirmed by the camera and the change of the field of view with zoom, and on a lost connection keeps the time of the last measurement. [Cameras and view sectors](docs/ui.md#cameras-and-view-sectors)
 
-- Добавлены обновление установленного узла, откат и восстановление узла из зашифрованной копии с сохранным архивным томом. Администратор может отозвать утраченный ключ WebAuthn через локальную консоль. Диагностика связывает состояние камеры, служб, каталога и тома с системным журналом и трассами. [Обновление и восстановление](docs/maintenance.md)
+- The administrator can choose several regions to install from an HTTPS catalog or a ZIP and update the installed maps from any source. After a connection break or a Core restart, the download from the catalog continues from the saved position. The administrator can pause a single region and resume the download later. [Region management](docs/ui.md#installing-and-updating-regions)
 
-- Bacuri VMS можно установить из подписанного автономного комплекта на Debian на amd64. Локальная команда настраивает службы systemd, архивный том и TLS. Для входа администратора требуются пароль и ключ WebAuthn с проверкой пользователя. [Автономная установка и первая привязка](docs/install.md)
+- Upgrade of an installed node, rollback and recovery of the node from an encrypted backup with a preserved archive volume were added. The administrator can revoke a lost WebAuthn key through the local console. Diagnostics link the state of the camera, the services, the catalog and the volume with the system journal and traces. [Upgrade and recovery](docs/maintenance.md)
 
-- Из архива точки и из тревоги можно сохранить подписанный комплект MP4. Отдельное право ограничивает точку и интервал. Автономная утилита проверяет происхождение, границы, контрольные суммы и подпись площадки. [Экспорт фрагмента](docs/ui.md#экспорт-фрагмента)
+- Bacuri VMS can be installed from a signed offline kit on Debian on amd64. A local command configures the systemd services, the archive volume and TLS. Administrator sign-in requires a password and a WebAuthn key with user verification. [Offline installation and initial enrollment](docs/install.md)
 
-- Администратор задаёт срок хранения архива и резерв тома. Диагностика показывает прогноз глубины, предупреждение о малом остатке и остановку записи. Истёкшие блоки закрываются для чтения и удаляются с продолжением после перезапуска. [Настройка хранения](docs/ui.md#срок-хранения-архива)
+- A signed MP4 package can be saved from the archive of a point and from an alarm. A separate permission limits the point and the interval. A standalone utility checks the origin, the bounds, the checksums and the site signature. [Fragment export](docs/ui.md#fragment-export)
 
-- Дежурный может принять тревогу, сохранить результат проверки и закрыть её с указанием основания. Журнал позволяет найти результат и открыть соответствующий архив. Сервису можно поручить одно действие на выбранной точке до заданного срока. [Обработка тревоги и журнал](docs/ui.md#обработка-тревоги-и-журнал)
+- The administrator sets the archive retention and the volume reserve. Diagnostics show the depth forecast, a low space warning and a recording stop. Expired blocks are closed for reading and deleted, continuing after a restart. [Retention setup](docs/ui.md#archive-retention)
 
-- В разделе «Карты и планы» администратор загружает планы объекта и размещает точки. Оператор открывает эфир и архив доступной точки и возвращается на карту. Регион OpenStreetMap импортируется из локального MBTiles, в интерфейсе видны дата исходных данных и атрибуция. [Подготовка региона и работа с планами](docs/ui.md#карта-региона-и-планы)
+- The operator on duty can take an alarm, save the check result and close it with a reason. The log lets the result be found and the corresponding archive opened. A service can be delegated one action on the selected point until a given term. [Alarm handling and the log](docs/ui.md#alarm-handling-and-the-log)
 
-- В эфире оператор может повернуть ONVIF-камеру и остановить движение. Доступные команды определяются по профилю, длительность движения ограничена одной секундой. Уведомления PullPoint о движении поступают в ленту тревог с переходом к кадру записи. Повторная доставка сохраняет одну тревогу. [Управление PTZ и приём движения](docs/rtsp-compatibility.md#управление-ptz-и-приём-движения)
+- In the "Maps and plans" section the administrator uploads site plans and places points. The operator opens live video and the archive of an available point and returns to the map. An OpenStreetMap region is imported from a local MBTiles, and the interface shows the source data date and the attribution. [Preparing a region and working with plans](docs/ui.md#region-map-and-plans)
 
-- Мастер подключения находит камеры через WS-Discovery и получает адреса профилей H.264 через ONVIF. Замена камеры сохраняет точку и прежние записи. По умолчанию действуют HTTPS и RTSPS с проверкой сертификата и имени. Для открытого RTSP требуется исключение по адресу камеры. [Подключение и проверка](docs/rtsp-compatibility.md#мастер-подключения)
+- In live video the operator can pan an ONVIF camera and stop the movement. The available commands are determined by the profile, the movement duration is limited to one second. PullPoint motion notifications enter the alarm feed with a transition to the recording frame. A repeated delivery keeps one alarm. [PTZ control and motion intake](docs/rtsp-compatibility.md#ptz-control-and-motion-intake)
 
-- `task camera:check` проверяет профиль испытаний и восемь функций ONVIF-эмулятора на синтетическом H.264-видео. `task camera:hardware` запускает ту же серию по реестру физических моделей и прошивок. [Стенд ONVIF](docs/rtsp-compatibility.md#стенд-onvif)
+- The connection wizard finds cameras through WS-Discovery and gets the addresses of H.264 profiles through ONVIF. Replacing a camera keeps the point and the previous recordings. HTTPS and RTSPS with certificate and name checks apply by default. Open RTSP requires an exception by camera address. [Connection and check](docs/rtsp-compatibility.md#connection-wizard)
 
-- `task packages:build` выгружает сопровождаемые пакеты libxml2 и libsoup для Debian с исходниками и материалами сборки. Проверка связывает каждое исправление с байтами установленного пакета и продолжает проверять бюллетени для исходной версии. [ADR-016](docs/adr/016-system-backports.md)
+- `task camera:check` checks the test profile and eight functions of the ONVIF emulator on synthetic H.264 video. `task camera:hardware` runs the same series by the register of physical models and firmware. [ONVIF stand](docs/rtsp-compatibility.md#onvif-stand)
 
-- `task regression:check` повторяет функциональные испытания ядра с чистой сборкой и пустыми томами. В отчёте сохраняются исходники, снимки экранов, результаты восстановления и контрольные суммы Release.
-- `task deps:check` проверяет зависимости продукта, сборки и тестов по составу образов, графам Conan, установке npm и бюллетеням поставщиков. Снимок можно повторно проверить без сети. [Регрессия ядра](docs/test-profile.md#регрессия-ядра)
+- `task packages:build` exports the maintained libxml2 and libsoup packages for Debian with the sources and build materials. The check links each fix to the bytes of the installed package and keeps checking the advisories for the original version. [ADR-016](docs/adr/016-system-backports.md)
 
-- Администратор может сохранить зашифрованную копию конфигурации и прав площадки и восстановить каталог по проверенным блокам архива. До завершения сверки доступ к архиву закрыт. Журнал хранит подтверждённые интервалы пропусков. [Инструкция](docs/recovery.md)
-- `task recovery:check` проверяет прерывания публикации, остановку служб, заполнение, отключение и утрату тома. Отчёт содержит потери и время до возвращения конфигурации, чтения прежнего архива и новой записи.
+- `task regression:check` repeats the functional tests of the core with a clean build and empty volumes. The report keeps the sources, the screenshots, the recovery results and the Release checksums.
+- `task deps:check` checks the product, build and test dependencies by the image content, the Conan graphs, the npm installation and the supplier advisories. A snapshot can be checked again without network. [Core regression](docs/test-profile.md#core-regression)
 
-- Рабочее место администратора и оператора доступно через единый HTTPS-вход. В разделе «Камеры» администратор подключает камеру, проверяет оба потока и подтверждает новую запись после декодирования кадра. В «Мониторинге» оператор открывает архив на момент тревоги и возвращается к выбранной карточке с сохранением точки, интервала и позиции ленты.
-- UI Kit на React и TypeScript с локальным каталогом Storybook. Шкала архива поддерживает выбор времени с клавиатуры и показывает причины пропусков. Форма камеры проверяет адреса потоков и сохраняет ввод для повторной попытки. Те же компоненты, плеер и лента тревог используются на рабочих экранах.
-- `task web:build` собирает веб-клиент. `task workspace:check` проверяет экраны в двух темах на четырёх ширинах, доступность с клавиатуры и бюджет начальной загрузки. Сквозные сценарии в Chrome и Firefox сверяют версию камеры и фактически декодированный кадр, проверяют восстановление связи и отзыв доступа.
+- The administrator can save an encrypted backup of the site configuration and permissions and recover the catalog from verified archive blocks. Access to the archive is closed until the reconciliation completes. The journal keeps the confirmed gap intervals. [Guide](docs/recovery.md)
+- `task recovery:check` checks publication interruptions, stopped services, filling, disconnecting and losing the volume. The report contains the losses and the time to return the configuration, the reading of the earlier archive and the new recording.
 
-- В `task check` добавлены Gitleaks, clang-format и проверка покрытия не менее 75% строк отдельно для продуктового C++, браузерного JavaScript и TypeScript единого клиента. Отчёт TypeScript сопоставляет исполненный код с исходными строками и учитывает незагруженные модули.
+- The administrator and operator workplace is available through one HTTPS sign-in. In the "Cameras" section the administrator connects a camera, checks both streams and confirms a new recording after a frame is decoded. In "Monitoring" the operator opens the archive at the time of an alarm and returns to the selected card with the point, the interval and the feed position kept.
+- A React and TypeScript UI Kit with a local Storybook catalog. The archive timeline supports time selection from the keyboard and shows the reasons for gaps. The camera form checks the stream addresses and keeps the input for a retry. The same components, the player and the alarm feed are used on the work screens.
+- `task web:build` builds the web client. `task workspace:check` checks the screens in two themes at four widths, keyboard accessibility and the initial load budget. End-to-end scenarios in Chrome and Firefox compare the camera revision and the actually decoded frame and check connection recovery and access revocation.
 
-- В общий прогон включены проверка документации и сценарии макета в Chromium и Firefox с проверкой доступности и сравнением полных экранов.
+- `task check` got Gitleaks, clang-format and a check of at least 75% line coverage separately for product C++, browser JavaScript and the TypeScript of the single client. The TypeScript report maps the executed code to the source lines and counts the modules that were not loaded.
 
-- Каркас `bacuri-vms-core` на C++ с командой `--version` и пресетами CMake для сборки через Ninja на GCC и Clang.
-- Локальный стенд Docker Compose с PostgreSQL, синтетической камерой с двумя потоками RTSP/H.264, постоянным томом архива и ограниченным томом для испытаний заполнения.
-- Задачи Go Task для сборки, CTest, статического анализа и управления Compose-стендом. `task check` запускает полный набор проверок, включая ASan/UBSan, запрос к PostgreSQL и декодирование обоих RTSP-потоков.
-- Отчёт о локальных проверках и тест сохранности базы и архива после перезапуска Compose.
-- Запуск CTest с ThreadSanitizer в отдельном контейнере для сборки `clang-tsan`.
-- Доменная модель C++ для ресурсов, версий привязки, времени, архива и наблюдений.
-- Начальные миграции PostgreSQL и SQLite, манифест архивного блока и проверка `task schema:check`.
-- Контракты REST/OpenAPI, gRPC и WebSocket, модель доступа и сроки выдачи медиасеансов.
-- Проверка контрактов и примеров через `task api:check`. Генерация и проверка типов TypeScript через `task api:types`.
+- The common run includes the documentation check and the mockup scenarios in Chromium and Firefox with accessibility checks and full screen comparison.
 
-- HTTPS-сервер управления на Boost.Asio и Boost.Beast, локальные сессии, реестр камер с аудитом и разграничением доступа.
-- Передача конфигурации по gRPC и восстановление зашифрованного снимка в процессе записи. Задачи `task control:up` и `task control:check`.
+- The C++ skeleton of `bacuri-vms-core` with the `--version` command and CMake presets for building with Ninja on GCC and Clang.
+- A local Docker Compose stand with PostgreSQL, a synthetic camera with two RTSP/H.264 streams, a persistent archive volume and a limited volume for fill tests.
+- Go Task tasks for the build, CTest, static analysis and Compose stand management. `task check` runs the full set of checks, including ASan/UBSan, a PostgreSQL query and decoding of both RTSP streams.
+- A report of local checks and a test that the database and the archive survive a Compose restart.
+- CTest with ThreadSanitizer in a separate container for the `clang-tsan` build.
+- A C++ domain model for resources, binding revisions, time, the archive and observations.
+- Initial PostgreSQL and SQLite migrations, the archive block manifest and the `task schema:check` check.
+- REST/OpenAPI, gRPC and WebSocket contracts, the access model and media session delivery terms.
+- Checking contracts and examples with `task api:check`. Generating and checking TypeScript types with `task api:types`.
 
-- Приём двух RTSP/H.264-профилей в процессе записи, независимые ограниченные очереди, восстановление связи и диагностика пропусков и привязки времени.
-- RTSP-эмулятор на основе веб-камеры Linux V4L2. Задачи `webcam:up`, `webcam:check`, `webcam:down` и воспроизводимый сценарий `ingest:check`.
+- An HTTPS control server on Boost.Asio and Boost.Beast, local sessions, a camera registry with audit and access control.
+- Configuration delivery over gRPC and recovery of the encrypted snapshot in the recording process. The `task control:up` and `task control:check` tasks.
 
-- Архив основного потока в fMP4 с манифестом, SHA-256, атомарной публикацией и журналом SQLite. Каталог PostgreSQL принимает повторную регистрацию и отражает результат сверки тома.
-- Задачи `task archive:status` для диагностики и `task archive:check` для проверки записи, прерываний и восстановления каталога.
+- Intake of two RTSP/H.264 profiles in the recording process, independent bounded queues, connection recovery and diagnostics of gaps and time binding.
+- An RTSP emulator based on a Linux V4L2 webcam. The `webcam:up`, `webcam:check` and `webcam:down` tasks and the reproducible `ingest:check` scenario.
 
-- Поиск архива по точке и времени с проверкой прав, курсором и указанием причины разрыва. Подтверждённые разрывы сохраняются в журнале записи и передаются в каталог PostgreSQL.
-- Архивный плеер с перемоткой по UTC, процесс `bacuri-vms-media` и потоковая HTTPS-выдача частей fMP4 с проверкой короткого разрешения. Задача `task playback:check` проверяет кадры и отзыв доступа в Compose.
+- An fMP4 archive of the main stream with a manifest, SHA-256, atomic publication and an SQLite journal. The PostgreSQL catalog accepts a repeated registration and reflects the volume reconciliation result.
+- `task archive:status` for diagnostics and `task archive:check` to check recording, interruptions and catalog recovery.
 
-- Прямой эфир дополнительного потока H.264 через WebRTC в Chrome и Firefox. HTTPS-сигнализация привязана к точке наблюдения и браузерному сеансу. Запись основного потока работает независимо от зрителей.
-- Задача `task live:check` измеряет первый кадр и прекращение выдачи по сети, проверяет архив при медленном клиенте и перезапуске процесса выдачи.
+- Archive search by point and time with permission checks, a cursor and the reason for a break. Confirmed breaks are kept in the recording journal and passed to the PostgreSQL catalog.
+- An archive player with seeking by UTC, the `bacuri-vms-media` process and streaming HTTPS delivery of fMP4 parts with a short permit check. `task playback:check` checks the frames and access revocation in Compose.
 
-- Устойчивый приём наблюдений по gRPC, правило движения и транзакционная публикация тревог в PostgreSQL. Тестовый источник поддерживает создание и повторную отправку одного наблюдения.
-- Лента тревог по WSS с проверкой прав, возобновлением по курсору и переходом к кадру архива с учётом версии привязки и погрешности часов. Задача `task alerts:check` проверяет сквозной сценарий в Chrome и Firefox.
+- Live video of the secondary H.264 stream through WebRTC in Chrome and Firefox. HTTPS signaling is bound to the observation point and the browser session. Recording of the main stream works independently of viewers.
+- `task live:check` measures the first frame and the end of delivery over the network, and checks the archive with a slow client and a restart of the delivery process.
+
+- Durable intake of observations over gRPC, a motion rule and transactional publication of alarms in PostgreSQL. The test source supports creating and resending one observation.
+- An alarm feed over WSS with permission checks, resumption by cursor and the transition to an archive frame that takes into account the binding revision and the clock uncertainty. `task alerts:check` checks the end-to-end scenario in Chrome and Firefox.
 
 ### Changed
 
-- Раздел «Камеры» открывает каталог подключённых устройств. В соседнем подразделе доступны ручное подключение, поиск ONVIF и массовое подключение. Списки рабочего места и подразделы «Доступа» используют общую панель с иконками поиска, сброса и обновления. В ленте мониторинга состояния тревог переключаются одним нажатием. Шкала доступна в «Архиве» и загружает выбранный момент после отпускания бегунка. При переключении режима предыдущий плеер останавливается. [Рабочее место](docs/ui.md)
+- The export verifier `bacuri-vms-verify-export` is built from verification, manifest, MP4 and identifier libraries and links only libsodium. An architecture test rejects SQLite, GLib, GIO, GStreamer and the archive volume in its sources. [Archive format](docs/archive-format.md#verification-tools)
 
-- В журнале действий панель поиска и фильтр по тревоге расположены над записями. Масштаб плана выбирается одним нажатием. Активный пункт меню и вкладка браузера обозначают открытый экран. Рабочая область начинается с выбора точки, карты, фильтров или формы подключения. [Рабочее место](docs/ui.md#визуальная-система)
+- An archive block is written by an own fragmented MP4 writer instead of a GStreamer pipeline per block. The CPU time per block dropped about five times. The live session waits for connection state changes instead of polling. [Archive format](docs/archive-format.md)
 
-- Кнопка «К тревогам» ведёт к ленте, когда та расположена под видео. Журнал переименован в «Журнал действий». Пустой журнал поясняет, когда появится первая запись. [Обработка тревоги и журнал](docs/ui.md#обработка-тревоги-и-журнал)
+- The recording state of a point is derived from the archive catalog and the report of the recording node. "Recording in progress" is shown only when a recently received frame is already in an available block. For a stopped or lagging recording the reason is visible, and the age of the last frame in the archive is shown next to it. [Product principles](docs/product-principles.md#3-archive-truth)
 
-- В широком окне подразделы с иконками размещены под активным разделом бокового меню. На телефоне кнопки подразделов «Доступа» выровнены в сетку. [Навигация рабочего места](docs/ui.md#визуальная-система)
+- The recording node starts recording right after the start. Archive checksums are verified in the background with a limited read rate, and a damaged block is restored from the second copy. The catalog recovery tool still checks the whole archive before publishing the result. [Maintenance](docs/maintenance.md)
 
-- На широком экране разделы рабочего места открываются из сворачиваемого меню слева. Обновление обозначено иконкой с подсказкой. В карточках камер и тревог действия перехода оформлены кнопками. [Рабочее место](docs/ui.md#визуальная-система)
+- The core reuses PostgreSQL connections. Workplace requests, password checks and long operations with cameras, maps and export are served by separate pools, so a recovery download or the sign-in of other users does not delay the operator.
 
-- Каналы при выборе и в инвентаре сгруппированы по устройству. В управлении доступом открывается выбранная учётная запись, а форма приватности показывает последствия до применения. Журналы показывают подробности по запросу. На карте координаты открываются при редактировании точки. [Рабочее место](docs/ui.md)
+- The documentation is written in English, with Russian versions in `README.ru.md` and `docs/ru/`. `task docs:check` checks that each document has its pair and that both link to each other.
 
-- В мониторинге можно сверить архив тревоги с эфиром, сохранив карточку и черновик результата. Лента поддерживает фильтр по состоянию и возврат к событию на телефоне. Журнал доступен из основной навигации, мастер камеры показывает ход проверки до открытия плеера. [Ревью рабочих сценариев](docs/ui.md#ревью-рабочих-сценариев)
+- The "Cameras" section opens the catalog of connected devices. A neighboring subsection provides manual connection, ONVIF discovery and batch connection. Workplace lists and the "Access" subsections use a common panel with search, reset and refresh icons. In the monitoring feed the alarm states switch with one press. The timeline is available in "Archive" and loads the selected moment after the handle is released. Switching the mode stops the previous player. [Workplace](docs/ui.md)
 
-- Миграция размещает учётные записи и права, медиасессии, карты и политику хранения в схемах владельцев. Пакет поддерживает обновление прежних установок и откат к исходной версии по сохранённому снимку. [Обслуживание площадки](docs/maintenance.md)
+- In the activity journal the search panel and the alarm filter are above the records. Plan zoom is chosen with one press. The active menu item and the browser tab mark the open screen. The work area starts with the point selection, the map, the filters or the connection form. [Workplace](docs/ui.md#visual-system)
 
-- Внутри Core реестр устройств, каталог записей, медиасессии, права, тревоги и карты используют операции владельцев данных. CTest проверяет зависимости C++ и владение объектами PostgreSQL. [Граница Core](docs/adr/018-core-module-boundary.md)
+- The "To alarms" button leads to the feed when it is under the video. The journal is renamed to "Activity journal". An empty journal explains when the first record appears. [Alarm handling and the log](docs/ui.md#alarm-handling-and-the-log)
 
-- Экранные сценарии, эталонные снимки и проверка значков выполняются в `task ui-kit:check` на рабочем веб-клиенте. Отдельный статический макет снят с сопровождения. [Проверка в браузерах](docs/ui.md#проверка-в-браузерах)
+- In a wide window the subsections with icons are placed under the active section of the side menu. On a phone the buttons of the "Access" subsections are aligned in a grid. [Workplace navigation](docs/ui.md#visual-system)
 
-- Debian-пакет и команда локального администрирования получили имя `bacuri-vms`. Для проверки установки и обслуживания используются `task install:check` и `task maintenance:check`, для сборки подписанного комплекта - `task release:package`. [Установка](docs/install.md) · [Обновление](docs/maintenance.md)
+- On a wide screen the workplace sections open from a collapsible menu on the left. Refresh is marked by an icon with a tooltip. In the camera and alarm cards the transition actions are buttons. [Workplace](docs/ui.md#visual-system)
 
-- Добавлена проверка обновления PostgreSQL на отдельной физической копии с перестроением индексов, сверкой архива и очереди тревог и восстановлением из новой полной копии.
-- Образ каталога UI Kit использует исправленный пакет Brotli из Alpine. Гейт проверяет образ и утилиты сборки Conan.
-- Обновлены PostgreSQL и Selenium на тестовом стенде, Node.js в генераторе API, ESLint и c8.
+- Channels are grouped by device in the selection and in the inventory. Access management opens the selected account, and the privacy form shows the consequences before applying. The logs show details on request. On the map the coordinates open when a point is edited. [Workplace](docs/ui.md)
 
-- В автоматическую квалификацию релиз-кандидата включили проверку смешанной нагрузки и изоляции отказов.
+- In monitoring the alarm archive can be compared with live video while keeping the card and the result draft. The feed supports a state filter and the return to an event on a phone. The log is available from the main navigation, and the camera wizard shows the check progress before the player opens. [Work scenario review](docs/ui.md#work-scenario-review)
 
-- Светлая и тёмная темы используют общие токены типографики, отступов и цветов. Контролы, выбранные элементы и шкала архива получили приглушённые золотистые акценты. Для знака платформы и favicon используется изображение среза бакури.
-- Для стека платформы, сборки и эксплуатации закреплены критерии выбора поддерживаемых версий, проверки совместимости и пересмотра зависимостей. [ADR-015](docs/adr/015-technology-lifecycle.md)
+- A migration places the accounts and permissions, media sessions, maps and the retention policy in the schemas of their owners. The package supports upgrading previous installations and rolling back to the original version by a saved snapshot. [Site maintenance](docs/maintenance.md)
 
-- Boost, nlohmann/json и GoogleTest/GoogleMock поставляются через Conan с общим lockfile для GCC и Clang. Добавлены автономная компиляция в подготовленном образе, Release-пресет и побайтное сравнение результатов чистой пересборки.
+- Inside Core the device registry, the recording catalog, media sessions, permissions, alarms and maps use the operations of the data owners. CTest checks the C++ dependencies and the ownership of PostgreSQL objects. [Core boundary](docs/adr/018-core-module-boundary.md)
 
-- RTSP-эмулятор веб-камеры сохраняет временную шкалу RTP основного и дополнительного профилей при передаче захвата в RTSP-сервер.
+- The screen scenarios, reference captures and the icon check run in `task ui-kit:check` on the working web client. The separate static mockup is no longer maintained. [Browser checks](docs/ui.md#browser-checks)
 
-- Правила `.gitignore` учитывают артефакты CMake, Ninja и CTest и локальные настройки Docker Compose.
-- Зависимости образа разработки закреплены через фиксированный снимок репозиториев Debian.
-- Доменные проекции времени и интервалы записи создаются через проверяющие фабрики C++. Доменные тесты выполняются на GoogleTest через CTest, тестовое окружение включает GoogleMock.
+- The Debian package and the local administration command are named `bacuri-vms`. `task install:check` and `task maintenance:check` check the installation and maintenance, `task release:package` builds the signed kit. [Installation](docs/install.md) · [Upgrade](docs/maintenance.md)
+
+- A check of the PostgreSQL upgrade on a separate physical copy with index rebuilds, a comparison of the archive and the alarm queue and recovery from a new full backup was added.
+- The UI Kit catalog image uses the fixed Brotli package from Alpine. The gate checks the image and the Conan build utilities.
+- PostgreSQL and Selenium on the test stand, Node.js in the API generator, ESLint and c8 were updated.
+
+- The automatic qualification of the release candidate includes the mixed load and failure isolation check.
+
+- The light and dark themes use common typography, spacing and color tokens. Controls, selected elements and the archive timeline got muted golden accents. The platform mark and the favicon use an image of a bacuri cross-section.
+- Criteria for choosing supported versions, checking compatibility and reviewing dependencies are fixed for the platform, build and operation stack. [ADR-015](docs/adr/015-technology-lifecycle.md)
+
+- Boost, nlohmann/json and GoogleTest/GoogleMock are delivered through Conan with a common lockfile for GCC and Clang. Offline compilation in a prepared image, a Release preset and a byte-for-byte comparison of the results of a clean rebuild were added.
+
+- The webcam RTSP emulator keeps the RTP timeline of the main and secondary profiles when passing the capture to the RTSP server.
+
+- The `.gitignore` rules cover the CMake, Ninja and CTest artifacts and the local Docker Compose settings.
+- The dependencies of the development image are pinned through a fixed snapshot of the Debian repositories.
+- Domain time projections and recording intervals are created through checking C++ factories. Domain tests run on GoogleTest through CTest, and the test environment includes GoogleMock.
 
 ### Fixed
 
-- В общей проверке автономной установки Bookworm и Trixie используют свои образы. В протокол записывается кодовое имя ОС, полученное из загруженной виртуальной машины.
+- Frames dropped after the block limit until the next keyframe are marked on the timeline as a gap with the reason "The camera rarely sends keyframes". Previously this loss did not enter the gap journal.
 
-- Во время восстановления архива поиск и открытие медиасеанса сохраняют ответ `404` для недоступной пользователю точки. Пользователь с правом просмотра получает состояние недоступности архива.
+- A camera archive recovery download stopped by the time limit reports a partial result and continues from the end of the copied interval. Previously it reported a complete copy and skipped the rest of the window.
 
-- При открытии и обновлении рабочего места браузер применяет выбранную тему до первого кадра. Фон сохраняется во время загрузки клиента и проверки сеанса.
+- In the common check of the offline installation, Bookworm and Trixie use their own images. The protocol records the operating system codename obtained from the booted virtual machine.
 
-- В верхнем меню на телефоне иконки разделов выровнены по одной линии. Короткие подписи «Журнал» и «Карты» помещаются внутри кнопок.
+- During archive recovery, search and opening a media session keep the `404` response for a point unavailable to the user. A user with the viewing permission gets the archive unavailability state.
 
-- В макете и документации подключение камер отнесено к роли администратора площадки. Переход между разделами макета сохраняет роль сессии.
+- When the workplace opens or reloads, the browser applies the selected theme before the first frame. The background is kept while the client loads and the session is checked.
 
-- Фоновая проверка сессии и списка разрешённых точек сохраняет тайм-аут бездействия. По его истечении открытый клиент возвращается к форме входа.
-- Архивный плеер применяет последнюю выбранную позицию, если предыдущая перемотка ещё выполняется.
+- In the top menu on a phone the section icons are aligned on one line. The short labels "Journal" and "Maps" fit inside the buttons.
+
+- In the mockup and the documentation, camera connection belongs to the site administrator role. Navigating between the mockup sections keeps the session role.
+
+- The background check of the session and the list of permitted points keeps the idle timeout. When it expires, the open client returns to the sign-in form.
+- The archive player applies the last selected position when the previous seek is still running.

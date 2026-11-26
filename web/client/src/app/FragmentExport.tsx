@@ -3,6 +3,7 @@ import type { ExportOptions, Interval, Services } from "../contracts/workspace";
 import "./fragment-export.css";
 import { HttpFailure } from "../adapters/api";
 import { Button, TextField } from "../ui-kit/FormControls";
+import { useT } from "../i18n";
 
 export default function FragmentExport({
   services,
@@ -17,6 +18,7 @@ export default function FragmentExport({
   alert: string | null;
   interval: Interval;
 }) {
+  const t = useT();
   const [start, setStart] = useState(interval.start);
   const [end, setEnd] = useState(interval.end);
   const [mode, setMode] = useState<ExportOptions["mode"]>("selection");
@@ -64,14 +66,14 @@ export default function FragmentExport({
       if (!ctl.signal.aborted)
         setError(
           status === 403
-            ? "Нет права на экспорт выбранного интервала."
+            ? t("export.forbidden")
             : status === 400
-              ? "Укажите начало и конец в UTC. Максимальный интервал - один час."
+              ? t("export.badInterval")
               : status === 409
-                ? "В интервале нет однозначно доступной записи."
+                ? t("export.ambiguous")
                 : status === 413
-                  ? "Сократите интервал экспорта."
-                  : "Не удалось получить комплект. Повторите запрос.",
+                  ? t("export.tooLarge")
+                  : t("export.failed"),
         );
     } finally {
       controller.current = null;
@@ -80,20 +82,18 @@ export default function FragmentExport({
   }
   return (
     <details className="ws-export">
-      <summary>Экспорт фрагмента</summary>
+      <summary>{t("export.title")}</summary>
       <form
         onSubmit={(event) => {
           event.preventDefault();
           void prepare();
         }}
       >
-        <p className="ws-export-hint">
-          Укажите интервал до одного часа. Время в UTC заканчивается буквой Z.
-        </p>
+        <p className="ws-export-hint">{t("export.hint")}</p>
         <fieldset>
           <TextField
             name="exportStart"
-            label="Начало интервала (UTC)"
+            label={t("export.start")}
             value={start}
             required
             readOnly={busy}
@@ -105,7 +105,7 @@ export default function FragmentExport({
           />
           <TextField
             name="exportEnd"
-            label="Конец интервала (UTC)"
+            label={t("export.end")}
             value={end}
             required
             readOnly={busy}
@@ -116,7 +116,7 @@ export default function FragmentExport({
             }}
           />
           <label>
-            Представление
+            {t("export.representation")}
             <select
               value={mode}
               disabled={busy}
@@ -125,11 +125,9 @@ export default function FragmentExport({
                 setUrl("");
               }}
             >
-              <option value="selection">Выбранные кадры</option>
-              <option value="original">
-                Оригинал с контекстом декодирования
-              </option>
-              <option value="derivative">Копия с масками</option>
+              <option value="selection">{t("export.selection")}</option>
+              <option value="original">{t("export.original")}</option>
+              <option value="derivative">{t("export.derivative")}</option>
             </select>
           </label>
           <label>
@@ -142,12 +140,12 @@ export default function FragmentExport({
                 setUrl("");
               }}
             />
-            Включить звук
+            {t("export.audio")}
           </label>
           {(mode !== "selection" || sound) && (
             <TextField
               name="exportReason"
-              label="Основание выдачи"
+              label={t("export.reason")}
               required
               value={reason}
               onChange={(e) => {
@@ -162,7 +160,7 @@ export default function FragmentExport({
             aria-disabled={busy}
             variant="primary"
           >
-            {busy ? "Подготовка комплекта…" : "Подготовить комплект"}
+            {busy ? t("export.preparing") : t("export.prepare")}
           </Button>
         </fieldset>
         {error && <p role="alert">{error}</p>}
@@ -173,7 +171,7 @@ export default function FragmentExport({
             href={url}
             download={`bacuri-${point}-${start}.tar`}
           >
-            Сохранить комплект
+            {t("export.save")}
           </a>
         )}
       </form>

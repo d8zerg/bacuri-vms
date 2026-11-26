@@ -15,7 +15,12 @@ import { HttpFailure } from "../adapters/api";
 import { SubsectionSlot } from "./SubsectionMenu";
 import { cameraSetup, Installer } from "./installer";
 import "../ui-kit/media-panels.css";
-import { ThemeSwitch, useWorkspaceTheme } from "./WorkspaceTheme";
+import {
+  LanguageSwitch,
+  ThemeSwitch,
+  useWorkspaceTheme,
+} from "./WorkspaceTheme";
+import { LanguageProvider, useT, type MessageKey } from "../i18n";
 import { Button } from "../ui-kit/FormControls";
 import icons from "../../../../design/bacuri/icons/sprite.svg";
 import mark from "../../../../design/bacuri/brand/mark.svg";
@@ -39,6 +44,7 @@ function Login({
   onLogin: (user: Session) => void;
   message: string;
 }) {
+  const t = useT();
   const [notice, setNotice] = useState(message),
     [busy, setBusy] = useState(false),
     [enroll, setEnroll] = useState(false);
@@ -85,26 +91,19 @@ function Login({
         error.code === "enrollment_required"
       ) {
         setEnroll(true);
-        setNotice(
-          "Введите одноразовый код из локальной консоли площадки и подключите ключ безопасности.",
-        );
+        setNotice(t("login.enrollmentRequired"));
         return;
       }
       if (error instanceof HttpFailure && error.code === "invalid_credentials")
-        setNotice("Проверьте имя пользователя и пароль.");
+        setNotice(t("login.invalid"));
       else if (error instanceof HttpFailure && error.status === 429)
-        setNotice("Слишком много попыток входа. Попробуйте позже.");
+        setNotice(t("login.rateLimited"));
       else if (
         (error instanceof HttpFailure && error.code === "invalid_factor") ||
         (error instanceof DOMException && error.name === "NotAllowedError")
       )
-        setNotice(
-          "Ключ безопасности не подтвердил вход. Повторите попытку с подключённым ключом.",
-        );
-      else
-        setNotice(
-          "Не удалось завершить вход. Проверьте связь с площадкой и повторите попытку.",
-        );
+        setNotice(t("login.keyRejected"));
+      else setNotice(t("login.failed"));
     } finally {
       setBusy(false);
     }
@@ -112,14 +111,14 @@ function Login({
   return (
     <main className="ws-login ws-panel ws-pad">
       <img className="ws-login-mark" alt="" src={mark} />
-      <h1>Вход в Bacuri VMS</h1>
+      <h1>{t("login.title")}</h1>
       <form onSubmit={(e) => void submit(e)}>
         <label>
-          Имя пользователя
+          {t("login.username")}
           <input required name="username" autoComplete="username" />
         </label>
         <label>
-          Пароль
+          {t("login.password")}
           <input
             required
             type="password"
@@ -129,7 +128,7 @@ function Login({
         </label>
         {enroll && (
           <label>
-            Код первичной привязки
+            {t("login.enrollment")}
             <input
               type="password"
               ref={enrollmentInput}
@@ -140,12 +139,12 @@ function Login({
           </label>
         )}
         <Button type="submit" variant="primary" disabled={busy}>
-          {busy ? "Выполняется вход…" : "Войти"}
+          {busy ? t("login.submitting") : t("login.submit")}
         </Button>
       </form>
       {corporate && (
         <a className="bk-button" href="/api/v1/session/oidc/start">
-          Войти через Keycloak
+          {t("login.keycloak")}
         </a>
       )}
       <p role="status">{notice}</p>
@@ -173,6 +172,7 @@ function Site({
   audit: boolean;
   onExpired: () => void;
 }) {
+  const t = useT();
   const [params] = useSearchParams();
   const [points, setPoints] = useState<Point[] | null>(null),
     [feed, setFeed] = useState<Feed>(waiting),
@@ -244,9 +244,7 @@ function Site({
       items: feed.items.filter((item) => allowed.has(item.point_id)),
     };
   }, [feed, points]);
-  const notice = failed
-    ? "Нет связи или доступа к площадке. Восстанавливаем подключение…"
-    : "Загрузка площадки…";
+  const notice = failed ? t("site.reconnecting") : t("site.loading");
   if (cameras && admin)
     return (
       <Installer
@@ -259,7 +257,7 @@ function Site({
   if (!points) return <p role="status">{notice}</p>;
   if (investigations)
     return (
-      <Suspense fallback={<p role="status">Загрузка материалов…</p>}>
+      <Suspense fallback={<p role="status">{t("loading.materials")}</p>}>
         <Investigations
           key={points[0]?.access_revision ?? ""}
           services={services}
@@ -271,7 +269,7 @@ function Site({
     );
   if (audit)
     return (
-      <Suspense fallback={<p role="status">Загрузка журнала…</p>}>
+      <Suspense fallback={<p role="status">{t("loading.journal")}</p>}>
         <Audit
           key={params.get("alert_id") ?? ""}
           services={services}
@@ -282,7 +280,7 @@ function Site({
     );
   if (maps)
     return (
-      <Suspense fallback={<p role="status">Загрузка карт и планов…</p>}>
+      <Suspense fallback={<p role="status">{t("loading.maps")}</p>}>
         <Maps
           services={services}
           site={site}
@@ -292,10 +290,9 @@ function Site({
         />
       </Suspense>
     );
-  if (cameras)
-    return <p role="status">Недостаточно прав для подключения камеры</p>;
+  if (cameras) return <p role="status">{t("access.cameraDenied")}</p>;
   return (
-    <Suspense fallback={<p role="status">Загрузка мониторинга…</p>}>
+    <Suspense fallback={<p role="status">{t("loading.monitoring")}</p>}>
       <Monitor
         admin={admin}
         services={services}
@@ -310,27 +307,34 @@ const sidebarKey = "bacuri.vms.sidebar.collapsed";
 const sections = [
   {
     path: "/monitor",
-    label: "Мониторинг",
-    short: "Пост",
+    label: "nav.monitoring",
+    short: "nav.monitoring.short",
     icon: "monitor-play",
   },
   {
     path: "/investigations",
-    label: "Расследования",
-    short: "Дела",
+    label: "nav.investigations",
+    short: "nav.investigations.short",
     icon: "search",
   },
   {
     path: "/audit",
-    label: "Журнал",
-    detail: " действий",
+    label: "nav.journal",
+    short: "nav.journal.short",
     icon: "clipboard-list",
   },
-  { path: "/maps", label: "Карты", detail: " и планы", icon: "map" },
-  { path: "/access", label: "Доступ", icon: "shield-check", admin: true },
-  { path: "/cameras", label: "Камеры", icon: "cctv", admin: true },
-];
+  { path: "/maps", label: "nav.maps", short: "nav.maps.short", icon: "map" },
+  { path: "/access", label: "nav.access", icon: "shield-check", admin: true },
+  { path: "/cameras", label: "nav.cameras", icon: "cctv", admin: true },
+] satisfies {
+  path: string;
+  label: MessageKey;
+  short?: MessageKey;
+  icon: string;
+  admin?: boolean;
+}[];
 function Workspace({ services }: { services: Services }) {
+  const t = useT();
   const theme = useWorkspaceTheme();
   const [submenuSlot, setSubmenuSlot] = useState<HTMLDivElement | null>(null);
   const [collapsed, setCollapsed] = useState(() => {
@@ -348,7 +352,7 @@ function Workspace({ services }: { services: Services }) {
       // Keep the selection for this session when browser storage is unavailable.
     }
   }
-  const toggleLabel = collapsed ? "Развернуть меню" : "Свернуть меню";
+  const toggleLabel = collapsed ? t("nav.expand") : t("nav.collapse");
   const [identity, setIdentity] = useState<Session | null | undefined>(
     undefined,
   );
@@ -380,36 +384,32 @@ function Workspace({ services }: { services: Services }) {
     return () => ctl.abort();
   }, [services, sessionAttempt]);
   const [expired] = useState(() => () => {
-    setMessage("Сеанс или права изменились. Войдите снова.");
+    setMessage(t("session.expired"));
     setIdentity(null);
   });
   const section =
     {
-      "/maps": "Карты и планы",
-      "/investigations": "Расследования",
-      "/audit": "Журнал действий",
-      "/access": "Доступ и пользователи",
-      "/cameras": {
-        manual: "Подключение камеры",
-        onvif: "Поиск ONVIF и замена камеры",
-        batch: "Массовое подключение",
-        recording: "Запись и хранение",
-        rules: "Видеоправила",
-        catalog: "Каталог подключённых устройств",
-      }[cameraSetup(params.get("setup")) ?? "catalog"],
-    }[path] ?? "Мониторинг";
+      "/maps": t("section.maps"),
+      "/investigations": t("section.investigations"),
+      "/audit": t("section.journal"),
+      "/access": t("section.access"),
+      "/cameras": t(
+        `section.cameras.${cameraSetup(params.get("setup")) ?? "catalog"}`,
+      ),
+    }[path] ?? t("section.monitoring");
   useEffect(() => {
     document.title =
-      (identity ? section : identity === null ? "Вход" : "Загрузка") +
-      " | Bacuri VMS";
-  }, [section, identity]);
+      (identity
+        ? section
+        : identity === null
+          ? t("section.signIn")
+          : t("loading.generic")) + " | Bacuri VMS";
+  }, [section, identity, t]);
   if (sessionFailed)
     return (
       <main className="ws-login ws-panel">
-        <h1>Площадка недоступна</h1>
-        <p role="status">
-          Не удалось проверить сеанс. Проверьте соединение с площадкой.
-        </p>
+        <h1>{t("site.unavailable")}</h1>
+        <p role="status">{t("site.sessionCheckFailed")}</p>
         <Button
           variant="primary"
           onClick={() => {
@@ -417,14 +417,14 @@ function Workspace({ services }: { services: Services }) {
             setSessionAttempt((n) => n + 1);
           }}
         >
-          Повторить подключение
+          {t("site.retry")}
         </Button>
       </main>
     );
   if (identity === undefined)
     return (
       <main className="ws-startup" role="status">
-        Загрузка сеанса…
+        {t("loading.session")}
       </main>
     );
   if (!identity)
@@ -450,7 +450,7 @@ function Workspace({ services }: { services: Services }) {
   return (
     <div className="ws-shell" data-collapsed={collapsed || undefined}>
       <a className="ws-skip" href="#workspace">
-        К содержимому
+        {t("nav.skip")}
       </a>
       <header className="ws-bar">
         <div className="ws-navigation">
@@ -458,13 +458,13 @@ function Workspace({ services }: { services: Services }) {
             <img alt="Bacuri VMS" src={mark} />
             <span aria-hidden="true">Bacuri VMS</span>
           </span>
-          <nav id="workspace-navigation" aria-label="Рабочее место">
+          <nav id="workspace-navigation" aria-label={t("nav.workspace")}>
             {sections
               .filter(
                 (section) => !section.admin || site?.role === "administrator",
               )
-              .map(({ path: sectionPath, label, detail, short, icon }) => {
-                const name = label + (detail ?? "");
+              .map(({ path: sectionPath, label, short, icon }) => {
+                const name = t(label);
                 return (
                   <div className="ws-nav-section" key={sectionPath}>
                     <NavLink
@@ -483,14 +483,11 @@ function Workspace({ services }: { services: Services }) {
                       <span>
                         {short ? (
                           <>
-                            <span className="ws-nav-wide">{label}</span>
-                            <span className="ws-nav-short">{short}</span>
+                            <span className="ws-nav-wide">{name}</span>
+                            <span className="ws-nav-short">{t(short)}</span>
                           </>
                         ) : (
-                          label
-                        )}
-                        {detail && (
-                          <span className="ws-nav-detail">{detail}</span>
+                          name
                         )}
                       </span>
                     </NavLink>
@@ -529,19 +526,21 @@ function Workspace({ services }: { services: Services }) {
         <div className="ws-session">
           {site && (
             <span className="ws-role">
-              {site.role === "administrator" ? "Администратор" : "Оператор"}
+              {site.role === "administrator"
+                ? t("role.administrator")
+                : t("role.operator")}
             </span>
           )}
           {identity.site_roles.length > 1 && (
             <label className="ws-site-select">
-              Площадка{" "}
+              {t("site.label")}{" "}
               <select
                 value={site?.site_id ?? ""}
                 onChange={(e) => void setParams({ site: e.target.value })}
               >
                 {!site && (
                   <option value="" disabled>
-                    Выберите площадку
+                    {t("site.choose")}
                   </option>
                 )}
                 {identity.site_roles.map((s) => (
@@ -551,11 +550,12 @@ function Workspace({ services }: { services: Services }) {
             </label>
           )}
           <div className="ws-session-actions">
+            <LanguageSwitch />
             <ThemeSwitch {...theme} />
             <Button
               className="ws-logout"
-              title="Выйти"
-              aria-label="Выйти"
+              title={t("session.logout")}
+              aria-label={t("session.logout")}
               onClick={() => {
                 void services
                   .logout()
@@ -566,7 +566,7 @@ function Workspace({ services }: { services: Services }) {
                     channel.postMessage("logout");
                     channel.close();
                   })
-                  .catch(() => setMessage("Не удалось завершить сеанс"));
+                  .catch(() => setMessage(t("session.logoutFailed")));
               }}
             >
               <svg aria-hidden="true">
@@ -582,7 +582,7 @@ function Workspace({ services }: { services: Services }) {
           {message && <p role="status">{message}</p>}
           {site && path === "/access" ? (
             site.role === "administrator" ? (
-              <Suspense fallback={<p role="status">Загрузка прав</p>}>
+              <Suspense fallback={<p role="status">{t("loading.access")}</p>}>
                 <Access
                   key={site.site_id}
                   site={site.site_id}
@@ -591,7 +591,7 @@ function Workspace({ services }: { services: Services }) {
                 />
               </Suspense>
             ) : (
-              <p role="status">Недостаточно прав</p>
+              <p role="status">{t("access.denied")}</p>
             )
           ) : site ? (
             <Site
@@ -610,8 +610,8 @@ function Workspace({ services }: { services: Services }) {
             <div className="ws-panel ws-pad">
               <h1>
                 {identity.site_roles.length
-                  ? "Площадка недоступна"
-                  : "Нет доступных площадок"}
+                  ? t("site.unavailable")
+                  : t("site.none")}
               </h1>
               {identity.site_roles[0] && (
                 <Button
@@ -619,7 +619,7 @@ function Workspace({ services }: { services: Services }) {
                     void setParams({ site: identity.site_roles[0]!.site_id })
                   }
                 >
-                  Открыть доступную площадку
+                  {t("site.openAvailable")}
                 </Button>
               )}
             </div>
@@ -660,9 +660,13 @@ export function WorkspaceRouter({
   initial?: string;
 }) {
   const content = <WorkspaceRoutes services={services} />;
-  return initial ? (
-    <MemoryRouter initialEntries={[initial]}>{content}</MemoryRouter>
-  ) : (
-    <BrowserRouter>{content}</BrowserRouter>
+  return (
+    <LanguageProvider>
+      {initial ? (
+        <MemoryRouter initialEntries={[initial]}>{content}</MemoryRouter>
+      ) : (
+        <BrowserRouter>{content}</BrowserRouter>
+      )}
+    </LanguageProvider>
   );
 }

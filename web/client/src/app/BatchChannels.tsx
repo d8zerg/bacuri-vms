@@ -6,6 +6,7 @@ import {
 } from "../ui-kit/FilterPanel";
 import type { Camera, CameraInspection, Point } from "../contracts/workspace";
 import { channelName, groupChannels } from "./cameraChannels";
+import { useT } from "../i18n";
 
 export type Channel = {
   id: string;
@@ -30,6 +31,7 @@ export function BatchChannels({
   inventory: Camera[];
   edit: (id: string, patch: Partial<Channel>) => void;
 }) {
+  const t = useT();
   const groups = groupChannels(channels, (ch) => ({
     device: ch.info,
     key: ch.info.endpoint_id,
@@ -59,8 +61,8 @@ export function BatchChannels({
     <div className="ws-batch-results">
       {needsListSearch(channels.length, query) && (
         <FilterPanel
-          label="Фильтры каналов подключения"
-          queryLabel="Устройство, канал или точка"
+          label={t("batch.channelFilters")}
+          queryLabel={t("batch.channelQuery")}
           query={query}
           onQuery={setQuery}
           onReset={() => setQuery("")}
@@ -68,8 +70,10 @@ export function BatchChannels({
       )}
       {query && (
         <p role="status">
-          {visible.length ? "" : "Каналы не найдены. "}Выбрано каналов в партии:{" "}
-          {channels.filter((ch) => ch.selected).length}
+          {(visible.length ? "" : t("batch.noChannels") + " ") +
+            t("batch.selectedChannels", {
+              count: channels.filter((ch) => ch.selected).length,
+            })}
         </p>
       )}
       {visible.map(({ key, title, items }) => (
@@ -81,19 +85,19 @@ export function BatchChannels({
             const name =
               channelName(ch.name, ch.info.model, ch.channel) ||
               ch.channel ||
-              "Канал";
+              t("batch.channel");
             const point =
               points.find((p) => p.id === ch.point)?.name ||
               (ch.bound
                 ? inventory.find((c) => c.point_id === ch.point)?.name
                 : "") ||
-              "Выбранная точка";
+              t("batch.selectedPoint");
             return (
               <div className="ws-draft-row" key={ch.id}>
                 <label className="ws-draft-select">
                   <input
                     type="checkbox"
-                    aria-label={"Включить " + name}
+                    aria-label={t("batch.include", { name })}
                     checked={ch.selected}
                     onChange={(e) =>
                       edit(ch.id, { selected: e.target.checked })
@@ -103,11 +107,11 @@ export function BatchChannels({
                 <details className="ws-batch-channel">
                   <summary>
                     <strong>{name}</strong>
-                    <span>{ch.point ? point : "Новая точка"}</span>
+                    <span>{ch.point ? point : t("batch.newPoint")}</span>
                   </summary>
                   <div className="ws-draft-fields">
                     <label className="bk-field">
-                      Имя камеры
+                      {t("batch.cameraName")}
                       <input
                         value={ch.name}
                         maxLength={256}
@@ -115,13 +119,13 @@ export function BatchChannels({
                       />
                     </label>
                     <label className="bk-field">
-                      Точка
+                      {t("batch.point")}
                       <select
                         disabled={ch.bound}
                         value={ch.point}
                         onChange={(e) => edit(ch.id, { point: e.target.value })}
                       >
-                        <option value="">Создать точку</option>
+                        <option value="">{t("batch.createPoint")}</option>
                         {ch.point && !free.some((p) => p.id === ch.point) && (
                           <option value={ch.point}>{point}</option>
                         )}

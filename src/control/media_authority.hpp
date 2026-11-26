@@ -8,6 +8,8 @@ class MediaAuthority final : public v1::MediaAuthorization::Service
 {
   public:
     MediaAuthority();
+    MediaAuthority(const MediaAuthority&) = delete;
+    MediaAuthority& operator=(const MediaAuthority&) = delete;
     ~MediaAuthority() override;
     grpc::Status CloseLive(grpc::ServerContext*, const v1::AuthorizeDeliveryRequest*,
                            google::protobuf::Empty*) override;

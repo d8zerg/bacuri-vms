@@ -2,6 +2,13 @@ import { useId, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { IconButton } from "./FormControls";
 import "./archive-timeline.css";
+import {
+  dateTimeFormat,
+  formatNumber,
+  t,
+  useT,
+  type MessageKey,
+} from "../i18n";
 
 type Interval = Readonly<{ startMs: number; endMs: number }>;
 
@@ -28,27 +35,27 @@ export interface ArchiveTimelineProps {
 }
 
 const labels = {
-  recorded: "Запись",
-  estimated: "Оценочное время",
-  gap: "Пропуск записи",
-  pending: "Каталогизация",
-  unavailable: "Запись недоступна",
-  unknown: "Нет сведений",
-};
+  recorded: "timeline.recorded",
+  estimated: "timeline.estimated",
+  gap: "timeline.gap",
+  pending: "timeline.pending",
+  unavailable: "timeline.unavailable",
+  unknown: "timeline.unknown",
+} as const satisfies Record<string, MessageKey>;
 
-const clock = new Intl.DateTimeFormat("ru-RU", {
+const clockOptions: Intl.DateTimeFormatOptions = {
   timeZone: "UTC",
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
   hourCycle: "h23",
-});
-const day = new Intl.DateTimeFormat("ru-RU", {
+};
+const dayOptions: Intl.DateTimeFormatOptions = {
   timeZone: "UTC",
   day: "numeric",
   month: "short",
   year: "numeric",
-});
+};
 
 const arrowStepMs: Readonly<Partial<Record<string, number>>> = {
   ArrowLeft: -1000,
@@ -60,29 +67,31 @@ const arrowStepMs: Readonly<Partial<Record<string, number>>> = {
 function time(ms: number) {
   const fraction = new Date(ms).getUTCMilliseconds();
   return (
-    clock.format(ms) + (fraction ? "," + String(fraction).padStart(3, "0") : "")
+    dateTimeFormat(clockOptions).format(ms) +
+    (fraction ? "," + String(fraction).padStart(3, "0") : "")
   );
 }
 
 function describe(entry: TimelineEntry | undefined) {
-  if (!entry) return labels.unknown;
+  if (!entry) return t(labels.unknown);
   switch (entry.kind) {
     case "gap":
     case "unavailable":
-      return labels[entry.kind] + ". " + entry.reason;
+      return t(labels[entry.kind]) + ". " + entry.reason;
     case "estimated":
       return (
-        labels.estimated +
+        t(labels.estimated) +
         (entry.uncertaintyMs === undefined
-          ? ". Погрешность неизвестна"
+          ? ". " + t("timeline.uncertaintyUnknown")
           : " ±" +
-            (entry.uncertaintyMs / 1000).toLocaleString("ru-RU", {
-              maximumFractionDigits: 6,
-            }) +
-            " с")
+            t("timeline.seconds", {
+              value: formatNumber(entry.uncertaintyMs / 1000, {
+                maximumFractionDigits: 6,
+              }),
+            }))
       );
     default:
-      return labels[entry.kind];
+      return t(labels[entry.kind]);
   }
 }
 
@@ -97,9 +106,11 @@ function SelectedInterval({ entry }: { entry: TimelineEntry | undefined }) {
       <strong>{describe(entry)}</strong>
       {entry && (
         <span className="bt-bounds">
-          {day.format(entry.startMs)} · {time(entry.startMs)} -{" "}
-          {day.format(entry.startMs) !== day.format(entry.endMs) &&
-            day.format(entry.endMs) + " · "}
+          {dateTimeFormat(dayOptions).format(entry.startMs)} ·{" "}
+          {time(entry.startMs)} -{" "}
+          {dateTimeFormat(dayOptions).format(entry.startMs) !==
+            dateTimeFormat(dayOptions).format(entry.endMs) &&
+            dateTimeFormat(dayOptions).format(entry.endMs) + " · "}
           {time(entry.endMs)} UTC
         </span>
       )}
@@ -113,14 +124,15 @@ export function ArchiveTimeline({
   onPositionChange,
   onRefresh,
 }: ArchiveTimelineProps) {
+  const t = useT();
   const id = useId();
   return (
     <section className="bt-timeline" aria-labelledby={id}>
       <header className="bt-header">
-        <h2 id={id}>Шкала архива</h2>
+        <h2 id={id}>{t("timeline.title")}</h2>
         <IconButton
           icon="rotate-cw"
-          label="Обновить шкалу"
+          label={t("timeline.refresh")}
           aria-disabled={data.status === "loading"}
           onClick={onRefresh}
         />
@@ -130,11 +142,11 @@ export function ArchiveTimeline({
         className="bt-status"
         data-ready={data.status === "ready" || undefined}
       >
-        {data.status === "loading" && "Загрузка архива…"}
-        {data.status === "empty" && "В выбранном интервале нет данных архива."}
+        {data.status === "loading" && t("archive.loading")}
+        {data.status === "empty" && t("timeline.empty")}
         {data.status === "error" &&
-          "Не удалось загрузить архив. " + data.message}
-        {data.status === "ready" && "Данные архива загружены"}
+          t("timeline.failed", { message: data.message })}
+        {data.status === "ready" && t("timeline.ready")}
       </div>
       {data.status === "ready" && (
         <TimelineWindow
@@ -157,6 +169,7 @@ function TimelineWindow({
   positionMs: number;
   onPositionChange: (ms: number) => void;
 }) {
+  const t = useT();
   const id = useId();
   const [preview, setPreview] = useState<number | null>(null);
   const interaction = useRef<number | string | null>(null);
@@ -196,7 +209,7 @@ function TimelineWindow({
   return (
     <>
       <div className="bt-readout">
-        <span>{day.format(shown)}</span>
+        <span>{dateTimeFormat(dayOptions).format(shown)}</span>
         <strong>{time(shown)} UTC</strong>
       </div>
       <div className="bt-track">
@@ -224,9 +237,13 @@ function TimelineWindow({
           max={data.window.endMs - 1}
           step={1}
           value={shown}
-          aria-label="Позиция в архиве"
+          aria-label={t("timeline.position")}
           aria-valuetext={
-            day.format(shown) + ", " + time(shown) + " UTC. " + describe(entry)
+            dateTimeFormat(dayOptions).format(shown) +
+            ", " +
+            time(shown) +
+            " UTC. " +
+            describe(entry)
           }
           aria-describedby={id + "-detail"}
           onKeyDown={step}
@@ -264,11 +281,11 @@ function TimelineWindow({
       <div id={id + "-detail"}>
         <SelectedInterval entry={entry} />
       </div>
-      <ul className="bt-legend" aria-label="Обозначения шкалы">
+      <ul className="bt-legend" aria-label={t("timeline.legend")}>
         {Object.entries(labels).map(([kind, label]) => (
           <li key={kind}>
             <span aria-hidden="true" className="bt-swatch" data-kind={kind} />
-            {label}
+            {t(label)}
           </li>
         ))}
       </ul>

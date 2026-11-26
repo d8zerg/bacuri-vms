@@ -1,6 +1,9 @@
 #pragma once
 
+#include "control/recordings/status.hpp"
+
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -34,6 +37,9 @@ struct PreviousRecording {
     std::string revision;
     std::int64_t start, end;
 };
+// The newest available block of each listed point. Points without recordings are absent.
+std::map<std::string, LastRecorded> last_recorded(Database&, const std::string& site,
+                                                  const std::vector<std::string>& points);
 std::optional<PreviousRecording> previous_binding_recording(Database&, const std::string& site,
                                                             const std::string& point, const std::string& revision);
 std::vector<CoverageInterval> edge_gaps(Database&, const std::string& site, const std::string& point,

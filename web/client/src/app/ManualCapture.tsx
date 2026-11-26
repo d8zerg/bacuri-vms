@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ManualRecording, Services } from "../contracts/workspace";
 import { IconButton } from "../ui-kit/FormControls";
+import { dateTimeFormat, useT } from "../i18n";
 export default function ManualCapture({
   site,
   point,
@@ -10,6 +11,7 @@ export default function ManualCapture({
   point: string;
   services: Services;
 }) {
+  const t = useT();
   const [state, set] = useState<ManualRecording | null>(null),
     [busy, working] = useState(false),
     [error, failed] = useState(false),
@@ -52,30 +54,26 @@ export default function ManualCapture({
     <div className="ws-record-command">
       <IconButton
         icon={state?.active ? "ptz-stop" : "record-video"}
-        label={
-          state?.active
-            ? "Остановить ручную запись"
-            : "Начать ручную запись на 15 минут"
-        }
+        label={state?.active ? t("manual.stop") : t("manual.start")}
         aria-pressed={state?.active ?? false}
         disabled={!state || busy || error}
         onClick={() => void toggle()}
       />
       {state?.active && state.until_us && (
         <span role="status">
-          Запись до{" "}
-          {new Date(state.until_us / 1000).toLocaleTimeString("ru", {
-            hour: "2-digit",
-            minute: "2-digit",
+          {t("manual.until", {
+            time: dateTimeFormat({ hour: "2-digit", minute: "2-digit" }).format(
+              state.until_us / 1000,
+            ),
           })}
         </span>
       )}
       {error && (
         <span role="alert">
-          Состояние записи недоступно{" "}
+          {t("manual.unavailable")}{" "}
           <IconButton
             icon="rotate-cw"
-            label="Проверить состояние записи"
+            label={t("manual.refresh")}
             onClick={() => refresh((n) => n + 1)}
           />
         </span>

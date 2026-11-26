@@ -1,4 +1,6 @@
-#include "control/support.hpp"
+#include "platform/camera_networks.hpp"
+#include "platform/identifiers.hpp"
+#include "platform/secrets.hpp"
 #include "product_version.hpp"
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
@@ -31,6 +33,7 @@ void check(bool ok, const char* message)
 void execute(std::vector<std::string> args)
 {
     std::vector<char*> words;
+    words.reserve(args.size());
     for (auto& a : args)
         words.push_back(a.data());
     words.push_back(nullptr);
@@ -83,7 +86,7 @@ void persist(const fs::path& path, const std::string& data, gid_t gid)
         for (std::size_t pos = 0; pos < data.size();) {
             auto n = write(fd, data.data() + pos, data.size() - pos);
             check(n > 0, "Cannot write configuration");
-            pos += n;
+            pos += static_cast<std::size_t>(n);
         }
         check(fsync(fd) == 0 && link(tmp.c_str(), path.c_str()) == 0, "Cannot publish configuration");
     } catch (...) {
@@ -102,7 +105,7 @@ std::string identifier(const std::string& name)
         persist(path, id.get(), group("root"));
     }
     auto id = read_file(path);
-    check(bacuri::vms::control::canonical_id(id), "Invalid installation identity");
+    check(bacuri::vms::platform::canonical_id(id), "Invalid installation identity");
     return id;
 }
 void envfile(const std::string& role, const Env& env)
@@ -110,7 +113,7 @@ void envfile(const std::string& role, const Env& env)
     std::string text;
     for (const auto& [k, v] : env) {
         check(v.find_first_of("\r\n\"'\\ \t") == v.npos, "Invalid service setting");
-        text += k + "=" + v + "\n";
+        text.append(k).append("=").append(v).append("\n");
     }
     persist(config / (role + ".env"), text, group("bacuri-" + role));
 }
@@ -141,8 +144,8 @@ void setup(char** v)
               std::regex_match(
                   host, std::regex("([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?")),
           "Use a DNS name for WebAuthn");
-    bacuri::vms::control::CameraNetworks::LegacyRtsp legacy{};
-    bacuri::vms::control::CameraNetworks networks(net, legacy);
+    bacuri::vms::platform::CameraNetworks::LegacyRtsp legacy{};
+    bacuri::vms::platform::CameraNetworks networks(net, legacy);
     run({"/usr/bin/findmnt", "--noheadings", "--mountpoint", "/srv/bacuri-archive", "--types", "ext4", "--output",
          "FSTYPE"});
     struct stat volume{}, root{};
@@ -172,7 +175,7 @@ void setup(char** v)
             if (key == "export.key" && role != "core")
                 continue;
             if (!fs::exists(dir / key))
-                persist(dir / key, bacuri::vms::control::token() + "\n", group("bacuri-" + role));
+                persist(dir / key, bacuri::vms::platform::token() + "\n", group("bacuri-" + role));
         }
     }
     persist(config / "core/tls.crt", read_file(v[4]), group("bacuri-core"));
@@ -189,14 +192,19 @@ void setup(char** v)
               {"BACURI_PREVIEW_SOCKET", base + "recorder/preview.sock"},
               {"BACURI_AUTH_SOCKET", base + "core/auth.sock"},
               {"BACURI_MEDIA_SOCKET", base + "media/media.sock"}};
-    envfile("media", media);
-    Env recorder = common;
+    // Each service exports its metrics into its own runtime directory, and diagnostics merges them.
+    auto with_metrics = [&](Env env, const std::string& role) {
+        env["BACURI_METRICS_DIRECTORY"] = base + role;
+        return env;
+    };
+    envfile("media", with_metrics(media, "media"));
+    Env recorder = with_metrics(common, "recorder");
     recorder.insert(*media.find("BACURI_ARCHIVE_DIR"));
     recorder.insert(*media.find("BACURI_PREVIEW_SOCKET"));
     recorder["BACURI_KEY_FILE"] = (config / "recorder/configuration.key").string();
     recorder["BACURI_RECORDER_DB"] = "/var/lib/bacuri-recorder/configuration.db";
     envfile("recorder", recorder);
-    Env server = common;
+    Env server = with_metrics(common, "core");
     server.insert(*media.find("BACURI_AUTH_SOCKET"));
     server.insert(*media.find("BACURI_MEDIA_SOCKET"));
     server.insert({{"PGHOST", "/var/run/postgresql"},

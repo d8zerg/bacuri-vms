@@ -7,7 +7,11 @@ namespace bacuri::vms::media
 {
 using Clock = std::chrono::steady_clock;
 inline constexpr std::size_t chunk_size = 32uz * 1024;
+// The channel of the process to the local service whose socket path the setting names. Calls share
+// one connection, which reconnects within about a second after the service restarts.
 std::shared_ptr<grpc::Channel> local_channel(const char* setting_name);
+// A separate connection for one long media stream, so that video streams do not share flow control.
+std::shared_ptr<grpc::Channel> dedicated_channel(const char* setting_name);
 
 class Lease
 {

@@ -127,7 +127,10 @@ def exercise(line, send):
             "capabilities": {
                 "alwaysMatch": {
                     "browserName": "chrome",
-                    "goog:chromeOptions": {"args": ["--ignore-certificate-errors-spki-list=" + tls_pin]},
+                    "goog:chromeOptions": {
+                        "args": ["--lang=ru-RU", "--ignore-certificate-errors-spki-list=" + tls_pin],
+                        "prefs": {"intl.accept_languages": "ru-RU,ru"},
+                    },
                 }
             }
         },

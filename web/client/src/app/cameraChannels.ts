@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 type Device = { model?: string; serial?: string; endpoint_id?: string };
 type ChannelIdentity = { device: Device; key: string; token: string };
 
@@ -34,7 +35,9 @@ export function groupChannels<T>(
         : "";
     return {
       ...group,
-      title: [model || "Камера", distinguish].filter(Boolean).join(" · "),
+      title: [model || t("channel.camera"), distinguish]
+        .filter(Boolean)
+        .join(" · "),
     };
   });
 }
@@ -42,5 +45,7 @@ export function groupChannels<T>(
 export function channelName(name: string, model = "", token = "") {
   if (name !== [model, token].filter(Boolean).join(" · ")) return name;
   const number = /^channel(\d+)$/i.exec(token);
-  return number ? "Канал " + number[1] : token || "Основной канал";
+  return number
+    ? t("channel.numbered", { number: number[1] ?? "" })
+    : token || t("channel.main");
 }

@@ -66,7 +66,7 @@ Json parse_bounds(std::string_view csv)
             require(next == end);
         else {
             require(next != end && *next == ',');
-            csv.remove_prefix(next - first + 1);
+            csv.remove_prefix(static_cast<std::size_t>(next - first + 1));
         }
     }
     require(values[0] < values[2] && values[1] < values[3]);

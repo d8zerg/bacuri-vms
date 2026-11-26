@@ -4,6 +4,7 @@
 #include "control/inventory/enrollment.hpp"
 #include "control/inventory/operations.hpp"
 #include "control/recordings/operations.hpp"
+#include "control/recordings/recorder.hpp"
 #include "control/events/operations.hpp"
 #include "control/access/operations.hpp"
 #include "control/api.hpp"
@@ -377,12 +378,15 @@ void CameraRegistry::edge_archive(const Request& req, Response& res, const std::
                         throw Failure{429, "rate_limited"};
                     if (!status.ok())
                         throw Failure{503, "media_unavailable"};
+                    // A partial copy continues after the copied media, so the rest of the window is retried.
+                    const auto resume = reply.outcome() == "partial" && reply.covered_until_us() > a &&
+                                                reply.covered_until_us() < b
+                                            ? reply.covered_until_us()
+                                            : b;
                     progress = {{"blocks", reply.blocks()},
                                 {"duration_us", reply.duration_us()},
                                 {"outcome", reply.outcome()},
-                                {"next", b < range.end
-                                             ? Json(ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(b)))
-                                             : Json(nullptr)}};
+                                {"next", resume < range.end ? Json(utc_text(resume)) : Json(nullptr)}};
                     attempted = true;
                     break;
                 }
@@ -666,13 +670,32 @@ void CameraRegistry::points(const Request& req, Response& res, const std::string
          array_parameter(access::granted_point_ids(db, site, identity.user, "audio_talk")),
          array_parameter(manual)});
     const auto policy_revision = access::scope_revision(db, site);
-    db.exec("COMMIT");
     auto points = Json::parse(rows.get(0));
-    for (auto& point : points)
-        if (point.contains("audio") && plan.contains(point.at("id").get<std::string>()))
+    std::vector<std::string> ids;
+    for (const auto& point : points)
+        ids.push_back(point.at("id"));
+    const auto recorded = recordings::last_recorded(db, site, ids);
+    db.exec("COMMIT");
+    // The recorder is asked outside the transaction. Without an answer only the archive is reported.
+    const auto recorder = recordings::recorder_snapshot(site);
+    const auto now = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now());
+    for (auto& point : points) {
+        const std::string id = point.at("id");
+        if (point.contains("audio") && plan.contains(id))
             point["audio"]["record"] = false;
-    for (auto& point : points)
         point["access_revision"] = policy_revision;
+        const auto last = recorded.find(id);
+        std::optional<std::chrono::microseconds> since;
+        if (last != recorded.end()) {
+            since = now.time_since_epoch() - std::chrono::microseconds{last->second.received_until_us};
+            point["last_recorded_at"] = utc_text(last->second.end_utc_us);
+        }
+        const auto status = recordings::recording_status(since, recorder, id);
+        point["connection"] = recordings::name(status.connection);
+        point["recording"] = recordings::name(status.recording);
+        if (status.reason)
+            point["recording_reason"] = recordings::name(*status.reason);
+    }
     respond(res, points);
 }
 

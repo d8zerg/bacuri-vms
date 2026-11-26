@@ -11,9 +11,29 @@
 namespace bacuri::vms::archive
 {
 namespace fs = std::filesystem;
-Json archive_status(const fs::path& root);
+// Counts of the journal, retention and capacity. Copy counts are included when a copy mount is configured.
+Json archive_status(const fs::path& root, const std::optional<fs::path>& replica = {});
 enum class CommitStage { media_synced, manifest_synced, directory_synced, renamed, parent_synced, journaled };
 enum class RetirementStage { authorized, renamed, removed };
+enum class CapacityState { normal, low_space, recording_stopped };
+
+// Committed blocks are verified again after this interval even when the volume stays open.
+inline constexpr std::chrono::days reverification_interval{30};
+
+using InvalidBlock = std::function<void(const std::string&)>;
+struct VolumeOptions {
+    // Mount of the second archive copy. New blocks are copied there and damaged blocks are repaired from it.
+    std::optional<fs::path> replica;
+    // Receives each directory that fails verification while the journal is rebuilt from the directories.
+    InvalidBlock invalid;
+};
+
+struct VerificationResult {
+    std::string block_id;
+    // Media and sound bytes read from the primary volume and, during repair, from the copy.
+    std::uintmax_t bytes_read{};
+    bool available{};
+};
 struct RetentionPolicy {
     std::int64_t cutoff_us;
     int days;
@@ -43,8 +63,17 @@ class Volume
   public:
     using MediaWriter = std::function<void(const fs::path&)>;
     using Observer = std::function<void(CommitStage)>;
-    using InvalidBlock = std::function<void(const std::string&)>;
-    Volume(const fs::path& root, Owner owner, const InvalidBlock& invalid = {});
+    using InvalidBlock = archive::InvalidBlock;
+    // Opening reads only metadata: it imports published directories absent from the journal,
+    // completes interrupted removals and marks journal entries without a directory as missing.
+    // Media of journaled blocks is verified by verify_next() or verify_all().
+    Volume(const fs::path& root, Owner owner, VolumeOptions options = {});
+    // Verifies the checksums of one due block and repairs it from the archive copy when possible.
+    // Returns nothing when no block is due.
+    std::optional<VerificationResult> verify_next();
+    // Verifies every block that is due, for recovery tools that must not report unverified media.
+    void verify_all();
+    CapacityState capacity() const;
     void visit_inventory(const std::function<void(const Json&, const std::string&)>& visit);
     bool publish(const Block&, const MediaWriter&, const Observer& observer = {},
                  std::uintmax_t expected_bytes = 0, RecordedSound sound = {});
@@ -58,7 +87,7 @@ class Volume
     void remember_cutoffs(const std::map<std::string, std::int64_t>& cutoffs);
     Json status() const
     {
-        return archive_status(root_);
+        return archive_status(root_, replica_);
     }
     void reclaim_authorized();
     bool scrub_copy();
@@ -104,19 +133,21 @@ class Volume
     void reconcile(const InvalidBlock&);
     void recover_directory(const fs::directory_entry&, const InvalidBlock&);
     void record(const std::string& relative, const Json& manifest);
-    void availability(const std::string& relative, const std::string& reason);
+    bool availability(const std::string& relative, const std::string& reason);
     fs::path root_;
+    std::optional<fs::path> replica_;
     Lock lock_;
     storage::Sqlite db_;
     Identity identity_;
-    std::mutex mutex_, plan_mutex_, replica_mutex_;
+    mutable std::mutex mutex_;
+    std::mutex plan_mutex_, replica_mutex_;
     std::set<std::string> detectors_;
     std::string plan_payload_;
     std::map<std::string, std::shared_ptr<const CaptureRule>> recording_rules_;
     std::optional<std::pair<std::string, Json>> published_;
     void reap(const RetirementObserver& observer);
     void require_space(std::uintmax_t expected_bytes, std::uintmax_t staged_bytes);
-    std::string_view last_capacity_state_;
+    std::optional<CapacityState> last_capacity_state_;
     void report_capacity(const fs::space_info& space, std::uintmax_t blocked);
     int reserve_percent_{20};
     void journal_published(const Observer& observer = {});

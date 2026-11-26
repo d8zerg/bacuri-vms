@@ -1,15 +1,17 @@
-# ADR-005. Медиапрофили записи и просмотра
+# ADR-005. Media profiles for recording and viewing
 
-**Статус** - Принято.
+[Русская версия](../ru/adr/005-media.md)
 
-**Контекст.** Компактный узел должен непрерывно записывать камеру и одновременно выдавать браузеру эфир и фрагмент архива.
+**Status** - Accepted.
 
-**Варианты.** Транскодировать один вход под каждого зрителя, использовать основной профиль для всех задач или принимать два H.264-профиля и разделить пути архива и эфира.
+**Context.** A compact node must record a camera continuously and at the same time deliver live video and an archive fragment to the browser.
 
-**Решение.** Основной RTSP-поток сохраняется в fMP4 в исходном кодировании. Дополнительный выдаётся через WebRTC. Для архива браузер получает части fMP4 по HTTPS и декодирует через Media Source Extensions.
+**Options.** Transcode one input for every viewer, use the main profile for all tasks, or accept two H.264 profiles and separate the archive and live paths.
 
-**Основания.** Раздельные профили ограничивают стоимость просмотра и сохраняют качество архива. Начало декодирования и связь с ключевым кадром можно проверить по эталону.
+**Decision.** The main RTSP stream is stored in fMP4 in its original encoding. The secondary one is delivered through WebRTC. For the archive the browser gets fMP4 parts over HTTPS and decodes them through Media Source Extensions.
 
-**Последствия.** Нужны два поддерживаемых профиля камеры, совместимый декодер H.264 и доступный сетевой путь WebRTC. Интервал ключевых кадров влияет на задержку и поиск позиции.
+**Rationale.** Separate profiles limit the cost of viewing and keep the archive quality. The start of decoding and its relation to the keyframe can be checked against a reference.
 
-**Проверка и пересмотр.** Для требований «Архитектура» и «Данные и доступ» воспроизвести эфир и архив одновременно в Chrome и Firefox, сравнить кадр и позицию с эталоном, проверить перезапуск выдачи на фоне записи. Пересмотреть при требовании H.265, аудио, внешнего сетевого маршрута либо при превышении бюджета задержки или ресурсов. [Совместимость](../rtsp-compatibility.md) · [Требования](../quality.md#требования-к-приёмке)
+**Consequences.** Two supported camera profiles, a compatible H.264 decoder and an available WebRTC network path are needed. The keyframe interval affects latency and seeking.
+
+**Verification and review.** For the "Architecture" and "Data and access" requirements, play live video and the archive at the same time in Chrome and Firefox, compare the frame and the position with the reference, and check a delivery restart during recording. Review when H.265, audio or an external network route is required, or when the latency or resource budget is exceeded. [Compatibility](../rtsp-compatibility.md) · [Requirements](../quality.md#acceptance-requirements)

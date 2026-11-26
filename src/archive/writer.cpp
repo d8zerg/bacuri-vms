@@ -1,9 +1,11 @@
 #include "archive/writer.hpp"
+#include "archive/fmp4.hpp"
+#include "observability/metrics.hpp"
 #include "recorder/replay.hpp"
-#include <gst/app/gstappsrc.h>
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <fstream>
 #include <utility>
 #include <thread>
 
@@ -13,30 +15,29 @@ namespace
 {
 using namespace std::chrono_literals;
 using Frames = std::vector<ingest::FramePtr>;
-
-struct StopPipeline {
-    void operator()(GstElement* pipeline) const
-    {
-        gst_element_set_state(pipeline, GST_STATE_NULL);
-        gst_object_unref(pipeline);
-    }
-};
+// Buffered event and manual recording is published early when it exceeds this size.
+constexpr std::size_t max_event_buffer_bytes = 128uz * 1024 * 1024;
+// Longest wait for a frame before the writer checks the recording policy and the stop request.
+constexpr auto policy_check_interval = 100ms;
+// A block without new frames for this long is closed so that its recording becomes visible.
+constexpr auto idle_block_timeout = 5s;
+constexpr std::uint64_t second_ns = 1'000'000'000, microsecond_ns = 1'000;
 
 std::uint64_t duration(const Frames& frames, std::size_t index)
 {
     const auto& frame = *frames[index];
-    if (auto value = frame.duration_ns; value && *value > 0 && *value <= GST_SECOND) {
+    if (auto value = frame.duration_ns; value && *value > 0 && *value <= second_ns) {
         return *value;
     }
     if (frames.size() > 1) {
         const auto i = std::min(index, frames.size() - 2);
         const auto a = frames[i]->pts_ns, b = frames[i + 1]->pts_ns;
-        if (a && b && *b > *a && *b - *a <= GST_SECOND) {
+        if (a && b && *b > *a && *b - *a <= second_ns) {
             return *b - *a;
         }
     }
     // Only the observed microsecond is known when a single frame has no duration.
-    return GST_USECOND;
+    return microsecond_ns;
 }
 
 struct SampleTime {
@@ -51,8 +52,7 @@ std::vector<SampleTime> sample_times(const Frames& frames)
     result.reserve(frames.size());
     for (std::size_t i = 0; i < frames.size(); ++i) {
         auto pts = frames[i]->pts_ns;
-        const auto offset =
-            base && pts && *pts >= *base && *pts - *base <= 15 * GST_SECOND ? *pts - *base : cursor;
+        const auto offset = base && pts && *pts >= *base && *pts - *base <= 15 * second_ns ? *pts - *base : cursor;
         result.push_back({offset, duration(frames, i)});
         cursor = offset + result.back().duration;
     }
@@ -61,69 +61,36 @@ std::vector<SampleTime> sample_times(const Frames& frames)
 
 void mux(const fs::path& path, const Frames& frames, const std::vector<SampleTime>& times)
 {
-    GError* error{};
-    const std::string chain = frames.front()->codec == ingest::VideoCodec::h265
-                                  ? "video/x-h265,stream-format=byte-stream,alignment=au ! h265parse ! "
-                                    "video/x-h265,stream-format=hvc1,alignment=au ! h265timestamper"
-                                  : "video/x-h264,stream-format=byte-stream,alignment=au ! h264parse ! "
-                                    "video/x-h264,stream-format=avc,alignment=au ! h264timestamper";
-    const auto launch = "appsrc name=input format=time caps=" + chain +
-                        " ! mp4mux fragment-duration=500 trak-timescale=90000 ! filesink name=output sync=false";
-    std::unique_ptr<GstElement, StopPipeline> pipeline{gst_parse_launch(launch.c_str(), &error)};
-    std::unique_ptr<GError, decltype(&g_error_free)> failure{error, g_error_free};
-    if (failure || !pipeline) {
-        throw std::runtime_error("Archive muxer unavailable");
-    }
-    const auto element = [&](const char* name) {
-        return std::unique_ptr<GstElement, decltype(&gst_object_unref)>{
-            gst_bin_get_by_name(GST_BIN(pipeline.get()), name), gst_object_unref};
-    };
-    auto sink = element("output"), source = element("input");
-    g_object_set(sink.get(), "location", path.c_str(), nullptr);
-    if (gst_element_set_state(pipeline.get(), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
-        throw std::runtime_error("Cannot start archive muxer");
-    }
-
-    for (std::size_t i = 0; i < frames.size(); ++i) {
-        const auto& frame = *frames[i];
-        auto* buffer = gst_buffer_new_allocate(nullptr, frame.access_unit.size(), nullptr);
-        if (!buffer) {
-            throw std::bad_alloc{};
-        }
-        gst_buffer_fill(buffer, 0, frame.access_unit.data(), frame.access_unit.size());
-        GST_BUFFER_PTS(buffer) = times[i].pts;
-        GST_BUFFER_DURATION(buffer) = times[i].duration;
-        if (!frame.keyframe) {
-            GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT);
-        }
-        if (gst_app_src_push_buffer(GST_APP_SRC(source.get()), buffer) != GST_FLOW_OK) {
-            throw std::runtime_error("Archive muxer rejected access unit");
-        }
-    }
-    if (gst_app_src_end_of_stream(GST_APP_SRC(source.get())) != GST_FLOW_OK) {
-        throw std::runtime_error("Cannot finalize archive muxer");
-    }
-    std::unique_ptr<GstBus, decltype(&gst_object_unref)> bus{gst_element_get_bus(pipeline.get()),
-                                                             gst_object_unref};
-    using Clock = std::chrono::steady_clock;
-    const auto deadline = Clock::now() + 5s;
-    for (;;) {
-        const auto remaining = std::chrono::ceil<std::chrono::nanoseconds>(deadline - Clock::now());
-        if (remaining <= 0ns) {
-            break;
-        }
-        std::unique_ptr<GstMessage, decltype(&gst_message_unref)> message{
-            gst_bus_timed_pop(bus.get(), static_cast<GstClockTime>(remaining.count())), gst_message_unref};
-        if (!message || GST_MESSAGE_TYPE(message.get()) == GST_MESSAGE_ERROR) {
-            break;
-        }
-        if (GST_MESSAGE_TYPE(message.get()) == GST_MESSAGE_EOS) {
-            return;
-        }
-    }
-    throw std::runtime_error("Archive muxer failed to finalize media");
+    std::vector<fmp4::Sample> samples;
+    samples.reserve(frames.size());
+    for (std::size_t i = 0; i < frames.size(); ++i)
+        samples.push_back({frames[i]->access_unit, times[i].pts, times[i].duration, frames[i]->keyframe});
+    const auto media = fmp4::encode(
+        frames.front()->codec == ingest::VideoCodec::h265 ? fmp4::Codec::h265 : fmp4::Codec::h264, samples);
+    std::ofstream file{path, std::ios::binary | std::ios::trunc};
+    file.write(reinterpret_cast<const char*>(media.data()), static_cast<std::streamsize>(media.size()));
+    file.close();
+    if (!file)
+        throw std::runtime_error("Cannot write archive media");
+}
+bool buffers_events(const CaptureRule& rule)
+{
+    return !rule.continuous && (rule.manual || rule.event);
+}
+std::chrono::seconds event_buffer(const CaptureRule& rule)
+{
+    return std::chrono::seconds{rule.event ? rule.pre : 0} + event_buffer_margin;
 }
 } // namespace
+
+std::chrono::microseconds publication_lag(const CaptureRule* rule)
+{
+    std::chrono::microseconds lag = max_block_duration;
+    if (rule && buffers_events(*rule))
+        lag += event_buffer(*rule);
+    return lag;
+}
+
 ReplayResult recover_gap(Volume& volume, const ReplayRequest& job, const std::function<bool()>& cancelled)
 {
     using namespace domain;
@@ -137,13 +104,16 @@ ReplayResult recover_gap(Volume& volume, const ReplayRequest& job, const std::fu
     if (!parsed_epoch)
         throw std::runtime_error("Invalid replay clock identifier");
     const auto epoch = *parsed_epoch;
+    // Set when the time budget ended the copy and when a frame at or after the requested end arrived.
+    bool exhausted = false, reached_end = false;
     const auto flush = [&] {
         if (frames.empty())
             return;
         auto times = sample_times(frames);
         const auto first = frames.front()->time.utc().time_since_epoch().count();
-        const auto end = frames.back()->time.utc().time_since_epoch().count() +
-                         std::max<std::int64_t>(1, static_cast<std::int64_t>(times.back().duration / GST_USECOND));
+        const auto end =
+            frames.back()->time.utc().time_since_epoch().count() +
+            std::max<std::int64_t>(1, static_cast<std::int64_t>(times.back().duration / microsecond_ns));
         if (first >= job.begin && end <= job.end && end > first &&
             volume.publish(
                 {job.origin, frames.front()->time, UtcTime{Microseconds{end}},
@@ -151,6 +121,7 @@ ReplayResult recover_gap(Volume& volume, const ReplayRequest& job, const std::fu
                 [&](const fs::path& path) { mux(path, frames, times); }, {}, bytes)) {
             ++result.blocks;
             result.duration_us += end - first;
+            result.covered_until_us = std::max(result.covered_until_us, end);
         }
         frames.clear();
         bytes = 0;
@@ -158,15 +129,22 @@ ReplayResult recover_gap(Volume& volume, const ReplayRequest& job, const std::fu
     const auto outcome = ingest::receive_replay(
         job.endpoint, {job.begin - job.offset, job.end - job.offset},
         [&] { return cancelled() || stop.stop_requested(); },
-        [&](ingest::FramePtr incoming, ingest::VideoFormat, bool discontinuity) {
-            if (cancelled() || std::chrono::steady_clock::now() - started > 30s) {
+        [&](const ingest::FramePtr& incoming, ingest::VideoFormat, bool discontinuity) {
+            if (cancelled()) {
                 stop.request_stop();
                 return;
             }
-            // Pace the replay reader at 4 Mbit/s. Socket backpressure bounds the decoder queue.
+            if (std::chrono::steady_clock::now() - started > replay_time_budget) {
+                exhausted = true;
+                stop.request_stop();
+                return;
+            }
+            // Pace the replay reader at 4 Mbit/s (2 us per byte). Socket backpressure bounds the decoder queue.
+            constexpr std::size_t pacing_us_per_byte = 2;
             eligible = std::max(eligible, std::chrono::steady_clock::now()) +
-                       std::chrono::microseconds{2 * incoming->access_unit.size()};
-            if (eligible > started + 30s) {
+                       std::chrono::microseconds{pacing_us_per_byte * incoming->access_unit.size()};
+            if (eligible > started + replay_time_budget) {
+                exhausted = true;
                 result.outcome = "quota";
                 stop.request_stop();
                 return;
@@ -185,6 +163,7 @@ ReplayResult recover_gap(Volume& volume, const ReplayRequest& job, const std::fu
             const SourceTime source{Microseconds{static_cast<std::int64_t>(*incoming->ntp_ns / 1000)}};
             const auto utc = UtcTime{source.value - Microseconds{ntp_offset} + Microseconds{job.offset}};
             if (utc.time_since_epoch().count() >= job.end) {
+                reached_end = true;
                 flush();
                 stop.request_stop();
                 return;
@@ -214,7 +193,10 @@ ReplayResult recover_gap(Volume& volume, const ReplayRequest& job, const std::fu
         });
     if (!cancelled())
         flush();
-    if (result.outcome.empty())
+    // Copied media is never reported as the whole interval when the budget ended the copy early.
+    if (result.blocks && exhausted && !reached_end)
+        result.outcome = "partial";
+    else if (result.outcome.empty())
         result.outcome = result.blocks ? "copied" : outcome == "frame_timeout" ? "timeout" : "no_frames";
     return result;
 }
@@ -222,7 +204,7 @@ ReplayResult recover_gap(Volume& volume, const ReplayRequest& job, const std::fu
 Writer::Writer(Volume& volume, Origin origin, std::shared_ptr<ingest::FrameQueue> queue,
                std::shared_ptr<ingest::CameraAudio> audio)
     : volume_{volume}, origin_{std::move(origin)}, queue_{std::move(queue)}, audio_{std::move(audio)},
-      worker_{[this](std::stop_token stop) { run(stop); }}
+      worker_{[this](const std::stop_token& stop) { run(stop); }}
 {
 }
 
@@ -255,9 +237,8 @@ void Writer::drain(bool stopping)
         const auto& frames = item.frames;
         const auto age = now - frames.back()->time.received_at();
         const bool matching = item.policy == rule_->id && item.revision == rule_->revision;
-        if (matching && !stopping && !rule_->continuous && (rule_->manual || rule_->event) &&
-            age < std::chrono::seconds{(rule_->event ? rule_->pre : 0) + 3} &&
-            buffered_bytes_ <= 128uz * 1024 * 1024)
+        if (matching && !stopping && buffers_events(*rule_) && age < event_buffer(*rule_) &&
+            buffered_bytes_ <= max_event_buffer_bytes)
             break;
         auto segment = std::move(buffered_.front());
         buffered_.pop_front();
@@ -305,29 +286,42 @@ void Writer::publish(Segment segment, std::size_t first, std::size_t last)
             ++audio_end;
         const auto audio_begin = batch[first]->time.utc().time_since_epoch().count();
         const auto until = audio_end == last ? end_us : batch[audio_end]->time.utc().time_since_epoch().count();
+        using Pcm = domain::ArchiveSound;
         if (!sound.pcm.empty() && start < audio_begin) {
-            const auto skip = std::min<std::int64_t>((audio_begin - start + 124) / 125,
-                                                     static_cast<std::int64_t>(sound.pcm.size() / 2));
-            sound.pcm.erase(0, skip * 2);
-            start += skip * 125;
+            const auto available = static_cast<std::int64_t>(sound.pcm.size()) / Pcm::bytes_per_sample;
+            const auto skip = std::min<std::int64_t>(
+                (audio_begin - start + Pcm::sample_period_us - 1) / Pcm::sample_period_us, available);
+            sound.pcm.erase(0, static_cast<std::size_t>(skip * Pcm::bytes_per_sample));
+            start += skip * Pcm::sample_period_us;
         }
+        // Bytes of whole samples from the start of the sound up to the moment.
+        const auto bytes_until = [&](std::int64_t moment) {
+            return static_cast<std::size_t>(std::max<std::int64_t>(0, moment - start) / Pcm::sample_period_us *
+                                            Pcm::bytes_per_sample);
+        };
         if (!sound.pcm.empty())
-            sound.pcm.resize(
-                std::min<std::size_t>(sound.pcm.size(), std::max<std::int64_t>(0, until - start) / 125 * 2));
+            sound.pcm.resize(std::min(sound.pcm.size(), bytes_until(until)));
         if (!sound.pcm.empty() && start >= begin_us && start < end_us)
-            sound.pcm.resize(std::min<std::size_t>(sound.pcm.size(), (end_us - start) / 125 * 2));
+            sound.pcm.resize(std::min(sound.pcm.size(), bytes_until(end_us)));
         else
             sound.pcm.clear();
         volume_.publish({origin_, batch.front()->time, end,
                          batch.front()->codec == ingest::VideoCodec::h265 ? "h265" : "h264"},
                         [&](const fs::path& path) { mux(path, batch, times); }, {}, payload_bytes,
                         {start, sound.pcm});
+        // From the reception of the last frame of the block to its durable publication.
+        observability::Registry::process()
+            .histogram({.name = "bacuri_archive_publication_lag_seconds",
+                        .help = "Time from receiving the last frame of a block to its durable publication."},
+                       observability::archive_buckets)
+            .observe(std::chrono::system_clock::now() - batch.back()->time.received_at());
     } catch (const std::exception& error) {
         if (storage_gap_) {
             storage_gap_->begin = std::min(storage_gap_->begin, begin_us);
             storage_gap_->end = std::max(storage_gap_->end, end_us);
         } else {
-            storage_gap_ = Gap{origin_.point, origin_.binding, begin_us, end_us, "storage_failure"};
+            storage_gap_ = Gap{origin_.point, origin_.binding, begin_us, end_us,
+                               std::string{domain::name(domain::GapReason::storage_failure)}};
         }
         try {
             volume_.report_gap(*storage_gap_);
@@ -342,7 +336,7 @@ void Writer::publish(Segment segment, std::size_t first, std::size_t last)
     }
 }
 
-void Writer::run(std::stop_token stop)
+void Writer::run(const std::stop_token& stop)
 {
     using Clock = std::chrono::steady_clock;
     auto last = Clock::now();
@@ -368,16 +362,16 @@ void Writer::run(std::stop_token stop)
             if (audio_)
                 audio_->policy_record(rule_ && rule_->audio == RecordingAudio::enabled);
         }
-        auto frame = queue_->try_pop();
+        // The wait returns as soon as a frame arrives. Its deadline bounds policy and stop checks.
+        auto frame = queue_->wait_pop(Clock::now() + policy_check_interval);
         if (!frame) {
             if (stop.stop_requested()) {
                 break;
             }
-            if (Clock::now() - last >= 5s) {
+            if (Clock::now() - last >= idle_block_timeout) {
                 finish();
                 drain(false);
             }
-            std::this_thread::sleep_for(10ms);
             continue;
         }
         last = Clock::now();
@@ -385,22 +379,49 @@ void Writer::run(std::stop_token stop)
             const auto& first = frames_.front()->time;
             if (frame->keyframe || frame->codec != frames_.front()->codec) {
                 finish();
-            } else if (frames_.size() >= 900 || bytes_ + frame->access_unit.size() > 32uz * 1024 * 1024 ||
-                       frame->time.received_at() - first.received_at() > 15s) {
+            } else if (frames_.size() >= max_block_frames ||
+                       bytes_ + frame->access_unit.size() > max_block_bytes ||
+                       frame->time.received_at() - first.received_at() > max_block_duration) {
                 finish();
-                std::fprintf(stderr, "archive GOP limit reached point=%s; waiting for keyframe\n",
+                discarded_ = Gap{origin_.point, origin_.binding, frame->time.utc().time_since_epoch().count(), 0,
+                                 std::string{domain::name(domain::GapReason::keyframe_interval)}};
+                std::fprintf(stderr, "archive keyframe interval exceeded point=%s; discarding until keyframe\n",
                              origin_.point.c_str());
             }
         }
         if (frames_.empty() && !frame->keyframe) {
+            if (discarded_)
+                discarded_->end = frame->time.utc().time_since_epoch().count() + 1;
             continue;
+        }
+        if (discarded_) {
+            discarded_->end = frame->time.utc().time_since_epoch().count();
+            report_discarded();
         }
         bytes_ += frame->access_unit.size();
         frames_.push_back(std::move(frame));
     }
     finish();
     drain(true);
+    report_discarded();
     if (audio_)
         audio_->policy_record(false);
+}
+
+void Writer::report_discarded()
+{
+    if (!discarded_)
+        return;
+    const auto gap = std::move(*discarded_);
+    discarded_.reset();
+    // A discarded interval is a gap only where the policy expected a recording.
+    if (gap.end <= gap.begin || !rule_ || !rule_->selects(gap.begin, origin_.binding))
+        return;
+    try {
+        volume_.report_gap(gap);
+    } catch (const std::exception& error) {
+        std::fprintf(stderr, "archive gap journal unavailable point=%s: %s\n", origin_.point.c_str(),
+                     error.what());
+    }
 }
 } // namespace bacuri::vms::archive

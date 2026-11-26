@@ -22,10 +22,8 @@ Json management(Database& db, const std::string& site)
         "JOIN bacuri_maps.map_sources s ON s.id=j.source_id WHERE j.site_id=$1 "
         "ORDER BY j.region_id,j.created DESC,j.id) latest",
         {site});
-    auto url = std::getenv("BACURI_MAP_CATALOG_URL");
-    return {{"catalog_url", settings.size() ? settings.get(0)
-                            : url           ? url
-                                            : ""},
+    return {{"catalog_url",
+             settings.size() ? settings.get(0) : optional_setting("BACURI_MAP_CATALOG_URL").value_or("")},
             {"jobs", Json::parse(jobs.get(0))}};
 }
 void validate_url(const std::string& url)
@@ -127,8 +125,7 @@ fs::path directory(const std::string& id)
 {
     if (!canonical_id(id))
         throw std::invalid_argument("Invalid spool ID");
-    auto root = std::getenv("BACURI_MAP_DIRECTORY");
-    fs::path dir = (root ? fs::path(root) : fs::path("/var/lib/bacuri-core/maps")) / id;
+    fs::path dir = fs::path{optional_setting("BACURI_MAP_DIRECTORY").value_or("/var/lib/bacuri-core/maps")} / id;
     fs::create_directories(dir);
     return dir;
 }

@@ -124,7 +124,14 @@ point_status:
       name: Loading bay
       connection: online
       recording: delayed
+      recording_reason: archive_pending
       last_recorded_at: '2020-01-01T10:00:30Z'
+    - id: 30000000-0000-4000-8000-000000000002
+      name: Warehouse
+      connection: offline
+      recording: stopped
+      recording_reason: source_offline
+      last_recorded_at: '2020-01-01T09:41:12Z'
 archive_timeline:
   operation: searchArchive
   status: 200

@@ -51,7 +51,7 @@ Bundle::Bundle(const SignedKit& source)
            "Missing package version or target in installation bundle");
     const auto host =
         capture({"/bin/sh", "-ec",
-                 ". /etc/os-release; printf '%s:%s:' \"$ID\" \"$VERSION_ID\"; dpkg --print-architecture"});
+                 R"(. /etc/os-release; printf '%s:%s:' "$ID" "$VERSION_ID"; dpkg --print-architecture)"});
     ensure(target == host, "Installation bundle targets a different Debian release or architecture");
     const auto product = kit / "repository" / ("bacuri-vms_" + version + "_amd64.deb");
     ensure(fs::is_regular_file(product), "Missing product package in signed kit");
@@ -85,10 +85,10 @@ void Bundle::install(bool downgrade) const
              "-o",
              "APT::Update::Error-Mode=any"};
     auto update = apt;
-    update.push_back("update");
+    update.emplace_back("update");
     run(update);
     if (downgrade)
-        apt.push_back("--allow-downgrades");
+        apt.emplace_back("--allow-downgrades");
     apt.insert(apt.end(), {"--no-remove", "--no-install-recommends", "-y", "install", "bacuri-vms=" + version});
     setenv("DEBIAN_FRONTEND", "noninteractive", 1);
     run(apt);

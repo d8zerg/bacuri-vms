@@ -1,25 +1,25 @@
 import type { CSSProperties } from "react";
 import type { Placement } from "../contracts/workspace";
 import icons from "../../../../design/bacuri/icons/sprite.svg";
+import { dateTimeFormat, t as translate, useT } from "../i18n";
 
 export function viewLabel(view: Placement["view"]) {
-  if (!view || view.state === "unknown")
-    return "Текущее направление неизвестно";
-  const angles =
-    Math.round(view.bearing ?? 0) +
-    "° · угол обзора " +
-    (view.estimated ? "около " : "") +
-    Math.round(view.hfov ?? 0) +
-    "°";
-  if (view.state === "fixed") return "Заданное направление " + angles;
+  if (!view || view.state === "unknown") return translate("view.unknown");
+  const angles = translate(
+    view.estimated ? "view.anglesEstimated" : "view.angles",
+    {
+      bearing: Math.round(view.bearing ?? 0),
+      fov: Math.round(view.hfov ?? 0),
+    },
+  );
+  if (view.state === "fixed") return translate("view.fixed", { angles });
   const time = view.observed_at
-    ? new Date(view.observed_at).toLocaleTimeString("ru-RU")
+    ? dateTimeFormat({ timeStyle: "medium" }).format(new Date(view.observed_at))
     : "";
   return (
-    (view.state === "stale"
-      ? "Последнее известное направление "
-      : "Направление PTZ ") +
-    angles +
+    translate(view.state === "stale" ? "view.stale" : "view.ptz", {
+      angles,
+    }) +
     " · " +
     time
   );
@@ -40,6 +40,7 @@ export function CameraMarker({
   style,
   newAlerts = 0,
 }: Props) {
+  const t = useT();
   const view = marker.view;
   const half = ((view?.hfov ?? 0) * Math.PI) / 360;
   const x = 52 * Math.sin(half),
@@ -49,11 +50,15 @@ export function CameraMarker({
       type="button"
       className="ws-pin"
       style={style}
-      aria-label={newAlerts ? name + " · Новых тревог: " + newAlerts : name}
+      aria-label={
+        newAlerts
+          ? name + " · " + t("alerts.newCount", { count: newAlerts })
+          : name
+      }
       title={[
         name,
         viewLabel(view),
-        ...(newAlerts ? ["Новых тревог: " + newAlerts] : []),
+        ...(newAlerts ? [t("alerts.newCount", { count: newAlerts })] : []),
       ].join(" · ")}
       aria-pressed={selected}
       onClick={(e) => {

@@ -1,4 +1,5 @@
 #include "control/alert_socket.hpp"
+#include "observability/metrics.hpp"
 
 #include <boost/asio/as_tuple.hpp>
 #include <boost/asio/awaitable.hpp>
@@ -13,6 +14,7 @@
 
 #include <csignal>
 #include <set>
+#include <utility>
 
 namespace bacuri::vms::control
 {
@@ -28,6 +30,59 @@ using namespace std::chrono_literals;
 constexpr auto io_timeout = 5s;
 constexpr std::size_t max_connections = 36;
 constexpr unsigned max_requests_per_connection = 100;
+
+const char* name(Workload workload)
+{
+    switch (workload) {
+    case Workload::credential:
+        return "credential";
+    case Workload::long_running:
+        return "long_running";
+    case Workload::interactive:
+        break;
+    }
+    return "interactive";
+}
+
+// Handling time from the complete request to the ready response, by workload and status class.
+void observe(Workload workload, unsigned status, std::chrono::steady_clock::duration elapsed)
+{
+    auto& registry = observability::Registry::process();
+    const observability::Labels labels{{"workload", name(workload)}};
+    registry
+        .histogram({.name = "bacuri_http_request_duration_seconds", .help = "Time to handle an HTTPS request."},
+                   observability::interaction_buckets, labels)
+        .observe(elapsed);
+    registry
+        .counter({.name = "bacuri_http_responses_total", .help = "HTTPS responses by workload and status class."},
+                 {{"workload", name(workload)}, {"status", std::to_string(status / 100) + "xx"}})
+        .increment();
+}
+
+struct Workers {
+    net::thread_pool interactive{8};
+    net::thread_pool credential{2};
+    net::thread_pool long_running{4};
+
+    net::thread_pool& operator[](Workload workload)
+    {
+        switch (workload) {
+        case Workload::credential:
+            return credential;
+        case Workload::long_running:
+            return long_running;
+        case Workload::interactive:
+            break;
+        }
+        return interactive;
+    }
+    void join()
+    {
+        interactive.join();
+        credential.join();
+        long_running.join();
+    }
+};
 
 net::awaitable<Response> process(const HttpHandler& handler, const Request& request, const std::string& peer)
 {
@@ -63,8 +118,8 @@ net::awaitable<void> send_media(TlsStream& stream, net::thread_pool& workers, Re
     }
 }
 
-net::awaitable<void> exchange(std::shared_ptr<TlsStream> connection, net::thread_pool& workers,
-                              const HttpHandler& handler)
+net::awaitable<void> exchange(std::shared_ptr<TlsStream> connection, Workers& workers, const HttpHandler& handler,
+                              const WorkloadClassifier& classify)
 {
     auto& stream = *connection;
     auto& transport = beast::get_lowest_layer(stream);
@@ -123,16 +178,20 @@ net::awaitable<void> exchange(std::shared_ptr<TlsStream> connection, net::thread
                                     : http::status::bad_request);
             } else {
                 const auto request = parser.release();
-                // Blocking database, DNS and password operations use the bounded application pool.
-                response = co_await net::co_spawn(workers, process(handler, request, peer), net::use_awaitable);
+                // Blocking database, camera and password operations run on the pool of their workload.
+                const auto workload = classify(request);
+                auto& pool = workers[workload];
+                const auto started = std::chrono::steady_clock::now();
+                response = co_await net::co_spawn(pool, process(handler, request, peer), net::use_awaitable);
+                observe(workload, response.result_int(), std::chrono::steady_clock::now() - started);
                 if (response.alerts) {
-                    co_await stream_alerts(connection, workers, request, std::move(response.alerts));
+                    co_await stream_alerts(connection, workers.interactive, request, std::move(response.alerts));
                     co_return;
                 }
                 response.version(request.version());
                 response.keep_alive(request.keep_alive() && sequence < max_requests_per_connection);
                 if (response.media) {
-                    co_await send_media(stream, workers, response);
+                    co_await send_media(stream, pool, response);
                 } else {
                     response.prepare_payload();
                     transport.expires_after(io_timeout);
@@ -157,7 +216,8 @@ net::awaitable<void> exchange(std::shared_ptr<TlsStream> connection, net::thread
 using Connections = std::set<std::shared_ptr<TlsStream>>;
 
 net::awaitable<void> accept_connections(tcp::acceptor& listener, ssl::context& tls, Connections& active,
-                                        net::thread_pool& workers, const HttpHandler& handler)
+                                        Workers& workers, const HttpHandler& handler,
+                                        const WorkloadClassifier& classify)
 {
     while (listener.is_open()) {
         auto socket = co_await listener.async_accept(net::use_awaitable);
@@ -169,13 +229,13 @@ net::awaitable<void> accept_connections(tcp::acceptor& listener, ssl::context& t
         }
         auto stream = std::make_shared<TlsStream>(std::move(socket), tls);
         active.insert(stream);
-        net::co_spawn(listener.get_executor(), exchange(stream, workers, handler),
-                      [&active, stream](std::exception_ptr) { active.erase(stream); });
+        net::co_spawn(listener.get_executor(), exchange(stream, workers, handler, classify),
+                      [&active, stream](const std::exception_ptr&) { active.erase(stream); });
     }
 }
 } // namespace
 
-void listen_https(const HttpsSettings& settings, const HttpHandler& handler)
+void listen_https(const HttpsSettings& settings, const HttpHandler& handler, const WorkloadClassifier& workload)
 {
     net::io_context io{1};
     ssl::context tls{ssl::context::tls_server};
@@ -188,7 +248,7 @@ void listen_https(const HttpsSettings& settings, const HttpHandler& handler)
         throw std::runtime_error("Invalid TLS key pair");
     }
 
-    net::thread_pool workers{4};
+    Workers workers;
     tcp::acceptor listener{io, {net::ip::make_address(settings.address), settings.port}};
     Connections active;
     net::signal_set signals{io, SIGINT, SIGTERM};
@@ -199,12 +259,13 @@ void listen_https(const HttpsSettings& settings, const HttpHandler& handler)
         }
     });
     std::exception_ptr listener_error;
-    net::co_spawn(io, accept_connections(listener, tls, active, workers, handler), [&](std::exception_ptr error) {
-        if (listener.is_open()) {
-            listener_error = error;
-            signals.cancel();
-        }
-    });
+    net::co_spawn(io, accept_connections(listener, tls, active, workers, handler, workload),
+                  [&](std::exception_ptr error) {
+                      if (listener.is_open()) {
+                          listener_error = std::move(error);
+                          signals.cancel();
+                      }
+                  });
     io.run();
     workers.join();
     if (listener_error) {

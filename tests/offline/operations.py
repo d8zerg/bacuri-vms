@@ -129,7 +129,10 @@ class Browser:
                 "capabilities": {
                     "alwaysMatch": {
                         "browserName": "chrome",
-                        "goog:chromeOptions": {"args": ["--ignore-certificate-errors-spki-list=" + pin]},
+                        "goog:chromeOptions": {
+                            "args": ["--lang=ru-RU", "--ignore-certificate-errors-spki-list=" + pin],
+                            "prefs": {"intl.accept_languages": "ru-RU,ru"},
+                        },
                     }
                 }
             },

@@ -58,6 +58,8 @@ struct BindingKey {
     [[nodiscard]] friend constexpr bool operator==(const BindingKey&, const BindingKey&) noexcept = default;
 };
 
+// Identifiers have no default value, so the type is built only with all fields.
+// NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
 struct ChannelBinding {
     BindingKey key;
     ChannelId channel;
@@ -74,7 +76,7 @@ enum class BindingError {
 replace_channel(const ChannelBinding& active, const Channel& replacement, UtcTime valid_from) noexcept;
 
 struct ConfigurationProgress {
-    Revision desired_revision;
+    Revision desired_revision{};
     std::optional<Revision> applied_revision;
 
     [[nodiscard]] bool converged() const noexcept

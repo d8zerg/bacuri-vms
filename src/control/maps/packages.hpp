@@ -13,5 +13,5 @@ void install(Database& db, const fs::path& file, const std::string& site, const 
              std::string_view mode);
 void manage(const Request&, Response&, Database&, const std::string& site, std::string_view path);
 fs::path directory(const std::string& id);
-void work(std::stop_token stop);
+void work(const std::stop_token& stop);
 } // namespace bacuri::vms::control::map_packages

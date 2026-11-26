@@ -13,31 +13,32 @@ import { Button } from "../ui-kit/FormControls";
 import { AccessAudit } from "./AccessAudit";
 import { PrivacyEditor } from "./PrivacyEditor";
 import "./access.css";
+import { t as translate, useT, type MessageKey } from "../i18n";
 
 type Schema = components["schemas"];
 type User = Schema["AccessUser"];
 type Group = Schema["AccessGroup"];
 type Grant = Schema["AccessGrant"];
 const actions = {
-  view: "Просмотр видео",
-  audio: "Прослушивание звука",
-  record: "Ручная запись видео",
-  audio_record: "Запись звука",
-  audio_talk: "Передача речи",
-  ptz: "Управление PTZ",
-  configure: "Настройка камеры",
-  protect: "Защита записи",
-  export: "Экспорт оригинала",
-  export_masked: "Экспорт производной копии",
-  view_ptz: "Просмотр и PTZ",
-};
+  view: "access.action.view",
+  audio: "access.action.audio",
+  record: "access.action.record",
+  audio_record: "access.action.audio_record",
+  audio_talk: "access.action.audio_talk",
+  ptz: "access.action.ptz",
+  configure: "access.action.configure",
+  protect: "access.action.protect",
+  export: "access.action.export",
+  export_masked: "access.action.export_masked",
+  view_ptz: "access.action.view_ptz",
+} as const satisfies Record<string, MessageKey>;
 const tabs = [
-  ["Пользователи", "user-round"],
-  ["Группы", "users-round"],
-  ["Разрешения", "key-round"],
-  ["Приватность", "eye-off"],
-  ["Вход", "log-in"],
-  ["Аудит", "clipboard-list"],
+  ["users", "user-round"],
+  ["groups", "users-round"],
+  ["grants", "key-round"],
+  ["privacy", "eye-off"],
+  ["login", "log-in"],
+  ["audit", "clipboard-list"],
 ] as const;
 type Tab = (typeof tabs)[number][0];
 interface Policy {
@@ -81,7 +82,7 @@ async function load(
       (r) => r.revision === users.revision,
     )
   )
-    throw Error("Права изменились во время загрузки. Обновите данные.");
+    throw Error(translate("access.changedDuringLoad"));
   return {
     revision: users.revision,
     users: users.data,
@@ -98,20 +99,22 @@ const field = (form: FormData, key: string) => {
   return typeof value === "string" ? value : "";
 };
 function Roles({ value = "operator" }: { value?: string }) {
+  const t = useT();
   return (
     <label>
-      Роль
+      {t("access.role")}
       <select name="role" defaultValue={value}>
-        <option value="operator">Оператор</option>
-        <option value="administrator">Администратор</option>
+        <option value="operator">{t("access.role.operator")}</option>
+        <option value="administrator">{t("access.role.administrator")}</option>
       </select>
     </label>
   );
 }
 function People({ users }: { users: User[] }) {
+  const t = useT();
   return (
     <label>
-      Пользователь
+      {t("access.user")}
       <select required name="user">
         {users.map((u) => (
           <option value={u.id} key={u.id}>
@@ -132,7 +135,8 @@ export default function Access({
   session: Session;
   expire: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>("Пользователи");
+  const t = useT();
+  const [tab, setTab] = useState<Tab>("users");
   const [loading, setLoading] = useState(true);
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [attempt, setAttempt] = useState(0),
@@ -152,8 +156,7 @@ export default function Access({
         setPolicy(null);
         if (err instanceof Error && ["401", "403"].includes(err.message))
           expire();
-        else
-          setMessage("Не удалось получить актуальные права. Обновите данные.");
+        else setMessage(translate("access.loadFailed"));
       })
       .finally(() => {
         if (!ctl.signal.aborted) setLoading(false);
@@ -206,27 +209,23 @@ export default function Access({
         return;
       }
       if (response.status === 412) {
-        setMessage(
-          "Другой администратор изменил политику. Проверьте обновлённые данные.",
-        );
+        setMessage(t("access.conflict"));
       } else if (!response.ok) {
         const problem = (await response.json()) as { code: string };
         setMessage(
           (
             {
-              last_administrator:
-                "На площадке нужен действующий администратор.",
-              account_conflict: "Имя пользователя занято.",
-              identity_conflict: "Эта внешняя учётная запись уже привязана.",
-              group_conflict: "Название группы занято.",
+              last_administrator: t("access.lastAdministrator"),
+              account_conflict: t("access.accountConflict"),
+              identity_conflict: t("access.identityConflict"),
+              group_conflict: t("access.groupConflict"),
             } as Record<string, string>
-          )[problem.code] ??
-            "Не удалось сохранить изменение. Проверьте значения.",
+          )[problem.code] ?? t("access.saveFailed"),
         );
-      } else setMessage("Изменение сохранено.");
+      } else setMessage(t("access.saved"));
       setAttempt((n) => n + 1);
     } catch {
-      setMessage("Связь прервана. Обновите данные перед повтором.");
+      setMessage(t("access.disconnected"));
     } finally {
       setBusy(false);
     }
@@ -252,7 +251,11 @@ export default function Access({
   const users = policy?.users.filter(
     (u) =>
       (!roleFilter || u.role === roleFilter) &&
-      matchesQuery(query, u.username, u.enabled ? "Активна" : "Заблокирована"),
+      matchesQuery(
+        query,
+        u.username,
+        u.enabled ? t("access.active") : t("access.blocked"),
+      ),
   );
   const grants = policy?.grants.filter(
     (g) =>
@@ -260,7 +263,7 @@ export default function Access({
       matchesQuery(
         query,
         policy.users.find((u) => u.id === g.user_id)?.username,
-        actions[g.action],
+        t(actions[g.action]),
         policy.points.find((p) => p.id === g.point_id)?.name,
         policy.groups.find((r) => r.id === g.group_id)?.name,
       ),
@@ -270,7 +273,7 @@ export default function Access({
     matchesQuery(query, u.username, u.issuer, u.subject),
   );
   const refresh = {
-    label: "Обновить данные",
+    label: t("access.refresh"),
     busy: loading,
     disabled: busy,
     run: () => {
@@ -290,14 +293,14 @@ export default function Access({
   return (
     <section className="ws-panel ws-pad ws-access">
       <SubsectionMenu
-        label="Управление доступом"
-        items={tabs.map(([label, icon]) => ({
-          label,
+        label={t("access.title")}
+        items={tabs.map(([id, icon]) => ({
+          label: t(`access.tab.${id}`),
           icon,
-          active: tab === label,
+          active: tab === id,
           select: () => {
-            if (label !== tab) resetFilters();
-            setTab(label);
+            if (id !== tab) resetFilters();
+            setTab(id);
             setMessage("");
           },
         }))}
@@ -306,48 +309,52 @@ export default function Access({
       {!policy ? (
         <>
           <FilterPanel
-            label="Фильтры доступа"
-            queryLabel="Поиск"
+            label={t("access.filters")}
+            queryLabel={t("inv.searching")}
             query={query}
             onQuery={setQuery}
             onReset={resetFilters}
             searchDisabled
             refresh={refresh}
           />
-          {loading && <p role="status">Ожидание данных площадки</p>}
+          {loading && <p role="status">{t("access.waiting")}</p>}
         </>
       ) : (
         <fieldset
-          aria-label={tab}
+          aria-label={t(`access.tab.${tab}`)}
           disabled={busy}
           onChangeCapture={() => setMessage("")}
           key={site + ":" + tab + ":" + policy.revision}
         >
-          {tab === "Пользователи" && (
+          {tab === "users" && (
             <>
               <FilterPanel
                 refresh={refresh}
-                label="Фильтры пользователей"
-                queryLabel="Поиск пользователя"
+                label={t("access.userFilters")}
+                queryLabel={t("access.userSearch")}
                 query={query}
                 onQuery={setQuery}
                 onReset={resetFilters}
                 filtered={!!roleFilter}
               >
                 <label>
-                  Фильтр по роли
+                  {t("access.roleFilter")}
                   <select
                     value={roleFilter}
                     onChange={(e) => setRoleFilter(e.target.value)}
                   >
-                    <option value="">Все роли</option>
-                    <option value="operator">Оператор</option>
-                    <option value="administrator">Администратор</option>
+                    <option value="">{t("access.allRoles")}</option>
+                    <option value="operator">
+                      {t("access.role.operator")}
+                    </option>
+                    <option value="administrator">
+                      {t("access.role.administrator")}
+                    </option>
                   </select>
                 </label>
               </FilterPanel>
               <details className="ws-new-user" name="access-user">
-                <summary>Добавить пользователя</summary>
+                <summary>{t("access.addUser")}</summary>
                 <form
                   onSubmit={form(
                     (f) =>
@@ -359,11 +366,11 @@ export default function Access({
                   )}
                 >
                   <label>
-                    Имя
+                    {t("access.name")}
                     <input required name="name" maxLength={128} />
                   </label>
                   <label>
-                    Начальный пароль
+                    {t("access.initialPassword")}
                     <input
                       required
                       type="password"
@@ -372,10 +379,10 @@ export default function Access({
                     />
                   </label>
                   <Roles />
-                  <Button type="submit">Создать пользователя</Button>
+                  <Button type="submit">{t("access.createUser")}</Button>
                 </form>
               </details>
-              {!users?.length && <p role="status">Пользователи не найдены.</p>}
+              {!users?.length && <p role="status">{t("access.noUsers")}</p>}
               <ul className="ws-users">
                 {users?.map((u) => (
                   <li key={u.id}>
@@ -384,13 +391,15 @@ export default function Access({
                         <strong>{u.username}</strong>
                         <span>
                           {u.role === "administrator"
-                            ? "Администратор"
-                            : "Оператор"}
+                            ? t("access.role.administrator")
+                            : t("access.role.operator")}
                         </span>
-                        <span>{u.enabled ? "Активна" : "Заблокирована"}</span>
+                        <span>
+                          {u.enabled ? t("access.active") : t("access.blocked")}
+                        </span>
                       </summary>
                       <form
-                        aria-label={"Изменить пользователя " + u.username}
+                        aria-label={t("access.editUser", { name: u.username })}
                         onSubmit={form(
                           (f) =>
                             void save("users/" + u.id, "PATCH", {
@@ -406,9 +415,9 @@ export default function Access({
                             name="enabled"
                             defaultChecked={u.enabled}
                           />
-                          Учётная запись активна
+                          {t("access.accountActive")}
                         </label>
-                        <Button type="submit">Сохранить пользователя</Button>
+                        <Button type="submit">{t("access.saveUser")}</Button>
                       </form>
                     </details>
                   </li>
@@ -416,18 +425,18 @@ export default function Access({
               </ul>
             </>
           )}
-          {tab === "Группы" && (
+          {tab === "groups" && (
             <>
               <FilterPanel
-                label="Фильтры групп"
-                queryLabel="Поиск группы"
+                label={t("access.groupFilters")}
+                queryLabel={t("access.groupSearch")}
                 query={query}
                 onQuery={setQuery}
                 onReset={() => setQuery("")}
                 refresh={refresh}
               >
                 <label>
-                  Группа ресурсов
+                  {t("access.resourceGroup")}
                   <select
                     value={
                       matchingGroups?.some((g) => g.id === group) ? group : ""
@@ -435,7 +444,7 @@ export default function Access({
                     onChange={(e) => setGroup(e.target.value)}
                   >
                     <option value="">
-                      {query ? "Выберите группу" : "Новая группа"}
+                      {query ? t("access.chooseGroup") : t("access.newGroup")}
                     </option>
                     {matchingGroups?.map((g) => (
                       <option key={g.id} value={g.id}>
@@ -446,7 +455,7 @@ export default function Access({
                 </label>
               </FilterPanel>
               {query && !matchingGroups?.length && (
-                <p role="status">Группы не найдены.</p>
+                <p role="status">{t("access.noGroups")}</p>
               )}
               <form
                 hidden={!!query && !matchingGroups?.some((g) => g.id === group)}
@@ -461,15 +470,15 @@ export default function Access({
                 )}
               >
                 <label>
-                  Название
+                  {t("camera.form.name")}
                   <input name="name" required defaultValue={selected?.name} />
                 </label>
                 <fieldset>
-                  <legend>Точки наблюдения</legend>
+                  <legend>{t("maps.points")}</legend>
                   {needsListSearch(policy.points.length, pointQuery) && (
                     <FilterPanel
-                      label="Фильтры точек группы"
-                      queryLabel="Поиск точки"
+                      label={t("access.groupPointFilters")}
+                      queryLabel={t("maps.pointSearch")}
                       query={pointQuery}
                       onQuery={setPointQuery}
                       onReset={() => setPointQuery("")}
@@ -478,7 +487,7 @@ export default function Access({
                   {pointQuery &&
                     !policy.points.some((p) =>
                       matchesQuery(pointQuery, p.name),
-                    ) && <p role="status">Точки не найдены.</p>}
+                    ) && <p role="status">{t("maps.noPoints")}</p>}
                   {policy.points.map((p) => (
                     <label
                       key={p.id}
@@ -494,31 +503,31 @@ export default function Access({
                     </label>
                   ))}
                 </fieldset>
-                <Button type="submit">Сохранить группу</Button>
+                <Button type="submit">{t("access.saveGroup")}</Button>
               </form>
             </>
           )}
-          {tab === "Разрешения" && (
+          {tab === "grants" && (
             <>
               <FilterPanel
                 refresh={refresh}
-                label="Фильтры разрешений"
-                queryLabel="Пользователь, точка или группа"
+                label={t("access.grantFilters")}
+                queryLabel={t("access.grantQuery")}
                 query={query}
                 onQuery={setQuery}
                 filtered={!!actionFilter}
                 onReset={resetFilters}
               >
                 <label>
-                  Фильтр по действию
+                  {t("access.actionFilter")}
                   <select
                     value={actionFilter}
                     onChange={(e) => setActionFilter(e.target.value)}
                   >
-                    <option value="">Все действия</option>
+                    <option value="">{t("access.allActions")}</option>
                     {Object.entries(actions).map(([id, title]) => (
                       <option key={id} value={id}>
-                        {title}
+                        {t(title)}
                       </option>
                     ))}
                   </select>
@@ -527,15 +536,15 @@ export default function Access({
               {!grants?.length && (
                 <p role="status">
                   {policy.grants.length
-                    ? "Разрешения не найдены."
-                    : "Разрешений пока нет."}
+                    ? t("access.noGrantsFound")
+                    : t("access.noGrants")}
                 </p>
               )}
               <ul>
                 {grants?.map((g) => (
                   <li key={g.id}>
                     {policy.users.find((u) => u.id === g.user_id)?.username} ·{" "}
-                    {actions[g.action]} ·{" "}
+                    {t(actions[g.action])} ·{" "}
                     {policy.points.find((p) => p.id === g.point_id)?.name ??
                       policy.groups.find((r) => r.id === g.group_id)?.name}
                     {g.begin_us &&
@@ -547,7 +556,7 @@ export default function Access({
                     <Button
                       onClick={() => void save("grants/" + g.id, "DELETE")}
                     >
-                      Отозвать
+                      {t("alert.revoke")}
                     </Button>
                   </li>
                 ))}
@@ -561,7 +570,7 @@ export default function Access({
                     Boolean(start) !== Boolean(end) ||
                     (start && start >= end)
                   ) {
-                    setMessage("Проверьте обе границы интервала.");
+                    setMessage(t("access.checkInterval"));
                     return;
                   }
                   void save("grants/" + crypto.randomUUID(), "PUT", {
@@ -582,7 +591,7 @@ export default function Access({
               >
                 <People users={policy.users} />
                 <label>
-                  Область
+                  {t("access.scope")}
                   <select name="target" required>
                     {policy.points.map((p) => (
                       <option key={p.id} value={"p:" + p.id}>
@@ -591,47 +600,47 @@ export default function Access({
                     ))}
                     {policy.groups.map((g) => (
                       <option key={g.id} value={"g:" + g.id}>
-                        Группа {g.name}
+                        {t("access.groupNamed", { name: g.name })}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  Действие
+                  {t("access.action")}
                   <select name="action">
                     {Object.entries(actions)
                       .filter(([k]) => k !== "view_ptz")
                       .map(([k, v]) => (
                         <option key={k} value={k}>
-                          {v}
+                          {t(v)}
                         </option>
                       ))}
                   </select>
                 </label>
                 <label>
-                  Начало интервала просмотра или экспорта
+                  {t("access.intervalStart")}
                   <input type="datetime-local" name="start" />
                 </label>
                 <label>
-                  Конец интервала
+                  {t("access.intervalEnd")}
                   <input type="datetime-local" name="end" />
                 </label>
-                <Button type="submit">Выдать разрешение</Button>
+                <Button type="submit">{t("access.grant")}</Button>
               </form>
             </>
           )}
-          {tab === "Приватность" && (
+          {tab === "privacy" && (
             <>
               <FilterPanel
-                label="Фильтры точек приватности"
-                queryLabel="Поиск точки"
+                label={t("access.privacyFilters")}
+                queryLabel={t("maps.pointSearch")}
                 query={query}
                 onQuery={setQuery}
                 onReset={() => setQuery("")}
                 refresh={refresh}
               >
                 <label>
-                  Точка
+                  {t("batch.point")}
                   <select
                     value={
                       matchingPoints?.some((p) => p.id === selectedPoint)
@@ -641,7 +650,7 @@ export default function Access({
                     onChange={(e) => setPoint(e.target.value)}
                   >
                     {!matchingPoints?.some((p) => p.id === selectedPoint) && (
-                      <option value="">Выберите точку</option>
+                      <option value="">{t("access.choosePoint")}</option>
                     )}
                     {matchingPoints?.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -652,7 +661,7 @@ export default function Access({
                 </label>
               </FilterPanel>
               {query && !matchingPoints?.length && (
-                <p role="status">Точки не найдены.</p>
+                <p role="status">{t("maps.noPoints")}</p>
               )}
               <div
                 hidden={!matchingPoints?.some((p) => p.id === selectedPoint)}
@@ -668,12 +677,12 @@ export default function Access({
               </div>
             </>
           )}
-          {tab === "Вход" && (
+          {tab === "login" && (
             <>
               <FilterPanel
                 refresh={refresh}
-                label="Фильтры внешних учётных записей"
-                queryLabel="Имя или идентификатор"
+                label={t("access.identityFilters")}
+                queryLabel={t("access.identityQuery")}
                 query={query}
                 onQuery={setQuery}
                 onReset={() => setQuery("")}
@@ -681,8 +690,8 @@ export default function Access({
               {!shownIdentities?.length && (
                 <p role="status">
                   {query
-                    ? "Учётные записи не найдены."
-                    : "Привязанных учётных записей пока нет."}
+                    ? t("access.noIdentitiesFound")
+                    : t("access.noIdentities")}
                 </p>
               )}
               <ul>
@@ -697,7 +706,7 @@ export default function Access({
                         )
                       }
                     >
-                      Отвязать
+                      {t("access.unlink")}
                     </Button>
                   </li>
                 ))}
@@ -721,7 +730,7 @@ export default function Access({
                     name="enabled"
                     defaultChecked={policy.provider.enabled}
                   />
-                  Корпоративный вход через Keycloak
+                  {t("access.keycloak")}
                 </label>
                 <label>
                   Issuer HTTPS
@@ -741,7 +750,7 @@ export default function Access({
                   />
                 </label>
                 <label>
-                  Новый секрет клиента
+                  {t("access.clientSecret")}
                   <input
                     type="password"
                     autoComplete="new-password"
@@ -750,14 +759,14 @@ export default function Access({
                   />
                 </label>
                 <label>
-                  Уровень MFA администратора (acr)
+                  {t("access.mfa")}
                   <input
                     required
                     name="acr"
                     defaultValue={policy.provider.admin_acr}
                   />
                 </label>
-                <Button type="submit">Сохранить провайдера</Button>
+                <Button type="submit">{t("access.saveProvider")}</Button>
               </form>
               <form
                 onSubmit={form(
@@ -772,19 +781,19 @@ export default function Access({
                     ),
                 )}
               >
-                <h2>Внешняя учётная запись</h2>
+                <h2>{t("access.externalAccount")}</h2>
                 <People users={policy.users} />
                 <label>
-                  Идентификатор в Keycloak (sub)
+                  {t("access.subject")}
                   <input required name="subject" />
                 </label>
                 <Button type="submit" disabled={!policy.provider.issuer}>
-                  Привязать
+                  {t("access.link")}
                 </Button>
               </form>
             </>
           )}
-          {tab === "Аудит" && (
+          {tab === "audit" && (
             <AccessAudit
               refresh={refresh}
               query={query}

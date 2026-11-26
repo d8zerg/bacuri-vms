@@ -4,5 +4,5 @@
 
 namespace bacuri::vms::control
 {
-void deliver(std::stop_token stop, const Key& key, const std::string& transport_policy);
+void deliver(const std::stop_token& stop, const Key& key, const std::string& transport_policy);
 }

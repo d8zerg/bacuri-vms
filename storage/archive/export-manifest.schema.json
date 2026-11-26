@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bacuri.vms:archive:export-manifest",
+  "title": "Bacuri VMS signed export manifest, formats v1 and v2",
+  "description": "manifest.json of a signed export. manifest.sig holds the hexadecimal Ed25519 signature of the exact bytes of manifest.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "site_id", "point_id", "export_id", "begin_utc_us", "end_utc_us", "periods"],
+  "properties": {
+    "format": { "enum": ["bacuri.vms.export.v1", "bacuri.vms.export.v2"] },
+    "site_id": { "$ref": "urn:bacuri.vms:archive:block-manifest:1#/$defs/id" },
+    "point_id": { "$ref": "urn:bacuri.vms:archive:block-manifest:1#/$defs/id" },
+    "export_id": { "$ref": "urn:bacuri.vms:archive:block-manifest:1#/$defs/id" },
+    "alert_id": { "$ref": "urn:bacuri.vms:archive:block-manifest:1#/$defs/id" },
+    "begin_utc_us": { "$ref": "urn:bacuri.vms:archive:block-manifest:1#/$defs/i64" },
+    "end_utc_us": { "$ref": "urn:bacuri.vms:archive:block-manifest:1#/$defs/i64" },
+    "mode": { "enum": ["selection", "original", "derivative"] },
+    "reason": { "type": "string", "maxLength": 512 },
+    "audio_requested": { "type": "boolean" },
+    "periods": {
+      "description": "Contiguous periods from begin_utc_us to end_utc_us. Every recorded period has its own media file.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "oneOf": [{ "$ref": "#/$defs/gap" }, { "$ref": "#/$defs/recorded" }] }
+    }
+  },
+  "if": { "properties": { "format": { "const": "bacuri.vms.export.v2" } } },
+  "then": { "required": ["mode", "reason", "audio_requested"] },
+  "else": { "not": { "anyOf": [{ "required": ["mode"] }, { "required": ["audio_requested"] }] } },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "begin_utc_us", "end_utc_us", "reason"],
+      "properties": {
+        "state": { "const": "gap" },
+        "begin_utc_us": { "$ref": "urn:bacuri.vms:archive:block-manifest:1#/$defs/i64" },
+        "end_utc_us": { "$ref": "urn:bacuri.vms:archive:block-manifest:1#/$defs/i64" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "recorded": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "begin_utc_us", "end_utc_us", "file", "source", "transform", "sha256", "size_bytes"],
+      "properties": {
+        "state": { "const": "recorded" },
+        "begin_utc_us": { "$ref": "urn:bacuri.vms:archive:block-manifest:1#/$defs/i64" },
+        "end_utc_us": { "$ref": "urn:bacuri.vms:archive:block-manifest:1#/$defs/i64" },
+        "file": { "type": "string", "pattern": "^clip-[1-9][0-9]*\\.mp4$" },
+        "source": {
+          "description": "Manifest of the archive block the media comes from.",
+          "$ref": "urn:bacuri.vms:archive:block-manifest:1"
+        },
+        "transform": {
+          "description": "original is the unchanged archive block. original_with_decode_context is the unchanged block that also covers frames outside the period because decoding needs them. The selection transforms re-encode only the frames of the period, with privacy masks applied in the masked variant.",
+          "enum": ["original", "original_with_decode_context", "h264_frame_selection", "h264_masked_selection"]
+        },
+        "frame_count": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size_bytes": { "type": "integer", "minimum": 1 },
+        "codec": { "enum": ["h264", "h265"] },
+        "masks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["left", "top", "right", "bottom"],
+            "properties": {
+              "left": { "type": "number", "minimum": 0, "maximum": 1 },
+              "top": { "type": "number", "minimum": 0, "maximum": 1 },
+              "right": { "type": "number", "minimum": 0, "maximum": 1 },
+              "bottom": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        },
+        "audio": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/audio" }] }
+      }
+    },
+    "audio": {
+      "description": "A WAV file with mono 16-bit PCM at 8000 Hz. Each sample covers 125 microseconds.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "codec", "sample_rate", "channels", "sha256", "size_bytes", "begin_utc_us", "end_utc_us"],
+      "properties": {
+        "file": { "type": "string", "pattern": "^audio-[1-9][0-9]*\\.wav$" },
+        "codec": { "const": "pcm_s16le" },
+        "sample_rate": { "const": 8000 },
+        "channels": { "const": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size_bytes": { "type": "integer", "minimum": 46 },
+        "begin_utc_us": { "$ref": "urn:bacuri.vms:archive:block-manifest:1#/$defs/i64" },
+        "end_utc_us": { "$ref": "urn:bacuri.vms:archive:block-manifest:1#/$defs/i64" }
+      }
+    }
+  }
+}

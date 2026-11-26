@@ -41,6 +41,8 @@ export BACURI_RECORDER_DB="$test_dir/recorder.db" BACURI_OBSERVATION_SOCKET="$te
 export BACURI_CATALOG_SOCKET="$test_dir/catalog.sock" BACURI_ARCHIVE_DIR="$test_dir/archive"
 export BACURI_AUTH_SOCKET="$test_dir/auth.sock" BACURI_MEDIA_SOCKET="$test_dir/media.sock"
 export BACURI_PREVIEW_SOCKET="$test_dir/preview.sock"
+# Each service writes its Prometheus exposition to core.prom, recorder.prom or media.prom here.
+export BACURI_METRICS_DIRECTORY="$test_dir"
 if [ "${2:-}" = recovery ] || [ "${2:-}" = retention ] || [ "${2:-}" = hold-capacity ]; then
     fault_dir=/var/lib/bacuri-vms/fault-test
     test "$(stat -f -c %T "$fault_dir")" = tmpfs
@@ -65,7 +67,9 @@ case "${2:-control}" in
         openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -noenc -days 1 -subj /CN=workspace.test \
             -addext 'subjectAltName=DNS:localhost,DNS:workspace.test' -keyout "$BACURI_TLS_KEY" -out "$BACURI_TLS_CERT" 2>/dev/null
         PYTHONDONTWRITEBYTECODE=1 python3 tests/access/scenario.py "$test_dir" ;;
-    control) python3 tests/control/registry.py "$test_dir" ;;
+    control)
+        ctest --test-dir "$BACURI_TEST_BIN" -R DatabasePool --no-tests=error --output-on-failure
+        python3 tests/control/registry.py "$test_dir" ;;
     recovery)
         ctest --test-dir "$BACURI_TEST_BIN" -R PublicationDeathTest --no-tests=error --output-on-failure \
             --output-junit "${BACURI_RECOVERY_REPORT%.json}.boundaries.xml"

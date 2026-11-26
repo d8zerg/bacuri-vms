@@ -1,15 +1,17 @@
-# ADR-009. Доменные типы для идентичности и интервалов
+# ADR-009. Domain types for identity and intervals
 
-**Статус** - Принято.
+[Русская версия](../ru/adr/009-domain-types.md)
 
-**Контекст.** Сигнатура поиска и регистрации архива содержит несколько идентификаторов с одинаковым представлением UUID. Временной интервал может прийти с перепутанными границами. Ошибка в этих значениях приводит к открытию другого эпизода или к недостоверному ответу о записи.
+**Status** - Accepted.
 
-**Варианты.** Передавать строки и проверять их в каждом обработчике, ввести отдельный класс с собственной реализацией UUID для каждого ресурса либо использовать общий тип с параметром назначения и проверяемые фабрики для связанных значений.
+**Context.** The signature of archive search and registration contains several identifiers with the same UUID representation. A time interval can arrive with swapped bounds. An error in these values opens another episode or gives an unreliable answer about the recording.
 
-**Решение.** `Identifier<Tag>` различает площадку, устройство и другие ресурсы на уровне типов. Для связанных значений домен проверяет инвариант при создании объекта. Независимые поля могут оставаться агрегатом. Сетевой и SQL-адаптеры переводят внешние представления в доменные типы на границе.
+**Options.** Pass strings and check them in every handler, introduce a separate class with its own UUID implementation for each resource, or use a common type with a purpose parameter and checked factories for related values.
 
-**Основания.** Сигнатура выражает назначение аргумента, а единая реализация разбора UUID устраняет расхождения. Невалидный интервал можно отклонить до поиска или изменения каталога.
+**Decision.** `Identifier<Tag>` distinguishes the site, the device and other resources at the type level. For related values the domain checks the invariant when the object is created. Independent fields can remain an aggregate. Network and SQL adapters convert external representations to domain types at the boundary.
 
-**Последствия.** На границе требуется явный разбор и перевод ошибки в контрактный ответ. Новый тип или параметр шаблона требует примера реального вызова и проверки свойства, которое он защищает.
+**Rationale.** The signature expresses the purpose of the argument, and one UUID parser removes discrepancies. An invalid interval can be rejected before search or a catalog change.
 
-**Проверка и пересмотр.** Для требования «Код» проверить при компиляции запрет неявного преобразования `SiteId` в `DeviceId`, подать инвертированный интервал и проследить обработку ошибки через штатный вход. Пересмотреть представление, если изменится идентичность ресурса или тип станет допускать недопустимую операцию. [Типы и тесты](../../tests/domain/model.cpp) · [Правила ревью](../quality.md#техническое-ревью-кода)
+**Consequences.** The boundary needs explicit parsing and the conversion of an error into a contract response. A new type or template parameter needs an example of a real call and a check of the property it protects.
+
+**Verification and review.** For the "Code" requirement, check at compile time that `SiteId` does not convert implicitly to `DeviceId`, feed an inverted interval and follow the error handling through the regular entry point. Review the representation when the identity of a resource changes or the type starts to allow an invalid operation. [Types and tests](../../tests/domain/model.cpp) · [Review rules](../quality.md#technical-code-review)

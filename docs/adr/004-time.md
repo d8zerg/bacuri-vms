@@ -1,15 +1,17 @@
-# ADR-004. Привязка времени наблюдения к архиву
+# ADR-004. Binding observation time to the archive
 
-**Статус** - Принято.
+[Русская версия](../ru/adr/004-time.md)
 
-**Контекст.** Часы источника могут сместиться, а камера в точке наблюдения может смениться. Оператору требуется кадр источника, действовавшего в момент тревоги.
+**Status** - Accepted.
 
-**Варианты.** Искать ближайший кадр по времени приёма, доверять исходному времени камеры либо хранить исходную отметку, время приёма и качество их привязки.
+**Context.** The source clock can drift, and the camera at an observation point can be replaced. The operator needs the frame of the source that was active at the time of the alarm.
 
-**Решение.** Хранить версию привязки точки, исходную отметку при наличии, UTC приёма и основание нормализации. Для привязанных часов хранить эпоху и погрешность. Разрешать переход по интервалам с учётом этой погрешности и версии источника. Показывать ожидание, пропуск, неизвестность покрытия или неопределённость времени по данным контракта.
+**Options.** Search for the nearest frame by receive time, trust the original camera time, or store the original timestamp, the receive time and the quality of their binding.
 
-**Основания.** Одинаковое время на шкале может относиться к разным источникам. Сохранённое основание позволяет воспроизвести поиск и объяснить, почему однозначная ссылка недоступна.
+**Decision.** Store the binding revision of the point, the original timestamp when present, the receive UTC and the normalization basis. For bound clocks store the epoch and the uncertainty. Allow navigation by intervals that take this uncertainty and the source revision into account. Show pending, gap, unknown coverage or uncertain time according to the contract data.
 
-**Последствия.** Расширяются манифест и метаданные наблюдения. При большой неопределённости оператор видит ограничение точности, а автоматический переход доступен только при однозначной привязке.
+**Rationale.** The same time on the timeline can belong to different sources. The stored basis lets the search be repeated and explains why an unambiguous link is unavailable.
 
-**Проверка и пересмотр.** Для требований «Данные и доступ» и «UX» подать скачок часов, смену привязки и событие у границы блока, автоматически сверить версию, кадр и показанную погрешность. Понимание участником сверяется с эталоном при ручной приёмке. Пересмотреть при новых источниках времени или если измеренная точность мешает разбору тревог. [Модель времени](../domain-model.md#время-и-интервалы) · [Требования](../quality.md#требования-к-приёмке)
+**Consequences.** The manifest and the observation metadata grow. With a large uncertainty the operator sees the precision limit, and automatic navigation is available only for an unambiguous binding.
+
+**Verification and review.** For the "Data and access" and "UX" requirements, feed a clock jump, a binding change and an event at a block boundary, and automatically compare the revision, the frame and the displayed uncertainty. Understanding by participants is compared with the reference in manual acceptance. Review for new time sources or when the measured precision hinders alarm analysis. [Time model](../domain-model.md#time-and-intervals) · [Requirements](../quality.md#acceptance-requirements)

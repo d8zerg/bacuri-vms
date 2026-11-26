@@ -13,27 +13,41 @@ import type {
   Placement,
 } from "../contracts/workspace";
 import { Button, IconButton } from "../ui-kit/FormControls";
+import {
+  dateTimeFormat,
+  formatNumber,
+  t as translate,
+  useT,
+  type MessageKey,
+} from "../i18n";
 
 const states = {
-  paused: "На паузе",
-  queued: "В очереди",
-  downloading: "Скачивание",
-  retrying: "Ожидание связи",
-  installing: "Установка",
-  installed: "Установлен",
-  failed: "Ошибка установки",
+  paused: "packages.state.paused",
+  queued: "packages.state.queued",
+  downloading: "packages.state.downloading",
+  retrying: "packages.state.retrying",
+  installing: "packages.state.installing",
+  installed: "packages.state.installed",
+  failed: "packages.state.failed",
+} as const satisfies Record<string, MessageKey>;
+const stateKeys = Object.keys(states) as (keyof typeof states)[];
+const failureLabels: Record<string, MessageKey> = {
+  checksum_mismatch: "packages.failure.checksum",
+  invalid_range: "packages.failure.range",
+  catalog_unavailable: "packages.failure.catalog",
+  storage_unavailable: "packages.failure.storage",
 };
-const failureLabels: Record<string, string> = {
-  checksum_mismatch: "Контрольная сумма не совпала",
-  invalid_range: "Сервер каталога не поддержал запрошенный диапазон байтов",
-  catalog_unavailable: "Файл недоступен в каталоге",
-  storage_unavailable: "Не удалось сохранить файл на диске",
-};
+// The reason of a failed installation, or an empty string for an unknown code.
+function failure(code: string) {
+  const key = failureLabels[code];
+  return key ? translate(key) : "";
+}
 const size = (n: number) =>
-  new Intl.NumberFormat("ru", { maximumFractionDigits: 1 }).format(
-    n / 1048576,
-  ) + " МиБ";
-const date = (s: string) => new Date(s).toLocaleDateString("ru-RU");
+  translate("packages.size", {
+    value: formatNumber(n / 1048576, { maximumFractionDigits: 1 }),
+  });
+const date = (s: string) =>
+  dateTimeFormat({ dateStyle: "short" }).format(new Date(s));
 type Props = {
   site: string;
   services: Services;
@@ -41,6 +55,7 @@ type Props = {
   placements: Placement[];
 };
 export function MapPackages({ site, services, regions, placements }: Props) {
+  const t = useT();
   const [mode, chooseMode] = useState<MapMode | null>(null);
   const [management, setManagement] = useState<MapManagement | null>(null);
   const [url, setUrl] = useState<string | null>(null),
@@ -106,7 +121,7 @@ export function MapPackages({ site, services, regions, placements }: Props) {
     setOptions([]);
     select([]);
     setSource("");
-    say(file ? "Загрузка файла" : "Получение каталога");
+    say(file ? t("packages.uploading") : t("packages.fetchingCatalog"));
     try {
       const { id } = await services.mapSource(
         site,
@@ -139,10 +154,14 @@ export function MapPackages({ site, services, regions, placements }: Props) {
             const state = await services.inspectMapSource(site, id, ctl.signal);
             offset = state.received;
           }
-          say("Загрузка файла " + Math.round((100 * offset) / file.size) + "%");
+          say(
+            t("packages.uploadProgress", {
+              percent: Math.round((100 * offset) / file.size),
+            }),
+          );
         }
       }
-      say("Чтение списка регионов");
+      say(t("packages.readingRegions"));
       for (;;) {
         const state = await services.inspectMapSource(site, id, ctl.signal);
         ctl.signal.throwIfAborted();
@@ -158,11 +177,7 @@ export function MapPackages({ site, services, regions, placements }: Props) {
       }
     } catch {
       if (!ctl.signal.aborted)
-        say(
-          file
-            ? "Не удалось прочитать файл. Выберите ZIP с региональными MBTiles или один MBTiles."
-            : "Каталог недоступен. Проверьте адрес и соединение.",
-        );
+        say(file ? t("packages.fileFailed") : t("packages.catalogFailed"));
     } finally {
       if (!ctl.signal.aborted) setBusy(false);
     }
@@ -172,7 +187,7 @@ export function MapPackages({ site, services, regions, placements }: Props) {
   const jobs = (management?.jobs ?? []).filter(
     (j) =>
       (!jobState || j.state === jobState) &&
-      matchesQuery(jobQuery, j.name, j.region_id, states[j.state]),
+      matchesQuery(jobQuery, j.name, j.region_id, t(states[j.state])),
   );
   const [query, setQuery] = useState("");
   const available = options.filter((e) => {
@@ -189,7 +204,7 @@ export function MapPackages({ site, services, regions, placements }: Props) {
       await services.pauseMapDownload(site, id, paused);
       refresh((v) => v + 1);
     } catch {
-      say("Не удалось изменить состояние загрузки");
+      say(t("packages.stateFailed"));
     }
   }
   async function submit() {
@@ -202,30 +217,28 @@ export function MapPackages({ site, services, regions, placements }: Props) {
         regions: selected.map((e) => e.id),
       });
       open(mode);
-      say("Регионы добавлены в очередь");
+      say(t("packages.queued"));
       refresh((v) => v + 1);
     } catch {
-      say(
-        "Не удалось поставить регионы в очередь. Проверьте состояние установок.",
-      );
+      say(t("packages.queueFailed"));
     } finally {
       setBusy(false);
     }
   }
   return (
-    <section className="ws-map-packages" aria-label="Управление регионами">
-      <h3>Региональные карты</h3>
+    <section className="ws-map-packages" aria-label={t("packages.label")}>
+      <h3>{t("packages.title")}</h3>
       <div className="ws-map-actions">
         <Button
           aria-expanded={mode === "install"}
           disabled={busy && !!source}
           onClick={(e) => toggle("install", e.currentTarget)}
         >
-          Установить регионы
+          {t("packages.install")}
         </Button>
         <IconButton
           icon="file-down"
-          label="Обновить установленные"
+          label={t("packages.updateInstalled")}
           aria-expanded={mode === "update"}
           disabled={!regions.length || (busy && !!source)}
           onClick={(e) => toggle("update", e.currentTarget)}
@@ -234,7 +247,9 @@ export function MapPackages({ site, services, regions, placements }: Props) {
       {mode && (
         <fieldset>
           <legend>
-            {mode === "install" ? "Установка регионов" : "Обновление регионов"}
+            {mode === "install"
+              ? t("packages.installing")
+              : t("packages.updating")}
           </legend>
           <form
             onSubmit={(e) => {
@@ -243,7 +258,7 @@ export function MapPackages({ site, services, regions, placements }: Props) {
             }}
           >
             <label>
-              HTTPS-каталог
+              {t("packages.catalog")}
               <input
                 type="url"
                 required
@@ -253,11 +268,15 @@ export function MapPackages({ site, services, regions, placements }: Props) {
               />
             </label>
             <Button type="submit" disabled={busy}>
-              {mode === "install" ? "Показать каталог" : "Проверить обновления"}
+              {mode === "install"
+                ? t("packages.showCatalog")
+                : t("packages.checkUpdates")}
             </Button>
           </form>
           <label>
-            {mode === "install" ? "Установить из файла" : "Файл обновления"}
+            {mode === "install"
+              ? t("packages.fromFile")
+              : t("packages.updateFile")}
             <input
               type="file"
               accept=".zip,.mbtiles"
@@ -274,14 +293,16 @@ export function MapPackages({ site, services, regions, placements }: Props) {
               <>
                 {needsListSearch(available.length, query) && (
                   <FilterPanel
-                    label="Фильтры регионов"
-                    queryLabel="Название региона"
+                    label={t("packages.filters")}
+                    queryLabel={t("packages.regionName")}
                     query={query}
                     onQuery={setQuery}
                     onReset={() => setQuery("")}
                   />
                 )}
-                {!listed.length && <p role="status">Регионы не найдены.</p>}
+                {!listed.length && (
+                  <p role="status">{t("packages.noRegions")}</p>
+                )}
                 {!!listed.length && (
                   <label>
                     <input
@@ -297,11 +318,13 @@ export function MapPackages({ site, services, regions, placements }: Props) {
                         );
                       }}
                     />
-                    {query ? "Выбрать найденные" : "Выбрать все"}
+                    {query
+                      ? t("packages.selectFound")
+                      : t("packages.selectAll")}
                   </label>
                 )}
                 {query && !!selected.length && (
-                  <p>Выбрано регионов: {selected.length}</p>
+                  <p>{t("packages.selected", { count: selected.length })}</p>
                 )}
                 <ul>
                   {listed.map((r) => {
@@ -337,7 +360,7 @@ export function MapPackages({ site, services, regions, placements }: Props) {
                         </label>
                         {outside > 0 && (
                           <small>
-                            За новыми границами останутся камеры: {outside}
+                            {t("packages.outside", { count: outside })}
                           </small>
                         )}
                       </li>
@@ -349,12 +372,12 @@ export function MapPackages({ site, services, regions, placements }: Props) {
                     disabled={busy || !selected.length}
                     onClick={() => void submit()}
                   >
-                    Установить выбранные
+                    {t("packages.installSelected")}
                   </Button>
                 ) : (
                   <IconButton
                     icon="file-down"
-                    label="Обновить выбранные"
+                    label={t("packages.updateSelected")}
                     disabled={busy || !selected.length}
                     onClick={() => void submit()}
                   />
@@ -363,14 +386,12 @@ export function MapPackages({ site, services, regions, placements }: Props) {
             ) : (
               <p>
                 {mode === "install"
-                  ? "Доступных для установки регионов нет"
-                  : "Новых версий установленных регионов нет"}
+                  ? t("packages.noneAvailable")
+                  : t("packages.noUpdates")}
               </p>
             ))}
           <Button disabled={busy && !!source} onClick={dismiss}>
-            {busy && !source
-              ? "Прервать чтение списка"
-              : "Свернуть выбор регионов"}
+            {busy && !source ? t("packages.abort") : t("packages.collapse")}
           </Button>
         </fieldset>
       )}
@@ -378,8 +399,8 @@ export function MapPackages({ site, services, regions, placements }: Props) {
       {(needsListSearch(management?.jobs.length ?? 0, jobQuery) ||
         jobState) && (
         <FilterPanel
-          label="Фильтры загрузок регионов"
-          queryLabel="Поиск региона"
+          label={t("packages.jobFilters")}
+          queryLabel={t("packages.jobSearch")}
           query={jobQuery}
           onQuery={setJobQuery}
           filtered={!!jobState}
@@ -389,15 +410,15 @@ export function MapPackages({ site, services, regions, placements }: Props) {
           }}
         >
           <label>
-            Состояние загрузки
+            {t("packages.jobState")}
             <select
               value={jobState}
               onChange={(e) => setJobState(e.target.value)}
             >
-              <option value="">Все состояния</option>
-              {Object.entries(states).map(([value, text]) => (
+              <option value="">{t("batch.allStates")}</option>
+              {stateKeys.map((value) => (
                 <option key={value} value={value}>
-                  {text}
+                  {t(states[value])}
                 </option>
               ))}
             </select>
@@ -405,16 +426,16 @@ export function MapPackages({ site, services, regions, placements }: Props) {
         </FilterPanel>
       )}
       {(jobQuery || jobState) && !jobs.length && (
-        <p role="status">Загрузки не найдены.</p>
+        <p role="status">{t("packages.noJobs")}</p>
       )}
       {jobs.length > 0 && (
-        <ul aria-label="Состояние регионов">
+        <ul aria-label={t("packages.states")}>
           {jobs.map((j) => (
             <li key={j.id}>
-              {j.name} · {states[j.state]}
+              {j.name} · {t(states[j.state])}
               {j.state === "failed" &&
-                failureLabels[j.error] &&
-                " · " + failureLabels[j.error]}
+                failure(j.error) &&
+                " · " + failure(j.error)}
               {["paused", "retrying", "downloading"].includes(j.state) &&
                 " · " + Math.floor((j.received * 100) / j.bytes) + "%"}
               {j.online &&
@@ -428,8 +449,8 @@ export function MapPackages({ site, services, regions, placements }: Props) {
                     }
                   >
                     {j.state === "paused"
-                      ? "Продолжить загрузку"
-                      : "Приостановить загрузку"}
+                      ? t("packages.resume")
+                      : t("packages.pause")}
                   </Button>
                 )}
               {j.state === "failed" && (
@@ -445,12 +466,12 @@ export function MapPackages({ site, services, regions, placements }: Props) {
                         });
                         refresh((v) => v + 1);
                       } catch {
-                        say("Откройте каталог или файл ещё раз");
+                        say(t("packages.reopen"));
                       }
                     })();
                   }}
                 >
-                  Повторить
+                  {t("action.retry")}
                 </Button>
               )}
             </li>

@@ -1,3 +1,4 @@
+import ids from "./fixture-ids.json";
 import type {
   MapManagement,
   MapScene,
@@ -25,11 +26,13 @@ export function mapPackageFixture(
     bounds: [0, 0, 10, 10],
   }));
   if (managementStory) {
+    // An installed region does not carry the download size of the catalog entry.
     const region = {
-      ...available[0]!,
+      id: available[0]!.id,
+      name: available[0]!.name,
       source_time: "2020-01-01T00:00:00Z",
       bounds: [0, 0, 20, 20],
-      revision: "old",
+      revision: ids.previousRegionRevision,
       min_zoom: 0,
       max_zoom: 1,
       attribution: "OSM",
@@ -37,7 +40,12 @@ export function mapPackageFixture(
     };
     scene.region = region;
     scene.regions = [region];
-    scene.placements.push({ point_id: "dock", plan_id: null, x: 15, y: 15 });
+    scene.placements.push({
+      point_id: ids.dockPoint,
+      plan_id: null,
+      x: 15,
+      y: 15,
+    });
   }
   const management: MapManagement = { catalog_url: "", jobs: [] };
   let source: MapSource = {

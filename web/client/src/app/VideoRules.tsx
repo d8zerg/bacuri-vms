@@ -13,6 +13,7 @@ import {
   RegionField,
 } from "./ArchiveFrame";
 import "./investigations.css";
+import { shortWeekdays, t as translate, useT } from "../i18n";
 const blank: VideoRule = {
   enabled: false,
   source: "local",
@@ -46,6 +47,7 @@ function CrossingLine({
   preview?: string | undefined;
   change: (value: number[]) => void;
 }) {
+  const t = useT();
   const drag = useRef<number | null>(null);
   function move(e: React.PointerEvent<HTMLDivElement>, end: number) {
     const { x, y } = imageCoordinates(e);
@@ -61,7 +63,7 @@ function CrossingLine({
       <div
         className="inv-roi inv-line"
         role="img"
-        aria-label="Линия пересечения на кадре"
+        aria-label={t("rules.line")}
         onPointerDown={(e) => {
           if (!e.isPrimary || e.button !== 0) return;
           const { x, y } = imageCoordinates(e);
@@ -99,7 +101,7 @@ function CrossingLine({
         </svg>
       </div>
       <details>
-        <summary>Координаты линии</summary>
+        <summary>{t("rules.lineCoordinates")}</summary>
         <div className="inv-bounds">
           {line.map((v, i) => (
             <label key={i}>
@@ -131,13 +133,14 @@ export default function VideoRules({
   site: string;
   points: Point[];
 }) {
+  const t = useT();
   const [selected, setSelected] = useState("");
   const point =
     points.find((p) => p.id === selected)?.id ?? points[0]?.id ?? "";
   return (
     <div className="inv-work">
       <label>
-        Камера
+        {t("channel.camera")}
         <select value={point} onChange={(e) => setSelected(e.target.value)}>
           {points.map((p) => (
             <option key={p.id} value={p.id}>
@@ -159,6 +162,7 @@ function Editor({
   site: string;
   point: string;
 }) {
+  const t = useT();
   const [rule, update] = useState<VideoRule>(blank),
     [revision, setRevision] = useState<string | null>(null),
     [presets, setPresets] = useState<CameraControls["actions"]>([]);
@@ -183,7 +187,7 @@ function Editor({
         }
       })
       .catch(() => {
-        if (!ctl.signal.aborted) setNotice("Настройка правил недоступна");
+        if (!ctl.signal.aborted) setNotice(translate("rules.unavailable"));
       });
     void services
       .cameraControls(site, point, ctl.signal)
@@ -238,7 +242,7 @@ function Editor({
       setTrial(results);
       setPreview(frames[0]?.hits[0]?.preview);
     } catch {
-      setNotice("Проверка записи недоступна");
+      setNotice(t("rules.trialUnavailable"));
     } finally {
       setBusy(false);
     }
@@ -250,11 +254,9 @@ function Editor({
     try {
       const saved = await services.saveRule(site, point, { revision, rule });
       setRevision(saved.revision);
-      setNotice("Версия " + saved.revision + " сохранена");
+      setNotice(t("rules.saved", { revision: saved.revision }));
     } catch {
-      setNotice(
-        "Не удалось сохранить версию. Проверьте значения и права доступа.",
-      );
+      setNotice(t("rules.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -268,10 +270,10 @@ function Editor({
             checked={rule.enabled}
             onChange={(e) => set("enabled", e.target.checked)}
           />
-          Правило включено
+          {t("rules.enabled")}
         </label>
         <label>
-          Источник
+          {t("rules.source")}
           <select
             value={rule.source}
             onChange={(e) => {
@@ -286,8 +288,8 @@ function Editor({
               setTrial(null);
             }}
           >
-            <option value="local">Локальный детектор</option>
-            <option value="onvif">Событие ONVIF</option>
+            <option value="local">{t("rules.local")}</option>
+            <option value="onvif">{t("rules.onvif")}</option>
           </select>
         </label>
       </div>
@@ -295,7 +297,7 @@ function Editor({
         <>
           <div className="inv-transport">
             <label>
-              Порог изменения <output>{rule.threshold}</output>
+              {t("rules.threshold")} <output>{rule.threshold}</output>
               <input
                 type="range"
                 min={1}
@@ -305,7 +307,7 @@ function Editor({
               />
             </label>
             <label>
-              Активных ячеек
+              {t("rules.cells")}
               <input
                 type="number"
                 min={1}
@@ -317,18 +319,18 @@ function Editor({
           </div>
           <div className="inv-transport">
             <label>
-              Зоны
+              {t("rules.zones")}
               <select
                 value={geometry}
                 onChange={(e) => setGeometry(e.target.value as typeof geometry)}
               >
-                <option value="include">Включение</option>
-                <option value="exclude">Исключение</option>
+                <option value="include">{t("rules.include")}</option>
+                <option value="exclude">{t("rules.exclude")}</option>
               </select>
             </label>
             <IconButton
               icon="plus"
-              label="Добавить область"
+              label={t("privacy.add")}
               disabled={rule[geometry].length >= 8}
               onClick={() => set(geometry, [...rule[geometry], full])}
             />
@@ -347,7 +349,7 @@ function Editor({
               />
               <IconButton
                 icon="circle-x"
-                label="Удалить область"
+                label={t("rules.removeRegion")}
                 onClick={() =>
                   set(
                     geometry,
@@ -365,7 +367,7 @@ function Editor({
                 set("line", e.target.checked ? [0.5, 0, 0.5, 1] : null)
               }
             />
-            Пересечение линии
+            {t("rules.crossing")}
           </label>
           {rule.line && (
             <CrossingLine
@@ -378,7 +380,7 @@ function Editor({
       )}
       <div className="inv-transport">
         <label>
-          Пауза между событиями, с
+          {t("rules.cooldown")}
           <input
             type="number"
             min={1}
@@ -393,7 +395,7 @@ function Editor({
             checked={rule.record}
             onChange={(e) => set("record", e.target.checked)}
           />
-          Запись по событию
+          {t("rules.record")}
         </label>
         <label>
           <input
@@ -401,15 +403,15 @@ function Editor({
             checked={rule.notify}
             onChange={(e) => set("notify", e.target.checked)}
           />
-          Тревога на посту
+          {t("rules.alarm")}
         </label>
         <label>
-          Реакция камеры
+          {t("rules.reaction")}
           <select
             value={rule.preset}
             onChange={(e) => set("preset", e.target.value)}
           >
-            <option value="">Без команды</option>
+            <option value="">{t("rules.noCommand")}</option>
             {presets.map((p) => (
               <option key={p.target} value={p.target}>
                 {p.label}
@@ -420,10 +422,11 @@ function Editor({
       </div>
       <details>
         <summary>
-          Расписание · {rule.schedule.length ? "по периодам" : "круглосуточно"}
+          {t("rules.schedule")} ·{" "}
+          {t(rule.schedule.length ? "rules.byPeriods" : "rules.always")}
         </summary>
         <label>
-          Часовой пояс
+          {t("rules.timezone")}
           <input
             value={rule.zone}
             onChange={(e) => set("zone", e.target.value)}
@@ -432,7 +435,7 @@ function Editor({
         {rule.schedule.map((s, i) => (
           <div className="inv-transport" key={i}>
             <select
-              aria-label="День недели"
+              aria-label={t("rules.weekday")}
               value={s.day}
               onChange={(e) =>
                 set(
@@ -443,15 +446,15 @@ function Editor({
                 )
               }
             >
-              {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d, n) => (
-                <option key={d} value={n + 1}>
+              {shortWeekdays().map((d, n) => (
+                <option key={n} value={n + 1}>
                   {d}
                 </option>
               ))}
             </select>
             {(["start", "end"] as const).map((k) => (
               <label key={k}>
-                {k === "start" ? "С" : "До"}
+                {k === "start" ? t("rules.from") : t("rules.until")}
                 <input
                   type="time"
                   value={formatMinute(s[k] % 1440)}
@@ -475,7 +478,7 @@ function Editor({
             ))}
             <IconButton
               icon="circle-x"
-              label="Удалить период"
+              label={t("rules.removePeriod")}
               onClick={() =>
                 set(
                   "schedule",
@@ -487,7 +490,7 @@ function Editor({
         ))}
         <IconButton
           icon="plus"
-          label="Добавить период"
+          label={t("rules.addPeriod")}
           onClick={() =>
             set("schedule", [
               ...rule.schedule,
@@ -497,10 +500,10 @@ function Editor({
         />
       </details>
       <details>
-        <summary>Проверка на записи</summary>
+        <summary>{t("rules.trial")}</summary>
         <div className="inv-transport">
           <label>
-            С
+            {t("rules.from")}
             <input
               type="datetime-local"
               step="0.001"
@@ -510,7 +513,7 @@ function Editor({
             />
           </label>
           <label>
-            По
+            {t("rules.to")}
             <input
               type="datetime-local"
               step="0.001"
@@ -521,15 +524,15 @@ function Editor({
           </label>
           <IconButton
             icon="play"
-            label="Проверить на записи"
+            label={t("rules.runTrial")}
             disabled={!(Date.parse(from) < Date.parse(to))}
             onClick={() => void simulate()}
           />
         </div>
         {trial && (
           <p role="status">
-            Срабатываний · {trial.hits.length}
-            {!trial.complete && " · Неполное покрытие"}
+            {t("rules.hits", { count: trial.hits.length })}
+            {!trial.complete && " · " + t("rules.partial")}
             {trial.hits.length > 0 &&
               " · " +
                 trial.hits
@@ -540,7 +543,7 @@ function Editor({
         )}
       </details>
       <Button variant="primary" onClick={() => void save()}>
-        Сохранить правило
+        {t("rules.save")}
       </Button>
       {notice && <p role="status">{notice}</p>}
     </fieldset>

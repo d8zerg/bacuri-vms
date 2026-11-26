@@ -216,8 +216,7 @@ grpc::Status ArchiveCatalog::RegisterGap(grpc::ServerContext*, const v1::Registe
         return {grpc::StatusCode::PERMISSION_DENIED, "Different archive assignment"};
     }
     if (!canonical_id(q->point().point_id()) || q->binding_revision() < 1 ||
-        q->interval().begin_us() >= q->interval().end_us() ||
-        (q->reason() != "source_offline" && q->reason() != "overload" && q->reason() != "storage_failure")) {
+        q->interval().begin_us() >= q->interval().end_us() || !domain::parse_gap_reason(q->reason())) {
         return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid gap"};
     }
     try {

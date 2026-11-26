@@ -1,4 +1,5 @@
 import { mapPackageFixture } from "./mapPackageFixture";
+import ids from "./fixture-ids.json";
 import { alertWorkFixture } from "./alertWorkFixture";
 import floor from "./floor.png";
 import type { MapScene } from "../src/contracts/workspace";
@@ -21,8 +22,8 @@ import { pause } from "../src/workflows/pause";
 export const utc = (n: number) =>
   new Date(Date.UTC(2026, 0, 1, 14, 20) + n * 1000).toISOString();
 const range = (a: number, b: number) => ({ start: utc(a), end: utc(b) });
-const site = "test-site",
-  point = "dock";
+const site = ids.site,
+  point = ids.dockPoint;
 const rows: Entry[] = [
   {
     state: "recorded",
@@ -40,16 +41,12 @@ const rows: Entry[] = [
   { state: "pending_catalog", interval: range(260, 360) },
 ];
 const initialAlerts: AlertItem[] = [82, 132, 236, 301].map((n, i) => ({
-  id: "event-" + i,
+  id: ids.alerts[i]!,
   point_id: point,
   work_state: "new",
   observed_at: utc(n),
-  type: [
-    "Движение у ворот",
-    "Потеря видеопотока",
-    "Смещение часов камеры",
-    "Поток восстановлен",
-  ][i]!,
+  // Motion alerts at a recording, a gap, a recording with estimated time and a block that is still cataloged.
+  type: "motion",
   archive_interval: range(n - 15, n + 15),
   time_basis: "source_clock",
   uncertainty_us: "0",
@@ -76,7 +73,7 @@ export function fixture(condition = "normal"): Services {
     const policy =
       capture.policies.find((p) => p.scope === "point" && p.target === point) ??
       capture.policies.find(
-        (p) => p.scope === "group" && p.target === "dock-group",
+        (p) => p.scope === "group" && p.target === ids.dockGroup,
       );
     capture.effective = policy
       ? {
@@ -93,8 +90,8 @@ export function fixture(condition = "normal"): Services {
   if (condition === "recording") {
     const now = Date.now() * 1000;
     capture.policies.push({
-      id: "dock-policy",
-      target: "dock-group",
+      id: ids.dockPolicy,
+      target: ids.dockGroup,
       scope: "group",
       priority: 50,
       revision: "1",
@@ -134,7 +131,7 @@ export function fixture(condition = "normal"): Services {
       ? []
       : [
           {
-            id: "previous",
+            id: ids.previousCamera,
             point_id: point,
             name: "Ворота",
             binding_revision: "1",
@@ -158,8 +155,8 @@ export function fixture(condition = "normal"): Services {
       cameras.push({
         ...cameras[0]!,
         ...device,
-        id: "storage-" + index,
-        point_id: "storage-point-" + index,
+        id: ids.storageCamera[index]!,
+        point_id: ids.storagePoint[index]!,
         name,
         channel_token: "channel" + (index + 1),
         desired_revision: "2",
@@ -171,14 +168,15 @@ export function fixture(condition = "normal"): Services {
   let alerts = condition === "empty" ? [] : initialAlerts;
   const subscribers = new Set<(feed: Feed) => void>();
   const session: Session = {
-    user_id: "installer",
-    csrf_token: "fixture",
+    user_id: ids.user,
+    // A CSRF token has the length of the server token.
+    csrf_token: "fixture-csrf-token-000000000000000000000000000",
     expires_at: utc(3600),
     site_roles: [{ site_id: site, role: "administrator" }],
   };
   if (condition === "multiple-sites")
     session.site_roles.push({
-      site_id: "production-warehouse-north-entrance",
+      site_id: ids.otherSite,
       role: "operator",
     });
   let signedIn = condition !== "login";
@@ -206,7 +204,7 @@ export function fixture(condition = "normal"): Services {
         ? []
         : [
             {
-              id: "floor",
+              id: ids.floorPlan,
               name: "Первый этаж",
               width: 640,
               height: 360,
@@ -219,13 +217,13 @@ export function fixture(condition = "normal"): Services {
         : [
             {
               point_id: point,
-              plan_id: "floor",
+              plan_id: ids.floorPlan,
               x: 0.34,
               y: 0.52,
-              camera: { device_id: "camera", ptz: false, profile: "" },
+              camera: { device_id: ids.camera, ptz: false, profile: "" },
               view: { state: "fixed", bearing: 55, hfov: 65 },
               calibration: {
-                device_id: "camera",
+                device_id: ids.camera,
                 ptz: false,
                 bearing: 55,
                 hfov: 65,
@@ -236,7 +234,7 @@ export function fixture(condition = "normal"): Services {
   if (condition === "linked-floors") {
     const region = {
       id: "city",
-      revision: "city-v1",
+      revision: ids.cityRevision,
       name: "Территория",
       source_time: utc(0),
       min_zoom: 0,
@@ -270,7 +268,7 @@ export function fixture(condition = "normal"): Services {
       bearing: 90,
       building: floor.building,
     };
-    scene.plans.push({ ...floor, id: "upper", name: "Второй этаж" });
+    scene.plans.push({ ...floor, id: ids.upperPlan, name: "Второй этаж" });
     scene.placements.push({
       point_id: point,
       plan_id: null,
@@ -283,7 +281,7 @@ export function fixture(condition = "normal"): Services {
   if (condition === "ptz-plan") {
     const placed = scene.placements[0]!;
     placed.camera = {
-      device_id: "camera",
+      device_id: ids.camera,
       profile: "main",
       ptz: true,
       fresh: true,
@@ -307,7 +305,7 @@ export function fixture(condition = "normal"): Services {
     simulateRule: (_site, _point, { interval }) =>
       Promise.resolve({ hits: [interval.start], complete: true }),
     caseRecipients: () =>
-      Promise.resolve([{ id: "installer", name: "Монтажник" }]),
+      Promise.resolve([{ id: ids.user, name: "Монтажник" }]),
     exportCase: () => Promise.reject(new HttpFailure(403, "forbidden")),
     searchFrames: (_site, { points, interval }) =>
       Promise.resolve(
@@ -375,7 +373,7 @@ export function fixture(condition = "normal"): Services {
               footprint,
               cameras: [
                 {
-                  point_id: "dock",
+                  point_id: point,
                   projected: [7.4, 43.73],
                   existing: [7.4001, 43.73],
                   distance_m: 8,
@@ -458,7 +456,7 @@ export function fixture(condition = "normal"): Services {
     capturePolicies: () => Promise.resolve(structuredClone(capture)),
     captureGroups: () =>
       Promise.resolve([
-        { id: "dock-group", name: "Погрузочные ворота", points: [point] },
+        { id: ids.dockGroup, name: "Погрузочные ворота", points: [point] },
       ]),
     saveCapture: (_site, id, body) => {
       const revision = String(Number(body.revision) + 1),
@@ -513,7 +511,7 @@ export function fixture(condition = "normal"): Services {
     },
     cameraControls: () =>
       Promise.resolve({
-        device_id: "camera",
+        device_id: ids.camera,
         actions: [
           { command: "preset_goto", target: "gate", label: "Ворота" },
           { command: "preset_goto", target: "dock", label: "Погрузочная зона" },
@@ -558,7 +556,7 @@ export function fixture(condition = "normal"): Services {
           ...(condition === "controls" || condition === "intercom"
             ? {
                 ptz: {
-                  device_id: "camera",
+                  device_id: ids.camera,
                   commands: [
                     "left",
                     "right",
@@ -570,7 +568,7 @@ export function fixture(condition = "normal"): Services {
                   ] satisfies PtzCommand[],
                 },
                 audio: {
-                  device_id: "camera",
+                  device_id: ids.camera,
                   listen: true,
                   talk: condition === "intercom",
                   record: true,
@@ -584,7 +582,7 @@ export function fixture(condition = "normal"): Services {
         ...(condition === "multiview"
           ? [
               {
-                id: "ramp",
+                id: ids.rampPoint,
                 name: "Рампа",
                 connection: "online" as const,
                 recording: "current" as const,
@@ -594,16 +592,17 @@ export function fixture(condition = "normal"): Services {
         ...(condition === "catalog" || condition === "multiview"
           ? [
               {
-                id: "storage-point-0",
+                id: ids.storagePoint[0]!,
                 name: "Разгрузка",
                 connection: "online" as const,
                 recording: "current" as const,
               },
               {
-                id: "storage-point-1",
+                id: ids.storagePoint[1]!,
                 name: "Склад",
                 connection: "offline" as const,
                 recording: "stopped" as const,
+                recording_reason: "source_offline" as const,
               },
             ]
           : []),

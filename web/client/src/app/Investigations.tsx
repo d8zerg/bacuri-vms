@@ -18,6 +18,7 @@ import { SubsectionMenu } from "./SubsectionMenu";
 import FragmentExport from "./FragmentExport";
 import { localDateTime, Preview, RegionField } from "./ArchiveFrame";
 import "./investigations.css";
+import { formatNumber, t as translate, useT } from "../i18n";
 
 type Props = {
   site: string;
@@ -52,6 +53,7 @@ function Track({
   playing: boolean;
   name: string;
 }) {
+  const t = useT();
   const video = useRef<HTMLVideoElement>(null),
     cursor = useRef(at);
   useEffect(() => {
@@ -142,7 +144,7 @@ function Track({
           if (active) setOrigin(t);
         })
         .catch(() => {
-          if (active) setNotice("Кадр недоступен");
+          if (active) setNotice(translate("inv.frameUnavailable"));
         });
       return () => {
         active = false;
@@ -154,7 +156,7 @@ function Track({
     )
       v.currentTime = offset;
     if (playing && v.paused)
-      void v.play().catch(() => setNotice("Не удалось запустить просмотр"));
+      void v.play().catch(() => setNotice(translate("inv.playFailed")));
     else if (!playing && !v.paused) v.pause();
   }, [at, playing, origin]);
   return (
@@ -168,17 +170,18 @@ function Track({
         aria-label={name}
       />
       {(!current || notice) && (
-        <p role="status">{notice || "Пропуск записи"}</p>
+        <p role="status">{notice || t("timeline.gap")}</p>
       )}
       <small>
         {current
-          ? (current.indexed ? "Проиндексировано" : "Ожидает индексации") +
+          ? (current.indexed ? t("inv.indexed") : t("inv.pendingIndex")) +
             " · " +
             (current.uncertainty_us === null
-              ? "Время приёма"
+              ? t("inv.receiveTime")
               : "± " +
-                (current.uncertainty_us / 1000).toLocaleString("ru") +
-                " мс")
+                t("inv.milliseconds", {
+                  value: formatNumber(current.uncertainty_us / 1000),
+                }))
           : ""}
       </small>
     </figure>
@@ -190,6 +193,7 @@ export default function Investigations({
   points,
   user,
 }: Props) {
+  const t = useT();
   const [tab, setTab] = useState("search"),
     [query, setQuery] = useState(""),
     [selected, setSelected] = useState<string[]>([]),
@@ -221,7 +225,7 @@ export default function Investigations({
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   const name = (id: string) =>
-    points.find((p) => p.id === id)?.name ?? "Точка недоступна";
+    points.find((p) => p.id === id)?.name ?? t("inv.pointUnavailable");
   async function search(
     more = false,
     restored?: { body: VideoSearch; at: string },
@@ -292,11 +296,11 @@ export default function Investigations({
           ),
         );
         if (!result.some((r) => r.coverage.length))
-          setMessage("В выбранном интервале запись недоступна");
+          setMessage(t("inv.noRecording"));
       }
     } catch {
       if (!ctl.signal.aborted) {
-        setMessage("Проверьте камеры, интервал и права доступа");
+        setMessage(t("inv.searchFailed"));
         setRows([]);
         setLast(null);
       }
@@ -359,16 +363,16 @@ export default function Investigations({
   return (
     <>
       <SubsectionMenu
-        label="Расследования"
+        label={t("inv.title")}
         items={[
           {
-            label: "Поиск по архиву",
+            label: t("inv.archiveSearch"),
             icon: "scan-line",
             active: tab === "search",
             select: () => setTab("search"),
           },
           {
-            label: "Дела",
+            label: t("inv.cases"),
             icon: "clipboard-list",
             active: tab === "cases",
             select: () => {
@@ -412,8 +416,8 @@ export default function Investigations({
       ) : (
         <div className="inv-work">
           <FilterPanel
-            label="Поиск по архиву"
-            queryLabel="Камера"
+            label={t("inv.archiveSearch")}
+            queryLabel={t("channel.camera")}
             query={query}
             onQuery={setQuery}
             filtered={!!query || !!selected.length}
@@ -458,7 +462,7 @@ export default function Investigations({
                 ))}
             </div>
             <label>
-              С
+              {t("rules.from")}
               <input
                 type="datetime-local"
                 step=".001"
@@ -467,7 +471,7 @@ export default function Investigations({
               />
             </label>
             <label>
-              По
+              {t("rules.to")}
               <input
                 type="datetime-local"
                 step=".001"
@@ -476,10 +480,10 @@ export default function Investigations({
               />
             </label>
             <FilterSegments
-              label="Тип поиска"
+              label={t("inv.searchType")}
               options={[
-                { value: "all", label: "Все кадры" },
-                { value: "motion", label: "Движение" },
+                { value: "all", label: t("inv.allFrames") },
+                { value: "motion", label: t("inv.motion") },
               ]}
               value={motion ? "motion" : "all"}
               onChange={(v) => {
@@ -487,10 +491,10 @@ export default function Investigations({
               }}
             />
             <details className="inv-refine">
-              <summary>Фильтры эпизода</summary>
+              <summary>{t("inv.episodeFilters")}</summary>
               <div>
                 <label>
-                  Событие или метаданные
+                  {t("inv.metadata")}
                   <input
                     value={event}
                     onChange={(e) => setEvent(e.target.value)}
@@ -498,12 +502,12 @@ export default function Investigations({
                 </label>
                 {plans.length > 0 && (
                   <label>
-                    Зона наблюдения
+                    {t("inv.zone")}
                     <select
                       value={plan}
                       onChange={(e) => setPlan(e.target.value)}
                     >
-                      <option value="">Все планы</option>
+                      <option value="">{t("inv.allPlans")}</option>
                       {plans.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name}
@@ -515,7 +519,7 @@ export default function Investigations({
                 {motion && (
                   <>
                     <label>
-                      Порог изменения
+                      {t("rules.threshold")}
                       <input
                         type="range"
                         min={1}
@@ -535,7 +539,7 @@ export default function Investigations({
             </details>
           </FilterPanel>
           {message && <p role="status">{message}</p>}
-          {running && <progress aria-label="Поиск" />}
+          {running && <progress aria-label={t("inv.searching")} />}
           {last && rows.length > 0 && (
             <>
               <div className="inv-players" data-count={rows.length}>
@@ -550,21 +554,21 @@ export default function Investigations({
               <div className="inv-transport">
                 <IconButton
                   icon="chevron-left"
-                  label="Предыдущий кадр"
+                  label={t("inv.previous")}
                   onClick={() => seek(frames.filter((t) => t < at).at(-1))}
                 />
                 <IconButton
                   icon={playing ? "pause" : "play"}
-                  label={playing ? "Приостановить" : "Синхронный просмотр"}
+                  label={playing ? t("inv.pause") : t("inv.syncPlay")}
                   onClick={() => setPlaying(!playing)}
                 />
                 <IconButton
                   icon="chevron-right"
-                  label="Следующий кадр"
+                  label={t("inv.next")}
                   onClick={() => seek(frames.find((t) => t > at))}
                 />
                 <input
-                  aria-label="Общая позиция камер"
+                  aria-label={t("inv.position")}
                   type="range"
                   min={Date.parse(last.interval.start)}
                   max={end - 1}
@@ -575,7 +579,7 @@ export default function Investigations({
                 <output>{clock(iso(at))}</output>
                 <IconButton
                   icon="bookmark"
-                  label="Добавить закладку и интервалы в материалы дела"
+                  label={t("inv.bookmark")}
                   onClick={bookmark}
                 />
                 {materials.length > 0 && (
@@ -585,7 +589,7 @@ export default function Investigations({
                       setTab("cases");
                     }}
                   >
-                    Материалы ({materials.length})
+                    {t("inv.materials", { count: materials.length })}
                   </Button>
                 )}
               </div>
@@ -609,10 +613,10 @@ export default function Investigations({
                       {clock(ev.at)} · {ev.topic}
                     </Button>
                   ))}
-                  {r.hits.length === 0 && <small>Совпадений нет</small>}
+                  {r.hits.length === 0 && <small>{t("inv.noHits")}</small>}
                   {r.gaps.map((g) => (
                     <small key={g.interval.start}>
-                      Пропуск · {clock(g.interval.start)} -{" "}
+                      {t("inv.gap")} · {clock(g.interval.start)} -{" "}
                       {clock(g.interval.end)}
                     </small>
                   ))}
@@ -620,7 +624,7 @@ export default function Investigations({
               ))}
               {rows.some((r) => r.next) && (
                 <Button disabled={running} onClick={() => void search(true)}>
-                  Следующие результаты
+                  {t("inv.more")}
                 </Button>
               )}
             </>
@@ -643,6 +647,7 @@ function Cases({
   clear: () => void;
   reopen: (material: Material, at: string, all: Material[]) => void;
 }) {
+  const t = useT();
   const [items, setItems] = useState<Investigation[]>([]),
     [query, setQuery] = useState(""),
     [refresh, setRefresh] = useState(0),
@@ -704,10 +709,7 @@ function Cases({
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
       }
     } catch {
-      if (!ctl.signal.aborted)
-        setMessage(
-          "Выдача дела недоступна. Проверьте права на каждый интервал.",
-        );
+      if (!ctl.signal.aborted) setMessage(t("inv.releaseDenied"));
     } finally {
       if (!ctl.signal.aborted) setBusy(false);
     }
@@ -720,7 +722,7 @@ function Cases({
         if (!ctl.signal.aborted) setItems(v);
       })
       .catch(() => {
-        if (!ctl.signal.aborted) setMessage("Не удалось загрузить дела");
+        if (!ctl.signal.aborted) setMessage(translate("inv.casesFailed"));
       });
     return () => ctl.abort();
   }, [services, site, refresh]);
@@ -759,11 +761,9 @@ function Cases({
       setEditing(false);
       clear();
       setRefresh((n) => n + 1);
-      setMessage("Дело сохранено");
+      setMessage(t("inv.caseSaved"));
     } catch {
-      setMessage(
-        "Проверьте права ответственного, срок защиты и актуальность дела",
-      );
+      setMessage(t("inv.caseSaveFailed"));
     } finally {
       setBusy(false);
     }
@@ -771,13 +771,13 @@ function Cases({
   return (
     <div className="inv-work">
       <FilterPanel
-        label="Поиск дел"
-        queryLabel="Номер, примечания"
+        label={t("inv.caseSearch")}
+        queryLabel={t("inv.caseQuery")}
         query={query}
         onQuery={setQuery}
         onReset={() => setQuery("")}
         refresh={{
-          label: "Обновить дела",
+          label: t("inv.refreshCases"),
           run: () => setRefresh((n) => n + 1),
         }}
       />
@@ -790,7 +790,8 @@ function Cases({
             </Button>
           ))}
         <Button onClick={() => open(null)}>
-          Новое дело{materials.length ? " · " + materials.length : ""}
+          {t("inv.newCase")}
+          {materials.length ? " · " + materials.length : ""}
         </Button>
       </div>
       {message && <p role="status">{message}</p>}
@@ -803,7 +804,7 @@ function Cases({
           }}
         >
           <label>
-            Номер дела
+            {t("inv.caseNumber")}
             <input
               required
               maxLength={64}
@@ -812,7 +813,7 @@ function Cases({
             />
           </label>
           <label>
-            Ответственный
+            {t("inv.owner")}
             <select
               required
               value={owner}
@@ -820,7 +821,7 @@ function Cases({
             >
               {!recipients.some((r) => r.id === owner) && (
                 <option value={owner}>
-                  {owner === user ? "Я" : "Недоступен"}
+                  {owner === user ? t("inv.me") : t("inv.ownerUnavailable")}
                 </option>
               )}
               {recipients.map((r) => (
@@ -831,7 +832,7 @@ function Cases({
             </select>
           </label>
           <label>
-            Защита до
+            {t("inv.protectUntil")}
             <input
               type="datetime-local"
               required
@@ -841,7 +842,7 @@ function Cases({
             />
           </label>
           <label>
-            Примечания
+            {t("inv.notes")}
             <textarea
               value={notes}
               maxLength={8192}
@@ -849,7 +850,7 @@ function Cases({
             />
           </label>
           <label>
-            Основание защиты
+            {t("inv.protectReason")}
             <input
               required
               maxLength={512}
@@ -857,9 +858,7 @@ function Cases({
               onChange={(e) => setReason(e.target.value)}
             />
           </label>
-          {selected.length === 0 && (
-            <p>Добавьте интервал кнопкой закладки в поиске по архиву.</p>
-          )}
+          {selected.length === 0 && <p>{t("inv.addHint")}</p>}
           {selected.map((m, i) => (
             <div className="inv-material" key={i}>
               <strong>{points.find((p) => p.id === m.point_id)?.name}</strong>
@@ -874,7 +873,7 @@ function Cases({
               ))}
               <IconButton
                 icon="circle-x"
-                label="Удалить материал"
+                label={t("inv.removeMaterial")}
                 onClick={() => setSelected(selected.filter((_, n) => n !== i))}
               />
             </div>
@@ -884,7 +883,7 @@ function Cases({
             type="submit"
             disabled={busy || !selected.length}
           >
-            Сохранить дело
+            {t("inv.saveCase")}
           </Button>
         </form>
       )}
@@ -897,15 +896,15 @@ function Cases({
           }}
         >
           <label>
-            Комплект дела
+            {t("inv.package")}
             <select
               value={bundleMode}
               onChange={(e) =>
                 setBundleMode(e.target.value as typeof bundleMode)
               }
             >
-              <option value="derivative">Копия с масками</option>
-              <option value="original">Оригиналы</option>
+              <option value="derivative">{t("export.derivative")}</option>
+              <option value="original">{t("inv.originals")}</option>
             </select>
           </label>
           <label>
@@ -914,10 +913,10 @@ function Cases({
               checked={sound}
               onChange={(e) => setSound(e.target.checked)}
             />
-            Со звуком
+            {t("inv.withAudio")}
           </label>
           <label>
-            Основание выдачи
+            {t("export.reason")}
             <input
               required
               value={release}
@@ -929,7 +928,7 @@ function Cases({
             icon="file-down"
             type="submit"
             disabled={busy}
-            label="Скачать подписанный комплект дела"
+            label={t("inv.download")}
           />
         </form>
       )}

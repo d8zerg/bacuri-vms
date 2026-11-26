@@ -1,17 +1,33 @@
 #include "media/lease.hpp"
-#include "control/support.hpp"
+#include "platform/settings.hpp"
 #include <algorithm>
 #include <cstdio>
+#include <map>
+#include <mutex>
 
 namespace bacuri::vms::media
 {
 using namespace std::chrono_literals;
-std::shared_ptr<grpc::Channel> local_channel(const char* setting_name)
+std::shared_ptr<grpc::Channel> dedicated_channel(const char* setting_name)
 {
     grpc::ChannelArguments args;
     args.SetMaxReceiveMessageSize(8 * 1024 * 1024 + 1024);
-    return grpc::CreateCustomChannel("unix:" + control::setting(setting_name),
+    // A local service that restarts is reachable again without the default backoff of up to two minutes.
+    args.SetInt(GRPC_ARG_INITIAL_RECONNECT_BACKOFF_MS, 100);
+    args.SetInt(GRPC_ARG_MIN_RECONNECT_BACKOFF_MS, 100);
+    args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
+    return grpc::CreateCustomChannel("unix:" + platform::setting(setting_name),
                                      grpc::experimental::LocalCredentials(UDS), args);
+}
+std::shared_ptr<grpc::Channel> local_channel(const char* setting_name)
+{
+    static std::mutex mutex;
+    static std::map<std::string, std::shared_ptr<grpc::Channel>, std::less<>> channels;
+    std::scoped_lock guard{mutex};
+    auto& channel = channels[setting_name];
+    if (!channel)
+        channel = dedicated_channel(setting_name);
+    return channel;
 }
 Lease::Lease(v1::AuthorizeDeliveryRequest scope)
     : scope_{std::move(scope)}, authority_{v1::MediaAuthorization::NewStub(local_channel("BACURI_AUTH_SOCKET"))}

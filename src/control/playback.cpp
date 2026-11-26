@@ -136,14 +136,14 @@ Json search(Database& db, const Key& key, const PointAccess& access, Json params
     return page;
 }
 
-constexpr auto expires_sql = "YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"";
+constexpr auto expires_sql = R"(YYYY-MM-DD"T"HH24:MI:SS.US"Z")";
 
 unsigned video_limit(const char* name, unsigned fallback)
 {
-    const char* raw = std::getenv(name);
+    const auto raw = optional_setting(name);
     if (!raw)
         return fallback;
-    const std::string_view value{raw};
+    const std::string_view value{*raw};
     unsigned n{};
     const auto [last, error] = std::from_chars(value.begin(), value.end(), n);
     if (error != std::errc{} || last != value.end() || n > 1000000)
@@ -371,7 +371,8 @@ class RemotePart final : public MediaBody
 {
   public:
     explicit RemotePart(const v1::ReadPartRequest& request)
-        : lease_{request.scope()}, stub_{v1::ArchiveDelivery::NewStub(media::local_channel("BACURI_MEDIA_SOCKET"))}
+        : lease_{request.scope()},
+          stub_{v1::ArchiveDelivery::NewStub(media::dedicated_channel("BACURI_MEDIA_SOCKET"))}
     {
         lease_.deadline();
         context_.set_deadline(std::chrono::system_clock::now() + 30s);
@@ -381,6 +382,8 @@ class RemotePart final : public MediaBody
         }
         size = chunk_.total_bytes();
     }
+    RemotePart(const RemotePart&) = delete;
+    RemotePart& operator=(const RemotePart&) = delete;
     ~RemotePart() override
     {
         context_.TryCancel();

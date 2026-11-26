@@ -10,7 +10,7 @@ struct Owner {
 };
 struct Origin {
     std::string point, device, channel, profile;
-    domain::Revision binding;
+    domain::Revision binding{};
     friend bool operator==(const Origin&, const Origin&) = default;
 };
 struct MediaDigest {

@@ -51,7 +51,7 @@ Json session_body(Database& db, const Key& key, const Identity& identity)
 
 void respond(Response& response, const Json& body, int status)
 {
-    response.result(status);
+    response.result(static_cast<unsigned>(status));
     response.set(http::field::content_type, "application/json");
     response.body() = body.dump();
 }

@@ -110,6 +110,11 @@ body:has(.ws-shell, .ws-login, .ws-startup) {
   border-radius: 0.25rem;
   color: var(--muted);
 }
+.ws-language-switch span {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
 .ws-theme-switch input {
   position: absolute;
   inset: 0;
@@ -295,6 +300,9 @@ body:has(.ws-shell, .ws-login, .ws-startup) {
   background: var(--surface);
   color: var(--ink);
 }
+.ws-nav-short {
+  display: none;
+}
 @media (max-width: 80rem) {
   .ws-bar {
     display: grid;
@@ -383,8 +391,13 @@ body:has(.ws-shell, .ws-login, .ws-startup) {
   .ws-bar nav a {
     padding-inline: 0.1875rem;
   }
-  .ws-nav-detail {
+  .ws-bar a[href^="/audit"] .ws-nav-wide,
+  .ws-bar a[href^="/maps"] .ws-nav-wide {
     display: none;
+  }
+  .ws-bar a[href^="/audit"] .ws-nav-short,
+  .ws-bar a[href^="/maps"] .ws-nav-short {
+    display: inline;
   }
 }
 @media (max-width: 22rem) {
@@ -410,9 +423,6 @@ body:has(.ws-shell, .ws-login, .ws-startup) {
     gap: 0.25rem;
     padding: 0.4rem;
   }
-}
-.ws-nav-short {
-  display: none;
 }
 @media (max-width: 54rem) {
   .ws-bar a[href^="/investigations"] .ws-nav-wide {

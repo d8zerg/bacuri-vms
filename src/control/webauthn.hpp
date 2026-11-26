@@ -7,7 +7,7 @@ namespace bacuri::vms::control
 Json begin_webauthn(Database&, const Key&, const std::string& origin, const std::string& user, const Json& login);
 struct VerifiedFactor {
     std::string user;
-    bool enrolled;
+    bool enrolled{};
 };
 VerifiedFactor finish_webauthn(Database&, const Key&, const std::string& origin, const Json& body);
 } // namespace bacuri::vms::control

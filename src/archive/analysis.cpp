@@ -1,4 +1,5 @@
 #include "archive/analysis.hpp"
+#include "platform/scope_exit.hpp"
 #include <gst/app/gstappsink.h>
 #include <gst/video/video.h>
 #include <chrono>
@@ -12,6 +13,11 @@ namespace
 {
 using Image = std::array<unsigned char, std::size_t{preview_width} * preview_height>;
 using Cells = std::array<unsigned char, std::size_t{grid_width} * grid_height>;
+// The position of a pixel in an image stored row by row.
+std::size_t at(int x, int y, int width)
+{
+    return static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x);
+}
 template <class T> auto release_gst(T* value)
 {
     return std::unique_ptr<T, decltype(&gst_object_unref)>{value, gst_object_unref};
@@ -21,13 +27,6 @@ std::string encode(std::span<const unsigned char> bytes)
     std::unique_ptr<char, decltype(&g_free)> raw{g_base64_encode(bytes.data(), bytes.size()), g_free};
     return raw.get();
 }
-struct Stop {
-    GstElement* pipeline;
-    ~Stop()
-    {
-        gst_element_set_state(pipeline, GST_STATE_NULL);
-    }
-};
 } // namespace
 Json motion_sample(std::span<const unsigned char> previous, std::span<const unsigned char> image,
                    std::int64_t offset)
@@ -41,10 +40,10 @@ Json motion_sample(std::span<const unsigned char> previous, std::span<const unsi
                 unsigned sum{};
                 for (int y = 0; y < 4; ++y)
                     for (int x = 0; x < 4; ++x) {
-                        const auto index = (gy * 4 + y) * preview_width + gx * 4 + x;
-                        sum += std::abs(static_cast<int>(image[index]) - previous[index]);
+                        const auto index = at(gx * 4 + x, gy * 4 + y, preview_width);
+                        sum += static_cast<unsigned>(std::abs(static_cast<int>(image[index]) - previous[index]));
                     }
-                cells[gy * grid_width + gx] = static_cast<unsigned char>((sum + 8) / 16);
+                cells[at(gx, gy, grid_width)] = static_cast<unsigned char>((sum + 8) / 16);
             }
     return {{"at", offset}, {"cells", encode(cells)}, {"image", encode(image)}};
 }
@@ -88,7 +87,7 @@ Json analyze_recording(const std::filesystem::path& path, std::int64_t duration)
     std::unique_ptr<GError, decltype(&g_error_free)> error{raw, g_error_free};
     if (error || !pipe)
         throw std::runtime_error("Index decoder unavailable");
-    Stop stop{pipe.get()};
+    platform::ScopeExit stop{[&pipe] { gst_element_set_state(pipe.get(), GST_STATE_NULL); }};
     auto input = release_gst(gst_bin_get_by_name(GST_BIN(pipe.get()), "file"));
     auto sink = release_gst(gst_bin_get_by_name(GST_BIN(pipe.get()), "frames"));
     auto bus = release_gst(gst_element_get_bus(pipe.get()));
@@ -181,7 +180,7 @@ Movement measure_motion(const std::string& bytes, int threshold, const std::vect
     Movement result;
     for (int y = 0; y < grid_height; ++y)
         for (int x = 0; x < grid_width; ++x) {
-            if (grid[y * grid_width + x] < threshold ||
+            if (grid[at(x, y, grid_width)] < threshold ||
                 (!include.empty() && !intersects(include, x, y, grid_width, grid_height)) ||
                 intersects(exclude, x, y, grid_width, grid_height))
                 continue;
@@ -203,7 +202,7 @@ std::string mask_preview(const std::string& bytes, const std::vector<MotionArea>
     for (int y = 0; y < preview_height; ++y)
         for (int x = 0; x < preview_width; ++x)
             if (intersects(exclude, x, y, preview_width, preview_height))
-                image[y * preview_width + x] = 0;
+                image[at(x, y, preview_width)] = 0;
     return encode(image);
 }
 } // namespace bacuri::vms::archive

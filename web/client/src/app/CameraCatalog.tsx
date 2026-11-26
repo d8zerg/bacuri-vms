@@ -10,6 +10,7 @@ import type {
 import { FilterPanel, matchesQuery } from "../ui-kit/FilterPanel";
 import { groupChannels, channelName } from "./cameraChannels";
 import "./camera-batch.css";
+import { dateTimeFormat, formatNumber, useT } from "../i18n";
 function DeviceRecordings({
   services,
   site,
@@ -19,6 +20,7 @@ function DeviceRecordings({
   site: string;
   device: string;
 }) {
+  const t = useT();
   const [attempt, check] = useState(0);
   const [result, setResult] = useState<EdgeArchive | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,11 +79,11 @@ function DeviceRecordings({
         );
         duration += reply.duration_us;
         setProgress(
-          "Восстановлено " +
-            (duration / 1000000).toLocaleString("ru", {
+          t("catalog.recovered", {
+            value: formatNumber(duration / 1000000, {
               maximumFractionDigits: 1,
-            }) +
-            " с",
+            }),
+          }),
         );
         if (reply.outcome === "quota" || reply.outcome === "timeout") break;
         const next = reply.next ?? end;
@@ -89,10 +91,7 @@ function DeviceRecordings({
         start = next;
       }
     } catch {
-      if (!ctl.signal.aborted)
-        setProgress(
-          "Догрузка прервана. Сохранённые фрагменты доступны в архиве.",
-        );
+      if (!ctl.signal.aborted) setProgress(t("catalog.recoverInterrupted"));
     } finally {
       if (recovering.current === ctl) {
         recovering.current = null;
@@ -101,34 +100,44 @@ function DeviceRecordings({
       }
     }
   }
-  const labels = { Video: "Видео", Audio: "Звук", Metadata: "Метаданные" };
-  const date = (utc: string) => new Date(utc).toLocaleString("ru");
+  const labels = {
+    Video: t("catalog.video"),
+    Audio: t("audio.label"),
+    Metadata: t("catalog.metadata"),
+  };
+  const date = (utc: string) =>
+    dateTimeFormat({ dateStyle: "short", timeStyle: "medium" }).format(
+      new Date(utc),
+    );
   return (
     <div>
       <div className="ws-edge-heading">
-        <strong>Архив устройства</strong>
+        <strong>{t("catalog.deviceArchive")}</strong>
         <IconButton
           icon={attempt ? "rotate-cw" : "search"}
-          label="Проверить архив устройства"
+          label={t("catalog.checkArchive")}
           disabled={loading || busy}
           onClick={() => check((n) => n + 1)}
         />
       </div>
       <div role="status">
         {loading
-          ? "Опрос камеры…"
+          ? t("catalog.polling")
           : failure
-            ? "Не удалось прочитать архив камеры."
+            ? t("catalog.readFailed")
             : !result
               ? null
               : !result.supported
-                ? "Службы архива недоступны."
+                ? t("catalog.unsupported")
                 : !result.recordings.length
-                  ? "Камера не вернула записей."
+                  ? t("catalog.noRecordings")
                   : result.recordings.map((record, i) => (
                       <div key={record.id}>
                         {(record.name || result.recordings.length > 1) && (
-                          <strong>{record.name || "Запись " + (i + 1)}</strong>
+                          <strong>
+                            {record.name ||
+                              t("catalog.recording", { number: i + 1 })}
+                          </strong>
                         )}
                         <dl>
                           {record.tracks.map((track, index) => (
@@ -139,13 +148,13 @@ function DeviceRecordings({
                                   ? date(track.bounds.start) +
                                     " - " +
                                     date(track.bounds.end)
-                                  : "Нет доступного интервала"}
+                                  : t("catalog.noInterval")}
                               </dd>
                             </div>
                           ))}
                         </dl>
                         {!record.tracks.length && (
-                          <p>Камера не вернула дорожек.</p>
+                          <p>{t("catalog.noTracks")}</p>
                         )}
                         {result.gaps
                           .filter((gap) =>
@@ -162,11 +171,16 @@ function DeviceRecordings({
                           .map((gap) => (
                             <div className="ws-edge-heading" key={gap.start}>
                               <span>
-                                Пропуск {date(gap.start)} - {date(gap.end)}
+                                {t("catalog.gap", {
+                                  start: date(gap.start),
+                                  end: date(gap.end),
+                                })}
                               </span>
                               <IconButton
                                 icon="file-down"
-                                label={"Догрузить пропуск " + date(gap.start)}
+                                label={t("catalog.recoverGap", {
+                                  start: date(gap.start),
+                                })}
                                 disabled={busy}
                                 onClick={() => void restore(record.id, gap)}
                               />
@@ -195,6 +209,7 @@ export default function CameraCatalog({
   site: string;
   points: Point[];
 }) {
+  const t = useT();
   const [cameras, setCameras] = useState<Camera[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false),
@@ -228,9 +243,9 @@ export default function CameraCatalog({
   const [connection, setConnection] = useState("");
   const locations = new Map(points.map((p) => [p.id, p]));
   const connections = {
-    online: "На связи",
-    offline: "Нет связи",
-    unknown: "Нет данных",
+    online: t("catalog.online"),
+    offline: t("catalog.offline"),
+    unknown: t("catalog.unknown"),
   } as const;
   const groups = groupChannels(cameras ?? [], (c) => ({
     device: { ...c, model: c.model || c.name },
@@ -265,16 +280,16 @@ export default function CameraCatalog({
   return (
     <section
       className="ws-panel ws-camera-batch"
-      aria-label="Подключённые устройства"
+      aria-label={t("catalog.label")}
     >
       <FilterPanel
-        label="Фильтры каталога"
+        label={t("catalog.filters")}
         refresh={{
-          label: "Обновить каталог",
+          label: t("catalog.refresh"),
           run: () => refresh((n) => n + 1),
           busy: loading,
         }}
-        queryLabel="Устройство, канал или точка"
+        queryLabel={t("batch.channelQuery")}
         query={query}
         onQuery={setQuery}
         filtered={!!statusFilter || !!connection}
@@ -285,12 +300,12 @@ export default function CameraCatalog({
         }}
       >
         <label>
-          Связь с камерой
+          {t("catalog.connection")}
           <select
             value={connection}
             onChange={(e) => setConnection(e.target.value)}
           >
-            <option value="">Все состояния</option>
+            <option value="">{t("batch.allStates")}</option>
             {Object.entries(connections).map(([k, title]) => (
               <option key={k} value={k}>
                 {title}
@@ -299,33 +314,37 @@ export default function CameraCatalog({
           </select>
         </label>
         <label>
-          Конфигурация канала
+          {t("catalog.configuration")}
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="">Все состояния</option>
-            <option value="applied">Применено</option>
-            <option value="pending">Ожидает рекордера</option>
-            <option value="rejected">Отклонено</option>
+            <option value="">{t("batch.allStates")}</option>
+            <option value="applied">{t("catalog.applied")}</option>
+            <option value="pending">{t("batch.recorderWaiting")}</option>
+            <option value="rejected">{t("catalog.rejected")}</option>
           </select>
         </label>
       </FilterPanel>
       {!!visible.length && (
         <p className="ws-result-count">
-          Устройств: {visible.length}
-          {visible.length < groups.length && ` из ${groups.length}`}
+          {visible.length < groups.length
+            ? t("catalog.countOf", {
+                count: visible.length,
+                total: groups.length,
+              })
+            : t("catalog.count", { count: visible.length })}
         </p>
       )}
       {!visible.length && (
         <p role="status">
           {failed
-            ? "Не удалось загрузить каталог."
+            ? t("catalog.loadFailed")
             : !cameras
-              ? "Загрузка устройств…"
+              ? t("catalog.loading")
               : !cameras.length
-                ? "Подключённых устройств пока нет."
-                : "Устройства по заданным условиям не найдены."}
+                ? t("catalog.empty")
+                : t("catalog.none")}
         </p>
       )}
       <div className="ws-batch-results">
@@ -335,17 +354,23 @@ export default function CameraCatalog({
             <section className="ws-batch-device" key={key}>
               <header>
                 <h2>{title}</h2>
-                {device.firmware && <span>Прошивка {device.firmware}</span>}
+                {device.firmware && (
+                  <span>
+                    {t("catalog.firmware", { version: device.firmware })}
+                  </span>
+                )}
               </header>
               {items.map((c) => {
                 const name = channelName(c.name, c.model, c.channel_token);
                 const point = locations.get(c.point_id)?.name;
                 const status =
                   stateOf(c) === "rejected"
-                    ? "Отклонено рекордером"
+                    ? t("catalog.rejectedByRecorder")
                     : stateOf(c) === "applied"
-                      ? "Применена версия " + c.applied_revision
-                      : "Ожидает рекордера";
+                      ? t("catalog.appliedRevision", {
+                          revision: c.applied_revision ?? "",
+                        })
+                      : t("batch.recorderWaiting");
                 return (
                   <details className="ws-batch-channel" key={c.id}>
                     <summary>
@@ -360,7 +385,7 @@ export default function CameraCatalog({
                     </summary>
                     <div className="ws-channel-detail">
                       <dl>
-                        <dt>Связь с камерой</dt>
+                        <dt>{t("catalog.connection")}</dt>
                         <dd>
                           {
                             connections[
@@ -368,24 +393,24 @@ export default function CameraCatalog({
                             ]
                           }
                         </dd>
-                        <dt>Точка</dt>
+                        <dt>{t("batch.point")}</dt>
                         <dd>
                           {point || c.name} · {c.point_id}
                         </dd>
                         {device.serial && (
                           <>
-                            <dt>Серийный номер</dt>
+                            <dt>{t("batch.serial")}</dt>
                             <dd>{device.serial}</dd>
                           </>
                         )}
                         {c.channel_token && (
                           <>
-                            <dt>Канал ONVIF</dt>
+                            <dt>{t("batch.onvifChannel")}</dt>
                             <dd>{c.channel_token}</dd>
                           </>
                         )}
-                        <dt>Версия рекордера</dt>
-                        <dd>{c.applied_revision ?? "Ожидание"}</dd>
+                        <dt>{t("batch.recorderRevision")}</dt>
+                        <dd>{c.applied_revision ?? t("catalog.waiting")}</dd>
                       </dl>
                       <DeviceRecordings
                         key={site + c.id}

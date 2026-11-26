@@ -66,12 +66,16 @@ void rebuild_archive(Database& db, std::ostream& output, StorageLayout layout)
         {owner.site, owner.node});
     std::size_t verified{}, corrupt{}, missing{};
     archive::Volume volume{
-        root, owner, [&](const std::string& id) {
-            ++corrupt;
-            db.exec("UPDATE bacuri_archive.blocks SET unavailable_reason='corrupt' WHERE site_id=$1 "
-                    "AND recording_node_id=$2 AND block_id=$3",
-                    {owner.site, owner.node, id});
-        }};
+        root,
+        owner,
+        {.replica = optional_setting("BACURI_ARCHIVE_REPLICA_DIR"), .invalid = [&](const std::string& id) {
+             ++corrupt;
+             db.exec("UPDATE bacuri_archive.blocks SET unavailable_reason='corrupt' "
+                     "WHERE site_id=$1 AND recording_node_id=$2 AND block_id=$3",
+                     {owner.site, owner.node, id});
+         }}};
+    // The rebuilt catalog reports blocks as available only after their media checksums match.
+    volume.verify_all();
     const auto local_cutoff = volume.retired_through();
     if (local_cutoff != std::numeric_limits<std::int64_t>::min())
         db.exec("INSERT INTO bacuri_archive.retired_through VALUES($1,$2) ON CONFLICT(site_id) DO UPDATE SET "

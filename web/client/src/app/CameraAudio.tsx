@@ -3,6 +3,7 @@ import type { AudioRequest, Point, Services } from "../contracts/workspace";
 import { IconButton } from "../ui-kit/FormControls";
 import { pause } from "../workflows/pause";
 import { cameraError } from "./cameraError";
+import { useT, type MessageKey } from "../i18n";
 
 type Direction = "listen" | "record" | "talk";
 type Exchange = (
@@ -143,6 +144,7 @@ export function CameraAudio({
   capabilities: NonNullable<Point["audio"]>;
   position: number | undefined;
 }) {
+  const t = useT();
   const running = useRef(new Map<Direction, AbortController>());
   const [active, setActive] = useState<Partial<Record<Direction, boolean>>>({});
   const [error, setError] = useState("");
@@ -201,8 +203,8 @@ export function CameraAudio({
         setError(
           cameraError(e) ??
             (direction === "talk"
-              ? "Передача речи прервана. Проверьте микрофон и доступ к камере."
-              : "Звуковой канал недоступен."),
+              ? t("audio.talkFailed")
+              : t("audio.unavailable")),
         );
     } finally {
       clearTimeout(timeout);
@@ -213,29 +215,29 @@ export function CameraAudio({
       setActive((prev) => ({ ...prev, [direction]: false }));
     }
   }
-  const items: [Direction, boolean, string, string][] = [
+  const items: [Direction, boolean, MessageKey, MessageKey][] = [
     [
       "listen",
       position === undefined ? capabilities.listen : capabilities.archive,
-      "Слушать",
-      "Отключить звук",
+      "audio.listen",
+      "audio.mute",
     ],
     [
       "record",
       position === undefined && capabilities.record,
-      "Записать звук",
-      "Остановить запись звука",
+      "audio.record",
+      "audio.stopRecording",
     ],
     [
       "talk",
       position === undefined && capabilities.talk,
-      "Говорить",
-      "Выключить микрофон",
+      "audio.talk",
+      "audio.stopTalking",
     ],
   ];
   if (!items.some(([, visible]) => visible)) return null;
   return (
-    <div className="cc-audio" role="group" aria-label="Звук">
+    <div className="cc-audio" role="group" aria-label={t("audio.label")}>
       {items
         .filter(([, visible]) => visible)
         .map(([direction, , off, on]) => (
@@ -245,7 +247,7 @@ export function CameraAudio({
                 direction
               ] as "headphones" | "record-sound" | "mic"
             }
-            label={active[direction] ? on : off}
+            label={t(active[direction] ? on : off)}
             data-direction={direction}
             key={direction}
             aria-pressed={!!active[direction]}

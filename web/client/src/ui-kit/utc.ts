@@ -1,4 +1,6 @@
-const timestamp = new Intl.DateTimeFormat("ru-RU", {
+import { dateTimeFormat } from "../i18n";
+
+const utcOptions: Intl.DateTimeFormatOptions = {
   timeZone: "UTC",
   day: "numeric",
   month: "short",
@@ -7,12 +9,14 @@ const timestamp = new Intl.DateTimeFormat("ru-RU", {
   minute: "2-digit",
   second: "2-digit",
   hourCycle: "h23",
-});
+};
 
 export function formatUtc(utc: string) {
   const fraction = utc.match(/\.(\d+)Z$/)?.[1]?.replace(/0+$/, "");
   return (
-    timestamp.format(new Date(utc)) + (fraction ? "," + fraction : "") + " UTC"
+    dateTimeFormat(utcOptions).format(new Date(utc)) +
+    (fraction ? "," + fraction : "") +
+    " UTC"
   );
 }
 

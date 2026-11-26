@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import type { MapScene, Placement, Services } from "../contracts/workspace";
 import { Button } from "../ui-kit/FormControls";
+import { useT } from "../i18n";
 
 export function landmarkBearing(
   m: Placement,
@@ -42,6 +43,7 @@ export function ViewCalibration({
   live,
   onSaved,
 }: Props) {
+  const t = useT();
   const cam = marker.camera!,
     cfg = marker.calibration;
   const [busy, setBusy] = useState(false),
@@ -83,12 +85,10 @@ export function ViewCalibration({
           ? { tele_hfov: Number(fields.get("tele")) }
           : {}),
       });
-      say("Направление сохранено");
+      say(t("view.saved"));
       onSaved();
     } catch {
-      say(
-        "Не удалось сохранить направление. Проверьте положение камеры и повторите.",
-      );
+      say(t("view.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -99,25 +99,19 @@ export function ViewCalibration({
         if (!e.currentTarget.open) setAim(false);
       }}
     >
-      <summary>Настроить сектор обзора</summary>
+      <summary>{t("view.configure")}</summary>
       <form onSubmit={(e) => void save(e)}>
         <Button
           onClick={() => window.open(live, "_blank", "noopener,noreferrer")}
         >
-          Открыть эфир в новой вкладке
+          {t("view.openLive")}
         </Button>
         <Button type="button" aria-pressed={aim} onClick={() => setAim(!aim)}>
-          {aim ? "Отменить выбор ориентира" : "Указать ориентир на карте"}
+          {aim ? t("view.cancelAim") : t("view.aim")}
         </Button>
-        {aim && (
-          <p role="status">
-            Выберите на карте или плане ориентир в центре кадра.
-          </p>
-        )}
+        {aim && <p role="status">{t("view.aimHint")}</p>}
         <label>
-          {marker.plan_id
-            ? "Направление от верха плана, °"
-            : "Азимут от севера, °"}
+          {marker.plan_id ? t("view.planBearing") : t("view.azimuth")}
           <input
             key={landmark?.bearing ?? "initial"}
             name="bearing"
@@ -130,9 +124,7 @@ export function ViewCalibration({
           />
         </label>
         <label>
-          {cam.ptz
-            ? "Угол обзора при широком угле, °"
-            : "Горизонтальный угол обзора, °"}
+          {cam.ptz ? t("view.wideFov") : t("view.fov")}
           <input
             name="hfov"
             type="number"
@@ -146,7 +138,7 @@ export function ViewCalibration({
         {cam.ptz && (
           <>
             <label>
-              Угол обзора при максимальном зуме, °
+              {t("view.teleFov")}
               <input
                 type="number"
                 name="tele"
@@ -158,13 +150,14 @@ export function ViewCalibration({
             </label>
             {cam.pan !== undefined && (
               <p>
-                Показание pan: {Number(cam.pan.toFixed(5))}
-                {cam.hfov !== undefined && " · угол обзора " + cam.hfov + "°"}
+                {t("view.pan", { value: Number(cam.pan.toFixed(5)) })}
+                {cam.hfov !== undefined &&
+                  " · " + t("view.currentFov", { fov: cam.hfov })}
               </p>
             )}
             {generic && cam.space && (
               <label>
-                Градусов поворота по часовой стрелке на единицу pan
+                {t("view.panScale")}
                 <input
                   type="number"
                   name="scale"
@@ -176,15 +169,13 @@ export function ViewCalibration({
             )}
             {!ready && (
               <p role="status">
-                {changed
-                  ? "Камера сместилась. Укажите ориентир повторно."
-                  : "Для привязки нужна свежая позиция остановленной камеры."}
+                {changed ? t("view.moved") : t("view.needPosition")}
               </p>
             )}
           </>
         )}
         <Button type="submit" disabled={!ready || busy || aim}>
-          Сохранить направление
+          {t("view.save")}
         </Button>
         {notice && <p role="status">{notice}</p>}
       </form>

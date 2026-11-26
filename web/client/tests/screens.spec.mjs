@@ -1,4 +1,5 @@
 import { test, expect, checkAccessibility } from "./browser.mjs";
+import ids from "../stories/fixture-ids.json" with { type: "json" };
 async function open(page, story) {
   await page.goto("/iframe.html?viewMode=story&id=workspace--" + story);
   await expect(
@@ -664,7 +665,7 @@ test("Administrator selects discovered profiles and replaces an existing binding
   await page
     .getByRole("button", { name: "Поиск ONVIF и замена камеры" })
     .click();
-  await page.getByLabel("Точка наблюдения").selectOption("previous");
+  await page.getByLabel("Точка наблюдения").selectOption(ids.previousCamera);
   await page.getByRole("button", { name: "Найти камеры ONVIF" }).click();
   await expect(page.getByLabel("Обнаруженная камера")).toBeVisible();
   await page.getByLabel("Пользователь камеры").fill("viewer");
@@ -772,28 +773,24 @@ test("Operator opens alert, sees the gap, returns focus and handles an empty fee
   page,
 }) => {
   await open(page, "monitor");
-  await page.getByRole("button", { name: /Потеря видеопотока/ }).press("Enter");
+  await page.getByRole("button", { name: /14:22:12/ }).press("Enter");
   await expect(page.locator(".ws-overlay")).toContainText("Пропуск записи");
   await expect(page.locator("video")).toBeHidden();
   await page
     .getByRole("button", { name: "К выбранной тревоге" })
     .press("Enter");
-  await expect(
-    page.getByRole("button", { name: /Потеря видеопотока/ }),
-  ).toBeFocused();
+  await expect(page.getByRole("button", { name: /14:22:12/ })).toBeFocused();
   await page.getByRole("link", { name: "Камеры" }).click();
   await expect(
     page.getByRole("search", { name: "Фильтры каталога" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Мониторинг" }).click();
-  await expect(
-    page.getByRole("button", { name: /Потеря видеопотока/ }),
-  ).toBeFocused();
-  await page.getByRole("button", { name: /Поток восстановлен/ }).click();
+  await expect(page.getByRole("button", { name: /14:22:12/ })).toBeFocused();
+  await page.getByRole("button", { name: /14:25:01/ }).click();
   await expect(page.locator(".ws-overlay")).toContainText(
     "добавляется в каталог",
   );
-  await page.getByRole("button", { name: /Движение у ворот/ }).click();
+  await page.getByRole("button", { name: /14:21:22/ }).click();
   await expect(page.getByText("Кадр записи получен")).toBeVisible();
   await expect(page.locator(".ws-player h2")).toBeFocused();
   await open(page, "empty-feed");
@@ -952,9 +949,7 @@ test("Review an event on the plan, compare live video, then resume the same even
   const panel = page.getByRole("region", { name: "События камеры" });
   await expect(panel.getByRole("button", { name: /Проверить/ })).toHaveCount(3);
   await expect(panel.locator("video")).toHaveCount(0);
-  await panel
-    .getByRole("button", { name: /Потеря видеопотока/ })
-    .press("Enter");
+  await panel.getByRole("button", { name: /14:22:12/ }).press("Enter");
   await expect(panel.locator(".ws-overlay")).toContainText(
     "Пропуск записи. Нет связи с камерой",
   );
@@ -964,7 +959,7 @@ test("Review an event on the plan, compare live video, then resume the same even
   await panel.getByRole("button", { name: "Архив", exact: true }).click();
   await expect(panel.locator("video")).toBeHidden();
   await panel.getByRole("button", { name: /Показать ещё/ }).click();
-  await panel.getByRole("button", { name: /Движение у ворот/ }).press("Enter");
+  await panel.getByRole("button", { name: /14:21:22/ }).press("Enter");
   await expect(panel.getByText("Кадр записи получен")).toBeVisible();
   await expect(panel.locator("video")).toHaveCount(1);
   await checkAccessibility(page, ".ws-shell");
@@ -989,7 +984,7 @@ test("Review an event on the plan, compare live video, then resume the same even
     .click();
   await expect(page.locator(".ws-alert-work")).toBeVisible();
   await page.getByRole("link", { name: "Карты и планы" }).click();
-  const row = panel.getByRole("button", { name: /Движение у ворот/ });
+  const row = panel.getByRole("button", { name: /14:21:22/ });
   await expect(row).toBeFocused();
   await expect(row).toHaveAttribute("aria-expanded", "true");
   await expect(zoom.getByRole("radio", { name: "200%" })).toBeChecked();
@@ -1059,7 +1054,7 @@ test("Administrator uploads a plan and reopens a positioned point", async ({
   await page.getByRole("button", { name: "Эфир", exact: true }).click();
   await expectRouteName(page, "Мониторинг");
   await page.getByRole("link", { name: "Карты и планы" }).click();
-  await expect(page.locator("#map-point-dock")).toBeFocused();
+  await expect(page.locator("#map-point-" + ids.dockPoint)).toBeFocused();
   await expect(x).toBeHidden();
   await page.getByText("Изменить положение точки", { exact: true }).click();
   await expect(x).toHaveValue("0.42");
@@ -1086,7 +1081,7 @@ test("Operator closes an alert, searches its history and controls delegated work
 }) => {
   await open(page, "monitor");
   const feed = page.getByRole("complementary", { name: "Тревоги" });
-  const movement = feed.getByRole("button", { name: /Движение у ворот/ });
+  const movement = feed.getByRole("button", { name: /14:21:22/ });
   await expect(feed.getByText("Новая", { exact: true })).toHaveCount(4);
   await page.getByRole("link", { name: "Журнал действий" }).click();
   const results = page.getByRole("region", { name: "Результаты поиска" });
@@ -1271,12 +1266,12 @@ test("Switching building floors isolates cameras and opens their source plan", a
   if (info.project.name.startsWith("chromium")) {
     await page.getByRole("button", { name: /Корпус · Новых тревог/ }).click();
     await expect(page.locator(".maplibregl-marker .ws-sector")).toHaveCount(1);
-  } else await floors.selectOption("floor");
-  await expect(floors).toHaveValue("floor");
+  } else await floors.selectOption(ids.floorPlan);
+  await expect(floors).toHaveValue(ids.floorPlan);
   await page.getByLabel("Непрозрачность плана").fill("0.3");
-  await floors.selectOption("upper");
+  await floors.selectOption(ids.upperPlan);
   await expect(page.locator(".maplibregl-marker .ws-sector")).toHaveCount(0);
-  await floors.selectOption("floor");
+  await floors.selectOption(ids.floorPlan);
   await page.locator(".ws-map-list button").click();
   await page
     .getByRole("button", { name: "Открыть план · Первый этаж" })
@@ -1387,9 +1382,10 @@ test("Operator filters the feed and returns to the same visible event on a phone
   expect(times).toHaveLength(4);
   expect(times).toEqual([...times].sort().reverse());
   const search = feed.getByRole("searchbox");
-  await search.fill("дВиЖеНие");
+  // An alert is found by a fragment of its identifier in any letter case.
+  await search.fill(ids.alerts[0].slice(0, 13).toUpperCase());
   await expect(feed.getByRole("listitem")).toHaveCount(1);
-  const event = feed.getByRole("button", { name: /Движение у ворот/ });
+  const event = feed.getByRole("button", { name: /14:21:22/ });
   await event.press("Enter");
   await expect(page.locator(".ws-player h2")).toBeFocused();
   await page.getByRole("button", { name: "Архив", exact: true }).press("Enter");
@@ -1403,7 +1399,7 @@ test("Operator filters the feed and returns to the same visible event on a phone
   ).toBeVisible();
   await page.getByRole("button", { name: "Архив", exact: true }).click();
   await expect(page.locator(".ws-player")).toContainText("Кадр записи получен");
-  await search.fill("восстановлен");
+  await search.fill(ids.alerts[3].slice(-4));
   await expect(feed.getByRole("listitem")).toHaveCount(1);
   await page
     .getByRole("button", { name: "К выбранной тревоге" })

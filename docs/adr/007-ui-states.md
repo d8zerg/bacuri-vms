@@ -1,19 +1,21 @@
-# ADR-007. Общие компоненты и состояния рабочих экранов
+# ADR-007. Shared components and states of work screens
 
-**Статус** - Принято.
+[Русская версия](../ru/adr/007-ui-states.md)
 
-**Контекст.** Одна и та же точка видна на экране ввода и на рабочем месте оператора. Успешная связь с камерой, запись, воспроизведение и ожидание каталога требуют разных действий.
+**Status** - Accepted.
 
-**Варианты.** Оформлять каждый экран отдельно, ограничиться библиотекой базовых элементов либо определить общие компоненты предметной области и проверять их на обоих экранах.
+**Context.** The same point is visible on the setup screen and at the operator workplace. A successful camera connection, recording, playback and a pending catalog require different actions.
 
-**Решение.** UI Kit задаёт семантические токены, типографику, поля, статусы, плеер, шкалу и карточку тревоги. Состояния выводятся из контракта, поясняются текстом и сохраняют одно значение на обоих маршрутах. Дизайн-ревью проводится на целых экранах, включая узкую компоновку и последовательность фокуса.
+**Options.** Design every screen separately, limit the work to a library of basic elements, or define shared domain components and check them on both screens.
 
-**Основания.** Кнопка и статус могут быть корректны по отдельности, хотя их сочетание ошибочно подтверждает запись. Полный маршрут показывает порядок действий и связь подтверждения с декодированным кадром.
+**Decision.** The UI Kit defines semantic tokens, typography, fields, statuses, the player, the timeline and the alarm card. States are derived from the contract, explained in text and keep one meaning on both routes. Design reviews look at whole screens, including the narrow layout and the focus order.
 
-**Реализация.** Нативные элементы составляют основу ввода. Для сложного элемента сравниваем нативный вариант и примитив React Aria по клавиатуре, фокусу и доступному значению на том же сценарии. Публичные состояния воспроизводятся в локальном Storybook. Код представления используется и в каталоге, и в рабочем клиенте. Цена такого решения - поддержка фикстур при изменении контракта. [Ориентиры, пример шкалы и критерии приёмки](../ui.md#качество-ui-kit-и-гипотезы-для-двух-маршрутов)
+**Rationale.** A button and a status can each be correct while their combination wrongly confirms a recording. The full route shows the order of actions and the link between a confirmation and a decoded frame.
 
-**Шкала архива.** Для первого компонента принят нативный `input type="range"`. В Chromium и Firefox он сохраняет фокус и поддерживает выбор указателем, Home и End. Компонент задаёт шаг стрелок в одну секунду и доступное значение с временем UTC и состоянием записи. Вернуться к сравнению с React Aria при появлении двух независимо управляемых границ или неподдерживаемого способа ввода в целевом браузере. [Примеры и автоматическая проверка](../ui.md#шкала-архива-в-ui-kit)
+**Implementation.** Native elements form the basis of input. For a complex element, the native variant and a React Aria primitive are compared on keyboard, focus and accessible value in the same scenario. Public states are reproduced in the local Storybook. The view code is used both in the catalog and in the working client. The cost of this decision is maintaining fixtures when the contract changes. [References, timeline example and acceptance criteria](../ui.md#ui-kit-quality-and-hypotheses-for-the-two-routes)
 
-**Последствия.** Новый вариант состояния требует общего названия, доступного представления и проверки в контексте. Изменение визуального решения допустимо при сохранении смысла и самостоятельного выполнения задания.
+**Archive timeline.** The first component uses a native `input type="range"`. In Chromium and Firefox it keeps focus and supports pointer selection, Home and End. The component sets an arrow step of one second and an accessible value with the UTC time and the recording state. Return to the comparison with React Aria when two independently controlled bounds or an input method unsupported in a target browser appear. [Examples and automatic checks](../ui.md#archive-timeline-in-the-ui-kit)
 
-**Проверка и пересмотр.** Для требования «UI и доступность» приложить снимки полных экранов, ввести задержку и отказ, проверить перенос текста, контраст и возврат фокуса. Пересмотреть модель компонентов, если одинаковое состояние понимают по-разному или новое состояние API нельзя однозначно показать. Сценарии выполняют браузерные тесты. Участники проходят их при ручной приёмке. [Критерии дизайн-ревью](../ui.md#дизайн-ревью-целых-экранов) · [Требования](../quality.md#требования-к-приёмке)
+**Consequences.** A new state variant needs a shared name, an accessible representation and a check in context. Changing the visual design is allowed when the meaning and independent completion of the task are kept.
+
+**Verification and review.** For the "UI and accessibility" requirement, attach full screen captures, introduce a delay and a failure, and check text wrapping, contrast and focus return. Review the component model when the same state is understood differently or a new API state cannot be shown unambiguously. Browser tests run the scenarios. Participants go through them in manual acceptance. [Design review criteria](../ui.md#design-review-of-whole-screens) · [Requirements](../quality.md#acceptance-requirements)

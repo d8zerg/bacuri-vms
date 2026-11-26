@@ -1,75 +1,77 @@
-# Доменная модель и границы хранения Bacuri VMS
+# Domain model and storage boundaries of Bacuri VMS
 
-Площадка владеет ресурсами, конфигурацией и рабочим каталогом. Узел записи владеет завершёнными блоками на своём томе и локальным журналом фиксации. [Архитектура](architecture.md#2-компоненты-и-владельцы-данных)
+[Русская версия](ru/domain-model.md)
 
-## Ресурсы и версии
+The site owns the resources, the configuration and the working catalog. A recording node owns the completed blocks on its volume and the local commit journal. [Architecture](architecture.md#2-components-and-data-owners)
 
-Ошибку подстановки идентификатора другого ресурса обнаруживает компилятор. На границе API или хранилища адаптер разбирает внешнее значение, а домен проверяет связанные поля до начала операции. Для ревью берут вызов с несколькими идентификаторами и пример недопустимого интервала. [ADR-009. Доменные типы](adr/009-domain-types.md)
+## Resources and revisions
 
-| Сущность | Идентичность и связь |
+The compiler detects substituting the identifier of another resource. At the API or storage boundary an adapter parses the external value, and the domain checks the related fields before the operation starts. For review, take a call with several identifiers and an example of an invalid interval. [ADR-009. Domain types](adr/009-domain-types.md)
+
+| Entity | Identity and relation |
 | --- | --- |
-| Площадка | UUID площадки. Часовой пояс применяется к расписаниям и отображению |
-| Точка наблюдения | UUID в пределах площадки. Идентификатор сохраняется при замене камеры |
-| Устройство и канал | Устройство имеет собственный UUID. Канал принадлежит устройству и имеет индекс внутри него |
-| Профиль потока | Идентификатор профиля и канал. На локальной площадке выбирается один основной и один дополнительный профиль на канал |
-| Привязка точки | Площадка, точка и положительная версия. Версия хранит канал и начало действия в UTC |
-| Конфигурация устройства | Снимок имеет ключ из площадки, устройства и версии. Текущее состояние отдельно хранит желаемую и последнюю применённую версии, результат применения и код ошибки |
+| Site | Site UUID. The time zone applies to schedules and display |
+| Observation point | UUID within the site. The identifier is kept when the camera is replaced |
+| Device and channel | A device has its own UUID. A channel belongs to the device and has an index within it |
+| Stream profile | Profile identifier and channel. On a local site one main and one secondary profile are chosen per channel |
+| Point binding | Site, point and a positive revision. The revision stores the channel and the start of validity in UTC |
+| Device configuration | A snapshot has a key of site, device and revision. The current state separately stores the desired and the last applied revisions, the application result and the error code |
 
-Замена канала создаёт следующую версию с более поздним началом действия. При выборе по времени действует последняя версия, начавшаяся к этому моменту. Записи и наблюдения, связанные с точкой, сохраняют конкретную версию привязки. Это позволяет открыть историю до и после замены по одной точке и показать фактический источник каждого блока.
+Replacing a channel creates the next revision with a later start of validity. A selection by time uses the last revision that started by that moment. Recordings and observations related to a point keep the specific binding revision. This lets the history before and after a replacement be opened on one point and shows the actual source of each block.
 
-Публикация новой привязки и операция с желаемой конфигурацией выполняются короткой транзакцией в пределах площадки. Для конкурентных изменений реестр сверяет ожидаемую версию и сохраняет следующий снимок вместе с состоянием применения. Неудачное применение оставляет предыдущую подтверждённую версию доступной для записи. [Типы ресурсов C++](../src/domain/resources.hpp) · [Начальная схема PostgreSQL](../storage/postgresql/migrations/0001_initial.sql)
+Publishing a new binding and an operation on the desired configuration run in a short transaction within the site. For concurrent changes the registry compares the expected revision and stores the next snapshot together with the application state. A failed application leaves the previous confirmed revision available for recording. [C++ resource types](../src/domain/resources.hpp) · [Initial PostgreSQL schema](../storage/postgresql/migrations/0001_initial.sql)
 
-### Расширения модели для первой поставки
+### Model extensions for the first delivery
 
-| Планируемая сущность | Владелец и инвариант |
+| Planned entity | Owner and invariant |
 | --- | --- |
-| Возможности камеры и привязка к плану | Реестр связывает наблюдаемую возможность с устройством и прошивкой. Положение на плане относится к устойчивой точке, замена камеры сохраняет положение и доступ к истории |
-| Состояние тревоги и история | Ядро хранит переходы, ответственного и версию. Два дежурных не могут одновременно получить ответственность за одну тревогу |
-| Политика хранения | Ядро хранит срок, владелец тома применяет очистку. Повтор после прерывания сохраняет действующие блоки и согласует доступные интервалы с каталогом |
-| Экспорт | Операция связывает полномочия субъекта, точку, интервал, происхождение и проверяемые файлы. Аудит связывает полученный материал с исходным действием |
+| Camera capabilities and plan placement | The registry binds an observed capability to the device and its firmware. A position on a plan belongs to a stable point, and replacing the camera keeps the position and access to the history |
+| Alarm state and history | The core stores the transitions, the owner and the revision. Two operators on duty cannot both take ownership of one alarm |
+| Retention policy | The core stores the term, the volume owner applies the cleanup. A repeat after an interruption keeps the active blocks and reconciles the available intervals with the catalog |
+| Export | The operation binds the permissions of the subject, the point, the interval, the origin and the verifiable files. The audit links the obtained material to the original action |
 
-Схемы и контракты этих сущностей вводятся вместе с соответствующими операциями и тестами миграций.
+The schemas and contracts of these entities are introduced together with the corresponding operations and migration tests.
 
-## Время и интервалы
+## Time and intervals
 
-Нормализованное время и время приёма хранятся в UTC как знаковые целые числа микросекунд от эпохи Unix. Исходная отметка сохраняется отдельно в единицах микросекунд часов источника. Она может отсутствовать у источника, который её не передаёт. Для времени источника применяются две модели.
+Normalized time and receive time are stored in UTC as signed integer microseconds since the Unix epoch. The original timestamp is stored separately in microseconds of the source clock. It can be missing for a source that does not send it. Two models apply to source time.
 
-| Основание времени | Правило и данные |
+| Time basis | Rule and data |
 | --- | --- |
-| `source_clock` | UTC вычисляется из пары опорных отметок как опорное UTC плюс разность исходных отметок. Сохраняются исходная отметка, UUID эпохи часов и неотрицательная оценка неопределённости в микросекундах |
-| `reception` | За нормализованное UTC принимается время приёма. Переданная исходная отметка сохраняется. Оценка неопределённости и UUID эпохи отсутствуют |
+| `source_clock` | UTC is computed from a pair of reference timestamps as the reference UTC plus the difference of the original timestamps. The original timestamp, the UUID of the clock epoch and a non-negative uncertainty estimate in microseconds are stored |
+| `reception` | The receive time is taken as the normalized UTC. A transmitted original timestamp is kept. There is no uncertainty estimate and no epoch UUID |
 
-Новая привязка часов получает другую эпоху при скачке часов или переподключении, которое нарушило привязку. Модель проверяет переполнение при проекции. Интервалы записи и пропуска полуоткрытые `[начало, конец)`, что позволяет соседним интервалам иметь общую границу. Известный пропуск несёт причину и версию привязки. Запись с оценочным временем остаётся записью с собственной пометкой достоверности. [Модель времени C++](../src/domain/time.hpp) · [Тестовые векторы](../tests/domain/model.cpp)
+A new clock binding gets another epoch after a clock jump or a reconnection that broke the binding. The model checks for overflow in the projection. Recording and gap intervals are half-open `[begin, end)`, which lets neighboring intervals share a boundary. A known gap carries a reason and a binding revision. A recording with estimated time remains a recording with its own reliability mark. [C++ time model](../src/domain/time.hpp) · [Test vectors](../tests/domain/model.cpp)
 
-## Блок архива и наблюдение
+## Archive block and observation
 
-Ключ блока включает площадку, UUID блока, эпоху записи и поколение назначения. Эпоха записи отделяет назначения после восстановления. Эпоха часов описывает шкалу времени камеры. Фиксация использует следующий порядок.
+The block key includes the site, the block UUID, the recording epoch and the assignment generation. The recording epoch separates assignments after a recovery. The clock epoch describes the time scale of the camera. The commit follows this order.
 
-1. Узел публикует завершённый каталог блока с медиа и манифестом на локальном томе.
-2. Локальная транзакция SQLite сохраняет идентификатор, манифест, относительный каталог и время фиксации. Поле регистрации остаётся пустым до подтверждения каталога.
-3. Регистрация в PostgreSQL вставляет манифест только при новом ключе. При пустом результате записи следующий SQL-оператор читает манифест по этому ключу. Равный манифест подтверждает повтор, изменившийся даёт конфликт. В режиме Read Committed чтение отдельным оператором видит запись, завершённую конкурентной транзакцией после начала вставки.
-4. После подтверждённой транзакции каталога узел отмечает локальную регистрацию. При сбое между подтверждением и отметкой повтор использует тот же ключ.
+1. The node publishes the completed block directory with the media and the manifest on the local volume.
+2. A local SQLite transaction stores the identifier, the manifest, the relative directory and the commit time. The registration field stays empty until the catalog acknowledges.
+3. Registration in PostgreSQL inserts the manifest only for a new key. When the write result is empty, the next SQL statement reads the manifest by this key. An equal manifest confirms a repeat, a changed one gives a conflict. In Read Committed mode a read by a separate statement sees a row committed by a concurrent transaction after the insert started.
+4. After the catalog transaction is acknowledged, the node marks the local registration. On a failure between the acknowledgement and the mark, a repeat uses the same key.
 
-Каталог сохраняет происхождение блока через составные внешние ключи. Они связывают площадку, точку, версию привязки, устройство, канал и профиль. Запросы по точке используют производные колонки манифеста. Журнал узла хранится в SQLite с WAL. Записывающий процесс задаёт режим синхронизации FULL для каждого соединения. [Вставка блока](../storage/postgresql/insert-block.sql) · [Чтение манифеста](../storage/postgresql/read-block-manifest.sql) · [Схема SQLite](../storage/sqlite/migrations/0001_initial.sql) · [Изоляция PostgreSQL](https://www.postgresql.org/docs/17/transaction-iso.html)
+The catalog keeps the origin of a block through composite foreign keys. They link the site, the point, the binding revision, the device, the channel and the profile. Queries by point use derived columns of the manifest. The node journal is stored in SQLite with WAL. The writing process sets the FULL synchronous mode for each connection. [Block insert](../storage/postgresql/insert-block.sql) · [Manifest read](../storage/postgresql/read-block-manifest.sql) · [SQLite schema](../storage/sqlite/migrations/0001_initial.sql) · [PostgreSQL isolation](https://www.postgresql.org/docs/17/transaction-iso.html)
 
-Ключ наблюдения включает площадку, источник и устойчивый UUID наблюдения. Повтор сохраняет исходные отметки и первый приём. Новое наблюдение получает собственную версию типа, происхождение, атрибуты и при наличии ссылку на версию привязки. Подтверждение источнику следует после устойчивой вставки. Публикация связанных событий использует ту же транзакцию изменения прикладного состояния. [События и команды](architecture.md#6-события-реакции-и-команды)
+The observation key includes the site, the source and a stable observation UUID. A repeat keeps the original timestamps and the first acceptance. A new observation gets its own type revision, origin, attributes and, when present, a reference to the binding revision. The acknowledgement to the source follows the durable insert. The publication of related events uses the same transaction that changes the application state. [Events and commands](architecture.md#6-events-reactions-and-commands)
 
-## Запись и сверка на томе
+## Recording and reconciliation on the volume
 
-Узел получает из применённого снимка UUID канала и основного профиля и ревизию привязки точки. Миграция каталога повторно ставит существующие назначения на доставку. До получения этих полей узел может восстановить приём из старого снимка. Архивная запись начинается с первого ключевого кадра, для которого известна привязка.
+The node gets the UUIDs of the channel and the main profile and the point binding revision from the applied snapshot. The catalog migration queues the existing assignments for delivery again. Until these fields arrive, the node can restore intake from the old snapshot. Archive recording starts at the first keyframe for which the binding is known.
 
-Один блок начинается с ключевого кадра H.264. Следующий ключевой кадр открывает новый блок. GStreamer упаковывает исходные единицы доступа в `media.mp4` с инициализацией, фрагментами и индексом произвольного доступа. Начало блока использует оценку UTC первого кадра, конец учитывает относительные PTS и длительности записанных кадров. Основание оценки времени и неопределённость первого кадра входят в манифест. На одну группу кадров установлены пределы 32 МиБ, 900 кадров и 15 с. При достижении предела узел завершает накопленный блок и ожидает ключевой кадр. [Упаковка MP4 в GStreamer](https://gstreamer.freedesktop.org/documentation/isomp4/mp4mux.html)
+A block starts with an H.264 keyframe. The next keyframe opens a new block. The node's own writer packs the original access units without re-encoding into `media.mp4` with the initialization, fragments and a random access index. The start of a block uses the UTC estimate of the first frame, the end takes into account the relative PTS and the durations of the recorded frames. The time estimate basis and the uncertainty of the first frame are part of the manifest. One group of pictures is limited to 32 MiB, 900 frames and 15 s. When a limit is reached, the node completes the accumulated block and waits for a keyframe. [Archive format](archive-format.md)
 
-Владелец удерживает исключительную блокировку `flock` каталога тома. Журнал хранит площадку, узел и эпоху тома. Каждый успешный захват увеличивает поколение владельца. На локальной Linux-файловой системе узел синхронизирует медиа и манифест, затем временный каталог, публикует его переименованием в пределах тома и синхронизирует родительский каталог. После этого SQLite в режиме WAL и FULL фиксирует запись. [Реализация тома](../src/archive/volume.cpp)
+The owner holds an exclusive `flock` lock on the volume directory. The journal stores the site, the node and the volume epoch. Each successful acquisition increases the owner generation. On a local Linux file system the node syncs the media and the manifest, then the temporary directory, publishes it by a rename within the volume and syncs the parent directory. After that SQLite in WAL and FULL mode commits the record. [Volume implementation](../src/archive/volume.cpp)
 
-При запуске узел сверяет размеры, структуру fMP4, SHA-256, идентификаторы и сохранённый манифест. Опубликованный проверенный блок, для которого отсутствует локальная строка, восстанавливается в журнале. Каталоги `.partial-*` остаются вне каталога записей и отмечаются в диагностике. Для ранее известного блока узел передаёт причину `missing` или `corrupt`. После подтверждения ядром представление временной шкалы показывает для его интервала пропуск `storage_failure`. Возвращённый на место исправный блок проходит ту же сверку при следующем запуске.
+At startup the node checks the sizes, the fMP4 structure, the SHA-256, the identifiers and the stored manifest. A published verified block without a local row is restored in the journal. `.partial-*` directories stay outside the recording catalog and are reported in diagnostics. For a previously known block the node reports the reason `missing` or `corrupt`. After the core acknowledges, the timeline view shows a `storage_failure` gap for its interval. A healthy block put back passes the same reconciliation at the next start.
 
-Узел отправляет по одному манифесту из SQLite через отдельный Unix-сокет ядра. Дедлайн вызова - 3 с, задержка повторов растёт от 1 до 30 с. При отставании очередь остаётся на диске. Подтверждение фиксируется после транзакции PostgreSQL. Повтор сверяет исходный манифест целиком. Конфликт получает локальный статус `catalog_rejected`, после чего узел продолжает обработку следующих блоков. Поколение проверки защищает состояние доступности от запоздалого сообщения предыдущего владельца.
+The node sends one manifest at a time from SQLite through a separate Unix socket of the core. The call deadline is 3 s, the retry delay grows from 1 to 30 s. When the node lags behind, the queue stays on disk. The acknowledgement is recorded after the PostgreSQL transaction. A repeat compares the whole original manifest. A conflict gets the local status `catalog_rejected`, after which the node continues with the next blocks. The verification generation protects the availability state from a late message of the previous owner.
 
-## Формат манифеста и изменения схем
+## Manifest format and schema changes
 
-Манифест описывает идентичность блока, источник, полуоткрытый UTC-интервал, привязку времени и метаданные `media.mp4`. Медиа содержит данные инициализации и индекс блока fMP4. В манифесте указываются размер, SHA-256 и параметры дорожек. Идентификаторы записываются строчными UUID, целочисленные значения - десятичными целыми числами. Схема JSON задаёт структуру и диапазоны полей. Порядок границ и соответствие времени приёма проверяют доменная модель и каталог.
+The manifest describes the block identity, the source, a half-open UTC interval, the time binding and the metadata of `media.mp4`. The media contains the initialization data and the fMP4 block index. The manifest gives the size, the SHA-256 and the track parameters. Identifiers are written as lowercase UUIDs, integer values as decimal integers. The JSON schema defines the structure and the ranges of the fields. The domain model and the catalog check the order of the bounds and the consistency of the receive time.
 
-Версия манифеста определяет формат файла независимо от версии схемы базы. При добавлении нового формата чтение сохранённых блоков использует их версию манифеста. Новая миграция базы получает следующий номер и проверяется на предыдущей поддерживаемой схеме с данными. [JSON Schema манифеста](../storage/archive/block-manifest-v1.schema.json) · [Пример](../tests/schema/block-manifest-v1.json)
+The manifest version defines the file format independently of the database schema version. When a new format is added, reading stored blocks uses their manifest version. A new database migration gets the next number and is checked on the previous supported schema with data. [Manifest JSON Schema](../storage/archive/block-manifest-v1.schema.json) · [Example](../tests/schema/block-manifest-v1.json)
 
-`task schema:check` проверяет манифест и начальные схемы, затем применяет миграции PostgreSQL и SQLite. Проверка подтверждает повторную доставку существующего назначения и сохранение подтверждения ранее зарегистрированного блока. Она входит в `task check`.
+`task schema:check` checks the manifest and the initial schemas, then applies the PostgreSQL and SQLite migrations. The check confirms the repeated delivery of an existing assignment and that the acknowledgement of a previously registered block is kept. It is part of `task check`.

@@ -59,7 +59,7 @@ void exchange(GstElement* rtc)
     Handle<gchar, g_free> text{gst_sdp_message_as_text(local->sdp)};
     Handle<gchar, g_free> encoded{
         g_base64_encode(reinterpret_cast<const guchar*>(text.get()), std::char_traits<char>::length(text.get()))};
-    std::cout << encoded.get() << std::endl;
+    std::cout << encoded.get() << '\n';
     std::string line;
     if (!std::getline(std::cin, line) || line.size() > 131072)
         throw std::runtime_error("Missing SDP answer");
@@ -94,6 +94,9 @@ try {
         return 1;
     struct Stop {
         GstElement* pipeline;
+        explicit Stop(GstElement* element) : pipeline{element} {}
+        Stop(const Stop&) = delete;
+        Stop& operator=(const Stop&) = delete;
         ~Stop()
         {
             gst_element_set_state(pipeline, GST_STATE_NULL);
@@ -114,9 +117,9 @@ try {
     int width{}, height{};
     if (!gst_structure_get_int(video, "width", &width) || !gst_structure_get_int(video, "height", &height))
         return 1;
-    std::cout << width << " " << height << std::endl;
+    std::cout << width << " " << height << '\n';
     return 0;
 } catch (const std::exception& error) {
-    std::cerr << error.what() << std::endl;
+    std::cerr << error.what() << '\n';
     return 1;
 }

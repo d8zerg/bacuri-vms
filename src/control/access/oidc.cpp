@@ -84,8 +84,9 @@ Json fetch(const std::string& url, const std::string& fields = {})
     curl_easy_setopt(c, CURLOPT_TIMEOUT_MS, 2500L);
     curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, collect);
     curl_easy_setopt(c, CURLOPT_WRITEDATA, &body);
-    if (auto* ca = std::getenv("BACURI_OIDC_CA_FILE"))
-        curl_easy_setopt(c, CURLOPT_CAINFO, ca);
+    const auto ca = optional_setting("BACURI_OIDC_CA_FILE");
+    if (ca)
+        curl_easy_setopt(c, CURLOPT_CAINFO, ca->c_str());
     if (!fields.empty())
         curl_easy_setopt(c, CURLOPT_POSTFIELDS, fields.c_str());
     if (curl_easy_perform(c) != CURLE_OK)
@@ -158,8 +159,7 @@ Json claims(const Provider& config, const std::string& jwt)
     auto result = parse(text.substr(a + 1, b - a - 1));
     auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     auto aud = result.at("aud");
-    valid((aud == config.client ||
-           (aud.is_array() && std::find(aud.begin(), aud.end(), Json(config.client)) != aud.end())) &&
+    valid((aud == config.client || (aud.is_array() && std::ranges::find(aud, Json(config.client)) != aud.end())) &&
           (aud.size() <= 1 || result.contains("azp")) && result.value("azp", config.client) == config.client &&
           result.value("iss", "") == config.issuer && result.at("exp").get<long long>() > now &&
           result.at("iat").get<long long>() <= now + 5 && result.value("nbf", 0LL) <= now + 5 &&
@@ -342,10 +342,10 @@ void Sessions::corporate(const Request& req, Response& res, std::string_view pat
 
 namespace access
 {
-void refresh_identities(std::stop_token stop, const Key& key)
+void refresh_identities(const std::stop_token& stop, const Key& key)
 {
     while (!stop.stop_requested()) {
-        bool wait_before_retry;
+        bool wait_before_retry = false;
         try {
             Database db;
             db.exec("BEGIN");

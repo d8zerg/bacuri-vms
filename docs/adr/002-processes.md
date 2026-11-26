@@ -1,15 +1,17 @@
-# ADR-002. Границы процессов компактной площадки
+# ADR-002. Process boundaries of a compact site
 
-**Статус** - Принято.
+[Русская версия](../ru/adr/002-processes.md)
 
-**Контекст.** Одна камера обслуживает запись и просмотр. Зритель может перестать читать, а ядро управления может перезапуститься в момент записи.
+**Status** - Accepted.
 
-**Варианты.** Все операции в одном процессе, отдельная служба на каждую прикладную функцию, модульное ядро и отдельные процессы записи и выдачи.
+**Context.** One camera serves recording and viewing. A viewer may stop reading, and the control core may restart during recording.
 
-**Решение.** Ядро владеет правами, конфигурацией, каталогом и тревогами в PostgreSQL. Процесс записи владеет RTSP-сеансами, последней применённой конфигурацией и локальным томом. Процесс выдачи владеет соединениями зрителей и лимитами выдачи. Границы управления задаёт gRPC, у потребителей медиа отдельные ограниченные очереди.
+**Options.** All operations in one process, a separate service for each application function, or a modular core with separate recording and delivery processes.
 
-**Основания.** Разделение по режимам отказа позволяет остановить выдачу, сохраняя непрерывность записи. Ядро может атомарно зафиксировать наблюдение, тревогу и публикацию для ленты.
+**Decision.** The core owns permissions, configuration, the catalog and alarms in PostgreSQL. The recording process owns the RTSP sessions, the last applied configuration and the local volume. The delivery process owns the viewer connections and the delivery limits. gRPC sets the control boundaries, and media consumers have separate bounded queues.
 
-**Последствия.** Требуются доставка версий, диагностика отставания и повторное соединение после перезапуска. Доступность всех трёх процессов зависит от одного хоста.
+**Rationale.** Separation by failure mode lets delivery stop while recording continues. The core can commit an observation, an alarm and the feed publication atomically.
 
-**Проверка и пересмотр.** Для требований «Архитектура» и «Эксплуатация» остановить ядро, замедлить зрителя и перезапустить выдачу, сверить блоки с контролем и глубину очередей. Пересмотреть при дополнительных разрывах на исправном источнике и томе, исчерпании бюджета ядра или распределении ролей по узлам. [Контракты сценариев](../architecture.md#контракты-сценариев-площадки) · [Требования](../quality.md#требования-к-приёмке)
+**Consequences.** Revision delivery, lag diagnostics and reconnection after a restart are needed. The availability of all three processes depends on one host.
+
+**Verification and review.** For the "Architecture" and "Operation" requirements, stop the core, slow down a viewer and restart delivery, then compare the blocks with the control recording and check the queue depths. Review when there are additional breaks with a healthy source and volume, when the core budget is exhausted, or when roles are distributed over nodes. [Scenario contracts](../architecture.md#site-scenario-contracts) · [Requirements](../quality.md#acceptance-requirements)

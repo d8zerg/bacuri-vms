@@ -1,3 +1,4 @@
+#include "domain/archive.hpp"
 #include "control/inventory/registry.hpp"
 #include "control/access/operations.hpp"
 #include "control/recordings/operations.hpp"
@@ -61,15 +62,18 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
             auto start = sound.at("start_us").get<std::int64_t>(),
                  size = sound.at("size_bytes").get<std::int64_t>();
             auto cursor = std::max(at, start);
-            auto offset = (cursor - start + 124) / 125 * 2;
-            auto length = std::min({std::int64_t{16000}, size - offset, (at + 1000000 - cursor) / 125 * 2});
+            using Pcm = domain::ArchiveSound;
+            auto offset =
+                (cursor - start + Pcm::sample_period_us - 1) / Pcm::sample_period_us * Pcm::bytes_per_sample;
+            auto length = std::min({Pcm::max_chunk_bytes, size - offset,
+                                    (at + 1'000'000 - cursor) / Pcm::sample_period_us * Pcm::bytes_per_sample});
             if (length <= 0)
                 continue;
             q.set_block_id(m.at("block_id").get<std::string>());
             q.set_sha256(sound.at("sha256").get<std::string>());
             q.set_at_us(offset);
-            q.set_length(length);
-            at = start + offset / 2 * 125;
+            q.set_length(static_cast<std::uint32_t>(length));
+            at = start + offset / Pcm::bytes_per_sample * Pcm::sample_period_us;
             break;
         }
         if (q.block_id().empty())
@@ -139,7 +143,7 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
                                               role == "administrator" ? "true" : "false"});
                 if (!acquired.size() || acquired.get(0) == "0")
                     throw Failure{409, "camera_ptz_busy"};
-                q.set_talk_ttl_ms(std::stoi(acquired.get(0)));
+                q.set_talk_ttl_ms(static_cast<std::uint32_t>(std::stoul(acquired.get(0))));
             }
         }
     }

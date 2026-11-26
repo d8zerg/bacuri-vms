@@ -1,4 +1,4 @@
-#include "archive/evidence.hpp"
+#include "archive/verify.hpp"
 #include <sodium.h>
 #include <fstream>
 #include <iostream>

@@ -177,7 +177,10 @@ struct CameraClient {
         auto uri = https_uri(url);
         if (g_ascii_strcasecmp(host.c_str(), g_uri_get_host(uri.get())))
             throw Failure{422, "camera_transport_denied"};
-        const int port = g_uri_get_port(uri.get()) < 0 ? 443 : g_uri_get_port(uri.get());
+        const int declared = g_uri_get_port(uri.get());
+        if (declared > 65535)
+            throw Failure{422, "camera_transport_denied"};
+        const auto port = static_cast<guint16>(declared < 0 ? 443 : declared);
         Object<GSocketClient> client{g_socket_client_new(), g_object_unref};
         g_socket_client_set_enable_proxy(client.get(), false);
         g_socket_client_set_timeout(client.get(), 3);
@@ -190,8 +193,10 @@ struct CameraClient {
                               g_object_unref};
         if (!tls)
             throw Failure{502, "camera_tls_error"};
-        const char* path = g_getenv("BACURI_CAMERA_CA_FILE");
-        if (path && *path) {
+        // The certificate handler reads the path during the handshake, so the string outlives it.
+        const auto trust = optional_setting("BACURI_CAMERA_CA_FILE");
+        if (trust) {
+            const char* path = trust->c_str();
             Object<GTlsDatabase> ca{g_tls_file_database_new(path, nullptr), g_object_unref};
             if (!ca)
                 throw Failure{502, "camera_tls_error"};
@@ -271,7 +276,7 @@ struct CameraClient {
                     throw Failure{502, "camera_protocol_error"};
                 break;
             }
-            buffer.commit(count);
+            buffer.commit(static_cast<std::size_t>(count));
             buffer.consume(parser.put(buffer.data(), ec));
             if (ec && ec != http::error::need_more)
                 throw Failure{502, "camera_protocol_error"};
@@ -314,7 +319,7 @@ double seconds(const std::string& duration)
 {
     // ONVIF timeouts are XSD durations. Only a fixed length is meaningful for movement.
     std::unique_ptr<GRegex, decltype(&g_regex_unref)> pattern{
-        g_regex_new("^PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+(?:\\.\\d+)?)S)?$", G_REGEX_DEFAULT, G_REGEX_MATCH_DEFAULT,
+        g_regex_new(R"(^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$)", G_REGEX_DEFAULT, G_REGEX_MATCH_DEFAULT,
                     nullptr),
         g_regex_unref};
     GMatchInfo* info{};
@@ -524,7 +529,8 @@ Json discover_onvif(const CameraNetworks& networks, const Key& key, const std::s
         if (!networks.contains(ip.get()))
             continue;
         try {
-            matches(found, seen, parse(std::string(buffer.data(), n)), mid, key, site, ip.get());
+            matches(found, seen, parse(std::string(buffer.data(), static_cast<std::size_t>(n))), mid, key, site,
+                    ip.get());
         } catch (const Failure&) {
             continue;
         }
@@ -573,8 +579,8 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
                 continue;
             const auto ns = value(child(item, device, "Namespace")), address = value(child(item, device, "XAddr"));
             if (ns == media2 && address.starts_with("https://")) {
-                auto uri = https_uri(address);
-                if (!g_ascii_strcasecmp(client.host.c_str(), g_uri_get_host(uri.get())))
+                auto endpoint = https_uri(address);
+                if (!g_ascii_strcasecmp(client.host.c_str(), g_uri_get_host(endpoint.get())))
                     service = {address, media2};
             }
             if (ns == device_io) {
@@ -1028,7 +1034,8 @@ Json read_camera_controls(const CameraNetworks& networks, const Json& control, c
     auto client = control_client(networks, control, credentials);
     client.deadline = Clock::now() + 12s;
     Json actions = Json::array(), inputs = Json::array();
-    auto add = [&](std::string_view command, const std::string& target = {}, std::string title = {}) -> Json& {
+    auto add = [&](std::string_view command, const std::string& target = {},
+                   const std::string& title = {}) -> Json& {
         return actions.emplace_back(
             Json{{"command", command}, {"target", target}, {"label", title.empty() ? target : title}});
     };
@@ -1350,7 +1357,7 @@ std::optional<MotionNotice> motion_notice(xmlNode* notification, const Json& con
 }
 } // namespace
 
-void read_motion(std::stop_token stop, const CameraNetworks& networks, const Json& control,
+void read_motion(const std::stop_token& stop, const CameraNetworks& networks, const Json& control,
                  const Json& credentials, const std::function<void(const MotionNotice&)>& accept)
 {
     auto client = control_client(networks, control, credentials);

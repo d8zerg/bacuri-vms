@@ -9,6 +9,7 @@ import {
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { MapScene, Point, Placement } from "../contracts/workspace";
+import { useT } from "../i18n";
 
 type View = { lng: number; lat: number; zoom: number };
 type Overlay = { image: string; corners: number[][]; opacity: number };
@@ -143,6 +144,7 @@ function RegionPin({
   );
 }
 export default function RegionMap(props: Props) {
+  const t = useT();
   const [fitInitially] = useState(!!props.fitOverlay);
   const host = useRef<HTMLDivElement>(null),
     latest = useRef(props);
@@ -165,9 +167,9 @@ export default function RegionMap(props: Props) {
         style,
         attributionControl: false,
         locale: {
-          "NavigationControl.ZoomIn": "Увеличить масштаб",
-          "NavigationControl.ZoomOut": "Уменьшить масштаб",
-          "Map.Title": "Карта региона",
+          "NavigationControl.ZoomIn": t("map.zoomIn"),
+          "NavigationControl.ZoomOut": t("map.zoomOut"),
+          "Map.Title": t("map.region"),
         },
         renderWorldCopies: false,
         ...(view
@@ -213,14 +215,14 @@ export default function RegionMap(props: Props) {
     });
     setMap(instance);
     return () => instance.remove();
-  }, [style]);
+  }, [style, t]);
   return (
     <>
       <div
         className="ws-region"
         ref={host}
         role="region"
-        aria-label="Карта региона"
+        aria-label={t("map.region")}
       />
       {map && map === loadedMap && props.overlay && (
         <ImageOverlay
@@ -251,12 +253,7 @@ export default function RegionMap(props: Props) {
             )
           );
         })}
-      {failed && (
-        <p role="status">
-          Не удалось отобразить карту региона. Координаты точек доступны в
-          списке.
-        </p>
-      )}
+      {failed && <p role="status">{t("map.regionFailed")}</p>}
     </>
   );
 }

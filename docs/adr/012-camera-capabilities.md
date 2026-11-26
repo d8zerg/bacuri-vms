@@ -1,19 +1,21 @@
-# ADR-012. Подключение и управление камерой по её возможностям
+# ADR-012. Connecting and controlling a camera by its capabilities
 
-**Статус** - Принято.
+[Русская версия](../ru/adr/012-camera-capabilities.md)
 
-**Контекст.** Администратору нужно найти устройство и подтвердить запись. Оператору нужны команды и события, доступные для установленной модели и прошивки. Адрес видеопотока сам по себе этих сведений не даёт.
+**Status** - Accepted.
 
-**Варианты.** Настраивать устройство по двум адресам RTSP, поддерживать отдельный мастер для каждого изготовителя либо применять общий адаптер ONVIF с учётом возможностей устройства и вводом RTSP по адресу.
+**Context.** The administrator needs to find a device and confirm the recording. The operator needs the commands and events available for the installed model and firmware. A video stream address alone does not give this information.
 
-**Решение.** Мастер обнаруживает устройство в разрешённом сегменте, получает возможности и профили, привязывает камеру к точке и проверяет запись по декодированному кадру. Ввод по RTSP доступен для известного адреса. Для функций PTZ и событий адаптер использует заявленную возможность и результат испытаний соответствующей прошивки. Смена устройства создаёт новую привязку той же точки с сохранением прежнего архива.
+**Options.** Configure a device by two RTSP addresses, maintain a separate wizard for each manufacturer, or use a common ONVIF adapter that takes the device capabilities into account, with RTSP entry by address.
 
-**Политика транспорта камер.** После обнаружения мастер проверяет сертификат и имя устройства до отправки учётных данных. Для защищённого профиля команды ONVIF идут по HTTPS, видео - по проверенному зашифрованному медиаканалу, например RTSPS с передачей RTP внутри TLS. Та же политика действует при вводе адреса вручную и при переподключении. Ошибка доверия останавливает подключение и видна администратору. Автоматический переход на открытый канал запрещён.
+**Decision.** The wizard discovers a device in a permitted segment, obtains its capabilities and profiles, binds the camera to a point and checks the recording by a decoded frame. RTSP entry is available for a known address. For PTZ functions and events, the adapter uses the declared capability and the test result of the corresponding firmware. Replacing a device creates a new binding of the same point and keeps the previous archive.
 
-Для совместимости со старой камерой администратор может явно разрешить открытый RTSP для её адреса в выделенном сегменте. Исключение действует только в указанной области, изменение фиксируется в аудите. Это сохраняет возможность записи с устаревшей модели ценой открытой передачи видео внутри сегмента. При смене камеры или появлении поддерживаемого защищённого режима исключение пересматривается. [Критерии безопасности](../quality.md#безопасность-релиз-кандидата)
+**Camera transport policy.** After discovery, the wizard checks the certificate and the name of the device before sending credentials. For the protected profile, ONVIF commands go over HTTPS and video over a verified encrypted media channel, for example RTSPS with RTP carried inside TLS. The same policy applies to manual address entry and to reconnection. A trust error stops the connection and is visible to the administrator. Automatic fallback to an open channel is forbidden.
 
-**Основания.** Общая модель сохраняет один маршрут ввода и позволяет скрывать недоступные действия. Ориентир для H.264, событий движения и PTZ - соответствующие функции Profile T. Фактическую совместимость подтверждает протокол площадки. Официальное соответствие профилю сверяется по продукту и версии в реестре ONVIF. [Profile T](https://www.onvif.org/profiles/profile-t/) · [Реестр ONVIF](https://www.onvif.org/conformant-products/)
+For compatibility with an old camera, the administrator can explicitly allow open RTSP for its address in a dedicated segment. The exception applies only in the given scope, and the change is recorded in the audit. This keeps recording from an outdated model possible at the cost of open video transmission within the segment. The exception is reviewed when the camera is replaced or a supported protected mode appears. [Security criteria](../quality.md#release-candidate-security)
 
-**Последствия.** Для каждой заявленной функции нужна строка испытаний оборудования. При вводе только по адресу доступность записи устанавливается отдельно от поддержки команд и событий. Смена прошивки требует повторного прогона.
+**Rationale.** A common model keeps one input route and lets unavailable actions be hidden. The reference for H.264, motion events and PTZ is the corresponding Profile T functions. The site protocol confirms the actual compatibility. Official profile conformance is checked by product and version in the ONVIF registry. [Profile T](https://www.onvif.org/profiles/profile-t/) · [ONVIF registry](https://www.onvif.org/conformant-products/)
 
-**Проверка и пересмотр.** Автоматически проверить обнаружение, неверные реквизиты, повтор, замену, воспроизведение, фактический результат PTZ и событие движения до правильного архивного кадра. Пересмотреть решение при расширении медиапрофиля или появлении обязательной функции, которую общий адаптер не обеспечивает. [Требования](../quality.md#сценарии-первой-поставки) · [Матрица камер](../rtsp-compatibility.md)
+**Consequences.** Each declared function needs a row of hardware tests. With entry by address only, recording availability is established separately from command and event support. A firmware change requires a repeated pass.
+
+**Verification and review.** Automatically check discovery, wrong credentials, a repeat, a replacement, playback, the actual PTZ result and a motion event up to the correct archive frame. Review the decision when the media profile grows or a mandatory function appears that the common adapter does not provide. [Requirements](../quality.md#first-delivery-scenarios) · [Camera matrix](../rtsp-compatibility.md)

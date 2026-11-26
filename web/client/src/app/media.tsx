@@ -9,19 +9,25 @@ import type {
   AlertLink,
 } from "../contracts/workspace";
 import { MediaPanel } from "../ui-kit/MediaPanel";
+import { t, type MessageKey } from "../i18n";
 import type { PlayerState } from "../ui-kit/MediaPanel";
 import type { ComponentProps } from "react";
 import type { TimelineEntry } from "../ui-kit/ArchiveTimeline";
 
-export const reasons: Record<string, string> = {
-  source_offline: "Нет связи с камерой",
-  storage_failure: "Ошибка хранения",
-  overload: "Перегрузка",
-  media_offline: "Том недоступен",
-  unknown_coverage: "Нет сведений",
-  outside_retention: "Истёк срок хранения",
-  corrupt: "Запись повреждена",
+const reasonKeys: Record<string, MessageKey> = {
+  source_offline: "gap.sourceOffline",
+  storage_failure: "gap.storageFailure",
+  overload: "gap.overload",
+  keyframe_interval: "gap.keyframeInterval",
+  media_offline: "gap.mediaOffline",
+  unknown_coverage: "gap.unknown",
+  outside_retention: "gap.outsideRetention",
+  corrupt: "gap.corrupt",
 };
+// The name of a gap or unavailability reason reported by the archive.
+export function reasonLabel(reason: string) {
+  return t(reasonKeys[reason] ?? "gap.unknown");
+}
 export function timelineEntry(entry: Entry): TimelineEntry {
   const bounds = {
     startMs: milliseconds(entry.interval.start),
@@ -33,7 +39,7 @@ export function timelineEntry(entry: Entry): TimelineEntry {
       return {
         ...bounds,
         kind: entry.state,
-        reason: reasons[entry.reason] ?? "Нет сведений",
+        reason: reasonLabel(entry.reason),
       };
     case "pending_catalog":
       return { ...bounds, kind: "pending" };
@@ -58,26 +64,33 @@ export function windowAround(at: number): Interval {
 export function alertArchiveNotice(link: AlertLink) {
   switch (link.state) {
     case "ready":
-      return "Запись доступна";
+      return t("record.available");
     case "uncertain_time":
-      return "Нельзя точно сопоставить время тревоги с записью";
+      return t("record.uncertainTime");
     case "pending_catalog":
-      return "Запись добавляется в каталог";
+      return t("record.pending");
     case "gap":
-      return "Пропуск записи. " + (reasons[link.reason] ?? "Нет сведений");
+      return t("record.gapWithReason", { reason: reasonLabel(link.reason) });
     case "unavailable":
-      return "Запись недоступна. " + (reasons[link.reason] ?? "Нет сведений");
+      return t("record.unavailableWithReason", {
+        reason: reasonLabel(link.reason),
+      });
   }
 }
 
 export function detail(entry: Entry | undefined) {
-  if (!entry) return "Нет сведений о записи";
-  if (entry.state === "pending_catalog") return "Запись добавляется в каталог";
-  if (entry.state === "recorded") return "Запись доступна";
+  if (!entry) return t("record.unknown");
+  if (entry.state === "pending_catalog") return t("record.pending");
+  if (entry.state === "recorded") return t("record.available");
   return (
-    (entry.state === "gap" ? "Пропуск записи" : "Запись недоступна") +
-    ". " +
-    (reasons[entry.reason] ?? "Нет сведений") +
+    t(
+      entry.state === "gap"
+        ? "record.gapWithReason"
+        : "record.unavailableWithReason",
+      {
+        reason: reasonLabel(entry.reason),
+      },
+    ) +
     " · " +
     formatUtc(entry.interval.start) +
     " - " +
@@ -143,7 +156,7 @@ export function SessionPlayer({
   const state: PlayerState =
     last && last.target === target && last.attempt === attempt
       ? last.state
-      : { kind: "loading", message: "Загрузка видео…" };
+      : { kind: "loading", message: t("video.loading") };
   useEffect(() => {
     const element = video.current;
     if (!target || !element || (live && quality === "auto" && !negotiated))
@@ -160,7 +173,7 @@ export function SessionPlayer({
         onFailure?.();
       }
     };
-    setState({ kind: "loading", message: "Загрузка видео…" });
+    setState({ kind: "loading", message: t("video.loading") });
     void services
       .attach(
         element,
@@ -182,11 +195,13 @@ export function SessionPlayer({
         setState({
           kind: "ready",
           message:
-            target.mode === "live" ? "Эфир подключён" : "Кадр записи получен",
+            target.mode === "live"
+              ? t("video.liveConnected")
+              : t("video.frameReceived"),
         });
         onFrame?.();
       })
-      .catch(() => fail("Видео недоступно. Повторите подключение."));
+      .catch(() => fail(t("video.unavailable")));
     return () => ctl.abort();
   }, [
     services,

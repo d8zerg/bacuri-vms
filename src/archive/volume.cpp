@@ -2,7 +2,8 @@
 #include "archive/mp4.hpp"
 #include "archive/replica.hpp"
 #include "archive_sql.hpp"
-#include "control/support.hpp"
+#include "platform/identifiers.hpp"
+#include "observability/metrics.hpp"
 
 #include <fcntl.h>
 #include <sodium.h>
@@ -123,20 +124,36 @@ namespace
 {
 std::uintmax_t reserved(const fs::space_info& space, int percent)
 {
-    return space.capacity / 100 * percent + (space.capacity % 100) * percent / 100;
+    const auto share = static_cast<std::uintmax_t>(std::clamp(percent, 0, 100));
+    return space.capacity / 100 * share + (space.capacity % 100) * share / 100;
 }
-const char* capacity_state(int percent, const fs::space_info& space, std::uintmax_t blocked)
+// Free space below the reserve plus this margin is reported before recording stops.
+constexpr int low_space_margin_percent = 5;
+
+CapacityState capacity_state(int percent, const fs::space_info& space, std::uintmax_t blocked)
 {
     const auto floor = reserved(space, percent);
     if (space.available <= floor || space.available - floor < blocked)
+        return CapacityState::recording_stopped;
+    if (space.available <= reserved(space, percent + low_space_margin_percent))
+        return CapacityState::low_space;
+    return CapacityState::normal;
+}
+const char* name(CapacityState state)
+{
+    switch (state) {
+    case CapacityState::recording_stopped:
         return "recording_stopped";
-    if (space.available <= reserved(space, percent + 5))
+    case CapacityState::low_space:
         return "low_space";
+    case CapacityState::normal:
+        break;
+    }
     return "normal";
 }
 } // namespace
 
-Json archive_status(const fs::path& root)
+Json archive_status(const fs::path& root, const std::optional<fs::path>& replica)
 {
     storage::Sqlite db{root / "journal.db", storage::OpenMode::read_only};
     db.exec("BEGIN");
@@ -157,14 +174,13 @@ Json archive_status(const fs::path& root)
                      ? "SELECT -9223372036854775808,0,20,0,0"
                      : "SELECT cutoff_us,days,reserve_percent,removed_blocks,blocked_bytes FROM retention");
     next(policy.get());
-    if (sqlite3_column_int(version.get(), 0) >= 7 && std::getenv("BACURI_ARCHIVE_REPLICA_DIR")) {
+    if (sqlite3_column_int(version.get(), 0) >= 7 && replica) {
         auto copies = db.query("SELECT count(*) FILTER(WHERE verified=1),count(*) FILTER(WHERE verified=0),"
                                "coalesce(max(checked_us),0) FROM replica_checks");
         next(copies.get());
         auto verified = sqlite3_column_int64(copies.get(), 0), failed = sqlite3_column_int64(copies.get(), 1);
-        const char* mount = std::getenv("BACURI_ARCHIVE_REPLICA_DIR");
         std::error_code error;
-        auto status = fs::symlink_status(mount, error);
+        auto status = fs::symlink_status(*replica, error);
         const bool online = !error && fs::is_directory(status);
         result["replica"] = {
             {"verified", verified},
@@ -196,7 +212,7 @@ Json archive_status(const fs::path& root)
     result["capacity_bytes"] = space.capacity;
     result["available_bytes"] = space.available;
     result["reserve_bytes"] = floor;
-    result["state"] = capacity_state(percent, space, blocked);
+    result["state"] = name(capacity_state(percent, space, blocked));
     result["write_bytes_per_second"] = bytes_per_second > 0 ? Json(bytes_per_second) : Json(nullptr);
     const auto depth = bytes_per_second > 0 ? static_cast<double>(usable) / bytes_per_second : 0;
     result["capacity_depth_seconds"] = bytes_per_second > 0 ? Json(depth) : Json(nullptr);
@@ -221,16 +237,18 @@ Volume::Lock::~Lock()
     close(fd);
 }
 
-Volume::Volume(const fs::path& root, Owner owner, const InvalidBlock& invalid)
-    : root_{root}, lock_{root}, db_{root / "journal.db"}, identity_{std::move(owner), {}, 0}
+Volume::Volume(const fs::path& root, Owner owner, VolumeOptions options)
+    : root_{root}, replica_{std::move(options.replica)}, lock_{root}, db_{root / "journal.db"},
+      identity_{std::move(owner), {}, 0}
 {
+    const auto& invalid = options.invalid;
     int version{};
     {
         auto version_query = db_.query("PRAGMA user_version");
         next(version_query.get());
         version = sqlite3_column_int(version_query.get(), 0);
     }
-    if (version < 0 || version > 7) {
+    if (version < 0 || version > 9) {
         throw std::runtime_error("Unsupported archive journal version");
     }
     if (version == 0) {
@@ -251,6 +269,10 @@ Volume::Volume(const fs::path& root, Owner owner, const InvalidBlock& invalid)
         db_.exec(sql::policies);
     if (version < 7)
         db_.exec(sql::holds);
+    if (version < 8)
+        db_.exec(sql::verification);
+    if (version < 9)
+        db_.exec(sql::keyframe_gaps);
     {
         auto saved = db_.query("SELECT payload FROM recording_plan");
         if (next(saved.get()))
@@ -286,27 +308,6 @@ Volume::Volume(const fs::path& root, Owner owner, const InvalidBlock& invalid)
     }
     if (!invalid)
         reap({});
-    // Restore only identities anchored in the durable journal before advertising availability.
-    if (const char* configured = std::getenv("BACURI_ARCHIVE_REPLICA_DIR"); configured && *configured) {
-        auto rows = db_.query("SELECT manifest_json FROM committed_blocks");
-        while (next(rows.get())) {
-            try {
-                auto m = Json::parse(column(rows.get(), 0));
-                validate_manifest(m);
-                auto id = m.at("block_id").get<std::string>();
-                if (m.at("site_id") != identity_.owner.site || m.at("recording_node_id") != identity_.owner.node)
-                    continue;
-                auto primary = root_ / "blocks" / id;
-                if (!verified_copy(primary, m)) {
-                    auto replica = replica_blocks(root_, identity_.owner);
-                    if (replica && verified_copy(*replica / id, m))
-                        restore_copy(*replica / id, m, primary);
-                }
-            } catch (const std::exception&) {
-                std::fputs("Archive copy unavailable during journal reconciliation\n", stderr);
-            }
-        }
-    }
     reconcile(invalid);
     if (invalid && !assigned) {
         auto evidence = db_.query("SELECT 1 FROM committed_blocks WHERE unavailable_reason IS NULL LIMIT 1");
@@ -315,18 +316,30 @@ Volume::Volume(const fs::path& root, Owner owner, const InvalidBlock& invalid)
         }
     }
     // A rebuilt journal can contain manifests from a higher previous generation.
+    const auto opened = identity_.generation;
     auto generation = db_.query("UPDATE volume_owner SET generation=max(generation,1+coalesce("
                                 "(SELECT max(owner_generation) FROM committed_blocks),0)) RETURNING generation");
     next(generation.get());
     identity_.generation = sqlite3_column_int64(generation.get(), 0);
     next(generation.get());
+    generation.reset();
+    if (identity_.generation != opened) {
+        // Directories imported above were verified while this volume was open.
+        auto imported =
+            db_.query("UPDATE committed_blocks SET verified_generation=?1 WHERE verified_generation=?2");
+        sqlite3_bind_int64(imported.get(), 1, identity_.generation);
+        sqlite3_bind_int64(imported.get(), 2, opened);
+        next(imported.get());
+    }
     db_.exec("COMMIT");
 }
 
 void Volume::record(const std::string& relative, const Json& m)
 {
+    // The caller computed the media checksums from the directory being journaled.
     auto save = db_.query("INSERT INTO committed_blocks(site_id,block_id,recording_epoch_id,owner_generation,"
-                          "manifest_json,relative_directory,committed_at_utc_us) VALUES(?,?,?,?,?,?,?)");
+                          "manifest_json,relative_directory,committed_at_utc_us,verified_generation,"
+                          "verified_at_utc_us) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?7)");
     bind_text(save.get(), 1, identity_.owner.site);
     bind_text(save.get(), 2, m.at("block_id"));
     bind_text(save.get(), 3, m.at("recording_epoch_id"));
@@ -334,6 +347,7 @@ void Volume::record(const std::string& relative, const Json& m)
     bind_text(save.get(), 5, m.dump());
     bind_text(save.get(), 6, relative);
     sqlite3_bind_int64(save.get(), 7, now_us());
+    sqlite3_bind_int64(save.get(), 8, identity_.generation);
     next(save.get());
 }
 
@@ -366,7 +380,7 @@ bool Volume::publish(const Block& block, const MediaWriter& write_media, const O
                     continue;
                 if (count <= 0)
                     throw std::runtime_error("Cannot store archive sound");
-                offset += count;
+                offset += static_cast<std::size_t>(count);
             }
             system_check(fsync(audio.fd));
             if (lseek(audio.fd, 0, SEEK_SET) < 0)
@@ -420,7 +434,7 @@ bool Volume::publish(const Block& block, const MediaWriter& write_media, const O
 
 std::string Volume::read_audio(const AudioSlice& slice)
 {
-    if (!control::canonical_id(slice.block) || slice.count > 16000 || slice.offset > 256000)
+    if (!platform::canonical_id(slice.block) || slice.count > 16000 || slice.offset > 256000)
         throw std::invalid_argument("Invalid audio interval");
     auto read = [&](const fs::path& base) {
         File dir{base / slice.block, O_RDONLY | O_DIRECTORY};
@@ -441,7 +455,7 @@ std::string Volume::read_audio(const AudioSlice& slice)
     try {
         return read(root_ / "blocks");
     } catch (const std::exception&) {
-        auto copies = replica_blocks(root_, owner());
+        auto copies = replica_blocks(replica_, root_, owner());
         if (!copies)
             throw;
         return read(*copies);
@@ -459,10 +473,20 @@ void Volume::report_capacity(const fs::space_info& space, std::uintmax_t blocked
 {
     const auto state = capacity_state(reserve_percent_, space, blocked);
     if (state != last_capacity_state_) {
-        std::fprintf(stderr, "archive capacity state=%s available_bytes=%ju reserve_percent=%d\n", state,
+        std::fprintf(stderr, "archive capacity state=%s available_bytes=%ju reserve_percent=%d\n", name(state),
                      space.available, reserve_percent_);
         last_capacity_state_ = state;
     }
+}
+
+CapacityState Volume::capacity() const
+{
+    int percent{};
+    {
+        std::scoped_lock guard{mutex_};
+        percent = reserve_percent_;
+    }
+    return capacity_state(percent, fs::space(root_), 0);
 }
 
 void Volume::require_space(std::uintmax_t expected_bytes, std::uintmax_t staged_bytes)
@@ -497,7 +521,8 @@ void Volume::apply_retention(const RetentionPolicy& policy, const RetirementObse
     reap(observer);
     auto pressure = db_.query("SELECT blocked_bytes FROM retention");
     next(pressure.get());
-    report_capacity(fs::space(root_), sqlite3_column_int64(pressure.get(), 0));
+    report_capacity(fs::space(root_), static_cast<std::uintmax_t>(
+                                          std::max<sqlite3_int64>(0, sqlite3_column_int64(pressure.get(), 0))));
 }
 
 void Volume::update_recording_plan(const std::string& payload)
@@ -575,7 +600,7 @@ void Volume::remember_cutoffs(const std::map<std::string, std::int64_t>& cutoffs
 }
 bool Volume::scrub_copy()
 {
-    auto replica = replica_blocks(root_, owner());
+    auto replica = replica_blocks(replica_, root_, owner());
     if (!replica)
         return false;
     fs::create_directory(*replica);
@@ -590,7 +615,7 @@ bool Volume::scrub_copy()
         if (next(expired.get())) {
             id = column(expired.get(), 0);
             expired.reset();
-            if (!control::canonical_id(id))
+            if (!platform::canonical_id(id))
                 throw std::runtime_error("Invalid expired copy");
             remove_copy(*replica / id);
             auto done = db_.query("DELETE FROM replica_deletions WHERE block_id=?");
@@ -609,7 +634,7 @@ bool Volume::scrub_copy()
         manifest = Json::parse(column(row.get(), 1));
     }
     validate_manifest(manifest);
-    if (!control::canonical_id(id) || manifest.at("block_id") != id)
+    if (!platform::canonical_id(id) || manifest.at("block_id") != id)
         throw std::runtime_error("Invalid archive copy identity");
     auto primary = root_ / "blocks" / id, copy = *replica / id;
     bool local = verified_copy(primary, manifest), remote = verified_copy(copy, manifest);
@@ -621,14 +646,14 @@ bool Volume::scrub_copy()
                 manifest.at("media").at("size_bytes").get<std::uintmax_t>() +
                 (manifest.contains("audio") ? manifest.at("audio").at("size_bytes").get<std::uintmax_t>() : 0) +
                 manifest.dump().size();
-            int percent;
+            int percent = 0;
             {
                 std::scoped_lock guard{mutex_};
                 auto policy = db_.query("SELECT reserve_percent FROM retention");
                 next(policy.get());
                 percent = sqlite3_column_int(policy.get(), 0);
             }
-            if (capacity_state(percent, free, bytes) != std::string_view{"recording_stopped"}) {
+            if (capacity_state(percent, free, bytes) != CapacityState::recording_stopped) {
                 restore_copy(local ? primary : copy, manifest, target);
                 local = remote = true;
             }
@@ -665,7 +690,7 @@ void Volume::reap(const RetirementObserver& observer)
     std::vector<std::string> ids;
     while (next(rows.get())) {
         const auto id = column(rows.get(), 0);
-        if (!control::canonical_id(id) || column(rows.get(), 1) != "blocks/" + id)
+        if (!platform::canonical_id(id) || column(rows.get(), 1) != "blocks/" + id)
             throw std::runtime_error("Invalid archive retirement path");
         ids.push_back(id);
     }
@@ -694,7 +719,7 @@ void Volume::reap(const RetirementObserver& observer)
             auto erase = db_.query("DELETE FROM committed_blocks WHERE relative_directory=?");
             for (const auto& id : ids) {
                 bind_text(queue.get(), 1, id);
-                sqlite3_bind_int(queue.get(), 2, std::getenv("BACURI_ARCHIVE_REPLICA_DIR") != nullptr);
+                sqlite3_bind_int(queue.get(), 2, replica_.has_value());
                 next(queue.get());
                 sqlite3_reset(queue.get());
                 bind_text(clear.get(), 1, id);
@@ -727,33 +752,108 @@ void Volume::journal_published(const Observer& observer)
     }
 }
 
-void Volume::availability(const std::string& relative, const std::string& reason)
+bool Volume::availability(const std::string& relative, const std::string& reason)
 {
+    // A changed verdict is registered again with the current verification generation.
     auto update =
         db_.query("UPDATE committed_blocks SET unavailable_reason=nullif(?2,''),registered_at_utc_us=NULL,"
                   "catalog_error=NULL WHERE relative_directory=?1 AND unavailable_reason IS NOT nullif(?2,'')");
     bind_text(update.get(), 1, relative);
     bind_text(update.get(), 2, reason);
     next(update.get());
+    return db_.changes() > 0;
+}
+
+std::optional<VerificationResult> Volume::verify_next()
+{
+    std::scoped_lock disk{replica_mutex_};
+    std::string relative, journaled;
+    {
+        std::scoped_lock guard{mutex_};
+        // Blocks that may have been repaired come first, then blocks not verified since the volume
+        // opened, then blocks whose last verification is older than the periodic interval.
+        static constexpr const char* due[] = {
+            "SELECT relative_directory,manifest_json FROM committed_blocks "
+            "WHERE unavailable_reason IS NOT NULL AND verified_generation<?1 LIMIT 1",
+            "SELECT relative_directory,manifest_json FROM committed_blocks "
+            "WHERE verified_generation<?1 ORDER BY verified_generation LIMIT 1",
+            "SELECT relative_directory,manifest_json FROM committed_blocks "
+            "WHERE verified_at_utc_us<?2 ORDER BY verified_at_utc_us LIMIT 1"};
+        const auto stale =
+            now_us() - std::chrono::duration_cast<domain::Microseconds>(reverification_interval).count();
+        for (const auto* query : due) {
+            auto row = db_.query(query);
+            sqlite3_bind_int64(row.get(), 1, identity_.generation);
+            sqlite3_bind_int64(row.get(), 2, stale);
+            if (next(row.get())) {
+                relative = column(row.get(), 0);
+                journaled = column(row.get(), 1);
+                break;
+            }
+        }
+    }
+    if (relative.empty())
+        return {};
+    const auto manifest = Json::parse(journaled);
+    validate_manifest(manifest);
+    const auto id = manifest.at("block_id").get<std::string>();
+    if (!platform::canonical_id(id) || relative != "blocks/" + id)
+        throw std::runtime_error("Invalid archive journal identity");
+    const auto media_bytes =
+        manifest.at("media").at("size_bytes").get<std::uintmax_t>() +
+        (manifest.contains("audio") ? manifest.at("audio").at("size_bytes").get<std::uintmax_t>() : 0);
+    const auto primary = root_ / relative;
+    VerificationResult result{
+        .block_id = id, .bytes_read = media_bytes, .available = verified_copy(primary, manifest)};
+    if (!result.available) {
+        try {
+            if (const auto copies = replica_blocks(replica_, root_, owner());
+                copies && verified_copy(*copies / id, manifest)) {
+                restore_copy(*copies / id, manifest, primary);
+                result.available = true;
+                result.bytes_read += 2 * media_bytes;
+            }
+        } catch (const std::exception& error) {
+            std::fprintf(stderr, "archive copy repair deferred %s: %s\n", id.c_str(), error.what());
+        }
+    }
+    const auto reason = result.available ? "" : fs::exists(fs::symlink_status(primary)) ? "corrupt" : "missing";
+    std::scoped_lock guard{mutex_};
+    auto verified = db_.query("UPDATE committed_blocks SET verified_generation=?1,verified_at_utc_us=?2 "
+                              "WHERE relative_directory=?3 AND manifest_json=?4");
+    sqlite3_bind_int64(verified.get(), 1, identity_.generation);
+    sqlite3_bind_int64(verified.get(), 2, now_us());
+    bind_text(verified.get(), 3, relative);
+    bind_text(verified.get(), 4, journaled);
+    next(verified.get());
+    // The row is gone when retention removed the block during verification.
+    if (db_.changes() > 0 && availability(relative, reason))
+        std::fprintf(stderr, "archive block %s %s\n", id.c_str(), *reason ? reason : "available");
+    return result;
+}
+
+void Volume::verify_all()
+{
+    while (verify_next()) {
+    }
 }
 
 void Volume::recover_directory(const fs::directory_entry& entry, const InvalidBlock& invalid)
 {
     const auto id = entry.path().filename().string();
-    if (!control::canonical_id(id)) {
-        if (id.starts_with(".partial-")) {
-            std::fprintf(stderr, "archive incomplete %s\n", id.c_str());
-        }
+    if (!platform::canonical_id(id)) {
         return;
     }
     const auto relative = "blocks/" + id;
-    auto previous = db_.query("SELECT manifest_json FROM committed_blocks WHERE relative_directory=?");
-    bind_text(previous.get(), 1, relative);
-    std::optional<Json> expected;
-    if (next(previous.get())) {
-        expected = Json::parse(column(previous.get(), 0));
+    {
+        auto journaled = db_.query("SELECT 1 FROM committed_blocks WHERE relative_directory=?");
+        bind_text(journaled.get(), 1, relative);
+        if (next(journaled.get())) {
+            // Background verification checks the media of journaled blocks.
+            return;
+        }
     }
-    previous.reset();
+    // A directory published just before a crash, or every directory after the journal was rebuilt.
     std::optional<Json> verified;
     try {
         if (!fs::is_directory(entry.symlink_status())) {
@@ -762,7 +862,7 @@ void Volume::recover_directory(const fs::directory_entry& entry, const InvalidBl
         auto m = read_manifest(entry.path() / "manifest.json");
         validate_manifest(m);
         if (m.at("block_id") != id || m.at("site_id") != identity_.owner.site ||
-            m.at("recording_node_id") != identity_.owner.node || (expected && *expected != m)) {
+            m.at("recording_node_id") != identity_.owner.node) {
             throw std::invalid_argument("Archive identity mismatch");
         }
         const auto media = entry.path() / "media.mp4";
@@ -779,8 +879,8 @@ void Volume::recover_directory(const fs::directory_entry& entry, const InvalidBl
                 fs::file_size(path) != m["audio"]["size_bytes"].get<std::uintmax_t>())
                 throw std::invalid_argument("Invalid archive audio");
             File audio{path, O_RDONLY | O_NONBLOCK};
-            const auto digest = digest_media(audio.fd);
-            if (m["audio"]["size_bytes"] != digest.bytes || m["audio"]["sha256"] != digest.sha256)
+            const auto audio_digest = digest_media(audio.fd);
+            if (m["audio"]["size_bytes"] != audio_digest.bytes || m["audio"]["sha256"] != audio_digest.sha256)
                 throw std::invalid_argument("Archive audio checksum mismatch");
         }
         verified = std::move(m);
@@ -788,10 +888,10 @@ void Volume::recover_directory(const fs::directory_entry& entry, const InvalidBl
         std::fprintf(stderr, "archive corrupt manifest %s\n", id.c_str());
     } catch (const std::invalid_argument& error) {
         std::fprintf(stderr, "archive corrupt %s: %s\n", id.c_str(), error.what());
+    } catch (const std::system_error& error) {
+        std::fprintf(stderr, "archive corrupt %s: %s\n", id.c_str(), error.what());
     }
-    if (expected) {
-        availability(relative, verified ? "" : "corrupt");
-    } else if (verified) {
+    if (verified) {
         record(relative, *verified);
     } else if (invalid) {
         invalid(id);
@@ -800,14 +900,22 @@ void Volume::recover_directory(const fs::directory_entry& entry, const InvalidBl
 
 void Volume::reconcile(const InvalidBlock& invalid)
 {
+    constexpr std::string_view expired_prefix = ".expired-", staging_prefix = ".partial-";
     File directory{openat(lock_.fd, "blocks", O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW | O_RDONLY)};
     system_check(fsync(directory.fd));
     for (const auto& entry : fs::directory_iterator(root_ / "blocks")) {
         const auto name = entry.path().filename().string();
         // The durable rename also records the decision if the local journal is rebuilt.
-        if (name.starts_with(".expired-") && control::canonical_id(std::string_view{name}.substr(9))) {
+        if (name.starts_with(expired_prefix) &&
+            platform::canonical_id(std::string_view{name}.substr(expired_prefix.size()))) {
             finish_removal(directory.fd, name);
             system_check(fsync(directory.fd));
+        } else if (name.starts_with(staging_prefix) &&
+                   platform::canonical_id(std::string_view{name}.substr(staging_prefix.size()))) {
+            // An interrupted publication never reached the rename, so nothing refers to its staging directory.
+            std::error_code error;
+            fs::remove_all(entry.path(), error);
+            std::fprintf(stderr, "archive incomplete %s %s\n", name.c_str(), error ? "retained" : "removed");
         } else {
             recover_directory(entry, invalid);
         }
@@ -817,7 +925,7 @@ void Volume::reconcile(const InvalidBlock& invalid)
     while (next(directories.get())) {
         auto relative = column(directories.get(), 0);
         auto id = column(directories.get(), 1);
-        if (!control::canonical_id(id) || relative != "blocks/" + id || column(directories.get(), 2) != id) {
+        if (!platform::canonical_id(id) || relative != "blocks/" + id || column(directories.get(), 2) != id) {
             throw std::runtime_error("Invalid archive journal identity");
         }
         if (!fs::exists(fs::symlink_status(root_ / relative))) {
@@ -906,6 +1014,11 @@ void Volume::report_gap(const Gap& gap)
     sqlite3_bind_int64(row.get(), 4, gap.end);
     bind_text(row.get(), 5, gap.reason);
     next(row.get());
+    if (db_.changes() > 0)
+        observability::Registry::process()
+            .counter({.name = "bacuri_archive_gaps_total", .help = "Recording gaps journaled by reason."},
+                     {{"reason", gap.reason}})
+            .increment();
 }
 std::optional<std::pair<std::int64_t, Gap>> Volume::pending_gap()
 {

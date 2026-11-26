@@ -99,4 +99,18 @@ sqlite3 -bail "$sqlite_file" < storage/sqlite/migrations/0006_recording_policies
 sqlite3 -bail "$sqlite_file" < storage/sqlite/migrations/0007_archive_holds.sql
 test "$(sqlite3 "$sqlite_file" 'PRAGMA user_version')" = 7
 test "$(sqlite3 "$sqlite_file" 'SELECT days,reserve_percent FROM retention')" = '0|20'
+sqlite3 -bail "$sqlite_file" < storage/sqlite/migrations/0008_block_verification.sql
+test "$(sqlite3 "$sqlite_file" 'PRAGMA user_version')" = 8
+# Existing blocks are due for verification after the upgrade.
+test "$(sqlite3 "$sqlite_file" 'SELECT count(*) FROM committed_blocks WHERE verified_generation=0 AND verified_at_utc_us IS NULL')" = \
+    "$(sqlite3 "$sqlite_file" 'SELECT count(*) FROM committed_blocks')"
+gaps_before="$(sqlite3 "$sqlite_file" 'SELECT count(*),coalesce(sum(registered),0) FROM archive_gaps')"
+sqlite3 -bail "$sqlite_file" < storage/sqlite/migrations/0009_keyframe_gaps.sql
+test "$(sqlite3 "$sqlite_file" 'PRAGMA user_version')" = 9
+test "$(sqlite3 "$sqlite_file" 'SELECT count(*),coalesce(sum(registered),0) FROM archive_gaps')" = "$gaps_before"
+sqlite3 -bail "$sqlite_file" "INSERT INTO archive_gaps(point,binding,begin_us,end_us,reason) VALUES('point',1,10,20,'keyframe_interval')"
+if sqlite3 "$sqlite_file" "INSERT INTO archive_gaps(point,binding,begin_us,end_us,reason) VALUES('point',1,30,40,'unknown')" 2>/dev/null; then
+    echo "Unknown gap reason accepted" >&2
+    exit 1
+fi
 printf '%s\n' 'PostgreSQL and SQLite schemas and archive upgrades passed'

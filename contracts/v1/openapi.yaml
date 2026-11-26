@@ -2016,7 +2016,9 @@ paths:
                 interval: {$ref: '#/components/schemas/UtcInterval'}
       responses:
         '200':
-          description: Result for one bounded replay request and an optional continuation time.
+          description: >-
+            Result for one bounded replay request and an optional continuation time. Partial means that the time budget
+            ended before the requested end; the continuation starts at the end of the copied media.
           content:
             application/json:
               schema:
@@ -2026,7 +2028,7 @@ paths:
                 properties:
                   blocks: {type: integer, minimum: 0}
                   duration_us: {type: integer, minimum: 0}
-                  outcome: {type: string, enum: [copied, no_frames, timeout, quota]}
+                  outcome: {type: string, enum: [copied, partial, no_frames, timeout, quota]}
                   next: {type: [string, 'null'], format: date-time}
         '400': {$ref: '#/components/responses/InvalidRequest'}
         '401': {$ref: '#/components/responses/Unauthenticated'}
@@ -4351,8 +4353,22 @@ components:
         access_revision: {type: string}
         id: { $ref: '#/components/schemas/Id' }
         name: { type: string, minLength: 1, maxLength: 256 }
-        connection: { type: string, enum: [unknown, online, offline] }
-        recording: { type: string, enum: [unknown, current, delayed, stopped] }
+        connection:
+          type: string
+          enum: [unknown, online, offline]
+          description: Reception of the main stream by the recorder. Unknown while connecting or when the recorder does not answer.
+        recording:
+          type: string
+          enum: [unknown, current, delayed, stopped]
+          description: >-
+            Derived from the archive catalog. Current means that a recently received frame is already in an available
+            block. Delayed means that the policy records now and the stream is received, but no recent block is in the
+            catalog. Stopped means that nothing is being recorded now. Unknown means that the recorder does not answer
+            and the archive has no recent block.
+        recording_reason:
+          type: string
+          enum: [source_offline, storage_full, no_policy, waiting_event, outside_schedule, waiting_manual, disabled, unassigned, archive_pending, recorder_unavailable]
+          description: Cause of a recording state other than current, ordered by what has to be fixed first.
         ptz:
           type: object
           required: [device_id, commands]
@@ -4417,7 +4433,7 @@ components:
       properties:
         state: { type: string, const: gap }
         interval: { $ref: '#/components/schemas/UtcInterval' }
-        reason: { type: string, enum: [source_offline, storage_failure, overload] }
+        reason: { type: string, enum: [source_offline, storage_failure, overload, keyframe_interval] }
     PendingCatalog:
       type: object
       required: [state, interval]
@@ -4501,7 +4517,10 @@ components:
             point_id: { $ref: '#/components/schemas/Id' }
             work_state: { $ref: '#/components/schemas/AlertState' }
             observed_at: { $ref: '#/components/schemas/UtcTime' }
-            type: { type: string, minLength: 1, maxLength: 128 }
+            type:
+              description: Observation type that raised the alert. Only motion observations raise alerts.
+              type: string
+              enum: [motion]
             archive_interval: { $ref: '#/components/schemas/UtcInterval' }
         - $ref: '#/components/schemas/TimeQuality'
     AlertArchive:
@@ -4522,7 +4541,7 @@ components:
         - required: [reason]
           properties:
             state: { const: gap }
-            reason: { enum: [source_offline, storage_failure, overload] }
+            reason: { enum: [source_offline, storage_failure, overload, keyframe_interval] }
         - required: [reason]
           properties:
             state: { const: unavailable }

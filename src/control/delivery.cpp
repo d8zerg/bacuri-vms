@@ -67,7 +67,8 @@ v1::ApplyConfigurationRequest prepare(Database& db, const Key& key, const Assign
         const auto secret_revision = rows.get(i, 4);
         if (!secret_revision.empty()) {
             const auto secret = nlohmann::json::parse(
-                unseal(rows.get(i, 5), key, site + "/" + rows.get(i) + "/" + secret_revision));
+                unseal(rows.get(i, 5), key,
+                       std::string{site}.append("/").append(rows.get(i)).append("/").append(secret_revision)));
             camera->mutable_credentials()->set_username(secret.at("username").get<std::string>());
             camera->mutable_credentials()->set_password(secret.at("password").get<std::string>());
         }
@@ -141,7 +142,7 @@ void send_pending(v1::RecorderControl::Stub& recorder, const Key& key, const Ass
 }
 } // namespace
 
-void deliver(std::stop_token stop, const Key& key, const std::string& transport_policy)
+void deliver(const std::stop_token& stop, const Key& key, const std::string& transport_policy)
 {
     std::optional<std::string> policy{transport_policy};
     const Assignment assignment{setting("BACURI_SITE_ID"), setting("BACURI_NODE_ID")};

@@ -109,6 +109,51 @@ TEST(FrameClock, PreservesRawTimeAndChangesEpochOnSourceClockJump)
     EXPECT_TRUE(untrusted.source());
 }
 
+std::vector<FramePtr> group(std::size_t frames)
+{
+    std::vector<FramePtr> result{frame(0, true)};
+    for (std::size_t i = 1; i < frames; ++i)
+        result.push_back(frame(static_cast<int>(i), false));
+    return result;
+}
+
+TEST(FrameQueue, NewConsumerStartsWithTheCurrentGroupBeyondItsCapacity)
+{
+    const auto capacity = limits(Profile::secondary);
+    const auto initial = group(3 * capacity.frames);
+    FrameQueue queue{Profile::secondary, initial};
+    for (std::size_t i = 0; i < capacity.frames; ++i)
+        queue.push(frame(100 + static_cast<int>(i), false));
+    EXPECT_EQ(queue.stats().dropped, 0u) << "The group does not count against the capacity";
+    EXPECT_EQ(queue.try_pop(), initial.front()) << "Decoding starts at the cached keyframe";
+    for (std::size_t i = 1; i < initial.size(); ++i)
+        EXPECT_EQ(queue.try_pop(), initial[i]);
+    for (std::size_t i = 0; i < capacity.frames; ++i)
+        EXPECT_TRUE(queue.try_pop());
+    EXPECT_FALSE(queue.try_pop());
+}
+
+TEST(FrameQueue, CapacityReturnsToNormalOnceTheGroupIsTaken)
+{
+    const auto capacity = limits(Profile::secondary);
+    FrameQueue queue{Profile::secondary, group(2 * capacity.frames)};
+    while (queue.try_pop()) {
+    }
+    for (std::size_t i = 0; i <= capacity.frames; ++i)
+        queue.push(frame(200 + static_cast<int>(i), false));
+    // The slow consumer exceeded the regular capacity and waits for the next keyframe.
+    EXPECT_EQ(queue.stats().dropped, capacity.frames + 1);
+    EXPECT_FALSE(queue.try_pop());
+}
+
+TEST(FrameQueue, GroupWithoutLeadingKeyframeIsIgnored)
+{
+    FrameQueue queue{Profile::secondary, {frame(1, false), frame(2, false)}};
+    EXPECT_FALSE(queue.try_pop());
+    queue.push(frame(3, false));
+    EXPECT_FALSE(queue.try_pop()) << "A consumer still waits for a keyframe";
+}
+
 TEST(StreamPolicy, DeniedAddressReportsFailureAndShutdownCancelsBackoff)
 {
     testing::StrictMock<testing::MockFunction<std::optional<std::string>(const std::string&)>> allow;

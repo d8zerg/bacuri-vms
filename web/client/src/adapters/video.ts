@@ -1,31 +1,26 @@
 import type { ArchivePlayer } from "/archive/player.js";
 import type { Target } from "../contracts/workspace";
 import { api, data, HttpFailure } from "./api";
+import { t } from "../i18n";
 export function mediaFailure(error: unknown) {
   if (error instanceof HttpFailure) {
     if (error.code === "video_bandwidth_limit")
-      return "Сетевой бюджет исчерпан. Выберите дополнительный поток или освободите ячейку.";
-    if (error.code === "video_session_limit")
-      return "Все подключения к эфиру заняты. Освободите ячейку на одном из постов.";
+      return t("media.bandwidthLimit");
+    if (error.code === "video_session_limit") return t("media.sessionLimit");
     if (error.code === "video_transcoder_limit")
-      return "Преобразование в H.264 занято. Освободите просмотр или используйте клиент с поддержкой HEVC.";
+      return t("media.transcoderLimit");
     if (error.code === "video_source_unavailable")
-      return "Рекордер пока не получил видеопоток камеры.";
-    if (error.code === "pending_catalog")
-      return "Запись добавляется в каталог. Повторите проверку.";
-    if (error.code === "recording_gap")
-      return "В выбранном интервале пропуск записи.";
-    if (error.status === 401) return "Сеанс входа истёк. Войдите снова.";
+      return t("media.sourceUnavailable");
+    if (error.code === "pending_catalog") return t("media.pendingCatalog");
+    if (error.code === "recording_gap") return t("media.recordingGap");
+    if (error.status === 401) return t("media.sessionExpired");
     if (error.status === 403 || error.status === 404)
-      return "Нет доступа к точке или записи.";
-    if (error.status === 410)
-      return "Время просмотра истекло. Откройте видео снова.";
-    if (error.status === 429)
-      return "Достигнут лимит просмотров. Закройте другой просмотр и повторите попытку.";
-    if (error.status === 503)
-      return "Сервис видео недоступен. Повторите подключение.";
+      return t("media.forbidden");
+    if (error.status === 410) return t("media.viewExpired");
+    if (error.status === 429) return t("media.viewLimit");
+    if (error.status === 503) return t("media.serviceUnavailable");
   }
-  return "Видео недоступно. Повторите подключение.";
+  return t("video.unavailable");
 }
 function event(target: EventTarget, name: string, signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
@@ -185,16 +180,18 @@ async function connect(
     if (v.codec === "h265") decoder.markNative();
     const reason =
       v.reason === "privacy_mask"
-        ? " · с маской"
+        ? " · " + t("media.variant.masked")
         : v.reason === "bandwidth"
-          ? " · сетевой бюджет"
+          ? " · " + t("media.variant.bandwidth")
           : v.converted
-            ? " · совместимая копия"
+            ? " · " + t("media.variant.converted")
             : v.reason === "compatible_profile"
-              ? " · совместимый профиль"
+              ? " · " + t("media.variant.compatibleProfile")
               : "";
     format?.(
-      (v.profile === "main" ? "Основной" : "Дополнительный") +
+      (v.profile === "main"
+        ? t("media.profile.main")
+        : t("media.profile.secondary")) +
         " · " +
         (v.codec === "h265" ? "HEVC" : "H.264") +
         " · " +
@@ -219,15 +216,10 @@ async function connect(
   let peer: RTCPeerConnection | undefined, player: ArchivePlayer | undefined;
   const expire = setTimeout(
     () =>
-      target.mode === "live" && renew
-        ? renew()
-        : fail("Время просмотра истекло. Откройте видео снова."),
+      target.mode === "live" && renew ? renew() : fail(t("media.viewExpired")),
     Date.parse(session.expires_at) - Date.now(),
   );
-  const timeout = setTimeout(
-    () => fail("Время подключения истекло. Повторите подключение."),
-    12000,
-  );
+  const timeout = setTimeout(() => fail(t("media.connectTimeout")), 12000);
   let verifyTimer: ReturnType<typeof setTimeout>;
   function stop() {
     clearTimeout(verifyTimer);
@@ -240,7 +232,7 @@ async function connect(
     releaseSession();
   }
   signal.addEventListener("abort", stop, { once: true });
-  video.addEventListener("error", () => fail("Ошибка декодирования видео"), {
+  video.addEventListener("error", () => fail(t("media.decodeError")), {
     signal,
   });
   if (target.mode === "archive") {
@@ -265,8 +257,7 @@ async function connect(
         if (!signal.aborted)
           verifyTimer = setTimeout(() => void verify(), 2000);
       } catch {
-        if (!signal.aborted)
-          fail("Просмотр прерван. Проверьте доступ и подключитесь снова.");
+        if (!signal.aborted) fail(t("media.interrupted"));
       }
     }
     verifyTimer = setTimeout(() => void verify(), 2000);
@@ -280,8 +271,8 @@ async function connect(
       format?.(
         (part.codec === "h265" ? "HEVC" : "H.264") +
           (part.source_codec && part.source_codec !== part.codec
-            ? " · совместимая копия"
-            : " · Архив"),
+            ? " · " + t("media.variant.converted")
+            : " · " + t("monitor.archive")),
       );
     player = new ArchivePlayer(video, session.id, manifest, fail);
     if (!(await player.seek(target.position))) throw Error("Frame unavailable");
@@ -306,12 +297,12 @@ async function connect(
     pc.ontrack = ({ track }) => {
       if (!signal.aborted) {
         video.srcObject = new MediaStream([track]);
-        void video.play().catch(() => fail("Не удалось начать просмотр"));
+        void video.play().catch(() => fail(t("media.playFailed")));
       }
     };
     pc.onconnectionstatechange = () => {
       if (["failed", "disconnected", "closed"].includes(pc.connectionState))
-        fail("Связь с камерой потеряна. Повторите подключение.");
+        fail(t("media.cameraLost"));
     };
     await pc.setLocalDescription(await pc.createOffer());
     while (pc.iceGatheringState !== "complete")

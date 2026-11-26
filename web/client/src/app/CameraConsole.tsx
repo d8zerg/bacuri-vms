@@ -12,8 +12,9 @@ import { FilterPanel, matchesQuery } from "../ui-kit/FilterPanel";
 import { CameraAudio } from "./CameraAudio";
 import { DirectionKey } from "./DirectionKey";
 import { cameraError } from "./cameraError";
-import { ptzLabels } from "./cameraCommands";
+import { ptzLabel } from "./cameraCommands";
 import "./camera-console.css";
+import { dateTimeFormat, useT, type MessageKey } from "../i18n";
 
 type Action = CameraControls["actions"][number];
 type Section = "drive" | "equipment" | "history";
@@ -50,11 +51,12 @@ const keys: Record<string, PtzCommand> = {
   Escape: "stop",
 };
 const outcomes = {
-  acknowledged: "Подтверждена",
-  unknown: "Исход неизвестен",
-  rejected: "Отклонена",
-};
-const time = (at: string) => new Date(at).toLocaleTimeString();
+  acknowledged: "console.outcome.acknowledged",
+  unknown: "console.outcome.unknown",
+  rejected: "console.outcome.rejected",
+} as const satisfies Record<string, MessageKey>;
+const time = (at: string) =>
+  dateTimeFormat({ timeStyle: "medium" }).format(new Date(at));
 
 export function CameraConsole({
   services,
@@ -71,6 +73,7 @@ export function CameraConsole({
   audio: Point["audio"];
   position: number | undefined;
 }) {
+  const t = useT();
   const [section, setSection] = useState<Section>("drive");
   const [catalog, setCatalog] = useState<CameraControls>();
   const [revision, reload] = useState(0);
@@ -126,18 +129,14 @@ export function CameraConsole({
       await services.ptz(site, point, device, command, target);
       if (token === next.current)
         setNotice({
-          text:
-            command === "stop"
-              ? "Камера подтвердила команду остановки."
-              : "Камера подтвердила команду.",
+          text: command === "stop" ? t("console.stopAck") : t("console.ack"),
           error: false,
         });
       return true;
     } catch (e) {
       if (token === next.current)
         setNotice({
-          text:
-            cameraError(e) ?? "Камера не подтвердила команду. Проверьте связь.",
+          text: cameraError(e) ?? t("console.noAck"),
           error: true,
         });
       return false;
@@ -156,7 +155,7 @@ export function CameraConsole({
   ) {
     if (!item && !basic.includes(command)) return null;
     const name =
-      ptzLabels[command] +
+      ptzLabel(command) +
       (item?.label &&
       (command.startsWith("tour_") || command.startsWith("relay_"))
         ? " " + item.label
@@ -211,12 +210,12 @@ export function CameraConsole({
     actions.some((a) => /^(light|wiper|relay)_/.test(a.command)) ||
     !!catalog?.inputs.length;
   const active = section === "equipment" && !hasEquipment ? "drive" : section;
-  const tabs: ReadonlyArray<readonly [Section, ControlIcon, string]> = [
-    ["drive", "move", "Поворот, объектив и позиции"],
+  const tabs: ReadonlyArray<readonly [Section, ControlIcon, MessageKey]> = [
+    ["drive", "move", "console.tab.drive"],
     ...(hasEquipment
-      ? [["equipment", "settings-2", "Оборудование и входы"] as const]
+      ? [["equipment", "settings-2", "console.tab.equipment"] as const]
       : []),
-    ["history", "history", "Журнал команд"],
+    ["history", "history", "console.tab.history"],
   ];
   const owner = catalog?.owner;
   useEffect(() => {
@@ -264,16 +263,20 @@ export function CameraConsole({
       className="camera-console"
       role="group"
       onKeyDown={shortcuts}
-      aria-label={ptz ? "Управление PTZ" : "Аудиопульт"}
+      aria-label={ptz ? t("console.ptz") : t("console.audio")}
     >
       <div className="cc-bar">
         {ptz && (
-          <div className="cc-sections" role="group" aria-label="Разделы пульта">
+          <div
+            className="cc-sections"
+            role="group"
+            aria-label={t("console.sections")}
+          >
             {tabs.map(([id, icon, label]) => (
               <IconButton
                 key={id}
                 icon={icon}
-                label={label}
+                label={t(label)}
                 aria-controls={panel}
                 aria-pressed={active === id}
                 onClick={() => setSection(id)}
@@ -300,7 +303,7 @@ export function CameraConsole({
                 <div
                   className="cc-dial"
                   role="group"
-                  aria-label="Поворот и остановка"
+                  aria-label={t("console.move")}
                 >
                   {arrows
                     .filter((d) => basic.includes(d))
@@ -323,14 +326,22 @@ export function CameraConsole({
               {(hasZoom || hasFocus) && (
                 <div className="cc-lens">
                   {hasZoom && (
-                    <div className="cc-rocker" role="group" aria-label="Зум">
+                    <div
+                      className="cc-rocker"
+                      role="group"
+                      aria-label={t("console.zoom")}
+                    >
                       {available("zoom_out")}
                       <ControlGlyph icon="search" />
                       {available("zoom_in")}
                     </div>
                   )}
                   {hasFocus && (
-                    <div className="cc-rocker" role="group" aria-label="Фокус">
+                    <div
+                      className="cc-rocker"
+                      role="group"
+                      aria-label={t("console.focus")}
+                    >
                       {available("focus_near")}
                       {actions.some((a) => a.command === "focus_stop") ? (
                         commandButton(
@@ -352,12 +363,12 @@ export function CameraConsole({
                     <div
                       className="cc-positions"
                       role="group"
-                      aria-label="Предустановки"
+                      aria-label={t("console.presets")}
                     >
                       {presets.length > 5 && (
                         <FilterPanel
-                          label="Фильтр позиций"
-                          queryLabel="Найти позицию"
+                          label={t("console.presetFilter")}
+                          queryLabel={t("console.findPreset")}
                           query={filter}
                           onQuery={setFilter}
                           onReset={() => setFilter("")}
@@ -367,8 +378,8 @@ export function CameraConsole({
                         {visiblePresets.map((a) => (
                           <Button
                             key={a.target}
-                            aria-label={ptzLabels.preset_goto + " " + a.label}
-                            title={ptzLabels.preset_goto + " " + a.label}
+                            aria-label={ptzLabel("preset_goto") + " " + a.label}
+                            title={ptzLabel("preset_goto") + " " + a.label}
                             aria-disabled={pending > 0}
                             onClick={() => void send(a.command, a.target)}
                           >
@@ -379,7 +390,7 @@ export function CameraConsole({
                         ))}
                       </div>
                       {filter && !visiblePresets.length && (
-                        <small>Позиция не найдена</small>
+                        <small>{t("console.noPreset")}</small>
                       )}
                     </div>
                   )}
@@ -388,7 +399,7 @@ export function CameraConsole({
                       <ControlGlyph icon="tour" />
                       {routes.length > 1 ? (
                         <select
-                          aria-label="Маршрут патруля"
+                          aria-label={t("console.patrol")}
                           value={selectedRoute.target}
                           onChange={(e) => setRoute(e.target.value)}
                         >
@@ -417,7 +428,7 @@ export function CameraConsole({
                   a.command.startsWith(prefix + "_"),
                 );
                 return hardware(
-                  prefix === "light" ? "Подсветка" : "Очиститель",
+                  t(prefix === "light" ? "console.light" : "console.wiper"),
                   prefix === "light" ? "sun" : "wiper",
                   items,
                   new Set(items.map((a) => a.command)).size !== items.length,
@@ -431,7 +442,7 @@ export function CameraConsole({
                 ),
               ].map((target) =>
                 hardware(
-                  "Выход " + target,
+                  t("console.output", { target }),
                   "relay",
                   actions.filter(
                     (a) =>
@@ -443,7 +454,7 @@ export function CameraConsole({
                 <div className="cc-device" key={"input/" + input.token}>
                   <div className="cc-device-name">
                     <ControlGlyph icon="input" />
-                    <span>Вход {input.token}</span>
+                    <span>{t("console.input", { token: input.token })}</span>
                   </div>
                   <span
                     className="cc-signal"
@@ -453,10 +464,10 @@ export function CameraConsole({
                     }
                   >
                     {input.active === undefined
-                      ? "Неизвестно"
+                      ? t("console.unknown")
                       : input.active
-                        ? "Активен"
-                        : "Неактивен"}
+                        ? t("console.active")
+                        : t("console.inactive")}
                     {input.observed_at && (
                       <time dateTime={input.observed_at}>
                         {time(input.observed_at)}
@@ -484,10 +495,10 @@ export function CameraConsole({
                       />
                       <div>
                         <strong>
-                          {ptzLabels[row.command]} {row.target}
+                          {ptzLabel(row.command)} {row.target}
                         </strong>
                         <small>
-                          {row.actor} · {outcomes[row.outcome]}
+                          {row.actor} · {t(outcomes[row.outcome])}
                         </small>
                       </div>
                       <time dateTime={row.at}>{time(row.at)}</time>
@@ -497,10 +508,10 @@ export function CameraConsole({
               ) : (
                 <p>
                   {loading
-                    ? "Загрузка журнала…"
+                    ? t("console.loadingLog")
                     : readError
-                      ? "Журнал недоступен"
-                      : "Команд пока нет"}
+                      ? t("console.logUnavailable")
+                      : t("console.noCommands")}
                 </p>
               )}
             </div>
@@ -512,7 +523,7 @@ export function CameraConsole({
                 <IconButton
                   className="cc-refresh"
                   icon="rotate-cw"
-                  label="Обновить состояние камеры"
+                  label={t("console.refresh")}
                   aria-busy={loading}
                   onClick={() => reload((v) => v + 1)}
                 />
@@ -524,13 +535,17 @@ export function CameraConsole({
       {owner && Date.parse(owner.until) > Date.now() && (
         <div className="cc-owner">
           <ControlGlyph icon="user-round" />
-          {owner.name} · приоритет {owner.priority} · до {time(owner.until)}
+          {t("console.owner", {
+            name: owner.name,
+            priority: owner.priority,
+            until: time(owner.until),
+          })}
         </div>
       )}
       {(readError || catalog?.capability_error) && (
         <div className="cc-feedback" role="status">
-          Связь с камерой недоступна.
-          {catalog?.capability_error ? " Сохранённый журнал доступен." : ""}
+          {t("console.offline")}
+          {catalog?.capability_error ? " " + t("console.savedLog") : ""}
         </div>
       )}
       {notice && (

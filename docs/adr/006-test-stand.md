@@ -1,15 +1,17 @@
-# ADR-006. Источники видео для воспроизводимой приёмки
+# ADR-006. Video sources for reproducible acceptance
 
-**Статус** - Принято.
+[Русская версия](../ru/adr/006-test-stand.md)
 
-**Контекст.** Для проверки времени, повторов и разрывов нужен известный вход. Для подтверждения совместимости камеры требуется её собственная реализация протоколов.
+**Status** - Accepted.
 
-**Варианты.** Испытывать только на реальной камере, использовать только эмулятор или выполнять взаимодополняющие прогоны на одном Linux-стенде Docker Compose.
+**Context.** Checking time, repeats and breaks needs a known input. Confirming camera compatibility requires the camera's own protocol implementation.
 
-**Решение.** Управляемый источник подаёт два профиля с эталонными кадрами, пропусками и сдвигом часов. Автоматические сценарии обнаружения, выбора потоков, PTZ и аппаратного события выполняются на имитаторе и на физических устройствах по заявленным функциям. Для каждой обязательной модели и прошивки сохраняются результат её штатного сервера, настройки, подтверждение функции и декодированный кадр. Недоступная обязательная модель блокирует квалификацию комплекта.
+**Options.** Test only on a real camera, use only an emulator, or run complementary passes on one Linux Docker Compose stand.
 
-**Основания.** Первый прогон позволяет повторить отказ и проверить точность кадра. Второй выявляет особенности согласования профилей, RTSP и времени конкретного устройства.
+**Decision.** A controlled source feeds two profiles with reference frames, gaps and a clock shift. Automatic scenarios for discovery, stream selection, PTZ and hardware events run on the simulator and on physical devices according to their declared functions. For each required model and firmware, the result of its own server, the settings, the confirmation of the function and a decoded frame are kept. An unavailable required model blocks the qualification of the kit.
 
-**Последствия.** Для итоговой приёмки требуется оборудование. Веб-камера за RTSP-эмулятором даёт дополнительный результат для тракта захвата. Вывод о поддержке IP-камеры относится к проверенному устройству и его прошивке.
+**Rationale.** The first pass lets a failure be repeated and the frame accuracy be checked. The second reveals the specifics of profile negotiation, RTSP and time of a particular device.
 
-**Проверка и пересмотр.** Для требований «Данные и доступ» и «Эксплуатация» приложить команды и эталоны синтетического прогона и отдельную строку физической камеры с результатами обоих маршрутов. Пересмотреть при расширении матрицы устройств или если стенд не воспроизводит наблюдаемый в эксплуатации отказ. [Паспорт](../test-profile.md#окружение) · [Требования](../quality.md#требования-к-приёмке)
+**Consequences.** The final acceptance requires hardware. A webcam behind an RTSP emulator gives an additional result for the capture path. A statement of IP camera support applies to the tested device and its firmware.
+
+**Verification and review.** For the "Data and access" and "Operation" requirements, attach the commands and references of the synthetic pass and a separate row for the physical camera with the results of both routes. Review when the device matrix grows or when the stand does not reproduce a failure observed in operation. [Profile](../test-profile.md#environment) · [Requirements](../quality.md#acceptance-requirements)

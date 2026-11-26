@@ -175,7 +175,18 @@ recover_recording:
     uri: rtsps://camera.test/recording
     begin_us: '1000000000000000'
     end_us: '1000000005000000'
-  response: {blocks: 1, duration_us: '5000000', outcome: copied}
+  response: {blocks: 1, duration_us: '5000000', outcome: copied, covered_until_us: '1000000005000000'}
+report_point_states:
+  rpc: RecorderControl.GetPointStates
+  request: {site_id: *site}
+  response:
+    capacity: STORAGE_CAPACITY_NORMAL
+    points:
+      - point_id: *point
+        binding_revision: '1'
+        source: SOURCE_STATE_RECEIVING
+        selection: RECORDING_SELECTION_SELECTED
+        publication_lag_us: '15000000'
 request_motion_index:
   rpc: ArchiveCatalog.NextIndex
   request: {site_id: *site, recording_node_id: 70000000-0000-4000-8000-000000000001}

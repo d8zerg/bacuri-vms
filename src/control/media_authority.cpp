@@ -2,6 +2,7 @@
 #include "control/recordings/operations.hpp"
 #include "control/media_authority.hpp"
 #include "control/playback_time.hpp"
+#include <limits>
 #include <grpcpp/grpcpp.h>
 #include <sys/stat.h>
 
@@ -54,7 +55,8 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
             if (!grant || grant->milliseconds <= 0)
                 return {grpc::StatusCode::PERMISSION_DENIED, "Export permission expired"};
             db.exec("COMMIT");
-            lease->set_valid_for_ms(grant->milliseconds);
+            lease->set_valid_for_ms(static_cast<std::uint32_t>(
+                std::min<std::int64_t>(grant->milliseconds, std::numeric_limits<std::uint32_t>::max())));
             return grpc::Status::OK;
         }
         const auto surface = q->has_live() ? "live" : "archive";

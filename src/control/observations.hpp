@@ -9,6 +9,8 @@ class Observations final : public v1::ObservationIngest::Service
 {
   public:
     Observations();
+    Observations(const Observations&) = delete;
+    Observations& operator=(const Observations&) = delete;
     ~Observations() override;
     grpc::Status SubmitObservation(grpc::ServerContext*, const v1::SubmitObservationRequest*,
                                    v1::RegistrationResult*) override;

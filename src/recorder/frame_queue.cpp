@@ -5,10 +5,26 @@
 namespace bacuri::vms::ingest
 {
 
+FrameQueue::FrameQueue(Profile profile, const std::vector<FramePtr>& group) : FrameQueue{profile}
+{
+    if (group.empty() || !group.front()->keyframe)
+        return;
+    for (const auto& frame : group) {
+        frames_.push_back(frame);
+        stats_.bytes += frame->access_unit.size();
+    }
+    group_frames_ = frames_.size();
+    group_bytes_ = stats_.bytes;
+    stats_.peak_bytes = stats_.bytes;
+    stats_.peak_depth = frames_.size();
+    need_keyframe_ = false;
+}
+
 void FrameQueue::push(const FramePtr& frame)
 {
     std::scoped_lock lock{mutex_};
-    if (frames_.size() == capacity_.frames || frame->access_unit.size() > capacity_.bytes - stats_.bytes) {
+    if (frames_.size() >= capacity_.frames + group_frames_ ||
+        frame->access_unit.size() > capacity_.bytes + group_bytes_ - stats_.bytes) {
         if (!stats_.loss_begin || stats_.recovered_at) {
             stats_.loss_begin = profile_ == Profile::secondary && !frames_.empty()
                                     ? frames_.front()->time.received_at()
@@ -23,6 +39,7 @@ void FrameQueue::push(const FramePtr& frame)
         stats_.dropped += frames_.size();
         frames_.clear();
         stats_.bytes = 0;
+        group_frames_ = group_bytes_ = 0;
     }
     if ((need_keyframe_ && !frame->keyframe) || frame->access_unit.size() > capacity_.bytes) {
         ++stats_.dropped;
@@ -66,6 +83,10 @@ FramePtr FrameQueue::pop_locked()
     auto frame = std::move(frames_.front());
     frames_.pop_front();
     stats_.bytes -= frame->access_unit.size();
+    if (group_frames_) {
+        --group_frames_;
+        group_bytes_ -= std::min(group_bytes_, frame->access_unit.size());
+    }
     return frame;
 }
 

@@ -9,6 +9,7 @@ import type {
 import { DiscoveredDeviceSelect } from "./DiscoveredDeviceSelect";
 import { cameraError } from "./cameraError";
 import { Button, IconButton } from "../ui-kit/FormControls";
+import { t as translate, useT } from "../i18n";
 
 export default function CameraSelection({
   services,
@@ -19,6 +20,7 @@ export default function CameraSelection({
   site: string;
   onChoose: (draft: CameraDraft) => void;
 }) {
+  const t = useT();
   const [deviceQuery, setDeviceQuery] = useState("");
   const [found, setFound] = useState<DiscoveredCamera[]>([]);
   const [registered, setRegistered] = useState<Camera[]>([]);
@@ -38,8 +40,7 @@ export default function CameraSelection({
       .cameras(site, ctl.signal)
       .then(setRegistered)
       .catch(() => {
-        if (!ctl.signal.aborted)
-          tell("Не удалось получить список подключённых камер.");
+        if (!ctl.signal.aborted) tell(translate("select.listFailed"));
       });
     return () => {
       ctl.abort();
@@ -83,15 +84,11 @@ export default function CameraSelection({
         ctl.signal.throwIfAborted();
         setFound(result);
         select(result[0]?.selection ?? "");
-        if (!result.length)
-          tell("В разрешённом сегменте не обнаружены камеры с HTTPS.");
+        if (!result.length) tell(t("select.noHttps"));
       }
     } catch (error) {
       if (!ctl.signal.aborted)
-        tell(
-          cameraError(error) ??
-            "Проверка камеры не завершилась. Повторите попытку.",
-        );
+        tell(cameraError(error) ?? t("select.checkFailed"));
     } finally {
       if (!ctl.signal.aborted) {
         active.current = null;
@@ -131,12 +128,12 @@ export default function CameraSelection({
       setRegistered((values) =>
         values.map((value) => (value.id === updated.id ? updated : value)),
       );
-      tell("Профили и возможности камеры обновлены.");
+      tell(t("select.updated"));
       setCamera(undefined);
       pass("");
     } catch (error) {
       if (!ctl.signal.aborted)
-        tell(cameraError(error) ?? "Не удалось обновить камеру.");
+        tell(cameraError(error) ?? t("select.updateFailed"));
     } finally {
       if (!ctl.signal.aborted) {
         active.current = null;
@@ -162,20 +159,20 @@ export default function CameraSelection({
     onChoose(draft);
   }
   return (
-    <section className="bc-camera" aria-label="Выбор камеры">
+    <section className="bc-camera" aria-label={t("select.label")}>
       <fieldset className="bc-fields ws-camera-fields" disabled={busy}>
         <label className="bk-field">
-          Точка наблюдения
+          {t("select.point")}
           <select value={old} onChange={(e) => setOld(e.target.value)}>
-            <option value="">Новая точка</option>
+            <option value="">{t("batch.newPoint")}</option>
             {registered.map((c) => (
               <option value={c.id} key={c.id}>
-                Заменить камеру · {c.name}
+                {t("select.replace", { name: c.name })}
               </option>
             ))}
           </select>
         </label>
-        <Button onClick={() => void run(false)}>Найти камеры ONVIF</Button>
+        <Button onClick={() => void run(false)}>{t("select.find")}</Button>
         {!!found.length && (
           <DiscoveredDeviceSelect
             devices={found}
@@ -191,7 +188,7 @@ export default function CameraSelection({
           />
         )}
         <label className="bk-field">
-          Пользователь камеры
+          {t("select.user")}
           <input
             name="camera_user"
             autoComplete="off"
@@ -203,7 +200,7 @@ export default function CameraSelection({
           />
         </label>
         <label className="bk-field">
-          Пароль камеры
+          {t("select.password")}
           <input
             name="camera_password"
             type="password"
@@ -220,23 +217,25 @@ export default function CameraSelection({
             disabled={!username || !selection}
             onClick={() => void run(true)}
           >
-            Получить профили
+            {t("select.profiles")}
           </Button>
         )}
         {camera && (
           <>
             <p>
-              {camera.manufacturer} · {camera.model} · прошивка{" "}
-              {camera.firmware}
+              {camera.manufacturer} · {camera.model} ·{" "}
+              {t("select.firmware", { version: camera.firmware })}
               <br />
-              Серийный номер {camera.serial}
+              {t("select.serial", { serial: camera.serial })}
               <br />
-              PTZ {camera.ptz ? "доступен" : "отсутствует"} · события{" "}
-              {camera.events ? "доступны" : "отсутствуют"}
+              {t(camera.ptz ? "select.ptzYes" : "select.ptzNo")} ·{" "}
+              {t(camera.events ? "select.eventsYes" : "select.eventsNo")}
             </p>
             {(["main", "sub"] as const).map((role) => (
               <label className="bk-field" key={role}>
-                {role === "main" ? "Профиль записи" : "Профиль эфира"}
+                {role === "main"
+                  ? t("select.recordProfile")
+                  : t("select.liveProfile")}
                 <select
                   value={role === "main" ? main : sub}
                   onChange={(e) => {
@@ -269,13 +268,11 @@ export default function CameraSelection({
                 </select>
               </label>
             ))}
-            {main === sub && (
-              <p role="status">Выберите разные профили для записи и эфира.</p>
-            )}
+            {main === sub && <p role="status">{t("select.sameProfile")}</p>}
             {existing ? (
               <IconButton
                 icon="rotate-cw"
-                label="Обновить подключённую камеру"
+                label={t("select.refresh")}
                 variant="primary"
                 disabled={!sub || main === sub}
                 onClick={() => void refresh()}
@@ -286,15 +283,15 @@ export default function CameraSelection({
                 disabled={!sub || main === sub}
                 onClick={() => pick(true)}
               >
-                Использовать профили
+                {t("select.use")}
               </Button>
             )}
           </>
         )}
-        <Button onClick={() => pick(false)}>Ввести адреса вручную</Button>
+        <Button onClick={() => pick(false)}>{t("select.manual")}</Button>
       </fieldset>
       <div role="status" className="ws-camera-footer">
-        {busy ? "Ожидаем ответ…" : notice}
+        {busy ? t("select.waiting") : notice}
       </div>
     </section>
   );

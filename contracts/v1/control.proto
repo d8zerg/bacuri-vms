@@ -15,6 +15,53 @@ service RecorderControl {
   rpc GetStorageStatus(RetentionQuery) returns (StorageStatus);
   rpc RecoverGap(EdgeReplayRequest) returns (EdgeReplayResult);
   rpc ListPending(PendingQuery) returns (PendingIntervals);
+  // Reports stream reception, policy selection and storage capacity without reading the archive.
+  rpc GetPointStates(PointStatesQuery) returns (PointStates);
+}
+
+message PointStatesQuery {
+  string site_id = 1;
+}
+enum SourceState {
+  SOURCE_STATE_UNSPECIFIED = 0;
+  // Frames of the main profile arrived recently.
+  SOURCE_STATE_RECEIVING = 1;
+  // The first connection attempt has not finished.
+  SOURCE_STATE_CONNECTING = 2;
+  // The stream failed, stalled or is waiting for a keyframe after a discontinuity.
+  SOURCE_STATE_OFFLINE = 3;
+}
+enum RecordingSelection {
+  RECORDING_SELECTION_UNSPECIFIED = 0;
+  // The recording policy selects the current moment.
+  RECORDING_SELECTION_SELECTED = 1;
+  RECORDING_SELECTION_AWAITING_POLICY = 2;
+  RECORDING_SELECTION_WAITING_EVENT = 3;
+  RECORDING_SELECTION_OUTSIDE_SCHEDULE = 4;
+  RECORDING_SELECTION_WAITING_MANUAL = 5;
+  RECORDING_SELECTION_DISABLED = 6;
+  // The point has no camera binding on this recorder.
+  RECORDING_SELECTION_UNBOUND = 7;
+}
+enum StorageCapacity {
+  STORAGE_CAPACITY_UNSPECIFIED = 0;
+  STORAGE_CAPACITY_NORMAL = 1;
+  STORAGE_CAPACITY_LOW_SPACE = 2;
+  // Free space reached the reserve and new blocks are rejected.
+  STORAGE_CAPACITY_RECORDING_STOPPED = 3;
+}
+message PointState {
+  string point_id = 1;
+  int64 binding_revision = 2;
+  SourceState source = 3;
+  RecordingSelection selection = 4;
+  // Longest expected delay between a frame and its catalogued block: the keyframe interval limit
+  // plus the pre-event buffer of event and manual recording.
+  int64 publication_lag_us = 5;
+}
+message PointStates {
+  repeated PointState points = 1;
+  StorageCapacity capacity = 2;
 }
 
 message EdgeReplayRequest {
@@ -31,7 +78,11 @@ message EdgeReplayRequest {
 message EdgeReplayResult {
   uint32 blocks = 1;
   int64 duration_us = 2;
+  // copied, partial, no_frames, timeout or quota. Partial means that the time budget ended before
+  // the requested end and copying continues from covered_until_us.
   string outcome = 3;
+  // End of the newest copied block, or zero when nothing was copied.
+  int64 covered_until_us = 4;
 }
 
 message AudioRequest {

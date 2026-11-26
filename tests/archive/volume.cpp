@@ -2,7 +2,10 @@
 #include <gtest/gtest.h>
 #include <unistd.h>
 
+#include <cstdlib>
 #include <fstream>
+#include <iterator>
+#include <set>
 
 namespace bacuri::vms::archive
 {
@@ -16,6 +19,8 @@ struct TempVolume {
     {
         fs::create_directory(root);
     }
+    TempVolume(const TempVolume&) = delete;
+    TempVolume& operator=(const TempVolume&) = delete;
     ~TempVolume()
     {
         std::error_code error;
@@ -205,7 +210,150 @@ TEST(ArchiveVolume, ValidatesRecordedSoundOnReadAndRestart)
     }
     ASSERT_TRUE(fs::remove(fixture.root / "blocks" / id / "audio.pcm"));
     Volume restarted{fixture.root, fixture.owner};
+    restarted.verify_all();
     EXPECT_EQ(archive_status(fixture.root).at("corrupt"), 1);
+}
+
+// Publishes one block, acknowledges its catalog registration and returns its directory.
+std::string committed_block(Volume& volume)
+{
+    volume.publish(example(), write_sample);
+    auto item = volume.pending();
+    if (!item)
+        throw std::runtime_error("Expected a published block");
+    volume.acknowledge(*item);
+    return item->directory;
+}
+
+void flip_last_byte(const fs::path& path)
+{
+    std::fstream media{path, std::ios::in | std::ios::out | std::ios::binary};
+    media.seekg(-1, std::ios::end);
+    const auto byte = static_cast<char>(media.get() ^ 1);
+    media.seekp(-1, std::ios::end);
+    media.put(byte);
+}
+
+TEST(ArchiveVerification, OpeningDefersMediaChecksumsToBackgroundVerification)
+{
+    TempVolume fixture;
+    std::string directory;
+    {
+        Volume volume{fixture.root, fixture.owner};
+        directory = committed_block(volume);
+        EXPECT_FALSE(volume.verify_next()) << "A published block is verified when it is journaled";
+    }
+    flip_last_byte(fixture.root / directory / "media.mp4");
+    Volume reopened{fixture.root, fixture.owner};
+    EXPECT_EQ(archive_status(fixture.root).at("corrupt"), 0);
+    EXPECT_FALSE(reopened.pending());
+
+    const auto result = reopened.verify_next();
+    if (!result)
+        FAIL() << "Expected a block due for verification";
+    EXPECT_FALSE(result->available);
+    EXPECT_GT(result->bytes_read, 0u);
+    EXPECT_EQ(archive_status(fixture.root).at("corrupt"), 1);
+    const auto changed = reopened.pending();
+    if (!changed)
+        FAIL() << "Expected a changed verdict to register";
+    EXPECT_EQ(changed->unavailable, "corrupt");
+    EXPECT_FALSE(reopened.verify_next()) << "A verified block is due only after the next open or interval";
+}
+
+TEST(ArchiveVerification, OpeningMarksMissingDirectoriesAndVerificationRestoresThem)
+{
+    TempVolume fixture;
+    std::string directory;
+    {
+        Volume volume{fixture.root, fixture.owner};
+        directory = committed_block(volume);
+    }
+    const auto detached = fixture.root / "detached";
+    fs::rename(fixture.root / directory, detached);
+    {
+        Volume reopened{fixture.root, fixture.owner};
+        EXPECT_EQ(archive_status(fixture.root).at("missing"), 1);
+        auto missing = reopened.pending();
+        if (!missing)
+            FAIL() << "Expected a missing block to register";
+        EXPECT_EQ(missing->unavailable, "missing");
+        reopened.acknowledge(*missing);
+    }
+    fs::rename(detached, fixture.root / directory);
+    Volume repaired{fixture.root, fixture.owner};
+    EXPECT_EQ(archive_status(fixture.root).at("missing"), 1) << "Only verified media becomes available";
+    const auto result = repaired.verify_next();
+    if (!result)
+        FAIL() << "Expected the missing block to be due for verification";
+    EXPECT_TRUE(result->available);
+    EXPECT_EQ(archive_status(fixture.root).at("missing"), 0);
+    const auto available = repaired.pending();
+    if (!available)
+        FAIL() << "Expected the restored block to register";
+    EXPECT_TRUE(available->unavailable.empty());
+}
+
+TEST(ArchiveVerification, EachOpenVerifiesEveryBlockOnce)
+{
+    TempVolume fixture;
+    {
+        Volume volume{fixture.root, fixture.owner};
+        committed_block(volume);
+        committed_block(volume);
+    }
+    Volume reopened{fixture.root, fixture.owner};
+    std::set<std::string> verified;
+    while (const auto result = reopened.verify_next()) {
+        EXPECT_TRUE(result->available);
+        EXPECT_TRUE(verified.insert(result->block_id).second);
+    }
+    EXPECT_EQ(verified.size(), 2u);
+}
+
+TEST(ArchiveVerification, OpeningRemovesInterruptedStagingDirectories)
+{
+    TempVolume fixture;
+    {
+        Volume volume{fixture.root, fixture.owner};
+    }
+    const auto staging = fixture.root / "blocks" / (".partial-" + uuid());
+    fs::create_directory(staging);
+    write_sample(staging / "media.mp4");
+    Volume reopened{fixture.root, fixture.owner};
+    EXPECT_FALSE(fs::exists(staging));
+    EXPECT_FALSE(reopened.pending());
+}
+
+TEST(ArchiveVerification, RepairsCorruptPrimaryFromVerifiedCopy)
+{
+    TempVolume fixture;
+    const fs::path mount{fixture.root.string() + "-replica"};
+    fs::create_directory(mount);
+    const VolumeOptions copies_configured{.replica = mount, .invalid = {}};
+    std::string directory;
+    {
+        Volume volume{fixture.root, fixture.owner, copies_configured};
+        directory = committed_block(volume);
+    }
+    const auto copies = mount / ("bacuri-" + fixture.owner.site + "-" + fixture.owner.node);
+    fs::create_directories(copies);
+    const auto copy = copies / fs::path{directory}.filename();
+    fs::copy(fixture.root / directory, copy);
+    std::ifstream original_file{copy / "media.mp4", std::ios::binary};
+    const std::string original{std::istreambuf_iterator<char>{original_file}, {}};
+    flip_last_byte(fixture.root / directory / "media.mp4");
+
+    Volume reopened{fixture.root, fixture.owner, copies_configured};
+    const auto result = reopened.verify_next();
+    if (!result)
+        FAIL() << "Expected the corrupt block to be due for verification";
+    EXPECT_TRUE(result->available);
+    std::ifstream repaired_file{fixture.root / directory / "media.mp4", std::ios::binary};
+    EXPECT_EQ(std::string(std::istreambuf_iterator<char>{repaired_file}, {}), original);
+    EXPECT_EQ(archive_status(fixture.root).at("corrupt"), 0);
+    std::error_code ignored;
+    fs::remove_all(mount, ignored);
 }
 
 TEST(ArchiveManifest, ValidatesTimeAndIdentityBeforePublication)

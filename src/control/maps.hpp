@@ -11,11 +11,11 @@ void maps(const Request&, Response&, const Sessions&, const std::string& site, s
           const std::string& origin);
 namespace map_packages
 {
-void work(std::stop_token);
+void work(const std::stop_token&);
 }
 void import_map(const std::filesystem::path&);
 struct MapImage {
-    unsigned width, height;
+    unsigned width{}, height{};
     std::string png;
 };
 MapImage read_map_png(std::string_view bytes, bool tile);

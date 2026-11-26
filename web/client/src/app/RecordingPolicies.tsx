@@ -15,7 +15,14 @@ import {
   needsListSearch,
 } from "../ui-kit/FilterPanel";
 import "./recording-policies.css";
-const week = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+import {
+  formatNumber,
+  locale,
+  shortWeekdays,
+  t as translate,
+  useT,
+  type MessageKey,
+} from "../i18n";
 type Period = { days: number[]; start: number; end: number };
 function groupPeriods(schedule: CaptureRule["schedule"]): Period[] {
   const periods: Period[] = [];
@@ -50,41 +57,39 @@ function archiveDepth(oldest: number, newest: number) {
   const seconds = Math.max(0, (newest - oldest) / 1e6);
   const [value, unit] =
     seconds < 60
-      ? [seconds, "с"]
+      ? ([seconds, "unit.seconds"] as const)
       : seconds < 3600
-        ? [seconds / 60, "мин"]
+        ? ([seconds / 60, "unit.minutes"] as const)
         : seconds < 86400
-          ? [seconds / 3600, "ч"]
-          : [seconds / 86400, "дн."];
-  return (
-    Number(value).toLocaleString("ru", { maximumFractionDigits: 1 }) +
-    " " +
-    unit
-  );
+          ? ([seconds / 3600, "unit.hours"] as const)
+          : ([seconds / 86400, "unit.days"] as const);
+  return translate(unit, {
+    value: formatNumber(value, { maximumFractionDigits: 1 }),
+  });
 }
 function modes(rule: CaptureRule) {
   return (
     [
-      rule.continuous && "Непрерывно",
-      rule.manual && "Вручную",
-      rule.event && "По движению",
-      rule.schedule.length > 0 && "По расписанию",
+      rule.continuous && translate("rp.continuous"),
+      rule.manual && translate("cameras.manual"),
+      rule.event && translate("rp.motion"),
+      rule.schedule.length > 0 && translate("rp.scheduled"),
     ]
       .filter(Boolean)
-      .join(" · ") || "Запись отключена"
+      .join(" · ") || translate("rp.state.disabled")
   );
 }
-const recordingStates: Record<string, string> = {
-  unbound: "Камера не привязана",
-  source_offline: "Нет основного потока",
-  awaiting_policy: "Ожидание политики",
-  selected: "Запись по политике",
-  waiting_event: "Ожидание движения",
-  outside_schedule: "Вне расписания",
-  waiting_manual: "Ожидание ручного запуска",
-  disabled: "Запись отключена",
-  recording_stopped: "Достигнут резерв тома",
-  offline: "Рекордер недоступен",
+const recordingStates: Record<string, MessageKey> = {
+  unbound: "rp.state.unbound",
+  source_offline: "rp.state.source_offline",
+  awaiting_policy: "rp.state.awaiting_policy",
+  selected: "rp.state.selected",
+  waiting_event: "rp.state.waiting_event",
+  outside_schedule: "rp.state.outside_schedule",
+  waiting_manual: "rp.state.waiting_manual",
+  disabled: "rp.state.disabled",
+  recording_stopped: "rp.state.recording_stopped",
+  offline: "rp.state.offline",
 };
 type CaptureGroup = Awaited<ReturnType<Services["captureGroups"]>>[number];
 
@@ -103,6 +108,7 @@ function CameraSummary({
   edit: () => void;
   openGroup: (id: string) => void;
 }) {
+  const t = useT();
   const rule = policy?.rule ?? defaults;
   const volume = storage.volume;
   const state = !volume
@@ -118,95 +124,99 @@ function CameraSummary({
   return (
     <section
       className="rp-camera-summary"
-      aria-label={"Настройки записи камеры «" + point.name + "»"}
+      aria-label={t("rp.cameraSettings", { name: point.name })}
     >
       <div className="rp-origin">
         <strong tabIndex={-1} data-policy-focus>
           {point.name}
         </strong>
-        {state && <span>{recordingStates[state]}</span>}
+        {state && recordingStates[state] && (
+          <span>{t(recordingStates[state])}</span>
+        )}
       </div>
       <dl className="rp-facts">
         <div>
-          <dt>Источник настроек</dt>
+          <dt>{t("rp.settingsSource")}</dt>
           <dd>
             {group ? (
               <Button
                 className="rp-group-link"
                 onClick={() => openGroup(group.id)}
-                aria-label={"Открыть политику группы «" + group.name + "»"}
+                aria-label={t("rp.openGroup", { name: group.name })}
               >
                 <ControlGlyph icon="users-round" />
                 {group.name}
                 <ControlGlyph icon="chevron-right" />
               </Button>
             ) : policy?.scope === "point" ? (
-              "Индивидуальная политика"
+              t("rp.individual")
             ) : (
-              "Настройки площадки"
+              t("rp.site")
             )}
           </dd>
         </div>
         <div>
-          <dt>Режим записи</dt>
+          <dt>{t("rp.mode")}</dt>
           <dd>{modes(rule)}</dd>
         </div>
         {rule.event && (
           <div>
-            <dt>По движению</dt>
-            <dd>
-              {rule.pre} с до события · {rule.post} с после
-            </dd>
+            <dt>{t("rp.motion")}</dt>
+            <dd>{t("rp.prePost", { pre: rule.pre, post: rule.post })}</dd>
           </div>
         )}
         {rule.schedule.length > 0 && (
           <div>
-            <dt>Расписание · {rule.zone}</dt>
+            <dt>
+              {t("rules.schedule")} · {rule.zone}
+            </dt>
             <dd>
               {groupPeriods(rule.schedule).map((p) => (
                 <span className="rp-summary-period" key={p.start + "/" + p.end}>
-                  {week.filter((_, i) => p.days.includes(i + 1)).join(", ")} ·{" "}
-                  {time(p.start)} - {p.end === 1440 ? "24:00" : time(p.end)}
-                  {p.end < p.start ? " (+1 день)" : ""}
+                  {shortWeekdays()
+                    .filter((_, i) => p.days.includes(i + 1))
+                    .join(", ")}{" "}
+                  · {time(p.start)} - {p.end === 1440 ? "24:00" : time(p.end)}
+                  {p.end < p.start ? " " + t("rp.nextDay") : ""}
                 </span>
               ))}
             </dd>
           </div>
         )}
         <div>
-          <dt>Звук в архиве</dt>
+          <dt>{t("rp.audio")}</dt>
           <dd>
             {!policy
-              ? "По команде оператора"
+              ? t("rp.audioOnCommand")
               : rule.audio
-                ? "Включён"
-                : "Выключен"}
+                ? t("rp.on")
+                : t("rp.off")}
           </dd>
         </div>
         <div>
-          <dt>Срок хранения</dt>
-          <dd>{days === null ? "Без ограничения по сроку" : days + " дн."}</dd>
+          <dt>{t("rp.retention")}</dt>
+          <dd>
+            {days === null ? t("rp.noLimit") : t("unit.days", { value: days })}
+          </dd>
         </div>
         <div>
-          <dt>Глубина архива</dt>
+          <dt>{t("rp.depth")}</dt>
           <dd>
             {depth
               ? archiveDepth(depth.oldest_us, depth.newest_us)
-              : "Записей нет"}
+              : t("rp.noRecords")}
           </dd>
         </div>
         {depth && (
           <div>
-            <dt>Последний кадр</dt>
+            <dt>{t("rp.lastFrame")}</dt>
             <dd>{new Date(depth.newest_us / 1000).toLocaleString("ru")}</dd>
           </div>
         )}
       </dl>
       <Button className="rp-edit-camera" onClick={edit}>
         <ControlGlyph icon="settings-2" />
-        {policy?.scope === "point"
-          ? "Изменить настройки камеры"
-          : "Настроить отдельно"}
+        {policy?.scope === "point" ? t("rp.editCamera") : t("rp.override")}
       </Button>
     </section>
   );
@@ -223,6 +233,7 @@ function GroupMembers({
   policies: CapturePolicies;
   openCamera: (id: string) => void;
 }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const policy = policies.policies.find(
     (p) => p.scope === "group" && p.target === group.id,
@@ -238,20 +249,20 @@ function GroupMembers({
   return (
     <details className="rp-members">
       <summary data-policy-focus>
-        <strong>Состав группы</strong>
+        <strong>{t("rp.members")}</strong>
         <span>
           {policy
-            ? "Политика действует для " +
-              group.points.filter(applies).length +
-              " из " +
-              group.points.length
-            : "Камер в группе: " + group.points.length}
+            ? t("rp.appliesTo", {
+                count: group.points.filter(applies).length,
+                total: group.points.length,
+              })
+            : t("rp.groupSize", { count: group.points.length })}
         </span>
       </summary>
       {needsListSearch(members.length, query) && (
         <FilterPanel
-          label="Состав группы"
-          queryLabel="Найти камеру в группе"
+          label={t("rp.members")}
+          queryLabel={t("rp.findInGroup")}
           query={query}
           onQuery={setQuery}
           onReset={() => setQuery("")}
@@ -266,12 +277,12 @@ function GroupMembers({
                 <strong>{p.name}</strong>
                 <small>
                   {applies(p.id)
-                    ? "По политике группы"
+                    ? t("rp.byGroup")
                     : !policies.effective[p.id]
-                      ? "Настройки площадки"
+                      ? t("rp.site")
                       : overrides.has(p.id)
-                        ? "Индивидуальная политика"
-                        : "По политике другой группы"}
+                        ? t("rp.individual")
+                        : t("rp.byOtherGroup")}
                 </small>
               </span>
               <ControlGlyph icon="chevron-right" />
@@ -282,10 +293,10 @@ function GroupMembers({
       {!filtered.length && (
         <p>
           {query
-            ? "Совпадений нет"
+            ? t("inv.noHits")
             : group.points.length
-              ? "Камеры недоступны"
-              : "В группе пока нет камер"}
+              ? t("rp.camerasUnavailable")
+              : t("rp.emptyGroup")}
         </p>
       )}
     </details>
@@ -312,6 +323,7 @@ function Editor({
   name: string;
   cancel?: () => void;
 }) {
+  const t = useT();
   const [rule, setRule] = useState<CaptureRule>(
       policy?.rule ?? inherited ?? defaults,
     ),
@@ -344,9 +356,7 @@ function Editor({
         });
       done();
     } catch {
-      setError(
-        "Изменение не сохранено. Проверьте часовой пояс и редакцию политики.",
-      );
+      setError(t("rp.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -360,31 +370,32 @@ function Editor({
       }}
     >
       <strong tabIndex={-1} data-policy-focus>
-        {scope === "group" ? "Политика группы" : "Индивидуальная политика"} «
-        {name}»
+        {t(scope === "group" ? "rp.groupPolicyNamed" : "rp.individualNamed", {
+          name,
+        })}
       </strong>
       {scope === "group" && (
         <label className="rp-priority">
-          Приоритет группы
+          {t("rp.priority")}
           <input
             required
             type="number"
             min={0}
             max={100}
-            aria-description="Если камера входит в несколько групп, действует политика с большим приоритетом."
+            aria-description={t("rp.priorityHint")}
             value={priority}
             onChange={(e) => setPriority(+e.target.value)}
           />
         </label>
       )}
       <fieldset disabled={busy}>
-        <legend>Записывать</legend>
+        <legend>{t("rp.record")}</legend>
         <div className="rp-modes">
           {(
             [
-              ["continuous", "Непрерывно"],
-              ["manual", "Вручную"],
-              ["event", "По движению"],
+              ["continuous", t("rp.continuous")],
+              ["manual", t("cameras.manual")],
+              ["event", t("rp.motion")],
             ] as const
           ).map(([k, label]) => (
             <label key={k}>
@@ -401,8 +412,8 @@ function Editor({
           <div className="rp-fields">
             {(
               [
-                ["pre", "До события, с", 0, 30],
-                ["post", "После события, с", 1, 300],
+                ["pre", t("rp.pre"), 0, 30],
+                ["post", t("rp.post"), 1, 300],
               ] as const
             ).map(([k, label, min, max]) => (
               <label key={k}>
@@ -421,10 +432,10 @@ function Editor({
         )}
       </fieldset>
       <fieldset disabled={busy}>
-        <legend>Недельное расписание</legend>
+        <legend>{t("rp.weekly")}</legend>
         {periods.length > 0 && (
           <label>
-            Часовой пояс
+            {t("rules.timezone")}
             <input
               required
               value={rule.zone}
@@ -453,8 +464,8 @@ function Editor({
             );
           return (
             <div className="rp-period" key={index}>
-              <div className="rp-week" role="group" aria-label="Дни записи">
-                {week.map((label, dayIndex) => {
+              <div className="rp-week" role="group" aria-label={t("rp.days")}>
+                {shortWeekdays().map((label, dayIndex) => {
                   const day = dayIndex + 1;
                   const active = period.days.includes(day);
                   return (
@@ -482,7 +493,7 @@ function Editor({
               </div>
               <div className="rp-times">
                 <input
-                  aria-label="Начало интервала"
+                  aria-label={t("rp.intervalStart")}
                   type="time"
                   required
                   value={time(period.start)}
@@ -493,7 +504,7 @@ function Editor({
                 />
                 <span aria-hidden="true">-</span>
                 <input
-                  aria-label="Конец интервала"
+                  aria-label={t("access.intervalEnd")}
                   type="time"
                   required
                   value={time(period.end)}
@@ -505,7 +516,7 @@ function Editor({
                 <IconButton
                   type="button"
                   icon="minus"
-                  label="Удалить интервал"
+                  label={t("rp.removeInterval")}
                   onClick={() =>
                     setPeriods((rows) => rows.filter((_, n) => n !== index))
                   }
@@ -517,7 +528,7 @@ function Editor({
         <IconButton
           type="button"
           icon="plus"
-          label="Добавить интервал"
+          label={t("rp.addInterval")}
           disabled={periods.reduce((n, p) => n + p.days.length, 0) >= 56}
           onClick={() =>
             setPeriods((rows) => [
@@ -528,23 +539,23 @@ function Editor({
         />
       </fieldset>
       <fieldset disabled={busy}>
-        <legend>Архив</legend>
+        <legend>{t("monitor.archive")}</legend>
         <label className="rp-audio">
           <input
             type="checkbox"
             checked={rule.audio}
             onChange={(e) => update("audio", e.target.checked)}
           />
-          Записывать звук
+          {t("rp.recordAudio")}
         </label>
         <div className="rp-fields">
           <label>
-            Срок хранения, дни
+            {t("rp.retentionDays")}
             <input
               type="number"
               min={1}
               max={36500}
-              placeholder="По настройке тома"
+              placeholder={t("rp.byVolume")}
               value={rule.days ?? ""}
               onChange={(e) =>
                 update("days", e.target.value ? +e.target.value : null)
@@ -556,7 +567,7 @@ function Editor({
       <footer>
         {cancel && (
           <Button type="button" disabled={busy} onClick={cancel}>
-            Отмена
+            {t("action.cancel")}
           </Button>
         )}
         {policy && (
@@ -566,14 +577,14 @@ function Editor({
             onClick={() => (confirm ? void save(true) : setConfirm(true))}
           >
             {confirm
-              ? "Подтвердить сброс"
+              ? t("rp.confirmReset")
               : scope === "point"
-                ? "Вернуть наследование"
-                : "Снять политику группы"}
+                ? t("rp.inherit")
+                : t("rp.removeGroupPolicy")}
           </Button>
         )}
         <Button type="submit" variant="primary" disabled={busy}>
-          {scope === "group" ? "Сохранить для группы" : "Сохранить для камеры"}
+          {scope === "group" ? t("rp.saveGroup") : t("rp.saveCamera")}
         </Button>
       </footer>
       {error && <p role="alert">{error}</p>}
@@ -587,6 +598,7 @@ function Volume({
   value: CaptureStorage;
   save: (days: number, reserve: number) => Promise<void>;
 }) {
+  const t = useT();
   const [days, term] = useState(value.days?.toString() ?? ""),
     [reserve, floor] = useState(value.reserve_percent),
     [error, fail] = useState(false),
@@ -614,23 +626,31 @@ function Volume({
       <div className="rp-origin">
         <strong>
           {!v
-            ? "Рекордер недоступен"
+            ? t("rp.state.offline")
             : v.state === "recording_stopped"
-              ? "Запись остановлена: достигнут резерв"
+              ? t("rp.stopped")
               : v.state === "low_space"
-                ? "Мало свободного места"
-                : "Том доступен"}
+                ? t("rp.lowSpace")
+                : t("rp.volumeOk")}
         </strong>
         {v && (
           <span>
-            Свободно {(v.available_bytes / 2 ** 30).toFixed(1)} из{" "}
-            {(v.capacity_bytes / 2 ** 30).toFixed(1)} ГиБ
+            {t("rp.free", {
+              free: formatNumber(v.available_bytes / 2 ** 30, {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+              }),
+              total: formatNumber(v.capacity_bytes / 2 ** 30, {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+              }),
+            })}
           </span>
         )}
       </div>
       {v && (
         <meter
-          aria-label="Занято на томе"
+          aria-label={t("rp.used")}
           min={0}
           max={v.capacity_bytes}
           value={v.capacity_bytes - v.available_bytes}
@@ -639,40 +659,42 @@ function Volume({
       {v?.replica && (
         <p>
           {v.replica.online === false
-            ? "Том копий недоступен"
-            : "Резервная копия"}{" "}
-          · {v.replica.verified} проверено
-          {!!v.replica.pending && ` · ${v.replica.pending} в очереди`}
-          {!!v.replica.failed && ` · ошибок: ${v.replica.failed}`}
+            ? t("rp.replicaOffline")
+            : t("rp.replica")}{" "}
+          · {t("rp.verified", { count: v.replica.verified })}
+          {!!v.replica.pending &&
+            " · " + t("rp.pending", { count: v.replica.pending })}
+          {!!v.replica.failed &&
+            " · " + t("rp.failed", { count: v.replica.failed })}
         </p>
       )}
       {v?.write_bytes_per_second && (
         <p>
-          Прогноз по текущей скорости записи ·{" "}
+          {t("rp.forecast")} ·{" "}
           {Math.min(
             Number(days) || Infinity,
             Math.max(0, v.capacity_bytes * (1 - reserve / 100)) /
               v.write_bytes_per_second /
               86400,
-          ).toLocaleString("ru", { maximumFractionDigits: 1 })}{" "}
-          сут.
+          ).toLocaleString(locale(), { maximumFractionDigits: 1 })}{" "}
+          {t("rp.daysShort")}
         </p>
       )}
       <div className="rp-fields">
         <label>
-          Срок хранения площадки, дни
+          {t("rp.siteRetention")}
           <input
             type="number"
             required
             min={1}
             max={36500}
             value={days}
-            placeholder="Без ограничения"
+            placeholder={t("rp.unlimited")}
             onChange={(e) => term(e.target.value)}
           />
         </label>
         <label>
-          Резерв свободного места, %
+          {t("rp.reserve")}
           <input
             type="number"
             required
@@ -685,10 +707,10 @@ function Volume({
       </div>
       <footer>
         <Button type="submit" variant="primary" disabled={busy}>
-          Сохранить
+          {t("action.save")}
         </Button>
       </footer>
-      {error && <p role="alert">Не удалось сохранить настройки тома.</p>}
+      {error && <p role="alert">{t("rp.volumeSaveFailed")}</p>}
     </form>
   );
 }
@@ -701,6 +723,7 @@ export default function RecordingPolicies({
   points: Point[];
   services: Services;
 }) {
+  const t = useT();
   const [view, setView] = useState("point"),
     [query, search] = useState(""),
     [chosen, choose] = useState(""),
@@ -782,22 +805,24 @@ export default function RecordingPolicies({
   return (
     <section
       className="ws-panel ws-pad rp-workspace"
-      aria-label="Политики записи"
+      aria-label={t("rp.title")}
     >
       <FilterSegments
-        label="Область настройки"
+        label={t("rp.scope")}
         value={view}
         options={[
-          { value: "point", label: "Камеры" },
-          { value: "group", label: "Группы" },
-          { value: "volume", label: "Том" },
+          { value: "point", label: t("rp.cameras") },
+          { value: "group", label: t("access.tab.groups") },
+          { value: "volume", label: t("rp.volume") },
         ]}
         onChange={navigate}
       />
       {view !== "volume" && (
         <FilterPanel
-          label="Фильтр политик"
-          queryLabel={view === "point" ? "Найти камеру" : "Найти группу"}
+          label={t("rp.filter")}
+          queryLabel={
+            view === "point" ? t("layout.findCamera") : t("rp.findGroup")
+          }
           query={query}
           onQuery={(text) => {
             search(text);
@@ -805,7 +830,7 @@ export default function RecordingPolicies({
           }}
           onReset={() => search("")}
           refresh={{
-            label: "Обновить политики",
+            label: t("rp.refresh"),
             run: () => refresh((v) => v + 1),
             busy,
           }}
@@ -814,12 +839,12 @@ export default function RecordingPolicies({
       {view === "volume" && (
         <IconButton
           icon="rotate-cw"
-          label="Обновить состояние тома"
+          label={t("rp.refreshVolume")}
           onClick={() => refresh((v) => v + 1)}
         />
       )}
-      {error && <p role="alert">Не удалось загрузить настройки записи.</p>}
-      {!result && busy && <p role="status">Загрузка…</p>}
+      {error && <p role="alert">{t("rp.loadFailed")}</p>}
+      {!result && busy && <p role="status">{t("action.loading")}</p>}
       {result &&
         (view === "volume" ? (
           <Volume
@@ -839,7 +864,9 @@ export default function RecordingPolicies({
           <div className="rp-split">
             <div
               className="rp-targets"
-              aria-label={view === "point" ? "Камеры" : "Группы"}
+              aria-label={
+                view === "point" ? t("rp.cameras") : t("access.tab.groups")
+              }
             >
               {items.map((p) => {
                 const rule =
@@ -865,8 +892,8 @@ export default function RecordingPolicies({
                       {rule
                         ? modes(rule)
                         : view === "point"
-                          ? "Непрерывно"
-                          : "Политика не задана"}
+                          ? t("rp.continuous")
+                          : t("rp.noPolicy")}
                     </small>
                   </button>
                 );
@@ -874,10 +901,10 @@ export default function RecordingPolicies({
               {!items.length && (
                 <p>
                   {query
-                    ? "Совпадений нет"
+                    ? t("inv.noHits")
                     : view === "group"
-                      ? "На площадке пока нет групп камер"
-                      : "На площадке пока нет камер"}
+                      ? t("rp.noGroups")
+                      : t("rp.noCameras")}
                 </p>
               )}
             </div>

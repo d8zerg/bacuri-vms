@@ -1,7 +1,11 @@
 #include "archive/manifest.hpp"
-#include "control/support.hpp"
+#include "platform/identifiers.hpp"
+
+#include <sodium.h>
 
 #include <algorithm>
+#include <array>
+#include <stdexcept>
 #include <limits>
 
 namespace bacuri::vms::archive
@@ -24,8 +28,23 @@ std::int64_t number(const Json& value)
 
 std::string uuid()
 {
-    std::unique_ptr<char, decltype(&g_free)> id{g_uuid_string_random(), g_free};
-    return id.get();
+    if (sodium_init() < 0)
+        throw std::runtime_error("Cannot initialize the random number generator");
+    std::array<unsigned char, 16> bytes{};
+    randombytes_buf(bytes.data(), bytes.size());
+    // Version 4 and the variant of RFC 9562.
+    bytes[6] = static_cast<unsigned char>((bytes[6] & 0x0f) | 0x40);
+    bytes[8] = static_cast<unsigned char>((bytes[8] & 0x3f) | 0x80);
+    constexpr std::string_view digits{"0123456789abcdef"};
+    std::string text;
+    text.reserve(36);
+    for (std::size_t i = 0; i < bytes.size(); ++i) {
+        if (i == 4 || i == 6 || i == 8 || i == 10)
+            text.push_back('-');
+        text.push_back(digits[bytes[i] >> 4]);
+        text.push_back(digits[bytes[i] & 0x0f]);
+    }
+    return text;
 }
 
 void validate_manifest(const Json& m)
@@ -34,7 +53,7 @@ void validate_manifest(const Json& m)
             number(m.at("manifest_version")) == domain::BlockManifestV1::version);
     for (const auto key : {"site_id", "recording_node_id", "block_id", "recording_epoch_id", "point_id",
                            "device_id", "channel_id", "profile_id"}) {
-        require(control::canonical_id(m.at(key).get_ref<const std::string&>()));
+        require(platform::canonical_id(m.at(key).get_ref<const std::string&>()));
     }
     require(number(m.at("owner_generation")) > 0 && number(m.at("binding_revision")) > 0);
     const auto begin = number(m.at("begin_utc_us"));
@@ -51,9 +70,11 @@ void validate_manifest(const Json& m)
         const auto& a = m.at("audio");
         const auto start = number(a.at("start_us")), bytes = number(a.at("size_bytes"));
         const auto& hash = a.at("sha256").get_ref<const std::string&>();
-        require(a.is_object() && a.size() == 3 && start >= begin && start < end && bytes > 0 && bytes % 2 == 0 &&
-                bytes <= 256000 && bytes / 2 <= (end - start) / 125 && hash.size() == 64 &&
-                hash.find_first_not_of("0123456789abcdef") == hash.npos);
+        require(a.is_object() && a.size() == 3 && start >= begin && start < end && bytes > 0 &&
+                bytes % domain::ArchiveSound::bytes_per_sample == 0 && bytes <= 256000 &&
+                bytes / domain::ArchiveSound::bytes_per_sample <=
+                    (end - start) / domain::ArchiveSound::sample_period_us &&
+                hash.size() == 64 && hash.find_first_not_of("0123456789abcdef") == hash.npos);
     }
     const auto& t = m.at("time");
     require(t.is_object() && t.size() == 5);
@@ -63,7 +84,8 @@ void validate_manifest(const Json& m)
         number(source);
     }
     if (t.at("basis") == "source_clock") {
-        require(!source.is_null() && control::canonical_id(t.at("clock_epoch_id").get_ref<const std::string&>()) &&
+        require(!source.is_null() &&
+                platform::canonical_id(t.at("clock_epoch_id").get_ref<const std::string&>()) &&
                 number(t.at("uncertainty_us")) >= 0);
     } else {
         require(t.at("basis") == "reception" && received == begin && t.at("clock_epoch_id").is_null() &&

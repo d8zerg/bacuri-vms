@@ -6,6 +6,7 @@ let playback = null;
 const reasons = {
     source_offline: "Нет связи с камерой",
     overload: "Перегрузка",
+    keyframe_interval: "Камера редко передаёт опорные кадры",
     storage_failure: "Ошибка хранения",
     unknown_coverage: "Покрытие неизвестно",
     pending_catalog: "Ожидает регистрации",

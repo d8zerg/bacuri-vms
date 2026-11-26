@@ -89,7 +89,7 @@ Json begin_webauthn(Database& db, const Key& key, const std::string& origin, con
                     .size());
     }
     const auto ticket = token();
-    std::array<unsigned char, 32> nonce;
+    std::array<unsigned char, 32> nonce{};
     randombytes_buf(nonce.data(), nonce.size());
     const auto challenge = encode(nonce.data(), nonce.size());
     db.exec("DELETE FROM bacuri_access.webauthn_challenges WHERE expires_at<=now()");
@@ -126,7 +126,7 @@ VerifiedFactor finish_webauthn(Database& db, const Key& key, const std::string& 
             parsed["origin"] == origin && parsed["challenge"] == challenge.get(0) &&
             (!parsed.contains("crossOrigin") || parsed["crossOrigin"] == false) && !parsed.contains("topOrigin"));
     const auto data = decode(string_field(body, "authenticator_data", 16000));
-    std::array<unsigned char, crypto_hash_sha256_BYTES> hash;
+    std::array<unsigned char, crypto_hash_sha256_BYTES> hash{};
     crypto_hash_sha256(hash.data(), reinterpret_cast<const unsigned char*>(rp.data()), rp.size());
     require(data.size() >= 37 && sodium_memcmp(hash.data(), data.data(), hash.size()) == 0 && (data[32] & 5) == 5);
     const auto id = string_field(body, "credential_id", 1500);

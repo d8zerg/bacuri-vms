@@ -89,6 +89,9 @@ TEST(RecordingPolicy, ArchiveDecodesNumberedSamplesAcrossTheRepeatedHour)
     gst_init(nullptr, nullptr);
     struct TemporaryVolume {
         fs::path root = fs::temp_directory_path() / uuid();
+        TemporaryVolume() = default;
+        TemporaryVolume(const TemporaryVolume&) = delete;
+        TemporaryVolume& operator=(const TemporaryVolume&) = delete;
         ~TemporaryVolume()
         {
             std::error_code error;

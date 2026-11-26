@@ -1,5 +1,6 @@
 #include "control/alert_socket.hpp"
 #include "control/alerts.hpp"
+#include "platform/scope_exit.hpp"
 #include <boost/asio/as_tuple.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/use_awaitable.hpp>
@@ -67,13 +68,7 @@ net::awaitable<void> stream_alerts(std::shared_ptr<TlsStream> transport, net::th
     auto link = std::make_shared<Link>(std::move(transport));
     auto& socket = link->socket;
     auto& tcp = beast::get_lowest_layer(socket);
-    struct Disconnect {
-        beast::tcp_stream& transport;
-        ~Disconnect()
-        {
-            transport.close();
-        }
-    } disconnect{tcp};
+    platform::ScopeExit disconnect{[&tcp] { tcp.close(); }};
     tcp.expires_never();
     tcp.socket().set_option(net::socket_base::send_buffer_size{16 * 1024});
     socket.read_message_max(2048);
@@ -91,7 +86,7 @@ net::awaitable<void> stream_alerts(std::shared_ptr<TlsStream> transport, net::th
     if (!after.empty()) {
         socket.set_option(ws::stream_base::timeout{2s, ws::stream_base::none(), false});
         socket.text(true);
-        net::co_spawn(socket.get_executor(), monitor(link), [](std::exception_ptr) {});
+        net::co_spawn(socket.get_executor(), monitor(link), [](const std::exception_ptr&) {});
 
         while (!link->ended && tcp.socket().is_open()) {
             const auto now = Clock::now();

@@ -160,8 +160,10 @@ def main():
         copy(binaries / "bacuri-install", kit / "bacuri-install")
         copy(binaries / "bacuri-maintain", kit / "bacuri-maintain")
         copy("docs/maintenance.md", kit / "MAINTENANCE.md")
+        copy("docs/ru/maintenance.md", kit / "MAINTENANCE.ru.md")
         copy("LICENSE", kit / "LICENSE")
         copy("docs/install.md", kit / "INSTALL.md")
+        copy("docs/ru/install.md", kit / "INSTALL.ru.md")
         (kit / "VERSION").write_text(f"{version}\n{target}\n")
         static = Path("build/web-client")
         assets = {

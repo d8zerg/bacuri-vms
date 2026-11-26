@@ -11,6 +11,9 @@ constexpr auto overhead = crypto_secretstream_xchacha20poly1305_ABYTES;
 constexpr auto final_tag = crypto_secretstream_xchacha20poly1305_TAG_FINAL;
 struct Secret {
     std::array<unsigned char, crypto_secretstream_xchacha20poly1305_KEYBYTES> bytes{};
+    Secret() = default;
+    Secret(const Secret&) = delete;
+    Secret& operator=(const Secret&) = delete;
     ~Secret()
     {
         sodium_memzero(bytes.data(), bytes.size());
@@ -43,7 +46,8 @@ void snapshot_cipher(const fs::path& key, const Io& io, bool encrypt)
     constexpr std::size_t chunk = 65536;
     std::array<unsigned char, chunk + overhead> buffer{}, result{};
     for (;;) {
-        in.read(reinterpret_cast<char*>(buffer.data()), encrypt ? chunk : buffer.size());
+        in.read(reinterpret_cast<char*>(buffer.data()),
+                static_cast<std::streamsize>(encrypt ? chunk : buffer.size()));
         auto count = static_cast<unsigned long long>(in.gcount());
         ensure(!in.bad(), "Snapshot read failed");
         const bool last = in.peek() == EOF;

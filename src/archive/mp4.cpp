@@ -61,7 +61,7 @@ MediaDigest digest_media(int fd)
 {
     crypto_hash_sha256_state state{};
     crypto_hash_sha256_init(&state);
-    std::array<unsigned char, 64uz * 1024> buffer;
+    std::array<unsigned char, 64uz * 1024> buffer{};
     std::int64_t total{};
     for (;;) {
         auto count = read(fd, buffer.data(), buffer.size());
@@ -74,7 +74,7 @@ MediaDigest digest_media(int fd)
         if (count == 0) {
             break;
         }
-        crypto_hash_sha256_update(&state, buffer.data(), count);
+        crypto_hash_sha256_update(&state, buffer.data(), static_cast<unsigned long long>(count));
         total += count;
     }
     std::array<unsigned char, crypto_hash_sha256_BYTES> hash{};

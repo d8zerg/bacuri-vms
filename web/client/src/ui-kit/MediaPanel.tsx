@@ -5,6 +5,7 @@ import icons from "../../../../design/bacuri/icons/sprite.svg";
 import type { Quality } from "../contracts/workspace";
 import { formatUtc } from "./utc";
 import { Button, IconButton } from "./FormControls";
+import { useT } from "../i18n";
 export type PlayerState = {
   kind: "loading" | "ready" | "idle" | "error";
   message: string;
@@ -45,6 +46,7 @@ export function MediaPanel({
   onExpand,
   expanded,
 }: Props) {
+  const t = useT();
   const player = useRef<HTMLElement>(null);
   const [full, setFull] = useState(false),
     [fullscreenError, setFullscreenError] = useState(false);
@@ -59,7 +61,7 @@ export function MediaPanel({
     <section
       ref={player}
       className="ws-panel ws-player"
-      aria-label="Видеоплеер"
+      aria-label={t("player.label")}
     >
       <header className="ws-panel-head">
         <div>
@@ -68,36 +70,38 @@ export function MediaPanel({
           </h2>
           <p>
             {description ||
-              (mode === "live" ? "Эфир" : "Основной поток · Архив")}
+              (mode === "live"
+                ? t("monitor.live")
+                : t("camera.form.main") + " · " + t("monitor.archive"))}
           </p>
         </div>
         {onQuality && (
-          <label className="ws-stream-choice" title="Качество эфира">
+          <label className="ws-stream-choice" title={t("player.quality")}>
             <svg aria-hidden="true">
               <use href={icons + "#i-settings-2"} />
             </svg>
             <select
-              aria-label="Качество эфира"
+              aria-label={t("player.quality")}
               value={quality}
               onChange={(event) => onQuality(event.target.value as Quality)}
             >
-              <option value="auto">Автоматический выбор потока</option>
-              <option value="secondary">Дополнительный поток</option>
-              <option value="main">Основной поток</option>
+              <option value="auto">{t("player.quality.auto")}</option>
+              <option value="secondary">{t("camera.form.secondary")}</option>
+              <option value="main">{t("camera.form.main")}</option>
             </select>
           </label>
         )}
         {onExpand && (
           <IconButton
             icon={expanded ? "collapse" : "expand"}
-            label={expanded ? "Вернуться к сетке" : "Развернуть камеру"}
+            label={expanded ? t("player.backToGrid") : t("player.expand")}
             onClick={onExpand}
           />
         )}
         {!onExpand && mode === "live" && document.fullscreenEnabled && (
           <IconButton
             icon={full ? "collapse" : "expand"}
-            label={full ? "Выйти из полного экрана" : "На весь экран"}
+            label={full ? t("player.exitFullscreen") : t("player.fullscreen")}
             aria-pressed={full}
             onClick={() => {
               setFullscreenError(false);
@@ -110,7 +114,7 @@ export function MediaPanel({
           />
         )}
         {onMode && (
-          <div className="ws-modes" role="group" aria-label="Режим просмотра">
+          <div className="ws-modes" role="group" aria-label={t("player.mode")}>
             {(["live", "archive"] as const).map((m) => (
               <Button
                 key={m}
@@ -119,7 +123,7 @@ export function MediaPanel({
                   if (mode !== m) onMode(m);
                 }}
               >
-                {m === "live" ? "Эфир" : "Архив"}
+                {m === "live" ? t("monitor.live") : t("monitor.archive")}
               </Button>
             ))}
           </div>
@@ -132,7 +136,9 @@ export function MediaPanel({
           playsInline
           controls={state.kind === "ready" && mode === "archive"}
           style={{ visibility: state.kind === "ready" ? "visible" : "hidden" }}
-          aria-label={mode === "live" ? "Прямой эфир" : "Архивная запись"}
+          aria-label={
+            mode === "live" ? t("player.liveVideo") : t("player.recording")
+          }
         />
         {state.kind !== "ready" && (
           <div className="ws-overlay" role="status">
@@ -157,16 +163,14 @@ export function MediaPanel({
             {liveDesk ? (
               <span role="status">{state.message}</span>
             ) : mode === "live" ? (
-              "Прямой эфир"
+              t("player.liveVideo")
             ) : (
-              "Архив"
+              t("monitor.archive")
             )}
           </span>
         )}
       </div>
-      {fullscreenError && (
-        <p role="alert">Браузер не разрешил полноэкранный просмотр.</p>
-      )}
+      {fullscreenError && <p role="alert">{t("player.fullscreenDenied")}</p>}
       {controls}
       {((state.kind === "ready" && !liveDesk) ||
         position ||
@@ -181,8 +185,8 @@ export function MediaPanel({
           )}
           {position && <time dateTime={position}>{formatUtc(position)}</time>}
           {marker && <span>{marker}</span>}
-          {showRetry && <Button onClick={retry}>Повторить</Button>}
-          {back && <Button onClick={back}>К выбранной тревоге</Button>}
+          {showRetry && <Button onClick={retry}>{t("action.retry")}</Button>}
+          {back && <Button onClick={back}>{t("player.backToAlert")}</Button>}
         </div>
       )}
     </section>

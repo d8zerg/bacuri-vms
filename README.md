@@ -1,34 +1,38 @@
 # Bacuri VMS
 
-![Знак Bacuri](design/bacuri/brand/icon-48.png)
+[Русская версия](README.ru.md)
 
-Bacuri VMS - открытая платформа видеонаблюдения для автономной работы на объекте. Записи хранятся на площадке. Через браузер оператор может найти камеру на плане здания, открыть прямой эфир, перейти от тревоги к нужному кадру и сохранить эпизод для расследования.
+![Bacuri mark](design/bacuri/brand/icon-48.png)
 
-## Возможности
+Bacuri VMS is an open video management system that runs autonomously on site. Recordings stay on the site. In a browser, an operator finds a camera on a floor plan, opens live video, goes from an alarm to the exact frame and preserves an episode for an investigation.
 
-- **Камеры.** Обнаружение по ONVIF, подключение по RTSP, настройка групп камер, управление поворотом, зумом и звуком.
-- **Запись и архив.** Непрерывная запись, расписания и запись по событию. На шкале архива видны доступные интервалы и пропуски.
-- **Расследования.** Поиск по движению и событиям, синхронный просмотр нескольких камер, защита фрагментов от удаления и экспорт с проверкой подписи.
-- **Доступ.** Локальные учётные записи, вход администратора с ключом WebAuthn и разграничение прав на камеры, архив и экспорт.
+The system is free software under the MIT license: no per-camera licenses, no cloud dependency and no lock-in to a camera vendor.
 
-## Установка и работа
+## Features
 
-Для установки на объекте предусмотрен подписанный автономный комплект для Debian. [Установка и первый вход](docs/install.md) · [Обслуживание и восстановление](docs/maintenance.md) · [Руководство по веб-интерфейсу](docs/ui.md)
+- **Cameras.** ONVIF discovery, RTSP connection, configuration of camera groups, pan, tilt, zoom and audio control.
+- **Recording and archive.** Continuous, scheduled and event recording. The archive timeline shows available intervals and gaps with their causes.
+- **Investigations.** Search by motion and events, synchronized playback of several cameras, protection of fragments from deletion and exports with a verifiable signature.
+- **Access.** Local accounts, administrator sign-in with a WebAuthn key and permissions for cameras, archive and exports.
 
-## Для разработчиков
+## Installation and operation
 
-Локальный стенд работает в Docker Compose и включает синтетическую RTSP-камеру. [Команды стенда](docs/local-development.md#подготовка-и-команды) · [Архитектура](docs/architecture.md) · [API](contracts/v1/openapi.yaml)
+A signed offline bundle for Debian installs the system on site. The guides are in Russian and are being translated. [Installation and first sign-in](docs/install.md) · [Maintenance and recovery](docs/maintenance.md) · [Web interface guide](docs/ui.md)
+
+## For developers
+
+The local stand runs in Docker Compose and includes a synthetic RTSP camera. [Contributing](CONTRIBUTING.md) · [Stand commands](docs/local-development.md#preparation-and-commands) · [Architecture](docs/architecture.md) · [Product principles](docs/product-principles.md) · [Archive and export format](docs/archive-format.md) · [API](contracts/v1/openapi.yaml) · [Security policy](SECURITY.md)
 
 <a name="сервер-управления"></a>
 <a name="rtsp-эмулятор-с-веб-камерой"></a>
 
-[Настройка сервера](docs/local-development.md#сервер-управления) · [Подключение веб-камеры к стенду](docs/local-development.md#rtsp-эмулятор-с-веб-камерой)
+[Server setup](docs/local-development.md#control-server) · [Connecting a webcam to the stand](docs/local-development.md#rtsp-emulator-with-a-webcam)
 
 <a name="запись-архива"></a>
 <a name="поиск-и-воспроизведение-архива"></a>
 <a name="прямой-эфир"></a>
 <a name="тревоги-и-переход-к-записи"></a>
 
-[Запись](docs/local-development.md#запись-архива) · [Поиск и воспроизведение](docs/local-development.md#поиск-и-воспроизведение-архива) · [Прямой эфир](docs/local-development.md#прямой-эфир) · [Тревоги](docs/local-development.md#тревоги-и-переход-к-записи)
+[Recording](docs/local-development.md#archive-recording) · [Search and playback](docs/local-development.md#archive-search-and-playback) · [Live video](docs/local-development.md#live-video) · [Alarms](docs/local-development.md#alarms-and-the-transition-to-the-recording)
 
-[Журнал изменений](CHANGELOG.md) · [Bacuri Manager](docs/architecture.md#8-федерация-и-внешние-интеграции) · [Лицензия MIT](LICENSE)
+[Changelog](CHANGELOG.md) · [Bacuri Manager](docs/architecture.md#8-federation-and-external-integrations) · [MIT license](LICENSE)

@@ -126,7 +126,7 @@ std::string relay(unsigned port)
 }
 
 struct CaptureState {
-    GMainLoop* loop;
+    GMainLoop* loop{};
     bool failed{};
 };
 

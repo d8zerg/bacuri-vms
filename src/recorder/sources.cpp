@@ -92,8 +92,8 @@ v1::VideoProfiles Sources::video_profiles(const std::string& point) const
         auto* p = out.add_profiles();
         p->set_main(key.profile == Profile::main);
         p->set_codec(stats.codec == VideoCodec::h265 ? "h265" : "h264");
-        p->set_width(stats.width);
-        p->set_height(stats.height);
+        p->set_width(static_cast<std::uint32_t>(std::max(0, stats.width)));
+        p->set_height(static_cast<std::uint32_t>(std::max(0, stats.height)));
         p->set_bitrate_kbps(stats.bitrate_kbps ? stats.bitrate_kbps : key.profile == Profile::main ? 4096 : 768);
     }
     return out;
@@ -117,32 +117,72 @@ v1::CameraIssues Sources::issues(const std::string& device) const
     return result;
 }
 
-archive::Json Sources::recording_states()
+v1::PointStates Sources::point_states()
 {
-    auto result = Json::object();
+    using namespace std::chrono_literals;
+    // A receiving stream without frames for this long is reported offline before its RTSP timeout.
+    constexpr auto stalled_after = 5s;
+    const auto now = std::chrono::time_point_cast<domain::Microseconds>(std::chrono::system_clock::now());
+    v1::PointStates result;
     for (const auto& [key, entry] : streams_) {
         if (key.profile != Profile::main)
             continue;
-        auto stats = entry.stream->stats();
-        auto rule = volume_.recording_rule(key.point);
-        std::string state;
-        if (!key.binding)
-            state = "unbound";
-        else if (stats.state != "receiving" || !stats.time)
-            state = "source_offline";
-        else if (!rule)
-            state = "awaiting_policy";
-        else if (rule->selects(stats.time->utc().time_since_epoch().count(), key.binding))
-            state = "selected";
-        else if (rule->event)
-            state = "waiting_event";
-        else if (!rule->schedule.empty())
-            state = "outside_schedule";
-        else if (rule->manual)
-            state = "waiting_manual";
+        const auto stats = entry.stream->stats();
+        const auto rule = volume_.recording_rule(key.point);
+        auto& point = *result.add_points();
+        point.set_point_id(key.point);
+        point.set_binding_revision(key.binding);
+        if (stats.state == "receiving" && stats.time && now - stats.time->received_at() <= stalled_after)
+            point.set_source(v1::SOURCE_STATE_RECEIVING);
+        else if (stats.state == "connecting")
+            point.set_source(v1::SOURCE_STATE_CONNECTING);
         else
-            state = "disabled";
-        result[key.point] = state;
+            point.set_source(v1::SOURCE_STATE_OFFLINE);
+        point.set_selection(!key.binding ? v1::RECORDING_SELECTION_UNBOUND
+                            : !rule      ? v1::RECORDING_SELECTION_AWAITING_POLICY
+                            : rule->selects(now.time_since_epoch().count(), key.binding)
+                                ? v1::RECORDING_SELECTION_SELECTED
+                            : rule->event             ? v1::RECORDING_SELECTION_WAITING_EVENT
+                            : !rule->schedule.empty() ? v1::RECORDING_SELECTION_OUTSIDE_SCHEDULE
+                            : rule->manual            ? v1::RECORDING_SELECTION_WAITING_MANUAL
+                                                      : v1::RECORDING_SELECTION_DISABLED);
+        point.set_publication_lag_us(archive::publication_lag(rule.get()).count());
+    }
+    return result;
+}
+
+archive::Json Sources::recording_states()
+{
+    auto result = Json::object();
+    const auto states = point_states();
+    for (const auto& point : states.points()) {
+        const char* state = "disabled";
+        if (point.selection() == v1::RECORDING_SELECTION_UNBOUND)
+            state = "unbound";
+        else if (point.source() != v1::SOURCE_STATE_RECEIVING)
+            state = "source_offline";
+        else {
+            switch (point.selection()) {
+            case v1::RECORDING_SELECTION_AWAITING_POLICY:
+                state = "awaiting_policy";
+                break;
+            case v1::RECORDING_SELECTION_SELECTED:
+                state = "selected";
+                break;
+            case v1::RECORDING_SELECTION_WAITING_EVENT:
+                state = "waiting_event";
+                break;
+            case v1::RECORDING_SELECTION_OUTSIDE_SCHEDULE:
+                state = "outside_schedule";
+                break;
+            case v1::RECORDING_SELECTION_WAITING_MANUAL:
+                state = "waiting_manual";
+                break;
+            default:
+                break;
+            }
+        }
+        result[point.point_id()] = state;
     }
     return result;
 }
@@ -175,21 +215,22 @@ void Sources::apply(const v1::ApplyConfigurationRequest& assignment)
         auto report = [this, key, last_source = std::optional<domain::UtcTime>{},
                        last_loss = std::optional<domain::UtcTime>{}](const StreamStats& stats) mutable {
             if (key.profile == Profile::main && key.binding > 0) {
-                auto record = [&](const auto& begin, const auto& end, auto& previous, const char* reason) {
+                auto record = [&](const auto& begin, const auto& end, auto& previous, domain::GapReason reason) {
                     if (begin && end && *end > *begin && end != previous) {
                         try {
                             volume_.report_gap({key.point, key.binding, begin->time_since_epoch().count(),
-                                                end->time_since_epoch().count(), reason});
+                                                end->time_since_epoch().count(),
+                                                std::string{domain::name(reason)}});
                             previous = end;
                         } catch (const std::exception&) {
                             std::fputs("Archive gap journal unavailable\n", stderr);
                         }
                     }
                 };
-                record(stats.gap_begin, stats.gap_end, last_source, "source_offline");
+                record(stats.gap_begin, stats.gap_end, last_source, domain::GapReason::source_offline);
                 if (!stats.consumers.empty()) {
                     const auto& writer = stats.consumers.front();
-                    record(writer.loss_begin, writer.recovered_at, last_loss, "overload");
+                    record(writer.loss_begin, writer.recovered_at, last_loss, domain::GapReason::overload);
                 }
             }
             auto info = metrics(stats);
@@ -221,9 +262,10 @@ void Sources::apply(const v1::ApplyConfigurationRequest& assignment)
         }
         std::jthread detector;
         if (key.profile == Profile::main && key.binding > 0)
-            detector =
-                std::jthread{[this, ptr = stream.get(), point = key.point, binding = key.binding](
-                                 std::stop_token stop) { detect_motion(stop, *ptr, volume_, point, binding); }};
+            detector = std::jthread{
+                [this, ptr = stream.get(), point = key.point, binding = key.binding](const std::stop_token& stop) {
+                    detect_motion(stop, *ptr, volume_, point, binding);
+                }};
         streams_.emplace(key, Entry{endpoint, audio, std::move(writer), std::move(stream), std::move(detector)});
     }
 }

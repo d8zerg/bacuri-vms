@@ -13,51 +13,56 @@ import type {
   AuditEntry,
   AuditFilter,
   Point,
-  PtzCommand,
   Services,
 } from "../contracts/workspace";
 import { HttpFailure } from "../adapters/api";
 import { formatUtc } from "../ui-kit/utc";
 import { Button } from "../ui-kit/FormControls";
 import "./alert-work.css";
-import { ptzLabels } from "./cameraCommands";
+import { ptzLabel } from "./cameraCommands";
 
-import { alertStates as states } from "../ui-kit/alertLabels";
+import { alertStateLabel } from "../ui-kit/alertLabels";
+import { t as translate, useT, type MessageKey } from "../i18n";
 const actions = {
-  claim: "Взять в работу",
-  record_result: "Записать результат",
-  close: "Закрыть тревогу",
-} as const;
+  claim: "alert.actions.claim",
+  record_result: "alert.actions.record_result",
+  close: "alert.actions.close",
+} as const satisfies Record<string, MessageKey>;
 const events = {
-  claim: "Принятие в работу",
-  record_result: "Результат проверки",
-  close: "Закрытие тревоги",
-  delegate: "Выдача поручения",
-  revoke: "Отзыв поручения",
-  export: "Экспорт фрагмента",
-  recording_policy: "Политика записи",
-  manual_recording: "Ручная запись",
-  recording_storage: "Хранение архива",
-  camera_control: "Управление камерой",
-};
+  claim: "alert.events.claim",
+  record_result: "alert.events.record_result",
+  close: "alert.events.close",
+  delegate: "alert.events.delegate",
+  revoke: "alert.events.revoke",
+  export: "alert.events.export",
+  recording_policy: "alert.events.recording_policy",
+  manual_recording: "alert.events.manual_recording",
+  recording_storage: "alert.events.recording_storage",
+  camera_control: "alert.events.camera_control",
+} as const satisfies Record<string, MessageKey>;
 const outcomes = {
-  applied: "Выполнено",
-  dispatched: "Отправка команды",
-  unknown: "Исход неизвестен",
-  rejected: "Команда отклонена",
-  denied: "Отказ в доступе",
-  conflict: "Конфликт",
+  applied: "alert.outcomes.applied",
+  dispatched: "alert.outcomes.dispatched",
+  unknown: "alert.outcomes.unknown",
+  rejected: "alert.outcomes.rejected",
+  denied: "alert.outcomes.denied",
+  conflict: "alert.outcomes.conflict",
+} as const satisfies Record<string, MessageKey>;
+const reasons: Record<string, MessageKey> = {
+  forbidden: "alert.reasons.forbidden",
+  media_unavailable: "alert.reasons.media_unavailable",
+  rate_limited: "alert.reasons.rate_limited",
+  export_too_large: "alert.reasons.export_too_large",
+  not_found: "alert.reasons.not_found",
+  alert_state_conflict: "alert.reasons.alert_state_conflict",
+  alert_result_required: "alert.reasons.alert_result_required",
+  idempotency_conflict: "alert.reasons.idempotency_conflict",
 };
-const reasons: Record<string, string> = {
-  forbidden: "Действие запрещено",
-  media_unavailable: "Запись недоступна",
-  rate_limited: "Достигнут предел одновременных запросов",
-  export_too_large: "Превышен предел размера экспорта",
-  not_found: "Точка или тревога недоступна",
-  alert_state_conflict: "Состояние или версия тревоги изменились",
-  alert_result_required: "Требуется результат проверки",
-  idempotency_conflict: "Ключ команды уже использован с другими параметрами",
-};
+// The name of a refusal reason, or the code itself when the reason is unknown.
+function reasonText(code: string) {
+  const key = reasons[code];
+  return key ? translate(key) : code;
+}
 type Context = { services: Services; site: string };
 
 function Entries({
@@ -69,6 +74,7 @@ function Entries({
   site: string;
   points?: Point[];
 }) {
+  const t = useT();
   const [params] = useSearchParams();
   function monitorUrl(alert: string, point: string) {
     const next = new URLSearchParams(params);
@@ -89,17 +95,17 @@ function Entries({
         const pointName = points?.find((p) => p.id === e.point_id)?.name;
         const actor =
           e.actor_kind === "service"
-            ? "Сервис " + e.service + " по поручению " + e.initiator
+            ? t("alert.serviceActor", {
+                service: e.service ?? "",
+                initiator: e.initiator,
+              })
             : e.initiator;
         const [command = "", ...target] = e.reason.split(" / ");
         const result =
           e.action === "camera_control"
-            ? [
-                ptzLabels[command as PtzCommand] ?? reasons[command] ?? command,
-                ...target,
-              ].join(" / ")
+            ? [ptzLabel(command) ?? reasonText(command), ...target].join(" / ")
             : e.outcome !== "applied"
-              ? (reasons[e.reason] ?? e.reason)
+              ? reasonText(e.reason)
               : e.action === "export" ||
                   e.action === "delegate" ||
                   e.action === "revoke"
@@ -110,12 +116,12 @@ function Entries({
             <details>
               <summary>
                 <strong>
-                  {events[e.action]}
+                  {t(events[e.action])}
                   {e.outcome !== "applied" &&
                     " · " +
                       (e.action === "export" && e.outcome === "denied"
-                        ? "В выдаче отказано"
-                        : outcomes[e.outcome])}
+                        ? t("alert.exportDenied")
+                        : t(outcomes[e.outcome]))}
                 </strong>
                 <span className="ws-history-meta">
                   <time dateTime={e.recorded_at}>
@@ -127,52 +133,53 @@ function Entries({
                 {result && <span className="ws-history-result">{result}</span>}
               </summary>
               <dl>
-                <dt>Результат действия</dt>
+                <dt>{t("alert.actionResult")}</dt>
                 <dd>
                   {e.action === "camera_control" && e.outcome === "applied"
-                    ? "Камера подтвердила команду"
-                    : outcomes[e.outcome]}
+                    ? t("alert.cameraAck")
+                    : t(outcomes[e.outcome])}
                 </dd>
                 {e.from_state && e.to_state && e.from_state !== e.to_state && (
                   <>
-                    <dt>Состояние</dt>
+                    <dt>{t("alert.state")}</dt>
                     <dd>
-                      {states[e.from_state]} {"->"} {states[e.to_state]}
+                      {alertStateLabel(e.from_state)} {"->"}{" "}
+                      {alertStateLabel(e.to_state)}
                     </dd>
                   </>
                 )}
                 {e.owner && (
                   <>
-                    <dt>Ответственный</dt>
+                    <dt>{t("inv.owner")}</dt>
                     <dd>{e.owner}</dd>
                   </>
                 )}
                 {e.delegated_action && e.expires_at && (
                   <>
-                    <dt>Поручение</dt>
+                    <dt>{t("alert.delegation")}</dt>
                     <dd>
-                      {e.service} · {actions[e.delegated_action]} · до{" "}
-                      {formatUtc(e.expires_at)}
+                      {e.service} · {t(actions[e.delegated_action])} ·{" "}
+                      {t("alert.until", { time: formatUtc(e.expires_at) })}
                     </dd>
                   </>
                 )}
                 {e.point_id && (
                   <>
-                    <dt>Точка</dt>
+                    <dt>{t("batch.point")}</dt>
                     <dd>{e.point_id}</dd>
                   </>
                 )}
                 {e.alert_id && (
                   <>
-                    <dt>Тревога</dt>
+                    <dt>{t("alert.alarm")}</dt>
                     <dd>{e.alert_id}</dd>
                   </>
                 )}
                 {e.export && (
                   <>
-                    <dt>Комплект</dt>
+                    <dt>{t("alert.package")}</dt>
                     <dd>{e.export.id}</dd>
-                    <dt>Интервал</dt>
+                    <dt>{t("alert.interval")}</dt>
                     <dd>
                       {formatUtc(e.export.interval.start)} -{" "}
                       {formatUtc(e.export.interval.end)}
@@ -183,7 +190,7 @@ function Entries({
             </details>
             {points && e.alert_id && e.point_id && (
               <RouteButton to={monitorUrl(e.alert_id, e.point_id)}>
-                Открыть тревогу
+                {t("alert.open")}
               </RouteButton>
             )}
           </li>
@@ -194,24 +201,25 @@ function Entries({
 }
 
 function AlertHistory({ work, site }: { work: AlertWork; site: string }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const rows = work.history.filter((e) =>
     matchesQuery(
       query,
-      events[e.action],
-      outcomes[e.outcome],
+      t(events[e.action]),
+      t(outcomes[e.outcome]),
       e.initiator,
       e.owner,
       e.service,
-      reasons[e.reason] ?? e.reason,
+      reasonText(e.reason),
     ),
   );
   return (
     <>
       {needsListSearch(work.history.length, query) && (
         <FilterPanel
-          label="Фильтры истории тревоги"
-          queryLabel="Действие, исполнитель или результат"
+          label={t("alert.historyFilters")}
+          queryLabel={t("alert.historyQuery")}
           query={query}
           onQuery={setQuery}
           onReset={() => setQuery("")}
@@ -221,7 +229,7 @@ function AlertHistory({ work, site }: { work: AlertWork; site: string }) {
         <Entries items={rows} site={site} />
       ) : (
         <p role="status">
-          {query ? "Действия не найдены." : "Действий пока нет"}
+          {query ? t("alert.noActionsFound") : t("alert.noActions")}
         </p>
       )}
     </>
@@ -234,9 +242,10 @@ function Delegations({
   work,
   refresh,
 }: { work: AlertWork; refresh: () => void } & Context) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const shown = work.delegations.filter((d) =>
-    matchesQuery(query, d.service, actions[d.action]),
+    matchesQuery(query, d.service, t(actions[d.action])),
   );
   const [secret, setSecret] = useState(""),
     [notice, setNotice] = useState(""),
@@ -263,10 +272,10 @@ function Delegations({
         ttl_seconds: Number(fields.get("minutes")) * 60,
       });
       setSecret(grant.token);
-      setNotice("Поручение выдано");
+      setNotice(t("alert.delegated"));
       refresh();
     } catch {
-      setNotice("Не удалось выдать поручение");
+      setNotice(t("alert.delegateFailed"));
     } finally {
       setBusy(false);
     }
@@ -276,10 +285,10 @@ function Delegations({
     setSecret("");
     try {
       await services.revokeDelegation(site, id);
-      setNotice("Поручение отозвано");
+      setNotice(t("alert.revoked"));
       refresh();
     } catch {
-      setNotice("Не удалось отозвать поручение");
+      setNotice(t("alert.revokeFailed"));
     } finally {
       setBusy(false);
     }
@@ -290,24 +299,24 @@ function Delegations({
         if (!e.currentTarget.open) setSecret("");
       }}
     >
-      <summary>Поручения сервисам на этой точке</summary>
+      <summary>{t("alert.delegations")}</summary>
       <form onSubmit={(e) => void issue(e)}>
         <label>
-          Имя сервиса
+          {t("alert.serviceName")}
           <input name="service" required maxLength={128} />
         </label>
         <label>
-          Разрешённое действие
+          {t("alert.allowedAction")}
           <select name="action" defaultValue="record_result">
             {Object.entries(actions).map(([id, label]) => (
               <option key={id} value={id}>
-                {label}
+                {t(label)}
               </option>
             ))}
           </select>
         </label>
         <label>
-          Срок в минутах
+          {t("alert.minutes")}
           <input
             name="minutes"
             type="number"
@@ -318,30 +327,33 @@ function Delegations({
           />
         </label>
         <Button type="submit" disabled={busy}>
-          Выдать поручение
+          {t("alert.delegate")}
         </Button>
       </form>
       {secret && (
         <label>
-          Токен для передачи сервису
+          {t("alert.token")}
           <input readOnly value={secret} autoComplete="off" />
         </label>
       )}
       {needsListSearch(work.delegations.length, query) && (
         <FilterPanel
-          label="Фильтры поручений"
-          queryLabel="Сервис или действие"
+          label={t("alert.delegationFilters")}
+          queryLabel={t("alert.delegationQuery")}
           query={query}
           onQuery={setQuery}
           onReset={() => setQuery("")}
         />
       )}
-      {query && !shown.length && <p role="status">Поручения не найдены.</p>}
+      {query && !shown.length && (
+        <p role="status">{t("alert.noDelegations")}</p>
+      )}
       {shown.map((d) => (
         <div key={d.id}>
-          {d.service} · {actions[d.action]} · до {formatUtc(d.expires_at)}{" "}
+          {d.service} · {t(actions[d.action])} ·{" "}
+          {t("alert.until", { time: formatUtc(d.expires_at) })}{" "}
           <Button disabled={busy} onClick={() => void revoke(d.id)}>
-            Отозвать
+            {t("alert.revoke")}
           </Button>
         </div>
       ))}
@@ -356,6 +368,7 @@ export function AlertWorkPanel({
   alert,
   point,
 }: Context & { alert: string; point: string }) {
+  const t = useT();
   const [params] = useSearchParams();
   const auditParams = new URLSearchParams(params);
   auditParams.set("site", site);
@@ -411,18 +424,16 @@ export function AlertWorkPanel({
       await services.alertCommand(site, alert, body, key);
       setRetry(null);
       setNote("");
-      setNotice("Действие сохранено");
+      setNotice(t("alert.saved"));
     } catch (e) {
       if (e instanceof HttpFailure && e.status < 500) {
         setRetry(null);
         setNotice(
-          e.status === 409
-            ? "Состояние тревоги изменилось. Проверьте карточку."
-            : "Действие недоступно",
+          e.status === 409 ? t("alert.changed") : t("alert.unavailableAction"),
         );
       } else {
         setRetry({ body, key });
-        setNotice("Ответ не получен. Повторите отправку.");
+        setNotice(t("alert.noReply"));
       }
     } finally {
       setBusy(false);
@@ -434,24 +445,28 @@ export function AlertWorkPanel({
       className="ws-panel ws-pad ws-alert-work"
       aria-labelledby="alert-work-heading"
     >
-      <h2 id="alert-work-heading">Обработка тревоги</h2>
+      <h2 id="alert-work-heading">{t("alert.work")}</h2>
       {work ? (
         <>
           <p>
-            <strong>{states[work.state]}</strong>
-            {work.owner && " · Ответственный: " + work.owner}
+            <strong>{alertStateLabel(work.state)}</strong>
+            {work.owner && " · " + t("alert.ownerIs", { owner: work.owner })}
           </p>
           {work.rule && (
             <p>
-              Правило {work.rule.revision} ·{" "}
-              {work.rule.source === "local" ? "Локальный детектор" : "ONVIF"} ·
-              Привязка {work.rule.binding}
+              {t("alert.rule", { revision: work.rule.revision })} ·{" "}
+              {work.rule.source === "local" ? t("rules.local") : "ONVIF"} ·{" "}
+              {t("alert.binding", { binding: work.rule.binding })}
             </p>
           )}
-          {work.result && <p>Результат проверки · {work.result}</p>}
+          {work.result && (
+            <p>
+              {t("alert.events.record_result")} · {work.result}
+            </p>
+          )}
           {work.actions.includes("record_result") && (
             <label>
-              Результат или основание закрытия
+              {t("alert.resultOrReason")}
               <textarea
                 maxLength={1024}
                 value={note}
@@ -468,13 +483,13 @@ export function AlertWorkPanel({
                     {
                       action: "record_result",
                       version: work.version,
-                      reason: "Ложная тревога",
+                      reason: t("alert.falseAlarm"),
                     },
                     crypto.randomUUID(),
                   )
                 }
               >
-                Ложная тревога
+                {t("alert.falseAlarm")}
               </Button>
             )}
             {work.actions.map((action) => (
@@ -490,13 +505,13 @@ export function AlertWorkPanel({
                       action,
                       version: work.version,
                       reason:
-                        action === "claim" ? "Принято дежурным" : note.trim(),
+                        action === "claim" ? t("alert.claimed") : note.trim(),
                     },
                     crypto.randomUUID(),
                   )
                 }
               >
-                {actions[action]}
+                {t(actions[action])}
               </Button>
             ))}
             {retry && (
@@ -504,14 +519,14 @@ export function AlertWorkPanel({
                 disabled={busy}
                 onClick={() => void send(retry.body, retry.key)}
               >
-                Повторить отправку
+                {t("alert.resend")}
               </Button>
             )}
           </div>
-          <h3>История тревоги</h3>
+          <h3>{t("alert.history")}</h3>
           <AlertHistory key={alert} work={work} site={site} />
           <RouteButton to={"/audit?" + auditParams.toString()}>
-            Открыть журнал этой тревоги
+            {t("alert.openLog")}
           </RouteButton>
           <Delegations
             services={services}
@@ -522,7 +537,7 @@ export function AlertWorkPanel({
         </>
       ) : (
         <p role="status">
-          {failed ? "Карточка недоступна" : "Загрузка карточки…"}
+          {failed ? t("alert.cardUnavailable") : t("alert.cardLoading")}
         </p>
       )}
       <p role="status">{notice}</p>
@@ -535,6 +550,7 @@ export function AlertAudit({
   site,
   points,
 }: Context & { points: Point[] }) {
+  const t = useT();
   const [params] = useSearchParams(),
     initial = params.get("alert_id") ?? "";
   const [search, setSearch] = useState<AuditFilter>(() =>
@@ -594,11 +610,11 @@ export function AlertAudit({
     <>
       <section
         className="ws-panel ws-pad ws-alert-work ws-audit"
-        aria-label="Записи журнала"
+        aria-label={t("alert.records")}
       >
         <FilterPanel
-          label="Поиск и фильтры журнала"
-          queryLabel="Результат или основание"
+          label={t("alert.logFilters")}
+          queryLabel={t("alert.logQuery")}
           query={query}
           onQuery={setQuery}
           maxLength={256}
@@ -611,7 +627,7 @@ export function AlertAudit({
           }}
         >
           <label>
-            Идентификатор тревоги
+            {t("alert.id")}
             <input
               name="alert"
               value={alertId}
@@ -620,29 +636,27 @@ export function AlertAudit({
             />
           </label>
         </FilterPanel>
-        <div role="region" aria-label="Результаты поиска">
+        <div role="region" aria-label={t("alert.results")}>
           {page ? (
             page.items.length ? (
               <Entries items={page.items} site={site} points={points} />
             ) : (
               <p role="status">
                 {search.alert_id || search.query || search.before
-                  ? "Записи не найдены"
-                  : "Действий пока нет. Когда оператор возьмёт тревогу в работу, здесь появится запись."}
+                  ? t("alert.noRecords")
+                  : t("alert.emptyLog")}
               </p>
             )
           ) : (
             <p role="status">
-              {error
-                ? "Не удалось получить записи журнала"
-                : "Загрузка журнала…"}
+              {error ? t("alert.logFailed") : t("console.loadingLog")}
             </p>
           )}
           {(previous.length > 0 || page?.next_cursor) && (
             <div
               className="ws-work-actions"
               role="group"
-              aria-label="Страницы журнала"
+              aria-label={t("alert.pages")}
             >
               {previous.length > 0 && (
                 <Button
@@ -651,7 +665,7 @@ export function AlertAudit({
                     setPrevious(previous.slice(0, -1));
                   }}
                 >
-                  Предыдущая страница
+                  {t("alert.prevPage")}
                 </Button>
               )}
               {page?.next_cursor && (
@@ -661,7 +675,7 @@ export function AlertAudit({
                     setSearch({ ...search, before: page.next_cursor! });
                   }}
                 >
-                  Следующая страница
+                  {t("alert.nextPage")}
                 </Button>
               )}
             </div>

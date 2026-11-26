@@ -6,12 +6,16 @@ namespace bacuri::vms::control
 {
 using ProtoTime = google::protobuf::util::TimeUtil;
 using Timestamp = google::protobuf::Timestamp;
+// RFC 3339 UTC text of a microsecond timestamp, as used by the HTTPS API.
+inline std::string utc_text(std::int64_t microseconds)
+{
+    return ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(microseconds));
+}
 struct Window {
     std::int64_t start, end;
     Json json() const
     {
-        return {{"start", ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(start))},
-                {"end", ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(end))}};
+        return {{"start", utc_text(start)}, {"end", utc_text(end)}};
     }
 };
 inline constexpr std::int64_t alert_context_us = 15'000'000;

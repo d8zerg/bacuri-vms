@@ -4,6 +4,5 @@
 
 namespace bacuri::vms::control
 {
-void camera_events(std::stop_token, const CameraNetworks&, const Key&);
-
+void camera_events(const std::stop_token&, const CameraNetworks&, const Key&);
 }

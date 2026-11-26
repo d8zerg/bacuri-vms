@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { WorkspaceRouter } from "../src/app/Workspace";
 import { fixture, utc } from "./workspaceFixture";
+import ids from "./fixture-ids.json";
 export function Example({
   initial,
   condition,
@@ -17,7 +18,10 @@ const meta = {
   id: "workspace",
   component: Example,
   parameters: { layout: "fullscreen" },
-  args: { initial: "/monitor?point=dock&at=" + utc(180), condition: "normal" },
+  args: {
+    initial: `/monitor?point=${ids.dockPoint}&at=${utc(180)}`,
+    condition: "normal",
+  },
 } satisfies Meta<typeof Example>;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -32,11 +36,17 @@ export const Catalog: Story = {
 };
 export const CameraControls: Story = {
   name: "Управление и звук камеры",
-  args: { initial: "/monitor?point=dock&mode=live", condition: "controls" },
+  args: {
+    initial: `/monitor?point=${ids.dockPoint}&mode=live`,
+    condition: "controls",
+  },
 };
 export const Intercom: Story = {
   name: "Передача речи",
-  args: { initial: "/monitor?point=dock&mode=live", condition: "intercom" },
+  args: {
+    initial: `/monitor?point=${ids.dockPoint}&mode=live`,
+    condition: "intercom",
+  },
 };
 export const Investigations: Story = {
   name: "Расследования",
@@ -65,7 +75,7 @@ export const Offline: Story = {
 
 export const Plan: Story = {
   name: "Поэтажный план",
-  args: { initial: "/maps?plan=floor&point=dock" },
+  args: { initial: `/maps?plan=${ids.floorPlan}&point=${ids.dockPoint}` },
 };
 export const EmptyMaps: Story = {
   name: "Нет карт и планов",
@@ -78,12 +88,15 @@ export const MapsUnavailable: Story = {
 
 export const MapManagement: Story = {
   name: "Установка и обновление карт",
-  args: { initial: "/maps?plan=floor", condition: "map-management" },
+  args: { initial: `/maps?plan=${ids.floorPlan}`, condition: "map-management" },
 };
 
 export const PtzPlan: Story = {
   name: "Калибровка PTZ на плане",
-  args: { initial: "/maps?plan=floor&point=dock", condition: "ptz-plan" },
+  args: {
+    initial: `/maps?plan=${ids.floorPlan}&point=${ids.dockPoint}`,
+    condition: "ptz-plan",
+  },
 };
 
 export const LinkedFloors: Story = {

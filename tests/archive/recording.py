@@ -8,6 +8,7 @@ import sqlite3
 import struct
 import subprocess
 import sys
+import time
 import uuid
 
 import jsonschema
@@ -26,10 +27,15 @@ def local(sql, args=()):
 
 
 def allow_connections(enabled):
-    # Only the private database created for this invocation is affected.
+    # Only the private database created for this invocation is affected. An outage also ends the
+    # sessions that services keep open between requests.
     assert DATABASE.startswith("bacuri_control_") and DATABASE.replace("_", "").isalnum()
-    subprocess.run(["psql", "-Xq", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-c",
-                    f'ALTER DATABASE "{DATABASE}" ALLOW_CONNECTIONS {str(enabled).lower()}'], check=True)
+    commands = [f'ALTER DATABASE "{DATABASE}" ALLOW_CONNECTIONS {str(enabled).lower()}']
+    if not enabled:
+        commands.append(f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname='{DATABASE}'")
+    for command in commands:
+        subprocess.run(["psql", "-Xq", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-c", command],
+                       check=True, stdout=subprocess.DEVNULL)
 
 
 def registered():
@@ -77,6 +83,22 @@ def check_blocks(rows, device):
         assert pixels and len(pixels) % 256 == 0
 
 
+def point_state(headers, point):
+    status, _, points = control.http("GET", f"sites/{control.SITE}/points", headers=headers)
+    assert status == 200, (status, points)
+    return next(p for p in points if p["id"] == point)
+
+
+def wait_for_recording(headers, point, recording, seconds=20):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        state = point_state(headers, point)
+        if state["recording"] == recording:
+            return state
+        time.sleep(0.5)
+    raise AssertionError(f"Timed out waiting for recording state {recording}: {state}")
+
+
 def run():
     subprocess.run([control.CORE, "create-user", "archive-admin", "administrator"],
                    input=control.PASSWORD+"\n", text=True, check=True)
@@ -96,6 +118,19 @@ def run():
         blocks = registered()[:2]
         assert len(blocks) == 2
         check_blocks(blocks, camera["id"])
+        # The point state is derived from catalogued blocks and the recorder report.
+        live = wait_for_recording(headers, camera["point_id"], "current")
+        assert live["connection"] == "online" and "recording_reason" not in live, live
+        newest = control.query(f"SELECT max(end_utc_us) FROM bacuri_archive.blocks "
+                               f"WHERE point_id='{camera['point_id']}'")
+        assert live["last_recorded_at"].endswith("Z") and int(newest) > 0
+        # The services export the measures behind the operator and archive thresholds.
+        published = control.wait_for(
+            lambda: control.metric("recorder", "bacuri_archive_publication_lag_seconds_count"), "archive metrics")
+        lag = control.metric("recorder", "bacuri_archive_publication_lag_seconds_sum") / published
+        assert 0 < lag < 5, lag
+        assert control.wait_for(lambda: control.metric(
+            "core", 'bacuri_http_request_duration_seconds_count{workload="interactive"}'), "request metrics")
         summary = json.loads(subprocess.check_output([control.RECORDER, "archive-status"], env=env))
         assert summary["committed"] >= 3 and summary["corrupt"] == summary["rejected"] == 0
         competing = subprocess.run([control.RECORDER], env=env, capture_output=True, timeout=5)
@@ -129,6 +164,10 @@ def run():
         control.stop(recorder)
         assert recorder.returncode == 0
         recorder = None
+        # Without the recorder only the archive testifies, and only until the newest block becomes stale.
+        assert point_state(headers, camera["point_id"])["connection"] == "unknown"
+        stale = wait_for_recording(headers, camera["point_id"], "unknown", seconds=40)
+        assert stale["recording_reason"] == "recorder_unavailable", stale
         first, second = blocks
         conflict = next(r[0] for r in registered() if r[0] not in {first[0], second[0]})
         control.query(f"""UPDATE bacuri_archive.blocks SET manifest=jsonb_set(manifest,'{{end_utc_us}}',

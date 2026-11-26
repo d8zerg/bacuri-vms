@@ -9,7 +9,7 @@ namespace events
 {
 using PresetDispatch = std::function<void(const std::string& point, std::int64_t binding, const std::string& user,
                                           const std::string& request, const std::string& preset)>;
-void dispatch_presets(std::stop_token, const std::string& site, const PresetDispatch&);
+void dispatch_presets(const std::stop_token&, const std::string& site, const PresetDispatch&);
 struct RuleDecision {
     bool record{}, notify{};
 };

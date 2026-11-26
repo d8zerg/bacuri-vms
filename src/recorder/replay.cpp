@@ -19,6 +19,9 @@ using namespace std::chrono_literals;
 using Clock = std::chrono::steady_clock;
 struct Socket {
     int fd;
+    explicit Socket(int descriptor) : fd{descriptor} {}
+    Socket(const Socket&) = delete;
+    Socket& operator=(const Socket&) = delete;
     ~Socket()
     {
         if (fd >= 0)
@@ -26,12 +29,14 @@ struct Socket {
     }
 };
 struct Actions {
-    posix_spawn_file_actions_t value;
+    posix_spawn_file_actions_t value{};
     Actions()
     {
         if (posix_spawn_file_actions_init(&value))
             throw std::runtime_error("Replay spawn unavailable");
     }
+    Actions(const Actions&) = delete;
+    Actions& operator=(const Actions&) = delete;
     ~Actions()
     {
         posix_spawn_file_actions_destroy(&value);
@@ -39,6 +44,9 @@ struct Actions {
 };
 struct Worker {
     pid_t pid;
+    explicit Worker(pid_t process) : pid{process} {}
+    Worker(const Worker&) = delete;
+    Worker& operator=(const Worker&) = delete;
     ~Worker()
     {
         // A peer can stall GStreamer in RTSP teardown after all frames have been received.
@@ -57,7 +65,7 @@ void send_bytes(int fd, const void* data, size_t length)
         if (n <= 0)
             throw std::runtime_error("Replay channel closed");
         at += n;
-        length -= n;
+        length -= static_cast<size_t>(n);
     }
 }
 bool read_bytes(int fd, void* data, size_t length, Clock::time_point deadline,
@@ -77,7 +85,7 @@ bool read_bytes(int fd, void* data, size_t length, Clock::time_point deadline,
         if (n <= 0)
             return false;
         at += n;
-        length -= n;
+        length -= static_cast<size_t>(n);
     }
     return length == 0;
 }
@@ -106,7 +114,7 @@ int replay_worker()
     Endpoint endpoint{q.at("url"), q.at("username"), q.at("password")};
     receive_rtsp(
         endpoint, {},
-        [](FramePtr f, VideoFormat format, bool discontinuity) {
+        [](const FramePtr& f, VideoFormat format, bool discontinuity) {
             Sample sample{f->access_unit.size(),
                           f->ntp_ns.value_or(0),
                           f->duration_ns.value_or(0),

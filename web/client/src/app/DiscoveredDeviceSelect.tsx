@@ -4,6 +4,7 @@ import {
   matchesQuery,
   needsListSearch,
 } from "../ui-kit/FilterPanel";
+import { useT } from "../i18n";
 
 export function matchingDevices(devices: DiscoveredCamera[], query: string) {
   return devices.filter((d) =>
@@ -26,6 +27,7 @@ export function DiscoveredDeviceSelect({
   onSelect: (value: string) => void;
   multiple?: boolean;
 }) {
+  const t = useT();
   const shown = matchingDevices(devices, query);
   function search(next: string) {
     setQuery(next);
@@ -37,7 +39,7 @@ export function DiscoveredDeviceSelect({
   }
   const picker = (
     <label className="bk-field">
-      {multiple ? "Устройство" : "Обнаруженная камера"}
+      {multiple ? t("discovery.device") : t("discovery.camera")}
       <select
         value={value}
         disabled={!shown.length}
@@ -47,9 +49,9 @@ export function DiscoveredDeviceSelect({
           <option value="">
             {multiple
               ? query
-                ? "Все найденные по фильтру"
-                : "Все обнаруженные устройства"
-              : "Выберите камеру"}
+                ? t("discovery.allFiltered")
+                : t("discovery.all")
+              : t("discovery.choose")}
           </option>
         )}
         {shown.map((d) => (
@@ -63,15 +65,15 @@ export function DiscoveredDeviceSelect({
   return needsListSearch(devices.length, query) ? (
     <>
       <FilterPanel
-        label="Фильтры обнаруженных устройств"
-        queryLabel="Адрес или идентификатор устройства"
+        label={t("discovery.filters")}
+        queryLabel={t("discovery.query")}
         query={query}
         onQuery={search}
         onReset={() => search("")}
       >
         {picker}
       </FilterPanel>
-      {!shown.length && <p role="status">Устройства по запросу не найдены.</p>}
+      {!shown.length && <p role="status">{t("discovery.none")}</p>}
     </>
   ) : (
     picker

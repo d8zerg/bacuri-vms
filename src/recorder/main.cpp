@@ -1,9 +1,15 @@
-#include "control/support.hpp"
+#include "platform/camera_networks.hpp"
+#include "platform/identifiers.hpp"
+#include "platform/secrets.hpp"
+#include "platform/settings.hpp"
 #include "control.grpc.pb.h"
 #include "recorder/sources.hpp"
 #include "recorder/replay.hpp"
 #include "archive/delivery.hpp"
+#include "archive/writer.hpp"
 #include "storage/sqlite.hpp"
+#include "observability/metrics.hpp"
+#include "platform/scope_exit.hpp"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
@@ -21,16 +27,26 @@
 #include <set>
 #include <semaphore>
 #include <stdexcept>
+#include <utility>
 
 namespace bacuri::vms
 {
 namespace
 {
-using namespace control;
+using namespace platform;
 using Snapshot = v1::ApplyConfigurationRequest;
 using Decision = v1::ApplyConfigurationResult;
 
 using storage::column;
+// A recovery download request covers recordings between these moments in UTC microseconds. Earlier times mean
+// an unset camera clock.
+constexpr std::int64_t earliest_replay_us = 1'000'000'000'000;   // 2001-09-09
+constexpr std::int64_t latest_replay_us = 4'102'444'800'000'000; // 2100-01-01
+// One request copies at most one archive block of the camera.
+constexpr std::chrono::microseconds max_replay_interval = archive::max_block_duration;
+constexpr std::chrono::microseconds max_replay_uncertainty = std::chrono::seconds{5};
+// Largest accepted difference between the camera clock and the site clock.
+constexpr std::chrono::microseconds max_replay_offset = std::chrono::minutes{5};
 using storage::next;
 using storage::Sqlite;
 
@@ -71,9 +87,10 @@ class Recorder final : public v1::RecorderControl::Service
         if (q->point().site_id() != site_ || !canonical_id(q->point().point_id()) ||
             !canonical_id(q->device_id()) || q->recording_id().size() != 64 ||
             q->recording_id().find_first_not_of("0123456789abcdef") != std::string::npos ||
-            q->begin_us() < 1000000000000LL || q->end_us() > 4102444800000000LL || q->end_us() <= q->begin_us() ||
-            q->end_us() - q->begin_us() > 15000000 || q->uncertainty_us() < 0 || q->uncertainty_us() > 5000000 ||
-            q->offset_us() < -300000000 || q->offset_us() > 300000000)
+            q->begin_us() < earliest_replay_us || q->end_us() > latest_replay_us || q->end_us() <= q->begin_us() ||
+            q->end_us() - q->begin_us() > max_replay_interval.count() || q->uncertainty_us() < 0 ||
+            q->uncertainty_us() > max_replay_uncertainty.count() || q->offset_us() < -max_replay_offset.count() ||
+            q->offset_us() > max_replay_offset.count())
             return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid replay scope"};
         std::unique_lock slot{replay_mutex_, std::try_to_lock};
         if (!slot.owns_lock())
@@ -103,6 +120,7 @@ class Recorder final : public v1::RecorderControl::Service
             out->set_blocks(result.blocks);
             out->set_duration_us(result.duration_us);
             out->set_outcome(result.outcome);
+            out->set_covered_until_us(result.covered_until_us);
             return grpc::Status::OK;
         } catch (const std::exception&) {
             return {grpc::StatusCode::UNAVAILABLE, "Replay unavailable"};
@@ -186,6 +204,33 @@ class Recorder final : public v1::RecorderControl::Service
             return grpc::Status::OK;
         } catch (const std::exception&) {
             return {grpc::StatusCode::UNAVAILABLE, "Volume unavailable"};
+        }
+    }
+
+    grpc::Status GetPointStates(grpc::ServerContext*, const v1::PointStatesQuery* q, v1::PointStates* out) override
+    {
+        if (q->site_id() != site_)
+            return {grpc::StatusCode::PERMISSION_DENIED, "Different site"};
+        try {
+            {
+                std::scoped_lock lock{mutex_};
+                *out = sources_.point_states();
+            }
+            switch (volume_.capacity()) {
+            case archive::CapacityState::normal:
+                out->set_capacity(v1::STORAGE_CAPACITY_NORMAL);
+                break;
+            case archive::CapacityState::low_space:
+                out->set_capacity(v1::STORAGE_CAPACITY_LOW_SPACE);
+                break;
+            case archive::CapacityState::recording_stopped:
+                out->set_capacity(v1::STORAGE_CAPACITY_RECORDING_STOPPED);
+                break;
+            }
+            return grpc::Status::OK;
+        } catch (const std::exception& error) {
+            std::fprintf(stderr, "recorder point states unavailable: %s\n", error.what());
+            return {grpc::StatusCode::UNAVAILABLE, "Point states unavailable"};
         }
     }
 
@@ -335,13 +380,16 @@ class Recorder final : public v1::RecorderControl::Service
     Sqlite journal_;
     Snapshot active_;
     std::mutex mutex_, replay_mutex_;
-    archive::Volume volume_{setting("BACURI_ARCHIVE_DIR"), {site_, node_}};
-    std::jthread registration_{[this, socket = setting("BACURI_CATALOG_SOCKET")](std::stop_token stop) {
+    archive::Volume volume_{setting("BACURI_ARCHIVE_DIR"),
+                            {site_, node_},
+                            {.replica = optional_setting("BACURI_ARCHIVE_REPLICA_DIR"), .invalid = {}}};
+    std::jthread registration_{[this, socket = setting("BACURI_CATALOG_SOCKET")](const std::stop_token& stop) {
         archive::deliver_blocks(stop, volume_, socket);
     }};
-    std::jthread indexer_{[this, socket = setting("BACURI_CATALOG_SOCKET")](std::stop_token stop) {
+    std::jthread indexer_{[this, socket = setting("BACURI_CATALOG_SOCKET")](const std::stop_token& stop) {
         archive::index_blocks(stop, volume_, setting("BACURI_ARCHIVE_DIR"), socket);
     }};
+    std::jthread verifier_{[this](const std::stop_token& stop) { archive::verify_blocks(stop, volume_); }};
     ingest::Sources sources_{networks_, volume_};
 };
 
@@ -368,13 +416,7 @@ class PreviewSource final : public v1::PreviewSource::Service
         if (!slots_.try_acquire()) {
             return {grpc::StatusCode::RESOURCE_EXHAUSTED, "Preview capacity reached"};
         }
-        struct Slot {
-            std::counting_semaphore<16>& slots;
-            ~Slot()
-            {
-                slots.release();
-            }
-        } slot{slots_};
+        platform::ScopeExit slot{[this] { slots_.release(); }};
         auto queue = recorder_.preview(point, main);
         if (!queue) {
             return {grpc::StatusCode::NOT_FOUND, "Preview unavailable"};
@@ -409,8 +451,9 @@ try {
     if (argc == 2 && std::string_view{argv[1]} == "receive-replay")
         return bacuri::vms::ingest::replay_worker();
     if (argc == 2 && std::string_view{argv[1]} == "archive-status") {
-        const auto status =
-            bacuri::vms::archive::archive_status(bacuri::vms::control::setting("BACURI_ARCHIVE_DIR"));
+        const auto status = bacuri::vms::archive::archive_status(
+            bacuri::vms::platform::setting("BACURI_ARCHIVE_DIR"),
+            bacuri::vms::platform::optional_setting("BACURI_ARCHIVE_REPLICA_DIR"));
         std::puts(status.dump().c_str());
         return 0;
     }
@@ -421,11 +464,13 @@ try {
         return 1;
     }
     umask(0007);
+    const auto metrics =
+        bacuri::vms::observability::export_process_metrics(std::getenv("BACURI_METRICS_DIRECTORY"), "recorder");
     boost::asio::io_context lifecycle;
     boost::asio::signal_set shutdown{lifecycle, SIGINT, SIGTERM};
     bacuri::vms::Recorder recorder;
     grpc::ServerBuilder builder;
-    builder.AddListeningPort("unix:" + bacuri::vms::control::setting("BACURI_SOCKET"),
+    builder.AddListeningPort("unix:" + bacuri::vms::platform::setting("BACURI_SOCKET"),
                              grpc::experimental::LocalServerCredentials(UDS));
     builder.RegisterService(&recorder);
     auto server = builder.BuildAndStart();
@@ -434,7 +479,7 @@ try {
     }
     bacuri::vms::PreviewSource preview{recorder};
     grpc::ServerBuilder preview_builder;
-    const auto preview_path = bacuri::vms::control::setting("BACURI_PREVIEW_SOCKET");
+    const auto preview_path = bacuri::vms::platform::setting("BACURI_PREVIEW_SOCKET");
     preview_builder.AddListeningPort("unix:" + preview_path, grpc::experimental::LocalServerCredentials(UDS));
     preview_builder.RegisterService(&preview);
     auto preview_server = preview_builder.BuildAndStart();

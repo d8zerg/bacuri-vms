@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bacuri.vms:archive:trusted-key",
+  "title": "Bacuri VMS export public key",
+  "description": "The public key of a site that the recipient of an export obtains from the site through a trusted channel.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["site_id", "algorithm", "public_key"],
+  "properties": {
+    "site_id": { "$ref": "urn:bacuri.vms:archive:block-manifest:1#/$defs/id" },
+    "algorithm": { "const": "Ed25519" },
+    "public_key": { "description": "The raw 32-byte Ed25519 public key in lowercase hexadecimal.", "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

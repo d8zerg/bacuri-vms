@@ -16,6 +16,7 @@ import { cameraError } from "./cameraError";
 import { CameraBatchResults } from "./CameraBatchResults";
 import { BatchChannels, type Channel } from "./BatchChannels";
 import "./camera-batch.css";
+import { t as translate, useT } from "../i18n";
 
 type Receipt = components["schemas"]["CameraBatchReceipt"];
 type Template = components["schemas"]["CameraTemplate"];
@@ -24,8 +25,8 @@ function errorText(error: unknown) {
   return (
     cameraError(error) ??
     (error instanceof HttpFailure
-      ? "Ошибка запроса · " + error.status
-      : "Нет ответа площадки")
+      ? translate("batch.requestError", { status: error.status })
+      : translate("batch.noResponse"))
   );
 }
 export default function CameraBatch({
@@ -37,6 +38,7 @@ export default function CameraBatch({
   services: Services;
   online: boolean;
 }) {
+  const t = useT();
   const key = "bacuri.camera-batch." + site;
   const [batch, setBatch] = useState(
     () => sessionStorage.getItem(key) ?? crypto.randomUUID(),
@@ -73,7 +75,7 @@ export default function CameraBatch({
         if (!ctl.signal.aborted) setInventory(list);
       })
       .catch(() => {
-        if (!ctl.signal.aborted) tell("Не удалось загрузить инвентарь.");
+        if (!ctl.signal.aborted) tell(translate("batch.inventoryFailed"));
       });
     void services
       .points(site, ctl.signal)
@@ -81,7 +83,7 @@ export default function CameraBatch({
         if (!ctl.signal.aborted) setPoints(all);
       })
       .catch(() => {
-        if (!ctl.signal.aborted) tell("Не удалось загрузить точки.");
+        if (!ctl.signal.aborted) tell(translate("batch.pointsFailed"));
       });
     void api
       .GET("/sites/{siteId}/camera-batches", {
@@ -93,7 +95,7 @@ export default function CameraBatch({
         if (!ctl.signal.aborted) setRecent(list);
       })
       .catch(() => {
-        if (!ctl.signal.aborted) tell("Не удалось загрузить список партий.");
+        if (!ctl.signal.aborted) tell(translate("batch.listFailed"));
       });
     void api
       .GET("/sites/{siteId}/camera-templates", {
@@ -105,7 +107,7 @@ export default function CameraBatch({
         if (!ctl.signal.aborted) setTemplates(list);
       })
       .catch(() => {
-        if (!ctl.signal.aborted) tell("Не удалось загрузить шаблоны.");
+        if (!ctl.signal.aborted) tell(translate("batch.templatesFailed"));
       });
     void api
       .GET(batchPath, {
@@ -117,7 +119,7 @@ export default function CameraBatch({
         if (!ctl.signal.aborted) setRows(result);
       })
       .catch(() => {
-        if (!ctl.signal.aborted) tell("Не удалось загрузить протокол партии.");
+        if (!ctl.signal.aborted) tell(translate("batch.protocolFailed"));
       });
     return () => {
       ctl.abort();
@@ -172,7 +174,7 @@ export default function CameraBatch({
           );
           if (profiles.length < 2) {
             notices.push(
-              info.model + " · " + channel + " · требуется два профиля",
+              info.model + " · " + channel + " · " + t("batch.needsProfiles"),
             );
             continue;
           }
@@ -256,7 +258,7 @@ export default function CameraBatch({
     signal.throwIfAborted();
     setTemplates((list) => [...list.filter((t) => t.id !== result.id), result]);
     selectTemplate(result);
-    tell("Шаблон сохранён.");
+    tell(t("batch.templateSaved"));
   }
   async function preview(signal: AbortSignal) {
     setEditing(true);
@@ -366,13 +368,13 @@ export default function CameraBatch({
   return (
     <section
       className="ws-panel ws-camera-batch"
-      aria-label="Массовое подключение"
+      aria-label={t("cameras.batch.name")}
     >
       {!!rows.length && (
         <>
           <div className="ws-batch-toolbar">
             <h2 ref={resultsHeading} tabIndex={-1}>
-              Каналы <span>({rows.length})</span>
+              {t("batch.channels")} <span>({rows.length})</span>
             </h2>
             <div className="ws-actions">
               {!!pending.length && (
@@ -384,15 +386,15 @@ export default function CameraBatch({
                   }
                 >
                   {pending.every((r) => r.state === "prepared")
-                    ? "Применить партию"
-                    : "Повторить незавершённые"}
+                    ? t("batch.apply")
+                    : t("batch.retry")}
                 </Button>
               )}
             </div>
           </div>
           <CameraBatchResults
             refresh={{
-              label: "Обновить результаты",
+              label: t("batch.refresh"),
               run: () => void run(refresh),
               disabled: busy || !online,
             }}
@@ -408,7 +410,7 @@ export default function CameraBatch({
               disabled={busy || !online}
               onClick={() => setEditing(!editing)}
             >
-              {editing ? "Свернуть настройки" : "Добавить каналы"}
+              {editing ? t("batch.collapse") : t("batch.add")}
             </Button>
             <Button
               disabled={busy}
@@ -422,7 +424,7 @@ export default function CameraBatch({
                 setBatch(crypto.randomUUID());
               }}
             >
-              Новая партия
+              {t("batch.new")}
             </Button>
           </div>
         </>
@@ -430,7 +432,7 @@ export default function CameraBatch({
 
       {recent.some((r) => r.id !== batch) && (
         <label className="bk-field">
-          Протоколы партий
+          {t("batch.protocols")}
           <select
             disabled={busy}
             value={batch}
@@ -444,11 +446,12 @@ export default function CameraBatch({
             }}
           >
             {!recent.some((r) => r.id === batch) && (
-              <option value={batch}>Текущая партия</option>
+              <option value={batch}>{t("batch.current")}</option>
             )}
             {recent.map((r) => (
               <option value={r.id} key={r.id}>
-                {r.name} · каналов {r.count} · {r.id.slice(0, 8)}
+                {r.name} · {t("batch.count", { count: r.count })} ·{" "}
+                {r.id.slice(0, 8)}
               </option>
             ))}
           </select>
@@ -460,7 +463,7 @@ export default function CameraBatch({
           className="bc-fields ws-camera-fields"
         >
           <details open={!channels.length}>
-            <summary>Обнаружение устройств</summary>
+            <summary>{t("batch.discovery")}</summary>
             <Button
               onClick={() =>
                 void run(async (signal) => {
@@ -475,11 +478,11 @@ export default function CameraBatch({
                   setDeviceQuery("");
                   setTarget("");
                   setPoints(all);
-                  if (!found.length) tell("Камеры не обнаружены.");
+                  if (!found.length) tell(t("batch.noCameras"));
                 })
               }
             >
-              Обнаружить устройства
+              {t("batch.discover")}
             </Button>
             {!!devices.length && (
               <>
@@ -495,7 +498,7 @@ export default function CameraBatch({
                   }}
                 />
                 <label className="bk-field">
-                  Пользователь камеры
+                  {t("select.user")}
                   <input
                     name="batch_user"
                     value={username}
@@ -503,7 +506,7 @@ export default function CameraBatch({
                   />
                 </label>
                 <label className="bk-field">
-                  Пароль камеры
+                  {t("select.password")}
                   <input
                     name="batch_password"
                     type="password"
@@ -516,7 +519,7 @@ export default function CameraBatch({
                   disabled={!username || !listedDevices.length}
                   onClick={() => void run(inspect)}
                 >
-                  Получить каналы
+                  {t("batch.getChannels")}
                 </Button>
               </>
             )}
@@ -524,12 +527,12 @@ export default function CameraBatch({
           {!!channels.length && (
             <>
               <label className="bk-field">
-                Шаблон площадки
+                {t("batch.template")}
                 <select
                   value={selected?.id ?? ""}
                   onChange={(e) => chooseTemplate(e.target.value)}
                 >
-                  <option value="">Новый шаблон</option>
+                  <option value="">{t("batch.newTemplate")}</option>
                   {templates.map((t) => (
                     <option value={t.id} key={t.id}>
                       {t.name} · {t.revision}
@@ -538,38 +541,34 @@ export default function CameraBatch({
                 </select>
               </label>
               <details>
-                <summary>Настройки потоков и яркости</summary>
+                <summary>{t("batch.streamSettings")}</summary>
                 <label className="bk-field">
-                  Шаблон потоков
+                  {t("batch.streamTemplate")}
                   <select
                     value={mode}
                     onChange={(e) =>
                       setMode(e.target.value === "low" ? "low" : "high")
                     }
                   >
-                    <option value="high">
-                      Запись в большем разрешении, эфир в меньшем
-                    </option>
-                    <option value="low">
-                      Запись в меньшем разрешении, эфир в большем
-                    </option>
+                    <option value="high">{t("batch.high")}</option>
+                    <option value="low">{t("batch.low")}</option>
                   </select>
                 </label>
                 <label className="bk-field">
-                  Яркость по шкале камеры
+                  {t("batch.brightness")}
                   <input
                     name="batch_brightness"
                     type="number"
                     step="any"
-                    placeholder="Сохранить текущую"
+                    placeholder={t("batch.keepCurrent")}
                     value={brightness}
                     onChange={(e) => setBrightness(e.target.value)}
                   />
                 </label>
                 <details>
-                  <summary>Сохранить настройки шаблона</summary>
+                  <summary>{t("batch.saveTemplateSettings")}</summary>
                   <label className="bk-field">
-                    Название шаблона
+                    {t("batch.templateName")}
                     <input
                       name="batch_template_name"
                       value={templateName}
@@ -581,18 +580,18 @@ export default function CameraBatch({
                     disabled={!templateName.trim() || !!matchingTemplate}
                     onClick={() => void run(saveTemplate)}
                   >
-                    Сохранить шаблон
+                    {t("batch.saveTemplate")}
                   </Button>
                 </details>
               </details>
               <div className="ws-batch-toolbar">
-                <h2>Выбор каналов</h2>
+                <h2>{t("batch.choose")}</h2>
                 <Button
                   variant="primary"
                   disabled={!channels.some((c) => c.selected)}
                   onClick={() => void run(preview)}
                 >
-                  Сравнить конфигурации
+                  {t("batch.compare")}
                 </Button>
               </div>
               <BatchChannels
@@ -605,7 +604,7 @@ export default function CameraBatch({
           )}
         </fieldset>
       )}
-      <p role="status">{busy ? "Выполняется запрос…" : notice}</p>
+      <p role="status">{busy ? t("batch.busy") : notice}</p>
     </section>
   );
 }

@@ -2,6 +2,7 @@
 import argparse
 import ast
 import re
+import tempfile
 import subprocess
 import sys
 from pathlib import Path
@@ -36,7 +37,7 @@ FILES = {
     "events": "observations alerts alert_work observation_source",
     "maps": "maps map_import",
     "export": "export",
-    "transport": "server https alert_socket",
+    "transport": "server https alert_socket routes",
     "database": "database",
     "recovery": "configuration_backup recovery configuration_snapshot",
     "shared": "api http support playback_time",
@@ -48,6 +49,7 @@ PUBLIC = set("""
     playback.hpp export.hpp access/enrollment.hpp inventory/camera_events.hpp access/session.hpp inventory/registry.hpp
     access/operations.hpp access/admin.hpp access/oidc.hpp inventory/operations.hpp inventory/telemetry.hpp events/operations.hpp events/video_rules.hpp events/configuration.hpp recordings/operations.hpp media_sessions/operations.hpp
     access/configuration.hpp inventory/configuration.hpp recordings/policies.hpp recordings/search.hpp recordings/configuration.hpp maps/configuration.hpp
+    recordings/status.hpp recordings/recorder.hpp
     access/restore.hpp inventory/restore.hpp
 """.split())
 
@@ -150,6 +152,41 @@ def include_error(file, header):
     }:
         return module(file) != module(dest.relative_to(ROOT))
     return relative not in PUBLIC and module(file) != module(dest.relative_to(ROOT))
+
+# Services and libraries below the Core depend on the platform library, never on the control module.
+INDEPENDENT = {"archive", "recorder", "media", "platform", "storage", "domain", "observability"}
+
+
+def layer_errors(file, code):
+    if len(file.parts) < 3 or file.parts[0] != "src" or file.parts[1] not in INDEPENDENT:
+        return []
+    return [f"{file}: {file.parts[1]} includes the control module header {header}"
+            for header in re.findall(r'^\s*#\s*include\s*"(control/[^"]+)"', code, re.M)]
+
+
+# The export verifier is distributed to third parties, so it must build with libsodium and JSON only.
+VERIFIER = Path("src/archive/verify_export.cpp")
+VERIFIER_FORBIDDEN = re.compile(r"^(sqlite3\.h|glib|gio/|gst/|archive/volume\.hpp|platform/(settings|secrets)\.hpp|control/)")
+
+
+def verifier_errors(root, entry=VERIFIER):
+    seen, pending, errors = set(), [entry], []
+    while pending:
+        file = pending.pop()
+        if file in seen:
+            continue
+        seen.add(file)
+        code = (root / file).read_text()
+        for header in re.findall(r'^\s*#\s*include\s*["<]([^">]+)[">]', code, re.M):
+            if VERIFIER_FORBIDDEN.match(header):
+                errors.append(f"{file}: the export verifier includes {header}")
+            source = Path("src") / header
+            if (root / source).is_file():
+                pending.append(source)
+                if source.suffix == ".hpp" and (root / source.with_suffix(".cpp")).is_file():
+                    pending.append(source.with_suffix(".cpp"))
+    return errors
+
 
 def check_source(file, code):
     owner = module(file)
@@ -281,10 +318,22 @@ if __name__ == "__main__":
     parser.add_argument("--database", help="verify a disposable, migrated PostgreSQL database")
     args = parser.parse_args()
     check_examples()
+    if not layer_errors(Path("src/archive/volume.cpp"), '#include "control/support.hpp"\n'):
+        raise AssertionError("undetected control include below the Core")
     issues = check_storage()
+    with tempfile.TemporaryDirectory() as sample:
+        (Path(sample) / "src/archive").mkdir(parents=True)
+        (Path(sample) / VERIFIER).write_text('#include "archive/verify.hpp"\n')
+        (Path(sample) / "src/archive/verify.cpp").write_text("#include <sqlite3.h>\n")
+        (Path(sample) / "src/archive/verify.hpp").write_text("")
+        if not verifier_errors(Path(sample)):
+            raise AssertionError("undetected storage dependency of the export verifier")
+    issues.extend(verifier_errors(ROOT))
     for file in sorted((ROOT / "src").rglob("*")):
         if file.suffix in {".cpp", ".hpp", ".cc", ".cxx", ".hh", ".hxx", ".h", ".inl"}:
-            issues.extend(check_source(file.relative_to(ROOT), file.read_text()))
+            relative, code = file.relative_to(ROOT), file.read_text()
+            issues.extend(check_source(relative, code))
+            issues.extend(layer_errors(relative, code))
         elif file.suffix == ".sql":
             relative = file.relative_to(ROOT)
             issues.extend(f"{relative}: {module(relative)} accesses {name}"

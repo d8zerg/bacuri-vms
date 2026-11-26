@@ -2,13 +2,14 @@
 
 #include <algorithm>
 #include <chrono>
+#include <utility>
 
 namespace bacuri::vms::ingest
 {
 using namespace std::chrono_literals;
 
 Stream::Stream(StreamOptions options)
-    : options_{std::move(options)}, worker_{[this](std::stop_token stop) { run(stop); }}
+    : options_{std::move(options)}, worker_{[this](const std::stop_token& stop) { run(stop); }}
 {
 }
 
@@ -25,7 +26,8 @@ void Stream::request_stop()
 std::shared_ptr<FrameQueue> Stream::subscribe()
 {
     std::scoped_lock lock{mutex_};
-    auto queue = std::make_shared<FrameQueue>(options_.profile);
+    // A new consumer receives the current group at once instead of waiting for the next keyframe.
+    auto queue = std::make_shared<FrameQueue>(options_.profile, group_);
     std::erase_if(consumers_, [](const auto& entry) { return entry.expired(); });
     consumers_.push_back(queue);
     return queue;
@@ -63,7 +65,27 @@ void Stream::interrupt(std::string state)
             }
         }
     }
+    group_.clear();
+    group_bytes_ = 0;
     stats_.state = std::move(state);
+}
+
+void Stream::remember(const FramePtr& frame)
+{
+    const auto capacity = limits(Profile::main);
+    if (frame->keyframe) {
+        group_.clear();
+        group_bytes_ = 0;
+    } else if (group_.empty()) {
+        return;
+    }
+    if (group_.size() < capacity.frames && group_bytes_ + frame->access_unit.size() <= capacity.bytes) {
+        group_.push_back(frame);
+        group_bytes_ += frame->access_unit.size();
+    } else {
+        group_.clear();
+        group_bytes_ = 0;
+    }
 }
 
 void Stream::receive(const FramePtr& frame, VideoFormat format, bool discontinuity)
@@ -95,13 +117,15 @@ void Stream::receive(const FramePtr& frame, VideoFormat format, bool discontinui
         const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - sample_at_).count();
         if (recovered || elapsed >= 1000) {
             if (!recovered)
-                stats_.bitrate_kbps = static_cast<unsigned>((stats_.bytes - sample_bytes_) * 8 / elapsed);
+                stats_.bitrate_kbps = static_cast<unsigned>((stats_.bytes - sample_bytes_) * 8 /
+                                                            static_cast<std::uint64_t>(elapsed));
             sample_at_ = now;
             sample_bytes_ = stats_.bytes;
         }
         stats_.codec = frame->codec;
         stats_.width = format.width;
         stats_.height = format.height;
+        remember(frame);
         std::erase_if(consumers_, [&frame](const auto& entry) {
             if (auto queue = entry.lock()) {
                 queue->push(frame);
@@ -115,7 +139,7 @@ void Stream::receive(const FramePtr& frame, VideoFormat format, bool discontinui
     }
 }
 
-void Stream::run(std::stop_token stop)
+void Stream::run(const std::stop_token& stop)
 {
     using Steady = std::chrono::steady_clock;
     auto delay = 1s;

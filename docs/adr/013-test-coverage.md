@@ -1,15 +1,17 @@
-# ADR-013. Порог покрытия продуктового кода
+# ADR-013. Coverage threshold of product code
 
-**Статус** - Принято.
+[Русская версия](../ru/adr/013-test-coverage.md)
 
-**Контекст.** C++-сервисы работают в отдельных процессах, а JavaScript выполняется в браузере. Основные сценарии охватывают оба слоя. Для приёмки нужен измеримый нижний предел покрытия автоматическими тестами.
+**Status** - Accepted.
 
-**Варианты.** Единый процент по репозиторию, независимые пороги для сервисов и клиента либо порог только для изменённых строк.
+**Context.** The C++ services run in separate processes, and JavaScript runs in the browser. The main scenarios cover both layers. Acceptance needs a measurable lower limit of automatic test coverage.
 
-**Решение.** Требовать не менее 75% строк отдельно для продуктового C++ в `src/`, рабочего JavaScript в `web/` и TypeScript в `web/client/src/`. GCC собирает данные в отдельном пресете по CTest и интеграционным прогонам. Chrome собирает данные V8 при прохождении сценариев рабочего клиента. Файлы тестов, макет, сгенерированные исходники и внешние библиотеки находятся за границами измерений.
+**Options.** One percentage for the repository, independent thresholds for the services and the client, or a threshold for changed lines only.
 
-**Основания.** Независимые пороги выявляют пробелы в меньшем по размеру клиенте. Общий прогон учитывает код, который выполняется только при обращении к реальным сервисам. Покрытие строк показывает выполнение кода. Ожидаемый результат и отказы по каждому сценарию проверяются отдельными утверждениями тестов.
+**Decision.** Require at least 75% of lines separately for product C++ in `src/`, working JavaScript in `web/` and TypeScript in `web/client/src/`. GCC collects data in a separate preset over CTest and the integration runs. Chrome collects V8 data while the scenarios of the working client run. Test files, mockups, generated sources and external libraries are outside the measurement.
 
-**Последствия.** Прогон требует отдельной инструментированной сборки и запуска браузера. Для разбора снижения покрытия сохраняются отчёты по файлам и непокрытым строкам. Код принудительно остановленного процесса может не успеть записать счётчики GCC.
+**Rationale.** Independent thresholds reveal gaps in the smaller client. A common run counts code that runs only against real services. Line coverage shows that code ran. The expected result and the failures of each scenario are checked by separate test assertions.
 
-**Проверка и пересмотр.** В `task coverage:check` входят независимые пороги для продуктового C++, браузерного JavaScript и TypeScript единого клиента. Гейт UI Kit проверяет представление и сценарии на тестовых данных. Гейт единого клиента объединяет их данные V8 с исполнением поставляемого JS через HTTPS в Chrome. Карты сборки восстанавливают строки TS и TSX. В знаменатель входят все исполняемые файлы `web/client/src`, в том числе адаптеры и точка входа. Незагруженный файл получает ноль. Файлы деклараций, зависимости, истории и фикстуры исключены. Гейт сверяет полный набор файлов с диском и проверяет целочисленные счётчики без округления. При смене языка или инструмента повторно проверить восстановление путей и учёт незагруженных файлов. [Критерии приёмки](../quality.md#автоматические-проверки-кода)
+**Consequences.** The run requires a separate instrumented build and a browser. Reports by file and uncovered line are kept to analyze a coverage drop. Code of a forcibly stopped process may not manage to write the GCC counters.
+
+**Verification and review.** `task coverage:check` includes independent thresholds for product C++, browser JavaScript and the TypeScript of the single client. The UI Kit gate checks the views and scenarios on test data. The single client gate combines their V8 data with the execution of the delivered JS over HTTPS in Chrome. Source maps restore the TS and TSX lines. The denominator includes all executable files of `web/client/src`, including adapters and the entry point. A file that was not loaded gets zero. Declaration files, dependencies, stories and fixtures are excluded. The gate compares the full set of files with the disk and checks the integer counters without rounding. When the language or the tool changes, check again the restoration of paths and the counting of unloaded files. [Acceptance criteria](../quality.md#automatic-code-checks)

@@ -14,7 +14,7 @@ struct MotionNotice {
     std::string topic{"RuleEngine/CellMotionDetector/Motion"};
     Json metadata = Json::object();
 };
-void read_motion(std::stop_token, const CameraNetworks&, const Json& control, const Json& credentials,
+void read_motion(const std::stop_token&, const CameraNetworks&, const Json& control, const Json& credentials,
                  const std::function<void(const MotionNotice&)>& accept);
 Json discover_onvif(const CameraNetworks& networks, const Key& key, const std::string& site);
 Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::string& site, const Json& body);

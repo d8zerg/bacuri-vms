@@ -67,6 +67,9 @@ class FrameQueue
 {
   public:
     explicit FrameQueue(Profile profile) : profile_{profile}, capacity_{limits(profile)} {}
+    // Starts with the frames received since the latest keyframe, so a new consumer can decode at
+    // once. These frames do not count against the capacity until they are taken.
+    FrameQueue(Profile profile, const std::vector<FramePtr>& group);
     void push(const FramePtr& frame);
     void interrupt();
     [[nodiscard]] FramePtr try_pop();
@@ -82,6 +85,8 @@ class FrameQueue
     std::deque<FramePtr> frames_;
     QueueStats stats_;
     bool need_keyframe_{true};
+    // Initial frames not yet taken. They extend the capacity until they are taken.
+    std::size_t group_frames_{}, group_bytes_{};
 };
 
 struct StreamStats {
@@ -108,15 +113,18 @@ class Stream
 {
   public:
     explicit Stream(StreamOptions options);
+    Stream(const Stream&) = delete;
+    Stream& operator=(const Stream&) = delete;
     ~Stream();
     void request_stop();
     [[nodiscard]] std::shared_ptr<FrameQueue> subscribe();
     [[nodiscard]] StreamStats stats() const;
 
   private:
-    void run(std::stop_token stop);
+    void run(const std::stop_token& stop);
     void receive(const FramePtr& frame, VideoFormat format, bool discontinuity);
     void interrupt(std::string state);
+    void remember(const FramePtr& frame);
     void report() const;
 
     const StreamOptions options_;
@@ -125,6 +133,10 @@ class Stream
     std::chrono::steady_clock::time_point sample_at_{};
     std::uint64_t sample_bytes_{};
     std::vector<std::weak_ptr<FrameQueue>> consumers_;
+    // Frames since the latest keyframe. A group longer than the main queue capacity is not kept,
+    // because live delivery could not accept it at once.
+    std::vector<FramePtr> group_;
+    std::size_t group_bytes_{};
     std::condition_variable_any retry_;
     std::jthread worker_;
 };

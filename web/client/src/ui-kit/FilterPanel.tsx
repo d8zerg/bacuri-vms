@@ -3,6 +3,7 @@ import { useId, useRef } from "react";
 import { IconButton } from "./FormControls";
 import icons from "../../../../design/bacuri/icons/sprite.svg";
 import "./filter-panel.css";
+import { useT } from "../i18n";
 
 export function matchesQuery(
   query: string,
@@ -41,6 +42,7 @@ export function FilterPanel({
   refresh?: ListRefresh;
   searchDisabled?: boolean;
 }) {
+  const t = useT();
   const input = useRef<HTMLInputElement>(null);
   const id = useId();
   const fields = (
@@ -71,14 +73,14 @@ export function FilterPanel({
               <IconButton
                 icon="search"
                 type="submit"
-                label="Найти"
+                label={t("filter.find")}
                 variant="primary"
               />
             )}
           </div>
           <IconButton
             icon="circle-x"
-            label="Сбросить фильтры"
+            label={t("filter.reset")}
             disabled={!query && !filtered}
             onClick={() => {
               onReset();

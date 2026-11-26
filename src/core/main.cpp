@@ -8,6 +8,7 @@
 #include "archive/evidence.hpp"
 #include "control/recovery.hpp"
 #include "control/maps.hpp"
+#include "observability/metrics.hpp"
 #include "product_version.hpp"
 #include <sodium.h>
 #include <iostream>
@@ -54,6 +55,8 @@ try {
     }
     std::string_view action = argc > 1 ? argv[1] : "";
     if (action == "serve" && argc == 2) {
+        const auto metrics =
+            bacuri::vms::observability::export_process_metrics(std::getenv("BACURI_METRICS_DIRECTORY"), "core");
         serve();
     } else if (action == "migrate" && argc == 2) {
         migrate();

@@ -1,8 +1,11 @@
 #include "media/webrtc.hpp"
 #include "recorder/ingest.hpp"
 #include <charconv>
+#include <condition_variable>
 #include <future>
+#include <mutex>
 #include <thread>
+#include <utility>
 
 namespace bacuri::vms::media
 {
@@ -98,8 +101,33 @@ int video_payload(const GstSDPMedia* track, bool hevc)
 }
 } // namespace
 
+struct PeerEvents {
+    std::mutex mutex;
+    std::condition_variable_any changed;
+    std::uint64_t generation{}, observed{};
+
+    void signal() noexcept
+    {
+        {
+            std::scoped_lock guard{mutex};
+            ++generation;
+        }
+        changed.notify_all();
+    }
+    static void on_notify(GObject*, GParamSpec*, gpointer data)
+    {
+        static_cast<PeerEvents*>(data)->signal();
+    }
+    static GstBusSyncReply on_message(GstBus*, GstMessage* message, gpointer data)
+    {
+        if (GST_MESSAGE_TYPE(message) == GST_MESSAGE_ERROR)
+            static_cast<PeerEvents*>(data)->signal();
+        return GST_BUS_PASS;
+    }
+};
+
 WebRtcPeer::WebRtcPeer(const std::string& offer, LiveFormat format, std::string_view regions)
-    : mask_{regions}, offer_{parse(offer)}
+    : events_{std::make_unique<PeerEvents>()}, mask_{regions}, offer_{parse(offer)}
 {
     const auto [source, output] = format;
     const bool hevc = output == "h265";
@@ -132,6 +160,12 @@ WebRtcPeer::WebRtcPeer(const std::string& offer, LiveFormat format, std::string_
     }
     rtc_.reset(gst_bin_get_by_name(GST_BIN(pipeline_.get()), "peer"));
     input_.reset(gst_bin_get_by_name(GST_BIN(pipeline_.get()), "input"));
+    g_signal_connect(rtc_.get(), "notify::connection-state", G_CALLBACK(PeerEvents::on_notify), events_.get());
+    g_signal_connect(rtc_.get(), "notify::ice-gathering-state", G_CALLBACK(PeerEvents::on_notify), events_.get());
+    {
+        GstHandle<GstBus, gst_object_unref> bus{gst_element_get_bus(pipeline_.get())};
+        gst_bus_set_sync_handler(bus.get(), PeerEvents::on_message, events_.get(), nullptr);
+    }
     // The local deployment uses direct UDP candidates on the media bridge.
     GObject* ice_raw = nullptr;
     g_object_get(rtc_.get(), "ice-agent", &ice_raw, nullptr);
@@ -163,6 +197,25 @@ WebRtcPeer::WebRtcPeer(const std::string& offer, LiveFormat format, std::string_
 WebRtcPeer::~WebRtcPeer()
 {
     stop();
+    if (rtc_)
+        g_signal_handlers_disconnect_by_data(rtc_.get(), events_.get());
+    if (pipeline_) {
+        GstHandle<GstBus, gst_object_unref> bus{gst_element_get_bus(pipeline_.get())};
+        gst_bus_set_sync_handler(bus.get(), nullptr, nullptr, nullptr);
+    }
+}
+
+void WebRtcPeer::wait(std::stop_token stop, Clock::time_point deadline)
+{
+    std::unique_lock lock{events_->mutex};
+    events_->changed.wait_until(lock, std::move(stop), deadline,
+                                [&] { return events_->generation != events_->observed; });
+    events_->observed = events_->generation;
+}
+
+void WebRtcPeer::notify() noexcept
+{
+    events_->signal();
 }
 void WebRtcPeer::stop() noexcept
 {
@@ -209,7 +262,7 @@ std::string WebRtcPeer::answer(Clock::time_point deadline)
             }
             break;
         }
-        std::this_thread::sleep_for(10ms);
+        wait({}, deadline);
     }
     throw std::runtime_error("ICE gathering unavailable");
 }

@@ -1,160 +1,162 @@
-# Локальный стенд Bacuri VMS
+# Bacuri VMS local stand
 
-## Подготовка и команды
+[Русская версия](ru/local-development.md)
 
-Требуются Linux x86-64, нативный Docker Engine, плагин Docker Compose и Go Task. [Установка Go Task](https://taskfile.dev/docs/installation/)
+## Preparation and commands
+
+Linux x86-64, the native Docker Engine, the Docker Compose plugin and Go Task are required. [Installing Go Task](https://taskfile.dev/docs/installation/)
 
 ```sh
 task check
 ```
 
-Команда собирает оптимизированные службы, проверяет Debug-сборки GCC и Clang, выполняет CTest с ASan/UBSan и TSan, запускает статический анализ и проверяет контракты и типы TypeScript. Затем она запускает Compose-стенд, применяет схемы хранилищ и проверяет запись, эфир, архив и тревоги. CMake и Ninja работают в контейнере без сети. Результаты сохраняются в `build/`.
+The command builds the optimized services, checks the GCC and Clang Debug builds, runs CTest with ASan/UBSan and TSan, runs static analysis and checks the contracts and the TypeScript types. Then it starts the Compose stand, applies the storage schemas and checks recording, live video, the archive and alarms. CMake and Ninja run in a container without network. The results are kept in `build/`.
 
-Для полного прогона используйте рабочую копию с полной историей Git. В отчёте `task check:report` откройте `coverage/cpp/index.html`, `coverage/web/index.html` и `workspace/coverage/index.html`, чтобы увидеть непокрытые строки. В `secrets/` лежат отдельные результаты Gitleaks для истории, индекса и рабочих файлов. [Обязательные проверки кода](quality.md#автоматические-проверки-кода)
+For a full run, use a working copy with the full Git history. In the `task check:report` report, open `coverage/cpp/index.html`, `coverage/web/index.html` and `workspace/coverage/index.html` to see the uncovered lines. `secrets/` contains separate Gitleaks results for the history, the index and the working files. [Mandatory code checks](quality.md#automatic-code-checks)
 
-| Команда | Действие |
+| Command | Action |
 | --- | --- |
-| `task release:package SUITE=bookworm SIGNING_HOME=... SIGNER=... OUTPUT=...` | Собрать автономный комплект с Debian-пакетом `bacuri-vms` и подписать его ключом поставщика. Для Debian Trixie укажите `SUITE=trixie`. [Сборка комплекта](test-profile.md#автономная-установка-и-доступ) |
-| `task install:check SUITE=bookworm` или `SUITE=trixie` | Установить подписанный комплект на чистую Debian Bookworm или Trixie в KVM, перезагрузить узел и проверить WebAuthn и права на точки. На хосте требуется `/dev/kvm`. [Автономная установка](install.md) |
-| `task maintenance:check PREVIOUS=/путь/к/отчёту` | Проверить обновление схемы с сохранением данных, повтор миграции, откат и восстановление на отдельном узле с сохранным архивом. Нужен каталог подписанного предыдущего комплекта с `bundle/` и `release-key.gpg`. [Обслуживание узла](maintenance.md) |
-| `task build` | Собрать C++ цели с пресетом `gcc-debug` |
-| `task build PRESET=clang-debug` | Собрать с указанным пресетом CMake |
-| `task release:check` | Собрать оптимизированные службы, запустить `bacuri-vms-core --version` |
-| `task build:repro` | Побайтно сравнить исполняемые файлы Release с чистой сборкой в отдельном каталоге того же образа |
-| `task deps:lock` | Пересчитать общий Conan lockfile по всем профилям после изменения зависимостей |
-| `task test` | Собрать и запустить CTest. Поддерживает `PRESET` |
-| `task lint` | Проверить C++ по правилам из [.clang-tidy](../.clang-tidy) |
-| `task media:check:bookworm` | Проверить запись RTSP, WebRTC и работу с тревогами на системных библиотеках Debian Bookworm |
-| `task postgres:performance` | Сравнить результаты и планы запросов к очереди карт, размещениям камер и архиву до и после миграции. [Методика и измерения](postgresql-performance.md) |
-| `task format:check` | Проверить формат C++ по `.clang-format`. Расхождение останавливает проверку |
-| `task secrets:check` | Запустить Gitleaks на полной истории Git, индексе и рабочих файлах, включая новые файлы вне правил игнорирования |
-| `task coverage:check` | Выполнить CTest и интеграционные сценарии. Для C++, JavaScript рабочих маршрутов и TypeScript UI Kit требуется не менее 75% строк в каждом отчёте |
-| `task control:up` | Запустить ядро, запись и выдачу архива и прямого эфира, применить миграции PostgreSQL |
-| `task live:check` | Проверить WebRTC в Chrome и Firefox, запись при замедлении клиента и перезапуске выдачи, сроки отзыва доступа |
-| `task recovery:check` | Измерить восстановление прав, записи и архива на изолированном стенде с остановкой служб и отказами носителя. [Инструкция](recovery.md) |
-| `task playback:check` | Проверить архив по HTTPS, отзыв доступа, декодирование и перемотку в Google Chrome и Firefox |
-| `task control:check` | Проверить вход, реестр, применение и восстановление конфигурации в изолированной базе |
-| `task api:check` | Проверить схемы и примеры REST, gRPC и WebSocket |
-| `task api:types` | Сгенерировать и проверить типы TypeScript в `build/contracts/api.d.ts` |
-| `task docs:check` | Сверить локальные ссылки, сценарии, ADR, охват операций, профилей и тестовых векторов в реестре полного выпуска |
-| `task ui-kit:check` | Собрать UI Kit и Storybook, проверить типы, значки, доступность, клавиатуру, экранные эталоны и покрытие TypeScript в браузере |
-| `task web:build` | Собрать статический клиент в `build/web-client` и отдельную сборку сравнения для стенда |
-| `task workspace:check` | Проверить оба экрана по эталону, пройти сценарии через HTTPS в Chrome и Firefox, измерить загрузку и покрытие исходного TypeScript |
-| `task access:check` | Проверить на изолированном стенде локальный и корпоративный вход, права, отзыв во время выдачи и автономную работу при отключении Keycloak |
-| `task ui-kit:up` / `task ui-kit:down` | Запустить или остановить [локальный каталог компонентов](http://127.0.0.1:6010) |
-| `task check:report` | Выполнить `task check` и сохранить сведения об окружении, журнал и код завершения в `build/reports/check-*/` |
-| `task stand:up` | Запустить PostgreSQL и тестовую камеру |
-| `task camera:commissioning` | Проверить обнаружение ONVIF, замену камеры и воспроизведение обеих версий привязки в браузере |
-| `task stand:check` | Проверить PostgreSQL, RTSP-потоки и тома |
-| `task stand:check-storage` | Проверить сохранность PostgreSQL и архива после перезапуска и лимит тестового тома в отдельном временном проекте Compose |
-| `task schema:check` | Проверить манифест и начальные миграции PostgreSQL и SQLite на временных базах |
-| `task stand:status` | Показать состояние контейнеров |
-| `task stand:logs` | Показать последние журналы PostgreSQL и камеры |
-| `task stand:down` | Остановить стенд с сохранением постоянных томов |
-| `task shell` | Открыть оболочку в контейнере разработки |
+| `task release:package SUITE=bookworm SIGNING_HOME=... SIGNER=... OUTPUT=...` | Build an offline kit with the `bacuri-vms` Debian package and sign it with the supplier key. For Debian Trixie use `SUITE=trixie`. [Building the kit](test-profile.md#offline-installation-and-access) |
+| `task install:check SUITE=bookworm` or `SUITE=trixie` | Install the signed kit on a clean Debian Bookworm or Trixie in KVM, reboot the node and check WebAuthn and the point permissions. The host needs `/dev/kvm`. [Offline installation](install.md) |
+| `task maintenance:check PREVIOUS=/path/to/report` | Check a schema upgrade with data preserved, a repeated migration, a rollback and a recovery on a separate node with a preserved archive. Needs the directory of the signed previous kit with `bundle/` and `release-key.gpg`. [Node maintenance](maintenance.md) |
+| `task build` | Build the C++ targets with the `gcc-debug` preset |
+| `task build PRESET=clang-debug` | Build with the given CMake preset |
+| `task release:check` | Build the optimized services, run `bacuri-vms-core --version` |
+| `task build:repro` | Compare the Release executables byte for byte with a clean build in a separate directory of the same image |
+| `task deps:lock` | Recompute the common Conan lockfile for all profiles after a dependency change |
+| `task test` | Build and run CTest. Supports `PRESET` |
+| `task lint` | Check C++ by the rules of [.clang-tidy](../.clang-tidy) |
+| `task media:check:bookworm` | Check RTSP recording, WebRTC and alarm handling on the Debian Bookworm system libraries |
+| `task postgres:performance` | Compare the results and plans of the queries to the map queue, the camera placements and the archive before and after the migration. [Method and measurements](postgresql-performance.md) |
+| `task format:check` | Check the C++ format by `.clang-format`. A mismatch stops the check |
+| `task secrets:check` | Run Gitleaks on the full Git history, the index and the working files, including new files outside the ignore rules |
+| `task coverage:check` | Run CTest and the integration scenarios. C++, the JavaScript of the work routes and the TypeScript of the UI Kit need at least 75% of lines in each report |
+| `task control:up` | Start the core, recording and delivery of the archive and live video, apply the PostgreSQL migrations |
+| `task live:check` | Check WebRTC in Chrome and Firefox, recording while a client slows down and delivery restarts, and the access revocation deadlines |
+| `task recovery:check` | Measure the recovery of permissions, recording and the archive on an isolated stand with stopped services and media failures. [Guide](recovery.md) |
+| `task playback:check` | Check the archive over HTTPS, access revocation, decoding and seeking in Google Chrome and Firefox |
+| `task control:check` | Check sign-in, the registry, the application and the recovery of the configuration in an isolated database |
+| `task api:check` | Check the schemas and examples of REST, gRPC and WebSocket |
+| `task api:types` | Generate and check the TypeScript types in `build/contracts/api.d.ts` |
+| `task docs:check` | Check the local links, the scenarios, the ADRs and the coverage of operations, profiles and test vectors in the full release register |
+| `task ui-kit:check` | Build the UI Kit and Storybook, check the types, icons, accessibility, keyboard, screen references and TypeScript coverage in the browser |
+| `task web:build` | Build the static client into `build/web-client` and a separate comparison build for the stand |
+| `task workspace:check` | Check both screens against the reference, go through the scenarios over HTTPS in Chrome and Firefox, measure loading and the coverage of the source TypeScript |
+| `task access:check` | On an isolated stand, check local and corporate sign-in, permissions, revocation during delivery and autonomous work with Keycloak disconnected |
+| `task ui-kit:up` / `task ui-kit:down` | Start or stop the [local component catalog](http://127.0.0.1:6010) |
+| `task check:report` | Run `task check` and keep the environment information, the log and the exit code in `build/reports/check-*/` |
+| `task stand:up` | Start PostgreSQL and the test camera |
+| `task camera:commissioning` | Check ONVIF discovery, camera replacement and playback of both binding revisions in the browser |
+| `task stand:check` | Check PostgreSQL, the RTSP streams and the volumes |
+| `task stand:check-storage` | Check that PostgreSQL and the archive survive a restart and the limit of the test volume in a separate temporary Compose project |
+| `task schema:check` | Check the manifest and the initial PostgreSQL and SQLite migrations on temporary databases |
+| `task stand:status` | Show the container state |
+| `task stand:logs` | Show the latest PostgreSQL and camera logs |
+| `task stand:down` | Stop the stand and keep the persistent volumes |
+| `task shell` | Open a shell in the development container |
 
-`task --list` выводит список задач. `task test PRESET=clang-tsan` запускает CTest в отдельном контейнере без сети. Контейнер использует тестовый профиль seccomp, который разрешает вызов `personality` с флагом `ADDR_NO_RANDOMIZE` для инициализации TSan.
+`task --list` lists the tasks. `task test PRESET=clang-tsan` runs CTest in a separate container without network. The container uses a test seccomp profile that allows the `personality` call with the `ADDR_NO_RANDOMIZE` flag for TSan initialization.
 
-В сети Compose RTSP-адреса - `rtsp://rtsp-camera:8554/main` и `rtsp://rtsp-camera:8554/sub`. С хоста используется `127.0.0.1` и порт `8554`. Порт на хосте можно переопределить через `BACURI_RTSP_PORT`. Доступ к PostgreSQL предусмотрен внутри сети Compose с тестовой учётной записью стенда. Том архива и ограниченный том для испытаний сбоев подключаются к контейнеру разработки.
+In the Compose network the RTSP addresses are `rtsp://rtsp-camera:8554/main` and `rtsp://rtsp-camera:8554/sub`. From the host, `127.0.0.1` and port `8554` are used. The host port can be overridden with `BACURI_RTSP_PORT`. PostgreSQL is reachable inside the Compose network with the test account of the stand. The archive volume and a limited volume for failure tests are mounted in the development container.
 
-Содержимое тестового тома заполнения удаляется при завершении контейнера разработки.
+The content of the test fill volume is removed when the development container ends.
 
-## Версия продукта и выпуск
+## Product version and release
 
-Версию Bacuri VMS задаёт аннотированный Git-тег вида `vMAJOR.MINOR.PATCH`. Для предварительных выпусков к нему добавляют `-alpha.N`, `-beta.N` или `-rc.N`. Опубликованный тег всегда указывает на тот же коммит. Публичный контракт продукта включает документированные API, команды администрирования и форматы обмена. [Semantic Versioning](https://semver.org/lang/ru/)
+The Bacuri VMS version is set by an annotated Git tag of the form `vMAJOR.MINOR.PATCH`. Pre-releases add `-alpha.N`, `-beta.N` or `-rc.N`. A published tag always points to the same commit. The public contract of the product includes the documented APIs, administration commands and exchange formats. [Semantic Versioning](https://semver.org/)
 
-Сообщения коммитов пишутся на английском в форме `type(scope): summary`. Для определения номера учитывается самое существенное изменение с предыдущего тега.
+Commit messages are written in English in the form `type(scope): summary`. The most significant change since the previous tag determines the number.
 
-| Изменение | Пример сообщения | Влияние на версию |
+| Change | Example message | Effect on the version |
 | --- | --- | --- |
-| Совместимое исправление | `fix(recorder): preserve timestamps after reconnect` | PATCH |
-| Совместимая функциональность | `feat(api): expose camera health` | MINOR |
-| Нарушение публичного контракта | `feat(api)!: require a site identifier` | MAJOR. Вместо `!` можно добавить завершающий абзац `BREAKING CHANGE: ...` |
-| Обслуживание проекта | `docs(install): clarify archive permissions` | Типы `docs`, `test`, `ci`, `chore`, `build` и `refactor` сами по себе выпуска не требуют |
+| Compatible fix | `fix(recorder): preserve timestamps after reconnect` | PATCH |
+| Compatible functionality | `feat(api): expose camera health` | MINOR |
+| Breaking the public contract | `feat(api)!: require a site identifier` | MAJOR. Instead of `!`, a final `BREAKING CHANGE: ...` paragraph can be added |
+| Project maintenance | `docs(install): clarify archive permissions` | The `docs`, `test`, `ci`, `chore`, `build` and `refactor` types by themselves do not require a release |
 
-`task release:next` читает коммиты и предлагает тег. В предварительной серии целевой номер рассчитывается относительно последнего стабильного выпуска. До первого стабильного выпуска отправной точкой служит первый тег. Исправление в пределах серии повышает счётчик `N`. Если изменение требует новой целевой версии, открывается серия `alpha.1`. Переход в `beta`, `rc` и выпуск стабильной версии оформляет сопровождающий после проверки готовности. [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+`task release:next` reads the commits and suggests a tag. In a pre-release series the target number is computed from the last stable release. Before the first stable release the first tag is the starting point. A fix within a series increments the `N` counter. When a change requires a new target version, an `alpha.1` series opens. The maintainer makes the move to `beta`, `rc` and the stable release after checking the readiness. [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
 
-`task version` показывает версию рабочей копии. На чистом теге она совпадает с тегом без префикса `v`. Между тегами сборка получает номер по числу коммитов на основной линии истории от тега, сокращённый Git-хеш и, при локальных изменениях, отметку `dirty`. После стабильного выпуска такие сборки относятся к следующей PATCH-версии. Установленную версию показывает `bacuri-vms --version`.
+`task version` shows the version of the working copy. On a clean tag it equals the tag without the `v` prefix. Between tags a build gets a number from the count of commits on the main line of history since the tag, the short Git hash and, with local changes, the `dirty` mark. After a stable release such builds belong to the next PATCH version. `bacuri-vms --version` shows the installed version.
 
-Для подписанного выпуска `task release:package` требует чистую рабочую копию на теге с полной историей. Комплект содержит версию продукта и полный хеш коммита в `sbom.json`. В номере Debian-пакета перед предварительной серией используется `~`, чтобы APT обновлял её до стабильного выпуска. [Порядок версий Debian](https://www.debian.org/doc/debian-policy/ch-controlfields.html#version)
+For a signed release, `task release:package` requires a clean working copy on a tag with the full history. The kit contains the product version and the full commit hash in `sbom.json`. The Debian package number uses `~` before a pre-release series so that APT upgrades it to the stable release. [Debian version ordering](https://www.debian.org/doc/debian-policy/ch-controlfields.html#version)
 
-## Сборка и обновление зависимостей
+## Building and updating dependencies
 
-При подготовке образа Conan устанавливает Boost (заголовки), nlohmann/json и тестовый GoogleTest/GoogleMock. Рецепт задаёт версии, общий lockfile закрепляет ревизии рецептов. Профили фиксируют архитектуру, C++, компилятор и ABI стандартной библиотеки. Release собирает службы, Debug включает тестовые цели. Два инструментированных пресета используют зависимости Clang Debug и применяют соответствующий санитайзер к сборке проекта. [Рецепт](../conanfile.py) · [Lockfile](../conan.lock) · [Пресеты CMake](../CMakePresets.json)
+When the image is prepared, Conan installs Boost (headers), nlohmann/json and, for tests, GoogleTest/GoogleMock. The recipe sets the versions, the common lockfile pins the recipe revisions. The profiles fix the architecture, C++, the compiler and the ABI of the standard library. Release builds the services, Debug includes the test targets. Two instrumented presets use the Clang Debug dependencies and apply the corresponding sanitizer to the project build. [Recipe](../conanfile.py) · [Lockfile](../conan.lock) · [CMake presets](../CMakePresets.json)
 
-GStreamer с загружаемыми плагинами, GLib, OpenSSL, libsodium, клиенты PostgreSQL и SQLite, gRPC, Protobuf и генераторы берутся из одного снимка Debian. Клиент Conan закреплён версией и SHA-256, базовые Docker-образы - digest. Сеть нужна при подготовке образа. Компиляция использует установленные в образе пакеты и сгенерированные Conan конфигурации CMake. При смене инструментария или переходе со старой сборки `task build` заново конфигурирует выбранный пресет. При повторном запуске с теми же зависимостями Ninja использует ранее собранные объекты. [Dockerfile](../Dockerfile) · [ADR-010. Зависимости сборки](adr/010-build-dependencies.md)
+GStreamer with loadable plugins, GLib, OpenSSL, libsodium, the PostgreSQL and SQLite clients, gRPC, Protobuf and the generators come from one Debian snapshot. The Conan client is pinned by version and SHA-256, the base Docker images by digest. The network is needed when the image is prepared. Compilation uses the packages installed in the image and the CMake configurations generated by Conan. When the toolchain changes or an old build is upgraded, `task build` configures the selected preset again. A repeated run with the same dependencies reuses the objects already built by Ninja. [Dockerfile](../Dockerfile) · [ADR-010. Build dependencies](adr/010-build-dependencies.md)
 
-При обновлении библиотеки изменить рецепт и выполнить `task deps:lock`. Проверить изменения прямых и транзитивных зависимостей в lockfile, затем запустить `task check:report` и `task build:repro`. На Release-файлах общий прогон также проверяет путь от наблюдения до воспроизводимого кадра тревоги в Chrome и Firefox. После успешного прогона отчёт в `build/reports/check-*/` содержит версии инструментов, перечень пакетов Debian, граф Conan с идентификаторами фактических пакетов для каждого профиля и SHA-256 четырёх Release-файлов.
+To update a library, change the recipe and run `task deps:lock`. Check the changes of the direct and transitive dependencies in the lockfile, then run `task check:report` and `task build:repro`. On the Release files the common run also checks the path from an observation to a reproducible alarm frame in Chrome and Firefox. After a successful run the report in `build/reports/check-*/` contains the tool versions, the list of Debian packages, the Conan graph with the identifiers of the actual packages for each profile and the SHA-256 of the four Release files.
 
-### Регрессионная проверка ядра
+### Core regression check
 
-`task regression:check` копирует исходники и историю Git в новый каталог, использует отдельный проект Compose с пустыми томами, выполняет `task check:report`, проверку сохранности хранилища и независимую Release-сборку. В `build/reports/regression-*/` сохраняются ревизия, хеш состава исходников, материалы сценариев, результаты восстановления и коды завершения. Для рабочей копии с изменениями сохраняется также её точное содержимое. Аппаратный прогон на выделенной IP-камере имеет собственный протокол.
+`task regression:check` copies the sources and the Git history to a new directory, uses a separate Compose project with empty volumes, runs `task check:report`, the storage durability check and an independent Release build. `build/reports/regression-*/` keeps the revision, the hash of the source content, the scenario materials, the recovery results and the exit codes. For a working copy with changes its exact content is kept as well. A hardware run on a dedicated IP camera has its own protocol.
 
-`task deps:check` сверяет установленные деревья npm и графы Conan с lock-файлами, проверяет версии сред исполнения и сканирует образы продукта, сборки и тестов. Для подготовки нужны закреплённые образы и базы Trivy. Для временных образов и баз используйте дисковую файловую систему каталога сборки. Само сканирование выполняется без сети. Для автономного повтора решения по сохранённому снимку используется команда
+`task deps:check` compares the installed npm trees and the Conan graphs with the lock files, checks the runtime versions and scans the product, build and test images. The preparation needs the pinned images and the Trivy databases. For temporary images and databases use the on-disk file system of the build directory. The scan itself runs without network. To repeat the decision on a saved snapshot offline, use the command
 
 ```sh
 python3 tools/lifecycle/policy.py "$report/snapshot" "$report/replay.json"
 ```
 
-Для полного прогона с сохранёнными базами Trivy выполните `BACURI_ADVISORY_SNAPSHOT="$report/snapshot" task check:report`. Сканер сверяет закреплённые ревизии и контрольные суммы баз и заново проверяет текущие образы и зависимости.
+For a full run with the saved Trivy databases, run `BACURI_ADVISORY_SNAPSHOT="$report/snapshot" task check:report`. The scanner checks the pinned revisions and the checksums of the databases and checks the current images and dependencies again.
 
-Здесь `report` - каталог проверки зависимостей. В `blocking.json` перечислены причины отказа и затронутые версии. Для нового сканирования с сохранёнными базами и уже загруженными образами выполнить `python3 tools/lifecycle/scan.py --offline-from "$report/snapshot"`. При новом сканировании действует текущий срок актуальности сведений. Входы и их SHA-256 перечислены в `snapshot/inputs.json`. Для обновления сведений о сопровождении выполнить `task deps:refresh`. Команда получает ревизии обеих официальных баз и сведения о сопровождении. После проверки изменений повторить серию. [Состав доказательств](test-profile.md#регрессия-ядра)
+Here `report` is the dependency check directory. `blocking.json` lists the reasons for a refusal and the affected versions. For a new scan with the saved databases and already loaded images, run `python3 tools/lifecycle/scan.py --offline-from "$report/snapshot"`. A new scan applies the current freshness term of the information. The inputs and their SHA-256 are listed in `snapshot/inputs.json`. To refresh the maintenance information, run `task deps:refresh`. The command gets the revisions of both official databases and the maintenance information. After checking the changes, repeat the series. [Evidence content](test-profile.md#core-regression)
 
-`task stand:check-postgres-upgrade` создаёт отдельный том со схемой Bacuri VMS, архивным каталогом и ожидающей тревогой в PostgreSQL. На физической копии с обновлённым сервером пересобирает индексы схем приложения, запускает pg_amcheck и сравнивает результаты запросов. Затем создаёт новую полную копию, проверяет её pg_verifybackup, запускает восстановленный сервер и повторяет сравнение. [Указания к обновлению PostgreSQL](https://www.postgresql.org/docs/release/17.12/)
+`task stand:check-postgres-upgrade` creates a separate volume with the Bacuri VMS schema, an archive catalog and a pending alarm in PostgreSQL. On a physical copy with the upgraded server it rebuilds the indexes of the application schemas, runs pg_amcheck and compares the query results. Then it creates a new full backup, checks it with pg_verifybackup, starts the restored server and repeats the comparison. [PostgreSQL upgrade notes](https://www.postgresql.org/docs/release/17.12/)
 
-### Сопровождение системных пакетов
+### Maintenance of system packages
 
-`task packages:build` выгружает Debian-пакеты, исходные архивы и патчи, файлы `.buildinfo`, контрольные суммы, Gitleaks и gosu в отдельный каталог отчёта. Контейнеры сборки, записи и PostgreSQL используют те же стадии Dockerfile. Локальные ревизии libxml2 и libsoup сохраняют ABI ветки Debian Trixie. Исправление libxml2 взято из стабильной ветки Ubuntu на той же исходной версии библиотеки. Для libsoup применяются два исправления GNOME. [Уведомление Ubuntu](https://ubuntu.com/security/CVE-2026-6653) · [Исправление обработки содержимого](https://gitlab.gnome.org/GNOME/libsoup/-/commit/b91bbd7d7888c85b17a8b33173caa806dff51681) · [Исправление сжатия](https://gitlab.gnome.org/GNOME/libsoup/-/commit/dbd0417ea3a569135e9a9344b7812076b7b178f1)
+`task packages:build` exports the Debian packages, the source archives and patches, the `.buildinfo` files, the checksums, Gitleaks and gosu to a separate report directory. The build, recording and PostgreSQL containers use the same Dockerfile stages. The local revisions of libxml2 and libsoup keep the ABI of the Debian Trixie branch. The libxml2 fix is taken from the stable Ubuntu branch on the same source version of the library. For libsoup two GNOME fixes are applied. [Ubuntu advisory](https://ubuntu.com/security/CVE-2026-6653) · [Content handling fix](https://gitlab.gnome.org/GNOME/libsoup/-/commit/b91bbd7d7888c85b17a8b33173caa806dff51681) · [Compression fix](https://gitlab.gnome.org/GNOME/libsoup/-/commit/dbd0417ea3a569135e9a9344b7812076b7b178f1)
 
-Для веб-сервера каталога UI Kit используется образ с подписанным исправлением Brotli из стабильной ветки Alpine. Гейт сопоставляет каждый сервис Compose с проверяемым образом или идентичной конфигурацией его сборки. Для Gitleaks и gosu проверяются хеш установленной утилиты и версия Go из метаданных сборки.
+The web server of the UI Kit catalog uses an image with a signed Brotli fix from the stable Alpine branch. The gate maps each Compose service to a checked image or an identical configuration of its build. For Gitleaks and gosu the hash of the installed utility and the Go version from the build metadata are checked.
 
-При обновлении проверить версию в подписанном архиве Debian. Если исправление уже входит в пакет поставщика, вернуть его в образы и удалить локальное правило. Для нового переноса закрепить версию и контрольную сумму источника в Dockerfile, обновить список исправлений и версий в `packaging/maintenance/policy.json`, выполнить `task packages:build`, затем `task regression:check`. При несовпадении патча, байтов библиотеки или исходной версии гейт блокирует комплект. [ADR-016](adr/016-system-backports.md)
+On an update, check the version in the signed Debian archive. When the fix is already part of the supplier's package, return it to the images and remove the local rule. For a new backport, pin the version and the checksum of the source in the Dockerfile, update the list of fixes and versions in `packaging/maintenance/policy.json`, run `task packages:build`, then `task regression:check`. A mismatch of the patch, the library bytes or the source version makes the gate block the kit. [ADR-016](adr/016-system-backports.md)
 
-## RTSP-эмулятор с веб-камерой
+## RTSP emulator with a webcam
 
-`task webcam:up` открывает `/dev/video0` через V4L2. Один захват питает два H.264-кодера. По умолчанию на хосте доступны `rtsp://127.0.0.1:8555/main` и `rtsp://127.0.0.1:8555/sub`. При регистрации в ядре используйте `rtsp://webcam:8554/main` и `rtsp://webcam:8554/sub`. Эмулятор работает в отдельном профиле Compose и может работать одновременно с синтетической камерой.
+`task webcam:up` opens `/dev/video0` through V4L2. One capture feeds two H.264 encoders. By default `rtsp://127.0.0.1:8555/main` and `rtsp://127.0.0.1:8555/sub` are available on the host. When registering in the core, use `rtsp://webcam:8554/main` and `rtsp://webcam:8554/sub`. The emulator runs in a separate Compose profile and can run together with the synthetic camera.
 
-Устройство выбирается переменной окружения `BACURI_WEBCAM_DEVICE`, порт хоста - `BACURI_WEBCAM_PORT`. Например, `BACURI_WEBCAM_DEVICE=/dev/video2 task webcam:up`. Контейнер получает доступ к выбранному устройству и его группе. `task webcam:check` проверяет оба профиля, останавливает чтение очереди просмотра и прерывает тестовые TCP-соединения. После работы выполните `task webcam:down`, чтобы освободить камеру. Для автоматического прогона на машине без камеры используется `task ingest:check`.
+The device is selected with the `BACURI_WEBCAM_DEVICE` environment variable, the host port with `BACURI_WEBCAM_PORT`. For example, `BACURI_WEBCAM_DEVICE=/dev/video2 task webcam:up`. The container gets access to the selected device and its group. `task webcam:check` checks both profiles, stops reading the preview queue and interrupts the test TCP connections. After the work, run `task webcam:down` to release the camera. For an automatic run on a machine without a camera, `task ingest:check` is used.
 
-После применения конфигурации процесс записи открывает оба профиля. Команда `docker compose logs -f recorder` показывает события `rtsp_ingest` с идентификатором точки, профилем, разрешением, числом кадров и переподключений. Поля `gap_begin_us` и `gap_end_us` задают границы потери по шкале приёма UTC. У открытого пропуска конец равен `null`. Для каждого подключённого потребителя поле `queues` содержит текущую и пиковую глубину, байты и число сброшенных кадров. [Матрица совместимости и правила приёма](rtsp-compatibility.md)
+After the configuration is applied, the recording process opens both profiles. `docker compose logs -f recorder` shows the `rtsp_ingest` events with the point identifier, the profile, the resolution, the number of frames and reconnections. The `gap_begin_us` and `gap_end_us` fields give the bounds of a loss on the UTC receive scale. An open gap has a `null` end. For each connected consumer the `queues` field contains the current and peak depth, the bytes and the number of dropped frames. [Compatibility matrix and intake rules](rtsp-compatibility.md)
 
-## Сервер управления
+## Control server
 
-`task control:up` запускает API на `https://localhost:8443/api/v1`. Порт задаётся через `BACURI_HTTPS_PORT`, разрешённые сети камер - через список CIDR в `BACURI_CAMERA_NETWORKS`. HTTPS использует Boost.Asio, Boost.Beast и OpenSSL. Мастер «Камеры» получает адреса профилей через ONVIF или принимает адреса вручную. Для открытых потоков синтетического стенда требуется явное исключение по IP. Настройки доверия, исключений и подключения к сегменту описаны в инструкции. [Подключение камер](rtsp-compatibility.md#мастер-подключения)
+`task control:up` starts the API at `https://localhost:8443/api/v1`. The port is set with `BACURI_HTTPS_PORT`, the permitted camera networks with a list of CIDRs in `BACURI_CAMERA_NETWORKS`. HTTPS uses Boost.Asio, Boost.Beast and OpenSSL. The "Cameras" wizard gets the profile addresses through ONVIF or accepts addresses manually. The open streams of the synthetic stand require an explicit exception by IP. The trust, exception and segment connection settings are described in the guide. [Connecting cameras](rtsp-compatibility.md#connection-wizard)
 
-При первом запуске стенд создаёт локальный сертификат и отдельные ключи шифрования ядра и узла записи. Публичный сертификат можно получить командой `docker compose exec -T core cat /identity/tls.crt` и использовать для проверки TLS. Том каждого ключа требуется сохранять вместе с соответствующей базой. Процессы работают под разными UID и передают снимки конфигурации через gRPC по Unix-сокету. Узел восстанавливает последнюю применённую версию из зашифрованного снимка в SQLite.
+At the first start the stand creates a local certificate and separate encryption keys of the core and the recording node. The public certificate can be obtained with `docker compose exec -T core cat /identity/tls.crt` and used to verify TLS. The volume of each key must be kept together with the corresponding database. The processes run under different UIDs and pass configuration snapshots through gRPC over a Unix socket. The node restores the last applied revision from the encrypted snapshot in SQLite.
 
-Для создания учётной записи используйте `task control:create-user USERNAME=admin ROLE=administrator`, передав пароль одной строкой через stdin. Перед первым входом администратора выполните `task control:enroll-admin USERNAME=admin` в локальной консоли. Откройте `/cameras` по доверенному HTTPS, введите пароль и код, затем подтвердите регистрацию и вход ключом WebAuthn. Для оператора укажите `ROLE=operator` и выдайте доступ к зарегистрированной точке командой `task control:grant-point USERNAME=operator POINT=<UUID>`. Для входа браузер отправляет JSON в `POST /api/v1/session` с текущим HTTPS Origin. Запись конфигурации использует сессионную cookie и CSRF-токен. [Контракты и модель доступа](adr/001-api-contracts.md)
+To create an account, use `task control:create-user USERNAME=admin ROLE=administrator` and pass the password as one line on stdin. Before the first administrator sign-in, run `task control:enroll-admin USERNAME=admin` in the local console. Open `/cameras` over trusted HTTPS, enter the password and the code, then confirm the registration and the sign-in with the WebAuthn key. For an operator, give `ROLE=operator` and grant access to a registered point with `task control:grant-point USERNAME=operator POINT=<UUID>`. To sign in, the browser sends JSON to `POST /api/v1/session` with the current HTTPS Origin. Writing the configuration uses the session cookie and the CSRF token. [Contracts and access model](adr/001-api-contracts.md)
 
-Администратор открывает раздел «Доступ» по адресу `/access`. В нём настраиваются права на точки и группы, политика приватности и опциональный корпоративный вход через Keycloak. [Управление доступом](ui.md#управление-доступом)
+The administrator opens the "Access" section at `/access`. It configures the permissions for points and groups, the privacy policy and the optional corporate sign-in through Keycloak. [Access management](ui.md#access-management)
 
-## Рабочее место администратора и оператора
+## Administrator and operator workplace
 
-После `task control:up` откройте [рабочее место Bacuri VMS](https://localhost:8443/). Администратору доступен раздел «Камеры». Введите имя и адреса основного и дополнительного потоков. После применения конфигурации клиент проверит свежий блок записи и кадр дополнительного потока. Выберите «Создать тестовую запись», откройте новый фрагмент и подтвердите результат после появления кадра.
+After `task control:up`, open the [Bacuri VMS workplace](https://localhost:8443/). The administrator has the "Cameras" section. Enter the name and the addresses of the main and secondary streams. After the configuration is applied, the client checks a fresh recording block and a frame of the secondary stream. Choose "Create a test recording", open the new fragment and confirm the result when the frame appears.
 
-В «Мониторинге» оператор выбирает разрешённую точку, смотрит эфир и открывает запись из карточки тревоги. «К выбранной тревоге» возвращает фокус в ленту. Адрес страницы сохраняет площадку, точку и контекст просмотра. Для тестового источника адреса внутри Compose - `rtsp://rtsp-camera:8554/main` и `rtsp://rtsp-camera:8554/sub`. Учётные записи и права выдаются командами из раздела «Сервер управления». [Сценарии и протокол проверки интерфейса](ui.md)
+In "Monitoring" the operator selects a permitted point, watches live video and opens the recording from an alarm card. "Back to the selected alarm" returns the focus to the feed. The page address keeps the site, the point and the viewing context. For the test source the addresses inside Compose are `rtsp://rtsp-camera:8554/main` and `rtsp://rtsp-camera:8554/sub`. Accounts and permissions are granted with the commands from the "Control server" section. [Interface scenarios and verification protocol](ui.md)
 
-## Запись архива
+## Archive recording
 
-После `task control:up` зарегистрируйте камеру через реестр. Узел записи сохраняет основной H.264-поток без перекодирования в именованном томе `archive-data`. Каждый каталог `/archive/recorder/blocks/<UUID>` содержит самостоятельный фрагментированный MP4 с индексом и `manifest.json`. Манифест связывает файл с точкой, каналом, версией привязки и полуоткрытым интервалом UTC. [Формат и порядок фиксации](domain-model.md#запись-и-сверка-на-томе)
+After `task control:up`, register a camera through the registry. The recording node stores the main H.264 stream without re-encoding in the `archive-data` named volume. Each `/archive/recorder/blocks/<UUID>` directory contains a self-contained fragmented MP4 with an index and `manifest.json`. The manifest binds the file to the point, the channel, the binding revision and a half-open UTC interval. [Format and commit order](domain-model.md#recording-and-reconciliation-on-the-volume)
 
-`task archive:status` читает журнал работающего узла. Поле `committed` показывает число локально зафиксированных блоков, `pending` - число неподтверждённых изменений каталога, `missing`, `corrupt` и `rejected` - число отсутствующих каталогов блоков, повреждений и отказов регистрации. `last_commit_utc_us` содержит время последней локальной фиксации. Узел продолжает запись по сохранённой конфигурации при недоступности ядра или PostgreSQL.
+`task archive:status` reads the journal of the running node. The `committed` field gives the number of locally committed blocks, `pending` the number of unacknowledged catalog changes, `missing`, `corrupt` and `rejected` the numbers of missing block directories, damaged blocks and registration refusals. `last_commit_utc_us` contains the time of the last local commit. The node keeps recording by the saved configuration when the core or PostgreSQL is unavailable.
 
-`task archive:check` проверяет запись и декодирование с синтетической камеры, исключительное владение томом, восстановление после остановки процесса и возврата базы, повторную регистрацию, конфликт манифеста, пропажу и повреждение медиа. Сценарий использует временную базу и отдельный каталог тома.
+`task archive:check` checks recording and decoding from the synthetic camera, exclusive volume ownership, recovery after a stopped process and a returned database, repeated registration, a manifest conflict, and missing and damaged media. The scenario uses a temporary database and a separate volume directory.
 
-## Поиск и воспроизведение архива
+## Archive search and playback
 
-После `task control:up` откройте `https://localhost:8443/archive/`, войдите в локальную учётную запись, выберите площадку, точку и границы UTC. Поиск показывает запись, подтверждённый пропуск с причиной, ожидающий регистрации блок и интервал с неизвестным покрытием. Кнопка «Воспроизвести» открывает запись, поле «Позиция (UTC)» позволяет перейти к кадру. Для поиска и открытия доступны интервалы до одного часа. Один браузер может открыть до 16 медиасеансов одновременно.
+After `task control:up`, open `https://localhost:8443/archive/`, sign in with a local account, choose the site, the point and the UTC bounds. Search shows a recording, a confirmed gap with its reason, a block waiting for registration and an interval with unknown coverage. "Play" opens the recording, and the "Position (UTC)" field lets you go to a frame. Search and opening are available for intervals of up to one hour. One browser can open up to 16 media sessions at a time.
 
-В манифест входят целые блоки H.264, начиная с ключевого кадра. При выборе позиции внутри блока плеер загружает его и перематывает до нужного кадра. Если интервал начинается или заканчивается внутри блока, для просмотра этого блока расширьте запрос до его границ. Сеанс истекает через пять минут или раньше при завершении браузерного сеанса.
+The manifest includes whole H.264 blocks starting at a keyframe. When a position inside a block is selected, the player loads it and seeks to the required frame. When the interval starts or ends inside a block, widen the request to the block bounds to view this block. The session expires after five minutes or earlier when the browser session ends.
 
-`bacuri-vms-media` читает архив с тома, подключённого только для чтения. Ядро проверяет права по PostgreSQL и передаёт фрагменты через тот же HTTPS-источник. `task playback:check` запускает изолированную базу и браузеры в Compose, выводит задержку до отображения первого кадра и ошибку позиционирования. Эталон состоит из цветных кадров с известным временем, смены разрешения и секундного разрыва. [Формат сегментов MSE](https://www.w3.org/TR/mse-byte-stream-format-isobmff/)
+`bacuri-vms-media` reads the archive from a volume mounted read-only. The core checks the permissions in PostgreSQL and passes the fragments through the same HTTPS origin. `task playback:check` starts an isolated database and browsers in Compose and outputs the latency to the first displayed frame and the positioning error. The reference consists of colored frames with a known time, a resolution change and a one-second gap. [MSE segment format](https://www.w3.org/TR/mse-byte-stream-format-isobmff/)
 
-## Тревоги и переход к записи
+## Alarms and the transition to the recording
 
-После `task control:up` откройте [ленту тревог](https://localhost:8443/alerts/). Оператор видит последние 100 тревог по своим точкам. Список обновляется по WSS. Кнопка «Открыть запись» открывает архив на кадре события. Если блок ещё регистрируется, кнопка «Проверить запись ещё раз» повторно проверяет тот же интервал.
+After `task control:up`, open the [alarm feed](https://localhost:8443/alerts/). The operator sees the last 100 alarms of the own points. The list is updated over WSS. "Open the recording" opens the archive at the frame of the event. When the block is still being registered, "Check the recording again" checks the same interval again.
 
-Локальный тестовый источник создаёт наблюдение `motion` для уже настроенной точки и версии привязки. Подставьте UUID точки вместо `POINT_UUID` и действующую версию вместо `1`. Сохраните сообщение для повторной отправки.
+The local test source creates a `motion` observation for an already configured point and binding revision. Put the point UUID instead of `POINT_UUID` and the current revision instead of `1`. Keep the message to send it again.
 
 ```sh
 task observation:sample POINT=POINT_UUID REVISION=1 > motion.json
@@ -162,12 +164,12 @@ task observation:submit < motion.json
 task observation:submit < motion.json
 ```
 
-Первый ответ - `REGISTRATION_STATE_COMMITTED`, повторный - `REGISTRATION_STATE_REPLAYED`. Эмулятор и ядро используют часы одного Linux-хоста. Для проверки записи дождитесь публикации архивного блока. Полный сценарий с изолированной базой, отказами и двумя браузерами запускает `task alerts:check`.
+The first response is `REGISTRATION_STATE_COMMITTED`, the repeated one `REGISTRATION_STATE_REPLAYED`. The emulator and the core use the clock of one Linux host. To check the recording, wait for the archive block to be published. `task alerts:check` runs the full scenario with an isolated database, failures and two browsers.
 
-## Прямой эфир
+## Live video
 
-После `task control:up` откройте [прямой эфир](https://localhost:8443/live/), войдите, выберите площадку и точку наблюдения, нажмите «Смотреть». Оператору требуется право на точку. Кнопка «Остановить» закрывает медиасеанс. После обрыва связи нажмите «Смотреть» для нового подключения.
+After `task control:up`, open [live video](https://localhost:8443/live/), sign in, choose the site and the observation point and press "Watch". The operator needs the permission for the point. "Stop" closes the media session. After a lost connection, press "Watch" to connect again.
 
-Ядро согласует WebRTC через HTTPS. Процесс `bacuri-vms-media` получает дополнительный H.264-поток от узла записи через Unix-сокет и отправляет его браузеру по DTLS-SRTP без перекодирования. На Linux-хосте браузеру нужен прямой UDP-маршрут до адреса контейнера в сети `live-media`. Профиль стенда использует локальные ICE-кандидаты. Для просмотра требуется поддержка WebRTC H.264. Тестовый образ Firefox содержит OpenH264 с проверкой контрольной суммы.
+The core negotiates WebRTC over HTTPS. The `bacuri-vms-media` process gets the secondary H.264 stream from the recording node through a Unix socket and sends it to the browser over DTLS-SRTP without re-encoding. On a Linux host the browser needs a direct UDP route to the container address in the `live-media` network. The stand profile uses local ICE candidates. Viewing requires WebRTC H.264 support. The test Firefox image contains OpenH264 with a checksum check.
 
-`task live:check` выводит задержку до первого декодированного кадра, число и длительность пропусков архива и время до последнего видеопакета при отзыве и истечении доступа. По умолчанию используется синтетическая RTSP-камера. Для проверки с веб-камерой выполните `task webcam:up`, затем `task live:check CAMERA=webcam`. После проверки `task webcam:down` освобождает устройство.
+`task live:check` outputs the latency to the first decoded frame, the number and duration of archive gaps and the time to the last video packet on revocation and expiry of access. The synthetic RTSP camera is used by default. To check with a webcam, run `task webcam:up`, then `task live:check CAMERA=webcam`. After the check, `task webcam:down` releases the device.

@@ -161,6 +161,12 @@ def run():
         for browser in ["chrome", "firefox"]:
             with browser_session(browser, viewer, "/live/") as (call, version):
                 print(browser, version, frame(call), flush=True)
+        # The media service measures the same wait on the server and exports it for the site.
+        served = control.wait_for(lambda: control.metric("media", "bacuri_live_first_frame_seconds_count"),
+                                  "first frame metrics")
+        first = control.metric("media", "bacuri_live_first_frame_seconds_sum") / served
+        print(f"server first frame mean {first:.3f} s over {served:.0f} sessions", flush=True)
+        assert 0 < first < 2, first
         with browser_session("chrome", viewer, "/live/") as (call, _):
             pending_id = uuid.UUID(
                 call(

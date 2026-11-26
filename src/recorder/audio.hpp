@@ -15,6 +15,8 @@ class CameraAudio
 {
   public:
     explicit CameraAudio(Endpoint endpoint);
+    CameraAudio(const CameraAudio&) = delete;
+    CameraAudio& operator=(const CameraAudio&) = delete;
     ~CameraAudio();
     Sound listen(std::int64_t after);
     void record(const std::string& owner, bool enable);
@@ -25,11 +27,11 @@ class CameraAudio
 
   private:
     using Clock = std::chrono::steady_clock;
-    void capture(std::stop_token stop);
-    void transmit(std::stop_token stop);
+    void capture(const std::stop_token& stop);
+    void transmit(const std::stop_token& stop);
     struct Sample {
         Sound sound;
-        bool record;
+        bool record{};
     };
     Endpoint endpoint_;
     std::mutex mutex_, talk_mutex_;

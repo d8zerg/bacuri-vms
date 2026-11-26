@@ -1,7 +1,8 @@
 #include "recorder/detector.hpp"
 #include "archive/analysis.hpp"
 #include "control.grpc.pb.h"
-#include "control/support.hpp"
+#include "platform/settings.hpp"
+#include <algorithm>
 #include <gst/app/gstappsrc.h>
 #include <gst/app/gstappsink.h>
 #include <grpcpp/grpcpp.h>
@@ -16,6 +17,9 @@ struct Pipeline {
     GstElement* pipe{};
     GstElement* input{};
     GstElement* output{};
+    Pipeline() = default;
+    Pipeline(const Pipeline&) = delete;
+    Pipeline& operator=(const Pipeline&) = delete;
     ~Pipeline()
     {
         if (pipe)
@@ -28,7 +32,7 @@ struct Pipeline {
             gst_object_unref(pipe);
     }
 };
-void decode(std::stop_token stop, Stream& stream, archive::Volume& volume, const std::string& point,
+void decode(const std::stop_token& stop, Stream& stream, archive::Volume& volume, const std::string& point,
             std::int64_t binding, v1::ArchiveCatalog::Stub& catalog)
 {
     auto queue = stream.subscribe();
@@ -70,7 +74,10 @@ void decode(std::stop_token stop, Stream& stream, archive::Volume& volume, const
             return;
         auto* buffer = gst_buffer_new_allocate(nullptr, frame->access_unit.size(), nullptr);
         gst_buffer_fill(buffer, 0, frame->access_unit.data(), frame->access_unit.size());
-        GST_BUFFER_PTS(buffer) = frame->time.utc().time_since_epoch().count() * GST_USECOND;
+        // Frames before the Unix epoch do not occur, a negative time would mean a broken clock.
+        GST_BUFFER_PTS(buffer) =
+            static_cast<GstClockTime>(std::max<std::int64_t>(0, frame->time.utc().time_since_epoch().count())) *
+            GST_USECOND;
         if (!frame->keyframe)
             GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT);
         if (gst_app_src_push_buffer(GST_APP_SRC(p.input), buffer) != GST_FLOW_OK)
@@ -108,7 +115,8 @@ void decode(std::stop_token stop, Stream& stream, archive::Volume& volume, const
         q.set_source_time_us(utc);
         if (frame->time.clock_epoch() && frame->time.uncertainty()) {
             q.mutable_clock()->set_epoch_id(frame->time.clock_epoch()->to_string());
-            q.mutable_clock()->set_uncertainty_us(frame->time.uncertainty()->count());
+            q.mutable_clock()->set_uncertainty_us(
+                static_cast<std::uint64_t>(std::max<std::int64_t>(0, frame->time.uncertainty()->count())));
         }
         q.set_attributes_json(
             archive::Json{{"cells", cells}, {"previous", previous_cells}, {"topic", "Local/Motion"}}.dump());
@@ -123,11 +131,11 @@ void decode(std::stop_token stop, Stream& stream, archive::Volume& volume, const
     }
 }
 } // namespace
-void detect_motion(std::stop_token stop, Stream& stream, archive::Volume& volume, const std::string& point,
+void detect_motion(const std::stop_token& stop, Stream& stream, archive::Volume& volume, const std::string& point,
                    std::int64_t binding)
 {
     auto catalog = v1::ArchiveCatalog::NewStub(grpc::CreateChannel(
-        "unix:" + control::setting("BACURI_CATALOG_SOCKET"), grpc::experimental::LocalCredentials(UDS)));
+        "unix:" + platform::setting("BACURI_CATALOG_SOCKET"), grpc::experimental::LocalCredentials(UDS)));
     std::mutex mutex;
     std::unique_lock lock{mutex};
     std::condition_variable_any timer;

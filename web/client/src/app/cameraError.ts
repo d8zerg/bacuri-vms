@@ -1,34 +1,33 @@
 import { HttpFailure } from "../adapters/api";
+import { t, type MessageKey } from "../i18n";
 
-const failures: Record<string, string> = {
-  revision_conflict: "Конфигурация изменилась. Заново сравните версии.",
-  camera_image_unsupported: "Канал не поддерживает выбранную яркость.",
-  camera_image_unconfirmed: "Камера не подтвердила значение яркости.",
-  camera_batch_limit: "В одну партию можно включить до 64 каналов.",
-  camera_authentication_failed: "Камера отклонила имя или пароль.",
-  camera_audio_missing: "В выбранный момент звук не записан.",
-  camera_audio_unavailable:
-    "Камера не подтвердила доступность звукового канала.",
-  camera_audio_unsupported: "Камера не поддерживает это направление звука.",
-  camera_ptz_busy: "Камерой управляет другой оператор.",
-  camera_command_unsent: "Соединение недоступно. Команда не отправлена.",
-  camera_command_rejected: "Камера отклонила команду.",
-  camera_ptz_unknown:
-    "Нет подтверждения камеры. Проверьте её положение в эфире.",
-  camera_ptz_unsupported: "Профиль камеры не поддерживает эту команду.",
-  camera_tls_error: "Проверьте имя камеры и доверенный сертификат.",
-  camera_incompatible_profiles:
-    "Для подключения нужны два разных видеопрофиля H.264 или H.265.",
-  camera_transport_denied:
-    "Адрес или транспорт камеры запрещён настройками площадки.",
-  camera_protocol_error: "Камера вернула неподдерживаемый ответ ONVIF.",
-  camera_already_registered: "Эта камера уже подключена на площадке.",
-  camera_binding_conflict: "Камера точки изменилась. Выберите точку заново.",
-  camera_selection_expired: "Повторите обнаружение и выбор профилей.",
-  camera_discovery_unavailable:
-    "Нет доступного интерфейса в разрешённом сегменте камер.",
-  camera_unavailable: "Камера не ответила вовремя.",
+const failures: Record<string, MessageKey> = {
+  revision_conflict: "camera.error.revision_conflict",
+  camera_image_unsupported: "camera.error.camera_image_unsupported",
+  camera_image_unconfirmed: "camera.error.camera_image_unconfirmed",
+  camera_batch_limit: "camera.error.camera_batch_limit",
+  camera_authentication_failed: "camera.error.camera_authentication_failed",
+  camera_audio_missing: "camera.error.camera_audio_missing",
+  camera_audio_unavailable: "camera.error.camera_audio_unavailable",
+  camera_audio_unsupported: "camera.error.camera_audio_unsupported",
+  camera_ptz_busy: "camera.error.camera_ptz_busy",
+  camera_command_unsent: "camera.error.camera_command_unsent",
+  camera_command_rejected: "camera.error.camera_command_rejected",
+  camera_ptz_unknown: "camera.error.camera_ptz_unknown",
+  camera_ptz_unsupported: "camera.error.camera_ptz_unsupported",
+  camera_tls_error: "camera.error.camera_tls_error",
+  camera_incompatible_profiles: "camera.error.camera_incompatible_profiles",
+  camera_transport_denied: "camera.error.camera_transport_denied",
+  camera_protocol_error: "camera.error.camera_protocol_error",
+  camera_already_registered: "camera.error.camera_already_registered",
+  camera_binding_conflict: "camera.error.camera_binding_conflict",
+  camera_selection_expired: "camera.error.camera_selection_expired",
+  camera_discovery_unavailable: "camera.error.camera_discovery_unavailable",
+  camera_unavailable: "camera.error.camera_unavailable",
 };
+// The explanation of a camera failure reported by the API, or nothing for other failures.
 export function cameraError(error: unknown) {
-  return error instanceof HttpFailure ? failures[error.code] : undefined;
+  if (!(error instanceof HttpFailure)) return undefined;
+  const key = failures[error.code];
+  return key && t(key);
 }

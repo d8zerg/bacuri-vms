@@ -2,7 +2,8 @@ import { FilterPanel, FilterSegments, matchesQuery } from "./FilterPanel";
 import "./media-panels.css";
 import { useState, useMemo, type Ref } from "react";
 import type { AlertItem, Feed, Point } from "../contracts/workspace";
-import { alertName, alertStates } from "./alertLabels";
+import { alertName, alertStateLabel } from "./alertLabels";
+import { useT } from "../i18n";
 import { formatUtc, milliseconds } from "./utc";
 export { alertName } from "./alertLabels";
 
@@ -25,6 +26,7 @@ export function AlertList({
   onFilter: (value: string) => void;
   search?: { query: string; change: (value: string) => void };
 }) {
+  const t = useT();
   const [localQuery, setLocalQuery] = useState("");
   const query = search?.query ?? localQuery,
     setQuery = search?.change ?? setLocalQuery;
@@ -54,11 +56,14 @@ export function AlertList({
     <aside className="ws-panel ws-alerts" aria-labelledby="feed-heading">
       <header className="ws-panel-head">
         <h2 id="feed-heading" tabIndex={-1}>
-          Тревоги
+          {t("alert.feed.title")}
         </h2>
         <span
           className="ws-feed-count"
-          aria-label={`Показано ${visible.length} из ${feed.items.length}`}
+          aria-label={t("alert.feed.shown", {
+            shown: visible.length,
+            total: feed.items.length,
+          })}
         >
           {filter || query ? visible.length + " / " : ""}
           {feed.items.length}
@@ -67,18 +72,18 @@ export function AlertList({
       <div className="ws-feed-tools">
         <p role="status" className="ws-feed-status" data-status={feed.status}>
           {feed.status === "loading"
-            ? "Загрузка тревог…"
+            ? t("alert.feed.loading")
             : feed.status === "denied"
-              ? "Доступ к ленте закрыт"
+              ? t("alert.feed.denied")
               : feed.status === "reconnecting"
-                ? "Восстановление связи"
+                ? t("alert.feed.reconnecting")
                 : feed.items.length
-                  ? "Лента подключена"
-                  : "Тревог пока нет"}
+                  ? t("alert.feed.connected")
+                  : t("alert.feed.empty")}
         </p>
         <FilterPanel
-          label="Фильтры ленты тревог"
-          queryLabel="Тревога или точка"
+          label={t("alert.feed.filters")}
+          queryLabel={t("alert.feed.query")}
           query={query}
           onQuery={setQuery}
           filtered={!!filter}
@@ -88,22 +93,20 @@ export function AlertList({
           }}
         >
           <FilterSegments
-            label="Состояние тревог в ленте"
+            label={t("alert.feed.stateFilter")}
             value={filter}
             onChange={onFilter}
             options={[
-              { value: "new", label: "Новые" },
-              { value: "in_progress", label: "В работе" },
-              { value: "closed", label: "Закрытые" },
+              { value: "new", label: t("alert.filter.new") },
+              { value: "in_progress", label: t("alert.filter.inProgress") },
+              { value: "closed", label: t("alert.filter.closed") },
             ]}
           />
         </FilterPanel>
       </div>
       {feed.status === "online" && !!(filter || query) && !visible.length && (
         <p className="ws-feed-empty" role="status">
-          {query
-            ? "Тревоги по заданным условиям не найдены."
-            : "В этом состоянии тревог нет."}
+          {query ? t("alert.feed.noMatch") : t("alert.feed.noneInState")}
         </p>
       )}
       <ul ref={listRef}>
@@ -118,10 +121,10 @@ export function AlertList({
               <strong>{alertName(item.type)}</strong>
               <small className="ws-alert-state" data-state={item.work_state}>
                 {item.work_state
-                  ? alertStates[item.work_state]
-                  : "Состояние не указано"}
+                  ? alertStateLabel(item.work_state)
+                  : t("alert.state.unknown")}
               </small>
-              <span>{names.get(item.point_id) ?? "Точка наблюдения"}</span>
+              <span>{names.get(item.point_id) ?? t("point.generic")}</span>
               <time dateTime={item.observed_at}>
                 {formatUtc(item.observed_at)}
               </time>
@@ -129,7 +132,9 @@ export function AlertList({
           </li>
         ))}
       </ul>
-      {!!visible.length && <p className="ws-feed-note">Приоритет не задан</p>}
+      {!!visible.length && (
+        <p className="ws-feed-note">{t("alert.feed.noPriority")}</p>
+      )}
     </aside>
   );
 }

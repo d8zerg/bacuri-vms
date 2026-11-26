@@ -8,6 +8,7 @@
 #include <fstream>
 #include <set>
 #include <thread>
+#include <utility>
 
 namespace bacuri::vms::control::map_packages
 {
@@ -130,8 +131,9 @@ std::string fetch(const std::string& url, std::size_t limit, Download* download 
     curl_easy_setopt(curl.get(), CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl.get(), CURLOPT_CONNECTTIMEOUT, 8L);
     curl_easy_setopt(curl.get(), CURLOPT_USERAGENT, "Bacuri-VMS-Maps/1");
-    if (const auto* ca = std::getenv("BACURI_MAP_CA_FILE"))
-        curl_easy_setopt(curl.get(), CURLOPT_CAINFO, ca);
+    const auto ca = optional_setting("BACURI_MAP_CA_FILE");
+    if (ca)
+        curl_easy_setopt(curl.get(), CURLOPT_CAINFO, ca->c_str());
     if (download) {
         reply.request_range =
             std::to_string(download->offset) + "-" + std::to_string(download->offset + limit - 1);
@@ -202,14 +204,15 @@ Json catalog(const std::string& url)
 std::string digest(const fs::path& path)
 {
     std::ifstream in(path, std::ios::binary);
-    std::array<char, 65536> buf;
+    std::array<char, 65536> buf{};
     crypto_hash_sha256_state state;
     crypto_hash_sha256_init(&state);
     while (in.read(buf.data(), buf.size()) || in.gcount())
-        crypto_hash_sha256_update(&state, reinterpret_cast<const unsigned char*>(buf.data()), in.gcount());
+        crypto_hash_sha256_update(&state, reinterpret_cast<const unsigned char*>(buf.data()),
+                                  static_cast<unsigned long long>(in.gcount()));
     if (!in.eof())
         throw std::runtime_error("map_read_failed");
-    std::array<unsigned char, crypto_hash_sha256_BYTES> hash;
+    std::array<unsigned char, crypto_hash_sha256_BYTES> hash{};
     crypto_hash_sha256_final(&state, hash.data());
     char text[2 * crypto_hash_sha256_BYTES + 1];
     return sodium_bin2hex(text, sizeof text, hash.data(), hash.size());
@@ -237,12 +240,12 @@ Json unpack(const fs::path& dir)
         if (!name || archive_entry_filetype(member) != AE_IFREG || fs::path(name).extension() != ".mbtiles")
             continue;
         const auto bytes = archive_entry_size(member);
-        require(bytes > 0 && static_cast<std::uint64_t>(bytes) <= max_region && total + bytes <= max_archive &&
-                list.size() < 1024);
+        require(bytes > 0 && static_cast<std::uint64_t>(bytes) <= max_region &&
+                total + static_cast<std::uint64_t>(bytes) <= max_archive && list.size() < 1024);
         const auto filename = std::to_string(list.size()) + ".mbtiles";
         std::ofstream file(dir / filename, std::ios::binary | std::ios::trunc);
         file.exceptions(std::ios::badbit | std::ios::failbit);
-        std::array<char, 65536> buf;
+        std::array<char, 65536> buf{};
         std::int64_t written{};
         la_ssize_t count{};
         while ((count = archive_read_data(reader.get(), buf.data(), buf.size())) > 0) {
@@ -252,7 +255,7 @@ Json unpack(const fs::path& dir)
         }
         require(count == 0 && written == bytes);
         file.close();
-        total += written;
+        total += static_cast<std::uint64_t>(written);
         auto entry = inspect(dir / filename);
         require(ids.insert(entry.at("id")).second);
         entry["file"] = filename;
@@ -300,7 +303,7 @@ void advance(Database& db, const Rows& row, std::stop_token stop)
                 const auto n = std::min(total - offset, chunk_size);
                 std::ofstream out(file, std::ios::app | std::ios::binary);
                 out.exceptions(std::ios::badbit | std::ios::failbit);
-                Download download{db, id, out, offset, total, stop};
+                Download download{db, id, out, offset, total, std::move(stop)};
                 const auto filename = e.at("sha256").get<std::string>() + ".mbtiles";
                 std::unique_ptr<char, decltype(&g_free)> address{
                     g_uri_resolve_relative(url.c_str(), filename.c_str(), G_URI_FLAGS_NONE, nullptr), g_free};
@@ -345,7 +348,7 @@ void advance(Database& db, const Rows& row, std::stop_token stop)
         fs::remove(file);
 }
 } // namespace
-void work(std::stop_token stop)
+void work(const std::stop_token& stop)
 {
     auto site = setting("BACURI_SITE_ID");
     while (!stop.stop_requested()) {

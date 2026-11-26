@@ -98,7 +98,7 @@ bool matches(const Detector& d, std::int64_t at, bool local, const Json& sample)
            side(a.x, a.y, b.x, b.y, l[0], l[1]) * side(a.x, a.y, b.x, b.y, l[2], l[3]) <= 0;
 }
 } // namespace
-void dispatch_presets(std::stop_token stop, const std::string& site, const PresetDispatch& dispatch)
+void dispatch_presets(const std::stop_token& stop, const std::string& site, const PresetDispatch& dispatch)
 {
     using namespace std::chrono_literals;
     std::mutex mutex;

@@ -1,6 +1,7 @@
 #include "maintenance.hpp"
 #include "archive/volume.hpp"
-#include "control/support.hpp"
+#include "platform/identifiers.hpp"
+#include "platform/settings.hpp"
 #include <sodium.h>
 #include <chrono>
 #include <sstream>
@@ -85,7 +86,7 @@ void diagnose(const fs::path& dest)
                 entry.value("profile", "") != "main")
                 continue;
             auto device = entry.value("device", "");
-            if (control::canonical_id(device))
+            if (platform::canonical_id(device))
                 sources[device] = entry.value("state", "") == "receiving" ? 1 : 0;
         }
         for (const auto& [device, up] : sources) {
@@ -94,7 +95,8 @@ void diagnose(const fs::path& dest)
         }
     });
     s.observe("archive.catalog", [&](Json& fields) {
-        auto v = archive::archive_status("/srv/bacuri-archive/recorder");
+        auto v = archive::archive_status("/srv/bacuri-archive/recorder",
+                                         platform::optional_setting("BACURI_ARCHIVE_REPLICA_DIR"));
         for (auto [key, name] : {std::pair{"pending", "bacuri_catalog_pending_blocks"},
                                  {"available_bytes", "bacuri_archive_available_bytes"}}) {
             fields[key] = v.at(key);
@@ -103,6 +105,20 @@ void diagnose(const fs::path& dest)
         int stopped = v.at("state") == "recording_stopped" ? 1 : 0;
         fields["recording_stopped"] = stopped;
         s.metrics += "bacuri_archive_recording_stopped " + std::to_string(stopped) + "\n";
+    });
+    s.observe("services.metrics", [&](Json& fields) {
+        // Each service replaces its exposition every few seconds. A stale file means the service stopped
+        // exporting, and its metrics are left out instead of being reported as current.
+        constexpr auto fresh = std::chrono::minutes{1};
+        for (const std::string role : {"core", "recorder", "media"}) {
+            const fs::path file = fs::path{"/run/bacuri-vms"} / role / (role + ".prom");
+            std::error_code error;
+            const auto changed = fs::last_write_time(file, error);
+            const bool current = !error && fs::file_time_type::clock::now() - changed < fresh;
+            fields[role] = current ? 1 : 0;
+            if (current)
+                s.metrics += read(file);
+        }
     });
     s.spans.push_back({{"traceId", s.trace},
                        {"spanId", s.root},

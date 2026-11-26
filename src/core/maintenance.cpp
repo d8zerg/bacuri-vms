@@ -4,7 +4,7 @@
 #include "product_version.hpp"
 #include "control/database.hpp"
 #include "control/recovery.hpp"
-#include "control/support.hpp"
+#include "platform/identifiers.hpp"
 #include "storage/sqlite.hpp"
 #include <nlohmann/json.hpp>
 #include <sodium.h>
@@ -179,8 +179,8 @@ Json open_snapshot(const fs::path& file, const fs::path& key, const Temp& tmp)
         {.cwd = tmp.dir});
     auto info = Json::parse(read(tmp.dir / "snapshot.json"));
     ensure(info.at("format") == 1 && info.at("schema").is_number_integer() && info.at("schema") > 0 &&
-               info.at("version").is_string() && control::canonical_id(info.at("site").get<std::string>()) &&
-               control::canonical_id(info.at("node").get<std::string>()),
+               info.at("version").is_string() && platform::canonical_id(info.at("site").get<std::string>()) &&
+               platform::canonical_id(info.at("node").get<std::string>()),
            "Invalid recovery snapshot");
     volume(info);
     return info;
@@ -363,7 +363,7 @@ int command(int argc, char** v)
         bool found = (request == "GET /metrics HTTP/1.1\r" || request == "GET /metrics HTTP/1.0\r");
         std::size_t total = 0;
         while (std::cin.getline(line, sizeof(line)) && std::string_view(line) != "\r") {
-            total += std::cin.gcount();
+            total += static_cast<std::size_t>(std::cin.gcount());
             if (total > 8192)
                 return 1;
         }

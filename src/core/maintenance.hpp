@@ -10,10 +10,13 @@ struct Temp {
     fs::path dir;
     explicit Temp(const fs::path& parent = "/var/tmp");
     Temp(const Temp&) = delete;
+    Temp& operator=(const Temp&) = delete;
     ~Temp();
 };
+// Standard input and output files and the working directory of a child process. Empty paths keep the
+// corresponding stream or directory of the parent.
 struct Io {
-    fs::path input, output, cwd;
+    fs::path input{}, output{}, cwd{};
     bool allow_failure{};
 };
 int run(Args args, const Io& io = {});

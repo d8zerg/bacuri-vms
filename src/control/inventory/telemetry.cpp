@@ -160,7 +160,7 @@ bool poll_one(Database& db, const std::string& site, const CameraNetworks& netwo
     return true;
 }
 } // namespace
-void track_positions(std::stop_token stop, const CameraNetworks& networks, const Key& key)
+void track_positions(const std::stop_token& stop, const CameraNetworks& networks, const Key& key)
 {
     auto site = setting("BACURI_SITE_ID");
     while (!stop.stop_requested()) {

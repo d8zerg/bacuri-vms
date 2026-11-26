@@ -11,6 +11,7 @@ import { Button, IconButton } from "../ui-kit/FormControls";
 import { FilterPanel, matchesQuery } from "../ui-kit/FilterPanel";
 import { SessionPlayer } from "./media";
 import "./monitor-grid.css";
+import { useT } from "../i18n";
 
 function Tile({
   site,
@@ -66,6 +67,7 @@ function Editor({
   remove: (() => Promise<void>) | undefined;
   close: () => void;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState(layout?.name ?? ""),
     [shared, setShared] = useState(layout?.shared ?? false);
@@ -97,9 +99,7 @@ function Editor({
         });
       close();
     } catch {
-      setError(
-        "Не удалось сохранить изменение. Проверьте доступ и версию раскладки.",
-      );
+      setError(t("layout.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -119,7 +119,7 @@ function Editor({
     <dialog
       ref={ref}
       className="mw-editor"
-      aria-label="Настроить раскладку"
+      aria-label={t("layout.configure")}
       onCancel={(e) => {
         if (busy) e.preventDefault();
         else close();
@@ -127,7 +127,7 @@ function Editor({
     >
       <header>
         <label>
-          Название раскладки
+          {t("layout.name")}
           <input
             value={name}
             maxLength={80}
@@ -136,14 +136,14 @@ function Editor({
         </label>
         <IconButton
           icon="circle-x"
-          label="Закрыть редактор"
+          label={t("layout.closeEditor")}
           disabled={busy}
           onClick={close}
         />
       </header>
       <FilterPanel
-        label="Фильтр камер"
-        queryLabel="Найти камеру"
+        label={t("layout.cameraFilter")}
+        queryLabel={t("layout.findCamera")}
         query={query}
         onQuery={setQuery}
         onReset={() => setQuery("")}
@@ -177,13 +177,13 @@ function Editor({
                 <>
                   <IconButton
                     icon="chevron-up"
-                    label={"Переместить выше: " + p.name}
+                    label={t("layout.moveUp", { name: p.name })}
                     disabled={ids[0] === p.id}
                     onClick={() => shift(p.id, -1)}
                   />
                   <IconButton
                     icon="chevron-down"
-                    label={"Переместить ниже: " + p.name}
+                    label={t("layout.moveDown", { name: p.name })}
                     disabled={ids.at(-1) === p.id}
                     onClick={() => shift(p.id, 1)}
                   />
@@ -199,7 +199,7 @@ function Editor({
             checked={shared}
             onChange={(e) => setShared(e.target.checked)}
           />{" "}
-          Общая раскладка площадки
+          {t("layout.shared")}
         </label>
       )}
       {error && <p role="alert">{error}</p>}
@@ -209,7 +209,7 @@ function Editor({
             disabled={busy}
             onClick={() => (confirm ? void submit(true) : setConfirm(true))}
           >
-            {confirm ? "Подтвердить удаление" : "Удалить раскладку"}
+            {confirm ? t("layout.confirmDelete") : t("layout.delete")}
           </Button>
         )}
         <Button
@@ -217,7 +217,7 @@ function Editor({
           disabled={busy || !name.trim() || !ids.length}
           onClick={() => void submit()}
         >
-          Сохранить
+          {t("action.save")}
         </Button>
       </footer>
     </dialog>
@@ -237,6 +237,7 @@ export function MonitorGrid({
   admin: boolean;
   back: () => void;
 }) {
+  const t = useT();
   const [params, setParams] = useSearchParams(),
     id = params.get("layout"),
     wall = params.get("wall") === "1";
@@ -297,7 +298,7 @@ export function MonitorGrid({
         await document.exitFullscreen();
       else await root.current?.requestFullscreen();
     } catch {
-      setWallError("Полноэкранный режим недоступен в этом окне.");
+      setWallError(t("layout.fullscreenDenied"));
     }
   }
   function openWall() {
@@ -314,25 +315,27 @@ export function MonitorGrid({
     <section
       ref={root}
       className={"mw-workspace" + (wall ? " mw-wall" : "")}
-      aria-label="Многоканальный эфир"
+      aria-label={t("layout.label")}
     >
       <div className="mw-toolbar">
         <IconButton
           icon="monitor-play"
-          label="Вернуться к одной камере"
+          label={t("layout.single")}
           onClick={back}
         />
         <select
-          aria-label="Раскладка"
+          aria-label={t("layout.layout")}
           value={id ?? ""}
           onChange={(e) => select(e.target.value || null)}
         >
-          <option value="">Доступные камеры</option>
-          {id && !selected && <option value={id}>Раскладка недоступна</option>}
+          <option value="">{t("layout.available")}</option>
+          {id && !selected && (
+            <option value={id}>{t("layout.unavailable")}</option>
+          )}
           {layouts.map((l) => (
             <option key={l.id} value={l.id}>
               {l.name}
-              {l.shared ? " · общая" : ""}
+              {l.shared ? " · " + t("layout.sharedShort") : ""}
             </option>
           ))}
         </select>
@@ -340,13 +343,13 @@ export function MonitorGrid({
           <>
             <IconButton
               icon="plus"
-              label="Создать раскладку"
+              label={t("layout.create")}
               onClick={() => setEdit("new")}
             />
             {selected?.editable && (
               <IconButton
                 icon="settings-2"
-                label="Настроить раскладку"
+                label={t("layout.configure")}
                 onClick={() => setEdit("edit")}
               />
             )}
@@ -356,23 +359,23 @@ export function MonitorGrid({
           {!wall && (
             <IconButton
               icon="monitor"
-              label="Открыть на экране видеостены"
+              label={t("layout.wall")}
               onClick={openWall}
             />
           )}
           <IconButton
             icon="expand"
-            label="Раскладка на весь экран"
+            label={t("layout.fullscreen")}
             onClick={() => void fullscreen()}
           />
         </div>
       </div>
       {failed && (
         <div role="alert">
-          Не удалось загрузить раскладки.{" "}
+          {t("layout.loadFailed")}{" "}
           <IconButton
             icon="rotate-cw"
-            label="Повторить загрузку раскладок"
+            label={t("layout.reload")}
             onClick={() => reload((n) => n + 1)}
           />
         </div>
@@ -380,7 +383,7 @@ export function MonitorGrid({
       {wallError && <p role="status">{wallError}</p>}
       {!cells.length && (
         <p role="status">
-          {id ? "Раскладка недоступна" : "Нет доступных камер"}
+          {id ? t("layout.unavailable") : t("layout.noCameras")}
         </p>
       )}
       <div
@@ -410,7 +413,7 @@ export function MonitorGrid({
             />
           ) : (
             <div className="mw-missing" hidden={!!expanded} key={"missing" + i}>
-              Нет доступа к камере
+              {t("layout.noAccess")}
             </div>
           );
         })}

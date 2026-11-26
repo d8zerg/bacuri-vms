@@ -1,12 +1,9 @@
 #pragma once
-#include "archive/manifest.hpp"
-#include "control/support.hpp"
+#include "archive/verify.hpp"
+#include "platform/secrets.hpp"
 
 namespace bacuri::vms::archive
 {
-inline constexpr std::int64_t evidence_limit = 256LL * 1024 * 1024;
-MediaDigest file_digest(const std::filesystem::path& path);
-Json export_public_key(const control::Key& seed, const std::string& site);
-std::string sign_description(const control::Key& seed, const std::string& description);
-Json verify_evidence(const std::filesystem::path& directory, const Json& trusted_key);
+Json export_public_key(const platform::Key& seed, const std::string& site);
+std::string sign_description(const platform::Key& seed, const std::string& description);
 } // namespace bacuri::vms::archive

@@ -2,6 +2,7 @@ import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Button, StatusIndicator, TextField } from "./FormControls";
 import "./camera-connection-form.css";
+import { t, useT, type MessageKey } from "../i18n";
 
 export type CameraDraft = Readonly<{
   name: string;
@@ -33,21 +34,19 @@ export interface CameraConnectionFormProps {
 }
 
 const labels = {
-  available: "Доступен",
-  unknown: "Не подтверждён",
-  unreachable: "Нет связи",
-  incompatible: "Несовместимый профиль",
-  certificate_error: "Проверьте имя узла и доверенный сертификат камеры",
-};
+  available: "camera.stream.available",
+  unknown: "camera.stream.unknown",
+  unreachable: "camera.stream.unreachable",
+  incompatible: "camera.stream.incompatible",
+  certificate_error: "camera.stream.certificateError",
+} as const satisfies Record<StreamCheck, MessageKey>;
 
 function streamError(value: string) {
-  if (!value) return "Введите адрес потока.";
+  if (!value) return t("camera.url.required");
   if (new TextEncoder().encode(value).length > 2048)
-    return "Адрес должен занимать не более 2048 байт.";
-  if (!/^rtsps?:\/\//.test(value))
-    return "Начните адрес с rtsps:// или rtsp://.";
-  if (/^rtsps?:\/\/[^/?#]*@/.test(value))
-    return "Удалите учётные данные из адреса.";
+    return t("camera.url.tooLong");
+  if (!/^rtsps?:\/\//.test(value)) return t("camera.url.scheme");
+  if (/^rtsps?:\/\/[^/?#]*@/.test(value)) return t("camera.url.credentials");
   if (
     value.includes("#") ||
     (value.includes("?") &&
@@ -55,20 +54,18 @@ function streamError(value: string) {
         value.slice(value.indexOf("?") + 1),
       ))
   )
-    return "Удалите параметры запроса и фрагмент адреса.";
+    return t("camera.url.query");
   if (/[\p{Cc}\s\\]/u.test(value) || /%(?![\da-f]{2})/i.test(value))
-    return "Проверьте символы в адресе потока.";
+    return t("camera.url.characters");
   const url = URL.parse(value);
-  if (!url?.hostname || url.port === "0") return "Проверьте имя узла и порт.";
+  if (!url?.hostname || url.port === "0") return t("camera.url.host");
 }
 
 function fieldErrors(value: CameraDraft) {
   let name: string | undefined;
-  if (!value.name.trim()) name = "Введите название камеры.";
-  else if (value.name.includes("\0"))
-    name = "Удалите недопустимый символ из названия.";
-  else if (Array.from(value.name).length > 256)
-    name = "Сократите название до 256 символов.";
+  if (!value.name.trim()) name = t("camera.name.required");
+  else if (value.name.includes("\0")) name = t("camera.name.invalid");
+  else if (Array.from(value.name).length > 256) name = t("camera.name.tooLong");
   return {
     name,
     main_url: streamError(value.main_url),
@@ -77,9 +74,10 @@ function fieldErrors(value: CameraDraft) {
 }
 
 function ProfileIndicator({ value }: { value: StreamCheck }) {
+  const t = useT();
   return (
     <StatusIndicator tone={value === "available" ? "success" : "danger"}>
-      {labels[value]}
+      {t(labels[value])}
     </StatusIndicator>
   );
 }
@@ -89,8 +87,9 @@ export function CameraConnectionForm({
   state,
   onChange,
   onCheck,
-  submitLabel = "Проверить подключение",
+  submitLabel,
 }: CameraConnectionFormProps) {
+  const t = useT();
   const id = useId();
   const form = useRef<HTMLFormElement>(null);
   const [invalidSubmission, setInvalidSubmission] = useState<{
@@ -131,12 +130,12 @@ export function CameraConnectionForm({
       aria-labelledby={id}
     >
       <header>
-        <h2 id={id}>Параметры камеры</h2>
+        <h2 id={id}>{t("camera.form.title")}</h2>
       </header>
       <div className="bc-fields">
         <TextField
           name="name"
-          label="Название"
+          label={t("camera.form.name")}
           required
           value={value.name}
           error={errors?.name}
@@ -144,8 +143,8 @@ export function CameraConnectionForm({
         />
         <TextField
           name="main_url"
-          label="Основной поток"
-          hint="Для записи в архив"
+          label={t("camera.form.main")}
+          hint={t("camera.form.mainHint")}
           required
           inputMode="url"
           placeholder="rtsps://camera/main"
@@ -158,8 +157,8 @@ export function CameraConnectionForm({
         />
         <TextField
           name="secondary_url"
-          label="Дополнительный поток"
-          hint="Для прямого эфира"
+          label={t("camera.form.secondary")}
+          hint={t("camera.form.secondaryHint")}
           required
           inputMode="url"
           placeholder="rtsps://camera/sub"
@@ -175,35 +174,36 @@ export function CameraConnectionForm({
           type="submit"
           aria-disabled={state.status === "checking"}
         >
-          {retry ? "Повторить проверку" : submitLabel}
+          {retry
+            ? t("camera.form.retry")
+            : (submitLabel ?? t("camera.form.check"))}
         </Button>
       </div>
       <div role="status" aria-atomic="true" className="bc-result">
         {state.status === "checking" && (
           <StatusIndicator tone="neutral">
-            Проверяем оба потока…
+            {t("camera.form.checking")}
           </StatusIndicator>
         )}
         {state.status === "error" && (
           <StatusIndicator tone="danger">
             {state.reason === "disconnected"
-              ? "Связь с площадкой потеряна. Повторите проверку."
-              : (state.message ??
-                "Не удалось завершить проверку. Повторите попытку.")}
+              ? t("camera.form.disconnected")
+              : (state.message ?? t("camera.form.failed"))}
           </StatusIndicator>
         )}
         {state.status === "profiles" && (
           <>
-            <h3>Результат проверки</h3>
+            <h3>{t("camera.form.result")}</h3>
             <dl>
               <div>
-                <dt>Основной поток</dt>
+                <dt>{t("camera.form.main")}</dt>
                 <dd>
                   <ProfileIndicator value={state.main} />
                 </dd>
               </div>
               <div>
-                <dt>Дополнительный поток</dt>
+                <dt>{t("camera.form.secondary")}</dt>
                 <dd>
                   <ProfileIndicator value={state.secondary} />
                 </dd>

@@ -4,9 +4,11 @@
 #include <sys/mman.h>
 #include <deque>
 #include <mutex>
-#include "control/support.hpp"
+#include "platform/identifiers.hpp"
+#include "platform/settings.hpp"
 #include "media/lease.hpp"
 #include "media/live.hpp"
+#include "observability/metrics.hpp"
 #include <gst/gst.h>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
@@ -47,7 +49,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
     grpc::Status ReadPart(grpc::ServerContext* context, const v1::ReadPartRequest* request,
                           grpc::ServerWriter<v1::PartChunk>* stream) override
     {
-        if (!request->scope().has_archive() || !control::canonical_id(request->block_id())) {
+        if (!request->scope().has_archive() || !platform::canonical_id(request->block_id())) {
             return {grpc::StatusCode::INVALID_ARGUMENT, "Invalid block identity"};
         }
         try {
@@ -92,7 +94,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
                 if (fstat(media.fd, &info) || !S_ISREG(info.st_mode) || info.st_size <= 0) {
                     throw std::runtime_error("Invalid media file");
                 }
-                auto layout = archive::verify_fragment_layout(media.fd, info.st_size);
+                auto layout = archive::verify_fragment_layout(media.fd, static_cast<std::uint64_t>(info.st_size));
                 if (archive::digest_media(media.fd).sha256 != request->sha256()) {
                     throw std::runtime_error("Archive checksum mismatch");
                 }
@@ -111,7 +113,9 @@ class Delivery final : public v1::ArchiveDelivery::Service
                                             scope.privacy_regions());
                     if (fstat(copy->fd, &info))
                         throw std::runtime_error("Cannot read converted block");
-                    layout = archive::verify_fragment_layout(copy->fd, info.st_size);
+                    if (info.st_size <= 0)
+                        throw std::runtime_error("Invalid converted block");
+                    layout = archive::verify_fragment_layout(copy->fd, static_cast<std::uint64_t>(info.st_size));
                 }
                 auto offset = complete || request->initialization() ? 0 : layout.media_begin;
                 const auto end = complete                    ? static_cast<std::uint64_t>(info.st_size)
@@ -119,7 +123,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
                                                              : layout.media_end;
                 v1::PartChunk chunk;
                 chunk.set_total_bytes(end - offset);
-                std::array<char, chunk_size> bytes;
+                std::array<char, chunk_size> bytes{};
                 while (offset < end && !context->IsCancelled()) {
                     const auto n =
                         pread(copy ? copy->fd : media.fd, bytes.data(),
@@ -142,11 +146,10 @@ class Delivery final : public v1::ArchiveDelivery::Service
             } catch (const std::exception&) {
                 if (started)
                     throw;
-                const char* node = std::getenv("BACURI_NODE_ID");
-                if (!node)
+                if (!node_)
                     throw;
-                auto path =
-                    archive::replica_blocks(blocks_.parent_path(), {request->scope().point().site_id(), node});
+                auto path = archive::replica_blocks(replica_, blocks_.parent_path(),
+                                                    {request->scope().point().site_id(), *node_});
                 if (!path)
                     throw;
                 Descriptor copies{open(path->c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
@@ -184,7 +187,10 @@ class Delivery final : public v1::ArchiveDelivery::Service
         cache_.push_back({hash, regions, duration, out});
         return out;
     }
-    const std::filesystem::path blocks_{std::filesystem::path{control::setting("BACURI_ARCHIVE_DIR")} / "blocks"};
+    const std::filesystem::path blocks_{std::filesystem::path{platform::setting("BACURI_ARCHIVE_DIR")} / "blocks"};
+    // The second archive copy serves a block that the primary volume cannot.
+    const std::optional<std::filesystem::path> replica_{platform::optional_setting("BACURI_ARCHIVE_REPLICA_DIR")};
+    const std::optional<std::string> node_{platform::optional_setting("BACURI_NODE_ID")};
 };
 } // namespace
 } // namespace bacuri::vms::media
@@ -193,10 +199,11 @@ int main()
 try {
     using namespace bacuri::vms;
     umask(0007);
+    const auto metrics = observability::export_process_metrics(std::getenv("BACURI_METRICS_DIRECTORY"), "media");
     media::Delivery delivery;
     gst_init(nullptr, nullptr);
     media::LiveDelivery live;
-    const auto path = control::setting("BACURI_MEDIA_SOCKET");
+    const auto path = platform::setting("BACURI_MEDIA_SOCKET");
     grpc::ServerBuilder builder;
     builder.AddListeningPort("unix:" + path, grpc::experimental::LocalServerCredentials(UDS));
     builder.RegisterService(&delivery);

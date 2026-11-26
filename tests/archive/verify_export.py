@@ -11,6 +11,28 @@ import tarfile
 import wave
 from tempfile import TemporaryDirectory
 
+import jsonschema
+from referencing import Registry
+from referencing.jsonschema import DRAFT202012
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import reference_verifier
+
+SCHEMAS = {path.name: json.loads(path.read_text()) for path in Path("storage/archive").glob("*.schema.json")}
+REGISTRY = Registry().with_resources((s["$id"], DRAFT202012.create_resource(s)) for s in SCHEMAS.values())
+
+
+def conforms(document, schema):
+    jsonschema.Draft202012Validator(SCHEMAS[schema], registry=REGISTRY).validate(document)
+
+
+def independently(key, root):
+    """Result of the independent reference verifier: the manifest or None when it rejects the package."""
+    try:
+        return reference_verifier.verify(key, root)
+    except (reference_verifier.Rejected, KeyError, TypeError, ValueError, OSError):
+        return None
+
 
 def decode_ordinals(clip):
     raw = subprocess.check_output(["gst-launch-1.0", "-q", "filesrc", "location=" + str(clip),
@@ -46,9 +68,12 @@ def verify_cases(binary, report):
                 package.extractall(root, filter="data")
             case = json.loads(subprocess.check_output([binary, key, root]))
             assert len(case["parts"]) == 2, case
+            conforms(case, "case-manifest-v1.schema.json")
+            assert independently(key, root) == case
             for part in case["parts"]:
                 directory = root / part["directory"]
                 manifest = json.loads((directory / "manifest.json").read_text())
+                conforms(manifest, "export-manifest.schema.json")
                 clip, = [p for p in manifest["periods"] if p["state"] == "recorded"]
                 file = directory / clip["file"]
                 raw = subprocess.check_output(["gst-launch-1.0","-q","filesrc","location="+str(file),"!",
@@ -66,6 +91,7 @@ def verify_cases(binary, report):
             signature=root/"manifest.sig"
             signature.write_bytes(b"0"*128)
             assert subprocess.run([binary,key,root],capture_output=True).returncode
+            assert independently(key, root) is None
     assert masked==1, masked
     print("Disconnected verification passed: both case signatures, H.264/HEVC frames, masks and audio samples")
 
@@ -89,6 +115,9 @@ def run():
         good = verify()
         assert good.returncode == 0, good.stderr
         m = json.loads(good.stdout)
+        conforms(m, "export-manifest.schema.json")
+        conforms(json.loads(key.read_text()), "trusted-key.schema.json")
+        assert independently(key, root) == m, "The reference verifier disagrees with bacuri-vms-verify-export"
         for field in ("site_id", "point_id", "alert_id"):
             assert m[field] == browser[field]
         assert [row["export"]["id"] for row in browser["audit"] if row["outcome"] == "applied"] == [m["export_id"]]
@@ -124,17 +153,20 @@ def run():
             assert changed != contents
             path.write_bytes(changed)
             assert verify().returncode, name
+            assert independently(key, root) is None, name
             path.write_bytes(contents)
             rejected.append(name)
         extra = root / "extra.mp4"
         extra.touch()
         assert verify().returncode
+        assert independently(key, root) is None
         extra.unlink()
         trusted = json.loads(key.read_text())
         trusted["public_key"] = "00" * 32
         wrong = Path(tmp) / "other-key.json"
         wrong.write_text(json.dumps(trusted))
         assert verify(wrong).returncode and verify().returncode == 0
+        assert independently(wrong, root) is None and independently(key, root) == m
         report_data = {"export_id": m["export_id"], "site_id": m["site_id"], "point_id": m["point_id"],
                        "network_interfaces": ["lo"], "package_sha256": hashlib.sha256((report / "episode.tar").read_bytes()).hexdigest(),
                        "verified_periods_us_from_origin": spans, "decoded_frame_ordinals": frames,

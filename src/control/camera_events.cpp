@@ -16,7 +16,7 @@ struct CameraReader {
     std::int64_t binding, revision, bound_since;
     Json control, credentials;
 };
-void delay(std::stop_token stop, int ticks)
+void delay(const std::stop_token& stop, int ticks)
 {
     for (int i = 0; i < ticks && !stop.stop_requested(); ++i)
         std::this_thread::sleep_for(100ms);
@@ -50,9 +50,9 @@ void listen(std::stop_token stop, const CameraNetworks& networks, const Key& key
         q.mutable_binding()->set_point_id(camera.point);
         q.mutable_binding()->set_revision(camera.binding);
         q.set_source_time_us(notice.utc);
-        if (notice.uncertainty <= 5000000) {
+        if (notice.uncertainty >= 0 && notice.uncertainty <= 5000000) {
             q.mutable_clock()->set_epoch_id(notice.epoch);
-            q.mutable_clock()->set_uncertainty_us(notice.uncertainty);
+            q.mutable_clock()->set_uncertainty_us(static_cast<std::uint64_t>(notice.uncertainty));
         }
         q.set_attributes_json(
             Json{{"topic", notice.topic}, {"source", notice.source}, {"data", notice.metadata}}.dump());
@@ -77,7 +77,7 @@ void listen(std::stop_token stop, const CameraNetworks& networks, const Key& key
 }
 } // namespace
 
-void camera_events(std::stop_token stop, const CameraNetworks& networks, const Key& key)
+void camera_events(const std::stop_token& stop, const CameraNetworks& networks, const Key& key)
 {
     const auto site = setting("BACURI_SITE_ID");
     std::map<std::string, std::jthread> readers;
@@ -115,7 +115,7 @@ void camera_events(std::stop_token stop, const CameraNetworks& networks, const K
                     std::stoll(rows.get(i, 7)),
                     Json::parse(rows.get(i, 4)),
                     Json::parse(unseal(rows.get(i, 6), key, site + "/" + rows.get(i) + "/" + rows.get(i, 5)))};
-                readers.try_emplace(id, [&, camera = std::move(camera)](std::stop_token token) {
+                readers.try_emplace(id, [&, camera = std::move(camera)](const std::stop_token& token) {
                     listen(token, networks, key, camera);
                 });
             }

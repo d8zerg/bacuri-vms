@@ -21,6 +21,7 @@ import {
 
 import { milliseconds } from "../ui-kit/utc";
 import { alertStates } from "../ui-kit/alertLabels";
+import { dateTimeFormat, t, useT, type MessageKey } from "../i18n";
 import { SubsectionMenu } from "./SubsectionMenu";
 import { IconButton } from "../ui-kit/FormControls";
 const MonitorGrid = lazy(() =>
@@ -40,16 +41,37 @@ const AlertWorkPanel = lazy(() =>
   import("./AlertWork").then((m) => ({ default: m.AlertWorkPanel })),
 );
 const connectionLabels = {
-  online: "Камера на связи",
-  offline: "Нет связи с камерой",
-  unknown: "Связь с камерой неизвестна",
-};
+  online: "point.connection.online",
+  offline: "point.connection.offline",
+  unknown: "point.connection.unknown",
+} as const satisfies Record<Point["connection"], MessageKey>;
 const recordingLabels = {
-  current: "Запись ведётся",
-  delayed: "Запись запаздывает",
-  stopped: "Запись остановлена",
-  unknown: "Состояние записи неизвестно",
-};
+  current: "point.recording.current",
+  delayed: "point.recording.delayed",
+  stopped: "point.recording.stopped",
+  unknown: "point.recording.unknown",
+} as const satisfies Record<Point["recording"], MessageKey>;
+const recordingReasons = {
+  source_offline: "point.reason.sourceOffline",
+  storage_full: "point.reason.storageFull",
+  no_policy: "point.reason.noPolicy",
+  waiting_event: "point.reason.waitingEvent",
+  outside_schedule: "point.reason.outsideSchedule",
+  waiting_manual: "point.reason.waitingManual",
+  disabled: "point.reason.disabled",
+  unassigned: "point.reason.unassigned",
+  archive_pending: "point.reason.archivePending",
+  recorder_unavailable: "point.reason.recorderUnavailable",
+} as const satisfies Record<NonNullable<Point["recording_reason"]>, MessageKey>;
+function recordedAge(at: string) {
+  const seconds = Math.max(0, Math.round((Date.now() - Date.parse(at)) / 1000));
+  if (seconds < 60) return t("time.secondsAgo", { count: seconds });
+  if (seconds < 3600)
+    return t("time.minutesAgo", { count: Math.floor(seconds / 60) });
+  return dateTimeFormat({ dateStyle: "short", timeStyle: "medium" }).format(
+    new Date(at),
+  );
+}
 type Selection = { entries: Entry[]; window: Interval; link?: AlertLink };
 function View({
   services,
@@ -74,6 +96,7 @@ function View({
   returnFocus: string | null;
   onBack: (position: string, window: Interval) => void;
 }) {
+  const t = useT();
   const [loaded, setLoaded] = useState<Selection | null>(null),
     [failed, setFailed] = useState(false),
     [attempt, setAttempt] = useState(0);
@@ -172,10 +195,10 @@ function View({
   );
   const target = archive ? archiveTarget : liveTarget;
   let notice = failed
-    ? "Не удалось прочитать архив"
+    ? t("archive.readFailed")
     : loaded
       ? detail(entry)
-      : "Загрузка архива…";
+      : t("archive.loading");
   if (
     link &&
     !at &&
@@ -186,7 +209,7 @@ function View({
   )
     notice = alertArchiveNotice(link);
   const data: TimelineData = failed
-    ? { status: "error", message: "Проверьте соединение с площадкой." }
+    ? { status: "error", message: t("site.checkConnection") }
     : !loaded
       ? { status: "loading" }
       : !loaded.entries.length
@@ -253,7 +276,7 @@ function View({
         </Suspense>
       )}
       {alert && (
-        <Suspense fallback={<p role="status">Загрузка карточки…</p>}>
+        <Suspense fallback={<p role="status">{t("loading.card")}</p>}>
           <AlertWorkPanel
             services={services}
             site={site}
@@ -306,6 +329,7 @@ export function Monitor({
   points: Point[];
   feed: Feed;
 }) {
+  const t = useT();
   useEffect(() => {
     if (
       feed.status === "online" &&
@@ -381,10 +405,10 @@ export function Monitor({
   return (
     <>
       <SubsectionMenu
-        label="Подразделы мониторинга"
+        label={t("monitor.subsections")}
         items={[
           {
-            label: "Эфир",
+            label: t("monitor.live"),
             icon: "radio",
             active: !archive,
             disabled: !point,
@@ -393,7 +417,7 @@ export function Monitor({
             },
           },
           {
-            label: "Архив",
+            label: t("monitor.archive"),
             icon: "archive",
             active: archive,
             disabled: !point,
@@ -413,7 +437,7 @@ export function Monitor({
             },
           },
           {
-            label: "К тревогам",
+            label: t("monitor.toAlerts"),
             disabled: grid,
             icon: "bell-ring",
             className: "ws-feed-jump",
@@ -426,7 +450,7 @@ export function Monitor({
         ]}
       />
       {grid ? (
-        <Suspense fallback={<p role="status">Загрузка раскладки…</p>}>
+        <Suspense fallback={<p role="status">{t("loading.layout")}</p>}>
           <MonitorGrid
             key={site}
             site={site}
@@ -440,7 +464,7 @@ export function Monitor({
         <>
           <div className="ws-point-toolbar">
             <label>
-              Точка наблюдения{" "}
+              {t("point.generic")}{" "}
               <select
                 disabled={!points.length}
                 value={point?.id ?? ""}
@@ -458,7 +482,7 @@ export function Monitor({
               >
                 {!point && (
                   <option value="" disabled>
-                    {points.length ? "Выберите точку" : "Нет доступных точек"}
+                    {points.length ? t("point.choose") : t("point.none")}
                   </option>
                 )}
                 {points.map((p) => (
@@ -471,7 +495,7 @@ export function Monitor({
             {!archive && (
               <IconButton
                 icon="layers"
-                label="Многоканальный эфир"
+                label={t("monitor.multiview")}
                 onClick={() =>
                   update({ grid: "1", mode: "live", alert: null, focus: null })
                 }
@@ -480,11 +504,22 @@ export function Monitor({
             {point && (
               <div className="ws-point-health">
                 <span data-state={point.connection}>
-                  {connectionLabels[point.connection]}
+                  {t(connectionLabels[point.connection])}
                 </span>
                 <span data-state={point.recording}>
-                  {recordingLabels[point.recording]}
+                  {t(recordingLabels[point.recording])}
+                  {point.recording_reason &&
+                    `: ${t(recordingReasons[point.recording_reason])}`}
                 </span>
+                {point.last_recorded_at && (
+                  <time
+                    className="ws-point-recorded"
+                    dateTime={point.last_recorded_at}
+                  >
+                    {t("point.lastRecorded")}{" "}
+                    {recordedAge(point.last_recorded_at)}
+                  </time>
+                )}
               </div>
             )}
           </div>
@@ -527,9 +562,7 @@ export function Monitor({
               />
             ) : (
               <p className="ws-panel ws-pad" role="status">
-                {points.length
-                  ? "Эта точка недоступна. Выберите другую точку наблюдения."
-                  : "Нет доступных точек"}
+                {points.length ? t("point.unavailable") : t("point.none")}
               </p>
             )}
             <AlertList

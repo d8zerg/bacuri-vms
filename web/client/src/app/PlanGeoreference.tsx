@@ -13,6 +13,7 @@ import { coveringRegion } from "./mapRegions";
 import { PlanZoom } from "./PlanZoom";
 import RegionMap from "./RegionMap";
 import type { MapLabel } from "./RegionMap";
+import { formatNumber, useT, type MessageKey } from "../i18n";
 
 type Anchor = PlanReference["anchor"];
 type Draft = Record<keyof Anchor, string>;
@@ -39,11 +40,17 @@ function anchor(d: Draft): Anchor {
 }
 const fixed = (n: number) => String(Number(n.toFixed(8)));
 const axisLabels = {
-  x: "X на плане (0-1)",
-  y: "Y на плане (0-1)",
-  lat: "Широта",
-  lng: "Долгота",
-};
+  x: "plan.axis.x",
+  y: "plan.axis.y",
+  lat: "plan.axis.lat",
+  lng: "plan.axis.lng",
+} as const satisfies Record<string, MessageKey>;
+const directions = [
+  "plan.north",
+  "plan.east",
+  "plan.south",
+  "plan.west",
+] as const satisfies readonly MessageKey[];
 type Props = {
   plan: FloorPlan;
   scene: MapScene;
@@ -62,6 +69,7 @@ export default function PlanGeoreference({
   services,
   close,
 }: Props) {
+  const t = useT();
   const original = plan.definition;
   const [mode, setMode] = useState<Mode>(
     original?.width_m !== undefined ? "width" : "pair",
@@ -126,7 +134,7 @@ export default function PlanGeoreference({
     try {
       value = definition();
     } catch {
-      setNotice("Укажите положение каждого ориентира на плане и на карте.");
+      setNotice(t("plan.anchorsMissing"));
       return;
     }
     setBusy(true);
@@ -143,14 +151,9 @@ export default function PlanGeoreference({
         result.footprint?.center,
       );
       if (covering) setRegion(covering.id);
-      else if (region && result.footprint)
-        setNotice(
-          "План находится за пределами установленных регионов. Проверьте координаты или установите нужную карту.",
-        );
+      else if (region && result.footprint) setNotice(t("plan.outside"));
     } catch {
-      setNotice(
-        "Не удалось построить привязку. Проверьте координаты, расстояние между ориентирами и доступность сервера.",
-      );
+      setNotice(t("plan.buildFailed"));
     } finally {
       setBusy(false);
     }
@@ -168,9 +171,7 @@ export default function PlanGeoreference({
       close(true);
     } catch {
       reset();
-      setNotice(
-        "Не удалось сохранить привязку. Повторите предпросмотр, чтобы проверить актуальные положения камер.",
-      );
+      setNotice(t("plan.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -204,7 +205,9 @@ export default function PlanGeoreference({
         labels.push({
           id: "existing" + camera.point_id,
           text:
-            name + (camera.existing_plan_id ? " · другой план" : " · вручную"),
+            name +
+            " · " +
+            t(camera.existing_plan_id ? "plan.otherPlan" : "plan.manual"),
           lng: camera.existing[0]!,
           lat: camera.existing[1]!,
         });
@@ -214,11 +217,11 @@ export default function PlanGeoreference({
   return (
     <section className="ws-maps ws-reference">
       <div className="ws-panel ws-pad">
-        <h2>Привязка к карте · {plan.name}</h2>
+        <h2>{t("plan.title", { name: plan.name })}</h2>
         <form onSubmit={(e) => void inspect(e)}>
           <fieldset disabled={busy}>
             <label>
-              Способ привязки
+              {t("plan.method")}
               <select
                 value={mode}
                 onChange={(e) => {
@@ -227,17 +230,15 @@ export default function PlanGeoreference({
                   setActive(0);
                 }}
               >
-                <option value="pair">Два ориентира</option>
-                <option value="width">Один ориентир и известная ширина</option>
-                {original && <option value="unlink">Снять привязку</option>}
+                <option value="pair">{t("plan.pair")}</option>
+                <option value="width">{t("plan.width")}</option>
+                {original && <option value="unlink">{t("plan.unlink")}</option>}
               </select>
             </label>
             {mode !== "unlink" ? (
               <>
                 <p>
-                  {mode === "pair"
-                    ? "Отметьте одно и то же место на плане и карте, затем повторите для второго ориентира. Чем дальше ориентиры друг от друга, тем точнее поворот."
-                    : "Отметьте одно и то же место на плане и карте. Укажите реальную ширину всего изображения с полями и азимут направления вверх по плану."}
+                  {mode === "pair" ? t("plan.pairHint") : t("plan.widthHint")}
                 </p>
                 {mode === "pair" && (
                   <div className="ws-map-actions">
@@ -247,7 +248,7 @@ export default function PlanGeoreference({
                         aria-pressed={active === i}
                         onClick={() => setActive(i as 0 | 1)}
                       >
-                        Ориентир {l}
+                        {t("plan.anchor", { name: l })}
                         {Object.values(anchors[i]!).every(Boolean) ? " ✓" : ""}
                       </Button>
                     ))}
@@ -256,9 +257,11 @@ export default function PlanGeoreference({
                 <div className="ws-reference-pair">
                   <div>
                     <div className="ws-plan-heading">
-                      <h3>План · ориентир {active ? "B" : "A"}</h3>
+                      <h3>
+                        {t("plan.planAnchor", { name: active ? "B" : "A" })}
+                      </h3>
                       <PlanZoom
-                        label="Масштаб изображения"
+                        label={t("plan.zoom")}
                         levels={[1, 2, 4]}
                         value={scale}
                         onChange={setScale}
@@ -303,10 +306,10 @@ export default function PlanGeoreference({
                     </div>
                   </div>
                   <div>
-                    <h3>Карта · ориентир {active ? "B" : "A"}</h3>
+                    <h3>{t("plan.mapAnchor", { name: active ? "B" : "A" })}</h3>
                     {scene.regions.length > 1 && (
                       <label>
-                        Регион
+                        {t("plan.region")}
                         <select
                           value={region?.id}
                           onChange={(e) => setRegion(e.target.value)}
@@ -348,19 +351,18 @@ export default function PlanGeoreference({
                         fitOverlay
                       />
                     ) : (
-                      <p>
-                        Для выбора на карте установите регион. Координаты можно
-                        ввести вручную.
-                      </p>
+                      <p>{t("plan.noRegion")}</p>
                     )}
                   </div>
                 </div>
                 <details open={region ? undefined : true}>
-                  <summary>Координаты ориентира {active ? "B" : "A"}</summary>
+                  <summary>
+                    {t("plan.anchorCoordinates", { name: active ? "B" : "A" })}
+                  </summary>
                   <div className="ws-reference-fields">
                     {(["x", "y", "lat", "lng"] as const).map((k) => (
                       <label key={k}>
-                        {axisLabels[k]}
+                        {t(axisLabels[k])}
                         <input
                           type="number"
                           step="any"
@@ -380,7 +382,7 @@ export default function PlanGeoreference({
                 {mode === "width" && (
                   <div className="ws-reference-fields">
                     <label>
-                      Ширина изображения, м
+                      {t("plan.imageWidth")}
                       <input
                         type="number"
                         required
@@ -394,7 +396,7 @@ export default function PlanGeoreference({
                       />
                     </label>
                     <label>
-                      Азимут верха плана, °
+                      {t("plan.bearing")}
                       <input
                         type="number"
                         required
@@ -409,7 +411,7 @@ export default function PlanGeoreference({
                       />
                     </label>
                     <div className="ws-map-actions">
-                      {["Север", "Восток", "Юг", "Запад"].map((label, i) => (
+                      {directions.map((label, i) => (
                         <Button
                           key={label}
                           aria-pressed={Number(bearing) === i * 90}
@@ -418,14 +420,14 @@ export default function PlanGeoreference({
                             setBearing(String(i * 90));
                           }}
                         >
-                          {label}
+                          {t(label)}
                         </Button>
                       ))}
                     </div>
                   </div>
                 )}
                 <label>
-                  Здание для группировки этажей (по желанию)
+                  {t("plan.building")}
                   <input
                     list="map-buildings"
                     maxLength={128}
@@ -447,29 +449,30 @@ export default function PlanGeoreference({
                 </datalist>
               </>
             ) : (
-              <p>
-                План и камеры останутся доступны на плане. Для камер с
-                сохранённой ручной геопозицией восстановится её отображение.
-                Остальные точки этого плана исчезнут с геокарты, если план
-                задавал их положение.
-              </p>
+              <p>{t("plan.unlinkHint")}</p>
             )}
-            <Button type="submit">Предпросмотр</Button>
+            <Button type="submit">{t("plan.preview")}</Button>
           </fieldset>
         </form>
         {preview && (
           <>
-            <h3>Проверка привязки</h3>
+            <h3>{t("plan.check")}</h3>
             {preview.footprint && (
               <>
                 <p>
-                  Ширина {preview.footprint.width_m.toFixed(1)} м · азимут верха{" "}
-                  {preview.footprint.bearing.toFixed(1)}° · точек на плане{" "}
-                  {preview.cameras.length}
+                  {t("plan.footprint", {
+                    width: formatNumber(preview.footprint.width_m, {
+                      maximumFractionDigits: 1,
+                    }),
+                    bearing: formatNumber(preview.footprint.bearing, {
+                      maximumFractionDigits: 1,
+                    }),
+                    count: preview.cameras.length,
+                  })}
                 </p>
                 {region && (
                   <label>
-                    Непрозрачность плана
+                    {t("plan.opacity")}
                     <input
                       type="range"
                       min="0"
@@ -484,8 +487,12 @@ export default function PlanGeoreference({
             )}
             {conflicts.map((c) => (
               <label key={c.point_id}>
-                {points.find((p) => p.id === c.point_id)?.name ?? c.point_id} ·
-                расхождение {c.distance_m?.toFixed(1)} м
+                {points.find((p) => p.id === c.point_id)?.name ?? c.point_id} ·{" "}
+                {t("plan.distance", {
+                  value: formatNumber(c.distance_m ?? 0, {
+                    maximumFractionDigits: 1,
+                  }),
+                })}
                 <select
                   value={choices[c.point_id] ?? ""}
                   onChange={(e) =>
@@ -496,15 +503,16 @@ export default function PlanGeoreference({
                   }
                 >
                   <option value="" disabled>
-                    Выберите положение
+                    {t("plan.choosePosition")}
                   </option>
                   <option value="keep">
-                    Использовать{" "}
-                    {c.existing_plan_id
-                      ? "положение с другого плана"
-                      : "ручное положение"}
+                    {t(
+                      c.existing_plan_id
+                        ? "plan.useOtherPlan"
+                        : "plan.useManual",
+                    )}
                   </option>
-                  <option value="plan">Использовать этот план</option>
+                  <option value="plan">{t("plan.useThis")}</option>
                 </select>
               </label>
             ))}
@@ -513,12 +521,12 @@ export default function PlanGeoreference({
               disabled={busy || conflicts.some((c) => !choices[c.point_id])}
               onClick={() => void save()}
             >
-              {mode === "unlink" ? "Снять привязку" : "Сохранить привязку"}
+              {mode === "unlink" ? t("plan.unlink") : t("plan.save")}
             </Button>
           </>
         )}
         <Button disabled={busy} onClick={() => close(false)}>
-          Вернуться к плану без сохранения
+          {t("plan.back")}
         </Button>
         <p role="status">{notice}</p>
       </div>

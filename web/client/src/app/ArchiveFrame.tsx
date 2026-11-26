@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { VideoSearch } from "../contracts/workspace";
+import { useT } from "../i18n";
 
 type Region = NonNullable<VideoSearch["region"]>;
 export const localDateTime = (ms: number) =>
@@ -39,10 +40,11 @@ export function RegionField({
   change: (r: Region) => void;
   image?: string | undefined;
 }) {
+  const t = useT();
   const start = useRef<{ x: number; y: number } | null>(null);
   return (
     <details>
-      <summary>Область движения</summary>
+      <summary>{t("region.title")}</summary>
       <div
         className="inv-roi"
         onPointerDown={(e) => {
@@ -79,9 +81,9 @@ export function RegionField({
         />
       </div>
       <div className="inv-bounds">
-        {(["left", "top", "right", "bottom"] as const).map((edge, i) => (
+        {(["left", "top", "right", "bottom"] as const).map((edge) => (
           <label key={edge}>
-            {["Слева, %", "Сверху, %", "Справа, %", "Снизу, %"][i]}
+            {t(`region.${edge}`)}
             <input
               type="number"
               min={0}

@@ -26,17 +26,24 @@ class Rows
 
 std::string array_parameter(const std::vector<std::string>& elements);
 
+// One logical database session. Connections are reused through a process-wide pool: releasing a
+// session rolls back a transaction that did not reach COMMIT and resets session state, including
+// session advisory locks and listeners, as closing the connection would.
 class Database
 {
   public:
     Database();
+    ~Database();
+    Database(const Database&) = delete;
+    Database& operator=(const Database&) = delete;
     Rows exec(const char* query, std::initializer_list<std::string> arguments = {});
 
+    using Connection = std::unique_ptr<PGconn, decltype(&PQfinish)>;
+
   private:
-    std::unique_ptr<PGconn, decltype(&PQfinish)> connection_;
+    Connection connection_;
 };
 
-// Closing the connection rolls back a transaction that did not reach COMMIT.
 inline constexpr char schema_version_query[] = "SELECT max(version) FROM bacuri_meta.schema_migrations";
 inline constexpr char legacy_schema_version_query[] =
     "SELECT max(version) FROM bacuri_inventory.schema_migrations";

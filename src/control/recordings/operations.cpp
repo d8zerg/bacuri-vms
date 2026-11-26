@@ -22,6 +22,7 @@ std::vector<CoverageInterval> edge_gaps(Database& db, const std::string& site, c
         ORDER BY lower(part) LIMIT 128)sql",
                         {site, point, binding, std::to_string(since), std::to_string(until)});
     std::vector<CoverageInterval> result;
+    result.reserve(static_cast<std::size_t>(rows.size()));
     for (int i = 0; i < rows.size(); ++i)
         result.push_back({std::stoll(rows.get(i)), std::stoll(rows.get(i, 1)), {}, {}, {}, {}});
     return result;
@@ -32,6 +33,28 @@ void require_available(Database& db, const std::string& site)
     if (db.exec("SELECT FROM bacuri_archive.archive_recovery WHERE site_id=$1", {site}).size())
         throw Failure{503, "media_unavailable"};
 }
+std::map<std::string, LastRecorded> last_recorded(Database& db, const std::string& site,
+                                                  const std::vector<std::string>& points)
+{
+    std::map<std::string, LastRecorded> result;
+    if (points.empty())
+        return result;
+    // Reception time is compared with the server clock, so a camera clock offset does not affect freshness.
+    auto rows = db.exec(R"sql(
+        SELECT p.point_id,b.end_utc_us,b.received_at_utc_us+(b.end_utc_us-b.begin_utc_us)
+        FROM unnest($2::uuid[]) AS p(point_id)
+        CROSS JOIN LATERAL (
+            SELECT end_utc_us,begin_utc_us,received_at_utc_us FROM bacuri_archive.blocks
+            WHERE site_id=$1 AND point_id=p.point_id AND unavailable_reason IS NULL
+            ORDER BY end_utc_us DESC LIMIT 1) b
+    )sql",
+                        {site, array_parameter(points)});
+    for (int i = 0; i < rows.size(); ++i)
+        result.insert_or_assign(rows.get(i), LastRecorded{.end_utc_us = std::stoll(rows.get(i, 1)),
+                                                          .received_until_us = std::stoll(rows.get(i, 2))});
+    return result;
+}
+
 std::optional<PreviousRecording> previous_binding_recording(Database& db, const std::string& site,
                                                             const std::string& point, const std::string& revision)
 {
@@ -75,6 +98,7 @@ std::vector<CoverageInterval> coverage(Database& db, const std::string& site, co
 {
     auto rows = db.exec(archive::sql::search, {site, point, begin, end, pending, revision});
     std::vector<CoverageInterval> intervals;
+    intervals.reserve(static_cast<std::size_t>(rows.size()));
     for (int i = 0; i < rows.size(); ++i)
         intervals.push_back({std::stoll(rows.get(i)), std::stoll(rows.get(i, 1)), rows.get(i, 2), rows.get(i, 3),
                              rows.get(i, 4), rows.get(i, 5)});
@@ -111,6 +135,7 @@ std::vector<ManifestPart> playback_manifest(Database& db, const std::string& ses
                         "ORDER BY begin_utc_us,end_utc_us,media_id",
                         {session});
     std::vector<ManifestPart> parts;
+    parts.reserve(static_cast<std::size_t>(rows.size()));
     for (int i = 0; i < rows.size(); ++i)
         parts.push_back(
             {rows.get(i), rows.get(i, 1), rows.get(i, 4), std::stoll(rows.get(i, 2)), std::stoll(rows.get(i, 3))});
@@ -142,6 +167,7 @@ std::vector<RecordedInterval> blocks_at(Database& db, const std::string& site, c
         "int8range($3,$4,'[)') LIMIT 2",
         {site, point, begin, end});
     std::vector<RecordedInterval> blocks;
+    blocks.reserve(static_cast<std::size_t>(rows.size()));
     for (int i = 0; i < rows.size(); ++i)
         blocks.push_back({std::stoll(rows.get(i)), std::stoll(rows.get(i, 1)), rows.get(i, 2), rows.get(i, 3),
                           rows.get(i, 4), rows.get(i, 5)});

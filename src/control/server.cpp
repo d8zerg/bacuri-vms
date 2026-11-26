@@ -17,10 +17,12 @@
 #include "control/archive_catalog.hpp"
 #include "control/media_authority.hpp"
 #include "control/playback.hpp"
+#include "control/routes.hpp"
 #include <fstream>
 
 #include <charconv>
 #include <thread>
+#include <utility>
 
 namespace bacuri::vms::control
 {
@@ -90,6 +92,41 @@ void workspace_file(const Request& req, Response& res, std::string_view path)
     res.body().assign(std::istreambuf_iterator<char>{file}, {});
 }
 
+// Scheduling class of a request. A misclassified request only runs on another pool.
+Workload workload(const Request& req)
+{
+    std::string_view path{req.target().data(), req.target().size()};
+    path = path.substr(0, path.find('?'));
+    const bool read = req.method() == http::verb::get || req.method() == http::verb::head;
+    // Password login and local account provisioning hash passwords.
+    if (!read && (path == "/api/v1/session" || path.ends_with("/users")))
+        return Workload::credential;
+    // Camera commissioning and backfill, map transfers and exports wait on devices, remote sources or disks.
+    if (path.contains("/exports") || (!read && (path.ends_with("/edge-archive") || path.contains("/onvif/") ||
+                                                path.contains("/camera-batches/") || path.contains("/maps/"))))
+        return Workload::long_running;
+    return Workload::interactive;
+}
+
+// The alert snapshot, or the upgrade of the request to the alert feed WebSocket.
+void alert_feed(const Request& req, Response& res, const Sessions& sessions, const Key& key,
+                const std::string& site, bool stream, const std::string& origin)
+{
+    allow(req, res, {http::verb::get});
+    auto feed = std::make_shared<AlertFeed>(sessions, key, req, site);
+    if (!stream)
+        return respond(res, feed->snapshot());
+    if (req.count(http::field::origin) != 1 || req[http::field::origin] != origin) {
+        throw Failure{403, "forbidden"};
+    }
+    if (!boost::beast::websocket::is_upgrade(req) || req.count(http::field::sec_websocket_protocol) != 1 ||
+        req[http::field::sec_websocket_protocol] != alert_protocol || !req.body().empty()) {
+        throw Failure{400, "invalid_request"};
+    }
+    feed->authorize();
+    res.alerts = std::move(feed);
+}
+
 void route(const Request& req, Response& res, const std::string& peer, const Sessions& sessions,
            const CameraRegistry& registry, const Playback& playback, const Key& key, const std::string& origin)
 {
@@ -116,15 +153,16 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
         res.body().assign(std::istreambuf_iterator<char>{file}, {});
         return;
     }
-    constexpr std::string_view media_prefix = "/api/v1/media-sessions/";
-    if (path.starts_with(media_prefix)) {
-        path.remove_prefix(media_prefix.size());
-        auto slash = path.find('/');
-        const std::string id{path.substr(0, slash)};
-        if (!canonical_id(id)) {
+    if (path.starts_with("/api/v1/media-sessions/")) {
+        Routes media;
+        media
+            .add("api/v1/media-sessions/{id}",
+                 [&](const PathMatch& m) { playback.session(req, res, m.values[0], {}); })
+            .add("api/v1/media-sessions/{id}/*",
+                 [&](const PathMatch& m) { playback.session(req, res, m.values[0], m.rest); });
+        if (!media.dispatch(path.substr(1)))
             throw Failure{404, "not_found"};
-        }
-        return playback.session(req, res, id, slash == path.npos ? std::string_view{} : path.substr(slash + 1));
+        return;
     }
     constexpr std::string_view oidc = "/api/v1/session/oidc/";
     if (path.starts_with(oidc)) {
@@ -135,7 +173,7 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
             if (!std::string_view(req[http::field::accept]).contains("text/html") ||
                 (e.code != "invalid_identity" && e.code != "identity_unavailable"))
                 throw;
-            res.result(e.status);
+            res.result(static_cast<unsigned>(e.status));
             res.set(http::field::content_type, "text/html; charset=utf-8");
             res.set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
             res.body() = "<!doctype html><html lang=ru><meta charset=utf-8><meta name=viewport "
@@ -168,167 +206,131 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     path.remove_prefix(separator + 1);
     if (access::administration(req, res, sessions, key, site, path))
         return;
-    if (path == "investigation-assignees")
-        return recordings::case_recipients(req, res, sessions, site);
-    if (path == "investigations" || path.starts_with("investigations/")) {
-        if (path.ends_with("/exports") && path.size() == 15 + 36 + 8) {
-            const std::string case_id{path.substr(15, 36)};
-            if (canonical_id(case_id))
-                return export_case(req, res, sessions, key, site, case_id);
-        }
-        const std::string id{path == "investigations" ? std::string_view{} : path.substr(15)};
-        if (path != "investigations" && !canonical_id(id))
-            throw Failure{404, "not_found"};
-        return recordings::investigation(req, res, sessions, site, id);
-    }
-    if (path == "archive-search")
-        return recordings::search_index(req, res, sessions, site);
-    if (path == "recording-policies")
-        return recordings::policies(req, res, sessions, site, {});
-    constexpr std::string_view recording_prefix = "recording-policies/";
-    if (path.starts_with(recording_prefix) && canonical_id(path.substr(recording_prefix.size())))
-        return recordings::policies(req, res, sessions, site, std::string{path.substr(recording_prefix.size())});
-    if (path == "storage/volumes")
-        return recordings::volumes(req, res, sessions, site);
-    if (path == "monitor-layouts")
-        return playback.layouts(req, res, site, {});
-    if (path.starts_with("monitor-layouts/") && canonical_id(path.substr(16)))
-        return playback.layouts(req, res, site, std::string{path.substr(16)});
-    if (path == "maps" || path.starts_with("maps/"))
-        return maps(req, res, sessions, site, path, origin);
-    if (path == "alerts" || path == "alerts/stream") {
-        allow(req, res, {http::verb::get});
-        auto feed = std::make_shared<AlertFeed>(sessions, key, req, site);
-        if (path == "alerts") {
-            return respond(res, feed->snapshot());
-        }
-        if (req.count(http::field::origin) != 1 || req[http::field::origin] != origin) {
-            throw Failure{403, "forbidden"};
-        }
-        if (!boost::beast::websocket::is_upgrade(req) || req.count(http::field::sec_websocket_protocol) != 1 ||
-            req[http::field::sec_websocket_protocol] != alert_protocol || !req.body().empty()) {
-            throw Failure{400, "invalid_request"};
-        }
-        feed->authorize();
-        res.alerts = std::move(feed);
+    const std::string relative{path};
+    // The paths below are relative to /api/v1/sites/{siteId}/. A handler receives the identifiers of its path.
+    Routes routes;
+    routes
+        .add("investigation-assignees",
+             [&](const PathMatch&) { recordings::case_recipients(req, res, sessions, site); })
+        .add("investigations", [&](const PathMatch&) { recordings::investigation(req, res, sessions, site, {}); })
+        .add("investigations/{id}",
+             [&](const PathMatch& m) { recordings::investigation(req, res, sessions, site, m.values[0]); })
+        .add("investigations/{id}/exports",
+             [&](const PathMatch& m) { export_case(req, res, sessions, key, site, m.values[0]); })
+        .add("archive-search", [&](const PathMatch&) { recordings::search_index(req, res, sessions, site); })
+        .add("recording-policies", [&](const PathMatch&) { recordings::policies(req, res, sessions, site, {}); })
+        .add("recording-policies/{id}",
+             [&](const PathMatch& m) { recordings::policies(req, res, sessions, site, m.values[0]); })
+        .add("storage/volumes", [&](const PathMatch&) { recordings::volumes(req, res, sessions, site); })
+        .add("monitor-layouts", [&](const PathMatch&) { playback.layouts(req, res, site, {}); })
+        .add("monitor-layouts/{id}", [&](const PathMatch& m) { playback.layouts(req, res, site, m.values[0]); })
+        .add("maps", [&](const PathMatch&) { maps(req, res, sessions, site, relative, origin); })
+        .add("maps/*", [&](const PathMatch&) { maps(req, res, sessions, site, relative, origin); })
+        .add("alerts", [&](const PathMatch&) { alert_feed(req, res, sessions, key, site, false, origin); })
+        .add("alerts/stream", [&](const PathMatch&) { alert_feed(req, res, sessions, key, site, true, origin); })
+        .add("alerts/{id}/archive",
+             [&](const PathMatch& m) { playback.alert_archive(req, res, site, m.values[0]); })
+        .add("alerts/*", [&](const PathMatch&) { alert_work(req, res, sessions, key, site, relative); })
+        .add("alert-audit/search", [&](const PathMatch&) { alert_work(req, res, sessions, key, site, relative); })
+        .add("alert-delegations", [&](const PathMatch&) { alert_work(req, res, sessions, key, site, relative); })
+        .add("alert-delegations/*", [&](const PathMatch&) { alert_work(req, res, sessions, key, site, relative); })
+        .add("points",
+             [&](const PathMatch&) {
+                 allow(req, res, {http::verb::get});
+                 registry.points(req, res, site);
+             })
+        .add("points/{id}/recording",
+             [&](const PathMatch& m) { recordings::manual_recording(req, res, sessions, site, m.values[0]); })
+        .add("points/{id}/video-rule",
+             [&](const PathMatch& m) { events::video_rule(req, res, sessions, site, m.values[0], false); })
+        .add("points/{id}/video-rule/simulation",
+             [&](const PathMatch& m) { events::video_rule(req, res, sessions, site, m.values[0], true); })
+        .add("points/{id}/holds",
+             [&](const PathMatch& m) { recordings::holds(req, res, sessions, site, m.values[0]); })
+        .add("points/{id}/exports",
+             [&](const PathMatch& m) { export_fragment(req, res, sessions, key, site, m.values[0]); })
+        .add("points/{id}/audio",
+             [&](const PathMatch& m) {
+                 allow(req, res, {http::verb::post});
+                 registry.audio(req, res, site, m.values[0]);
+             })
+        .add("points/{id}/ptz",
+             [&](const PathMatch& m) {
+                 allow(req, res, {http::verb::get, http::verb::post});
+                 registry.ptz(req, res, site, m.values[0]);
+             })
+        .add("points/{id}/archive", [&](const PathMatch& m) { playback.point(req, res, site, m.values[0], true); })
+        .add("points/{id}/media-sessions",
+             [&](const PathMatch& m) { playback.point(req, res, site, m.values[0], false); })
+        .add("onvif/discovery",
+             [&](const PathMatch&) {
+                 allow(req, res, {http::verb::post});
+                 registry.onvif(req, res, site, false);
+             })
+        .add("onvif/profiles",
+             [&](const PathMatch&) {
+                 allow(req, res, {http::verb::post});
+                 registry.onvif(req, res, site, true);
+             })
+        .add("camera-templates",
+             [&](const PathMatch&) {
+                 allow(req, res, {http::verb::get});
+                 registry.templates(req, res, site, {});
+             })
+        .add("camera-templates/{id}",
+             [&](const PathMatch& m) {
+                 allow(req, res, {http::verb::put});
+                 registry.templates(req, res, site, m.values[0]);
+             })
+        .add("camera-batches",
+             [&](const PathMatch&) {
+                 allow(req, res, {http::verb::get});
+                 registry.batch(req, res, site, {}, {}, {});
+             })
+        .add("camera-batches/{id}",
+             [&](const PathMatch& m) {
+                 allow(req, res, {http::verb::get});
+                 registry.batch(req, res, site, m.values[0], {}, {});
+             })
+        .add("camera-batches/{id}/{id}",
+             [&](const PathMatch& m) {
+                 allow(req, res, {http::verb::put});
+                 registry.batch(req, res, site, m.values[0], m.values[1], {});
+             })
+        .add("camera-batches/{id}/{id}/{name}",
+             [&](const PathMatch& m) {
+                 const auto& action = m.values[2];
+                 if (action != "apply" && action != "rollback")
+                     throw Failure{404, "not_found"};
+                 allow(req, res, {http::verb::post});
+                 registry.batch(req, res, site, m.values[0], m.values[1], action);
+             })
+        .add("cameras",
+             [&](const PathMatch&) {
+                 allow(req, res, {http::verb::get, http::verb::post});
+                 registry.cameras(req, res, site, {});
+             })
+        .add("cameras/{id}",
+             [&](const PathMatch& m) {
+                 allow(req, res, {http::verb::get, http::verb::put});
+                 registry.cameras(req, res, site, m.values[0]);
+             })
+        .add("cameras/{id}/edge-archive",
+             [&](const PathMatch& m) {
+                 allow(req, res, {http::verb::get, http::verb::post});
+                 registry.edge_archive(req, res, site, m.values[0]);
+             })
+        .add("cameras/{id}/previous-recording",
+             [&](const PathMatch& m) {
+                 allow(req, res, {http::verb::get});
+                 registry.previous_recording(req, res, site, m.values[0]);
+             })
+        .add("cameras/{id}/stream-issues", [&](const PathMatch& m) {
+            allow(req, res, {http::verb::get});
+            registry.issues(req, res, site, m.values[0]);
+        });
+    if (routes.dispatch(relative))
         return;
-    }
-    if (path.size() == 51 && path.starts_with("alerts/") && path.ends_with("/archive")) {
-        path.remove_prefix(7);
-        path.remove_suffix(8);
-        if (!canonical_id(path)) {
-            throw Failure{404, "not_found"};
-        }
-        return playback.alert_archive(req, res, site, std::string{path});
-    }
-    if (path.starts_with("alerts/") || path == "alert-audit/search" || path == "alert-delegations" ||
-        path.starts_with("alert-delegations/")) {
-        return alert_work(req, res, sessions, key, site, path);
-    }
-    if (path.starts_with("points/")) {
-        path.remove_prefix(7);
-        const auto slash = path.find('/');
-        const std::string point{path.substr(0, slash)};
-        if (slash != path.npos && canonical_id(point)) {
-            const auto operation = path.substr(slash + 1);
-            if (operation == "recording")
-                return recordings::manual_recording(req, res, sessions, site, point);
-            if (operation == "video-rule" || operation == "video-rule/simulation")
-                return events::video_rule(req, res, sessions, site, point, operation.ends_with("/simulation"));
-            if (operation == "holds")
-                return recordings::holds(req, res, sessions, site, point);
-            if (operation == "exports")
-                return export_fragment(req, res, sessions, key, site, point);
-            if (operation == "audio") {
-                allow(req, res, {http::verb::post});
-                return registry.audio(req, res, site, point);
-            }
-            if (operation == "ptz") {
-                allow(req, res, {http::verb::get, http::verb::post});
-                return registry.ptz(req, res, site, point);
-            }
-            if (operation == "archive" || operation == "media-sessions") {
-                return playback.point(req, res, site, point, operation == "archive");
-            }
-        }
-        throw Failure{404, "not_found"};
-    }
-    if (path == "points") {
-        allow(req, res, {http::verb::get});
-        return registry.points(req, res, site);
-    }
-    if (path == "onvif/discovery" || path == "onvif/profiles") {
-        allow(req, res, {http::verb::post});
-        return registry.onvif(req, res, site, path == "onvif/profiles");
-    }
-    if (path == "camera-templates") {
-        allow(req, res, {http::verb::get});
-        return registry.templates(req, res, site, {});
-    }
-    constexpr std::string_view templates = "camera-templates/";
-    if (path.starts_with(templates)) {
-        auto id = path.substr(templates.size());
-        if (!canonical_id(id))
-            throw Failure{404, "not_found"};
-        allow(req, res, {http::verb::put});
-        return registry.templates(req, res, site, std::string{id});
-    }
-    if (path == "camera-batches") {
-        allow(req, res, {http::verb::get});
-        return registry.batch(req, res, site, {}, {}, {});
-    }
-    constexpr std::string_view batches = "camera-batches/";
-    if (path.starts_with(batches)) {
-        auto parts = path.substr(batches.size());
-        auto split = parts.find('/');
-        auto batch = parts.substr(0, split);
-        if (!canonical_id(batch))
-            throw Failure{404, "not_found"};
-        if (split == parts.npos) {
-            allow(req, res, {http::verb::get});
-            return registry.batch(req, res, site, std::string{batch}, {}, {});
-        }
-        auto member = parts.substr(split + 1);
-        split = member.find('/');
-        auto item = member.substr(0, split);
-        if (!canonical_id(item))
-            throw Failure{404, "not_found"};
-        const auto action = split == member.npos ? std::string_view{} : member.substr(split + 1);
-        if (split == member.npos)
-            allow(req, res, {http::verb::put});
-        else if (action == "apply" || action == "rollback")
-            allow(req, res, {http::verb::post});
-        else
-            throw Failure{404, "not_found"};
-        return registry.batch(req, res, site, std::string{batch}, std::string{item}, action);
-    }
-    if (path == "cameras") {
-        allow(req, res, {http::verb::get, http::verb::post});
-        return registry.cameras(req, res, site, {});
-    }
-    constexpr std::string_view camera_prefix = "cameras/";
-    if (path.starts_with(camera_prefix)) {
-        const auto member = path.substr(camera_prefix.size());
-        const auto split = member.find('/');
-        const auto device = member.substr(0, split);
-        if (!canonical_id(device))
-            throw Failure{404, "not_found"};
-        if (split == member.npos) {
-            allow(req, res, {http::verb::get, http::verb::put});
-            return registry.cameras(req, res, site, std::string{device});
-        }
-        const auto resource = member.substr(split + 1);
-        if (resource == "edge-archive") {
-            allow(req, res, {http::verb::get, http::verb::post});
-            return registry.edge_archive(req, res, site, std::string{device});
-        }
-        if (resource == "previous-recording" || resource == "stream-issues") {
-            allow(req, res, {http::verb::get});
-            if (resource == "stream-issues")
-                return registry.issues(req, res, site, std::string{device});
-            return registry.previous_recording(req, res, site, std::string{device});
-        }
-    }
     throw Failure{404, "not_found"};
 }
 
@@ -376,20 +378,21 @@ void serve()
     MediaAuthority authority;
     Observations observations;
     const Sessions sessions{key, origin};
-    std::jthread identities{[&](std::stop_token stop) { access::refresh_identities(stop, key); }};
+    std::jthread identities{[&](const std::stop_token& stop) { access::refresh_identities(stop, key); }};
     const Playback playback{sessions, key};
     auto networks = CameraNetworks::configured();
     auto policy = Json(networks.legacy_addresses()).dump();
     const CameraRegistry registry{sessions, key, networks};
-    auto monitor_position = [&](std::stop_token stop) { inventory::track_positions(stop, networks, key); };
+    auto monitor_position = [&](const std::stop_token& stop) { inventory::track_positions(stop, networks, key); };
     std::jthread position_reader{monitor_position}, second_position_reader{monitor_position};
     std::jthread map_worker{map_packages::work};
-    std::jthread reactions{[&](std::stop_token stop) {
+    std::jthread reactions{[&](const std::stop_token& stop) {
         auto site = setting("BACURI_SITE_ID");
         events::dispatch_presets(stop, site, [&](const auto&... job) { registry.preset(site, job...); });
     }};
-    std::jthread event_reader{[&](std::stop_token stop) { camera_events(stop, networks, key); }};
-    std::jthread worker{[&key, policy = std::move(policy)](std::stop_token stop) { deliver(stop, key, policy); }};
+    std::jthread event_reader{[&](const std::stop_token& stop) { camera_events(stop, networks, key); }};
+    std::jthread worker{
+        [&key, policy = std::move(policy)](const std::stop_token& stop) { deliver(stop, key, policy); }};
     const auto handle = [&](const Request& req, const std::string& peer) {
         Response res;
         std::unique_ptr<char, decltype(&g_free)> id{g_uuid_string_random(), g_free};
@@ -403,8 +406,12 @@ void serve()
             route(req, res, peer, sessions, registry, playback, key, origin);
         } catch (const Failure& failure) {
             problem(res, failure, id.get());
-        } catch (const std::exception&) {
-            std::fputs("Control request dependency unavailable\n", stderr);
+        } catch (const std::exception& error) {
+            // The client receives a generic problem. The cause stays in the service journal. The query
+            // string is omitted because it can carry an authorization code.
+            const std::string_view target{req.target().data(), req.target().size()};
+            const std::string path{target.substr(0, target.find('?'))};
+            std::fprintf(stderr, "control request %s %s failed: %s\n", id.get(), path.c_str(), error.what());
             problem(res, Failure{503, "authorization_unavailable"}, id.get());
         }
         return res;
@@ -413,6 +420,6 @@ void serve()
                   .port = listen_port(),
                   .certificate_chain = setting("BACURI_TLS_CERT"),
                   .private_key = setting("BACURI_TLS_KEY")},
-                 handle);
+                 handle, workload);
 }
 } // namespace bacuri::vms::control

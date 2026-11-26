@@ -1,15 +1,17 @@
-# ADR-008. Приёмка по самостоятельному первому выполнению задачи
+# ADR-008. Acceptance by independent first completion of a task
 
-**Статус** - Принято.
+[Русская версия](../ru/adr/008-first-use.md)
 
-**Контекст.** Эксперт может продемонстрировать знакомый маршрут, даже если новый администратор примет эфир за запись, а дежурный оператор откроет соседний эпизод.
+**Status** - Accepted.
 
-**Варианты.** Проводить ручную проверку на каждом этапе, ограничиться браузерными тестами либо автоматизировать промежуточные этапы и один раз проверить самостоятельную работу на релиз-кандидате.
+**Context.** An expert can demonstrate a familiar route even when a new administrator takes live video for a recording and an operator on duty opens a neighboring episode.
 
-**Решение.** Перед ручной приёмкой каждый сценарий выполняет автоматика. В паспорте испытаний фиксируются цель, условия, правильный результат, критические ошибки и предел времени каждой задачи. После автоматической квалификации на том же комплекте проводится ручная приёмка. Новые администраторы и операторы работают без документации и подсказок. Администратор проверяет обслуживание по эксплуатационной инструкции.
+**Options.** Run a manual check at every stage, rely only on browser tests, or automate the intermediate stages and check independent work once on the release candidate.
 
-**Основания.** Время без верного результата поощряло бы ложное подтверждение. Наблюдение, объяснение и сверка с данными стенда позволяют проверить и интерфейс, и понимание. Новый способ взаимодействия можно испытать на тех же задачах.
+**Decision.** Automation runs every scenario before manual acceptance. The test profile records the goal, the conditions, the correct result, the critical errors and the time limit of each task. Manual acceptance runs on the same kit after the automatic qualification. New administrators and operators work without documentation and hints. An administrator checks maintenance by the operating guide.
 
-**Последствия.** До финала известны техническая воспроизводимость и корректность данных. Свидетельство самостоятельного выполнения появляется при ручной приёмке. Дефект требует регрессионного теста и повтора квалификации исправленного комплекта. Для повторной оценки первого использования нужны новые участники.
+**Rationale.** Time without a correct result would reward false confirmation. Observation, explanation and comparison with the stand data check both the interface and the understanding. A new interaction method can be tried on the same tasks.
 
-**Проверка и пересмотр.** Для требования «UX» сохранить индивидуальные времена, обращения за помощью, критические ошибки и результат на рабочем клиенте. Пересмотреть задания и пределы при смене роли, начальных условий или рабочего процесса, сохранив предыдущий протокол. [Задания и пороги](../ui.md#проверка-первого-использования) · [Требования](../quality.md#требования-к-приёмке)
+**Consequences.** Technical reproducibility and data correctness are known before the final stage. Evidence of independent completion appears in manual acceptance. A defect requires a regression test and a repeated qualification of the fixed kit. A repeated first-use assessment needs new participants.
+
+**Verification and review.** For the "UX" requirement, keep the individual times, requests for help, critical errors and the result on the working client. Review the tasks and limits when the role, the initial conditions or the work process change, keeping the previous protocol. [Tasks and thresholds](../ui.md#first-use-check) · [Requirements](../quality.md#acceptance-requirements)

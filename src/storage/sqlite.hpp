@@ -43,6 +43,11 @@ class Sqlite
         }
         return {stmt, sqlite3_finalize};
     }
+    // Rows changed by the most recent INSERT, UPDATE or DELETE on this connection.
+    [[nodiscard]] int changes() const
+    {
+        return sqlite3_changes(db_.get());
+    }
 
   private:
     std::unique_ptr<sqlite3, decltype(&sqlite3_close)> db_{nullptr, sqlite3_close};

@@ -1,6 +1,6 @@
 #include "archive/replica.hpp"
 #include "archive/mp4.hpp"
-#include "control/support.hpp"
+#include "platform/identifiers.hpp"
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -24,6 +24,8 @@ struct Handle {
     {
         checked(fd);
     }
+    Handle(const Handle&) = delete;
+    Handle& operator=(const Handle&) = delete;
     ~Handle()
     {
         close(fd);
@@ -44,18 +46,18 @@ void verify_file(const fs::path& path, const Json& spec)
         throw std::runtime_error("Archive copy checksum mismatch");
 }
 } // namespace
-std::optional<fs::path> replica_blocks(const fs::path& primary, const Owner& owner)
+std::optional<fs::path> replica_blocks(const std::optional<fs::path>& configured, const fs::path& primary,
+                                       const Owner& owner)
 {
-    const char* setting = std::getenv("BACURI_ARCHIVE_REPLICA_DIR");
-    if (!setting || !*setting)
+    if (!configured)
         return {};
-    fs::path mount{setting};
-    if (!control::canonical_id(owner.site) || !control::canonical_id(owner.node) || !mount.is_absolute() ||
+    const auto& mount = *configured;
+    if (!platform::canonical_id(owner.site) || !platform::canonical_id(owner.node) || !mount.is_absolute() ||
         !fs::is_directory(fs::symlink_status(mount)) || mount == mount.root_path())
         throw std::runtime_error("Archive copy volume unavailable");
     auto a = fs::canonical(primary), b = fs::canonical(mount);
-    const auto related = [](const auto& a, const auto& b) {
-        auto r = a.lexically_relative(b);
+    const auto related = [](const auto& inner, const auto& outer) {
+        auto r = inner.lexically_relative(outer);
         return !r.empty() && *r.begin() != "..";
     };
     if (related(a, b) || related(b, a))

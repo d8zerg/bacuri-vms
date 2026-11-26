@@ -12,6 +12,9 @@ import sys
 import time
 import uuid
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from openapi import Contract  # noqa: E402
+
 ROOT = Path(sys.argv[1])
 BIN = Path(os.environ["BACURI_TEST_BIN"])
 CORE = BIN / "bacuri-vms-core"
@@ -20,6 +23,7 @@ SITE = os.environ["BACURI_SITE_ID"]
 ORIGIN = os.environ["BACURI_ORIGIN"]
 TLS = ssl.create_default_context(cafile=os.environ["BACURI_TLS_CERT"])
 PASSWORD = secrets.token_hex(20)
+CONTRACT = Contract()
 
 
 def query(sql):
@@ -33,7 +37,10 @@ def http(method, path, body=None, headers=None, timeout=8):
                            headers={"Content-Type": "application/json", "Origin": ORIGIN, **(headers or {})})
         response = connection.getresponse()
         raw = response.read()
-        return response.status, dict(response.getheaders()), json.loads(raw) if raw else None
+        result = json.loads(raw) if raw else None
+        # Every response the scenarios receive must be described by the OpenAPI contract.
+        CONTRACT.check(method, "/api/v1/" + path, response.status, response.getheader("Content-Type"), result)
+        return response.status, dict(response.getheaders()), result
     finally:
         connection.close()
 
@@ -72,6 +79,18 @@ def login(name):
     cookie = headers["Set-Cookie"]
     assert all(attr in cookie for attr in ("Secure", "HttpOnly", "SameSite=Strict", "Path=/"))
     return {"Cookie": cookie.split(";")[0], "X-CSRF-Token": body["csrf_token"]}
+
+
+def metric(process, series):
+    """Value of a series in the exposition of a service, or None before the service exported it."""
+    path = Path(os.environ["BACURI_METRICS_DIRECTORY"]) / f"{process}.prom"
+    if not path.exists():
+        return None
+    for line in path.read_text().splitlines():
+        name, _, value = line.rpartition(" ")
+        if name == series:
+            return float(value)
+    return None
 
 
 def wait_for(check, label):

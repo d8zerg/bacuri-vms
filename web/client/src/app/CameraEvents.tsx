@@ -13,12 +13,13 @@ import type {
   Services,
   Target,
 } from "../contracts/workspace";
-import { alertName, alertStates } from "../ui-kit/alertLabels";
+import { alertName, alertStateLabel } from "../ui-kit/alertLabels";
 import { Button } from "../ui-kit/FormControls";
 import { SessionPlayer, alertArchiveNotice } from "./media";
 import { formatUtc, milliseconds } from "../ui-kit/utc";
 import { pause } from "../workflows/pause";
 import icons from "../../../../design/bacuri/icons/sprite.svg";
+import { useT } from "../i18n";
 
 function EventPreview({
   services,
@@ -33,6 +34,7 @@ function EventPreview({
   event: AlertItem;
   monitor: string;
 }) {
+  const t = useT();
   const [mode, setMode] = useState<"archive" | "live">("archive");
   const [link, setLink] = useState<AlertLink | null>(null);
   const [failed, setFailed] = useState(false);
@@ -76,12 +78,12 @@ function EventPreview({
     [mode, point.id, link],
   );
   const notice = failed
-    ? "Не удалось проверить запись"
+    ? t("events.checkFailed")
     : link?.state === "pending_catalog"
-      ? "Запись добавляется в каталог. Просмотр откроется автоматически."
+      ? t("events.cataloging")
       : link
         ? alertArchiveNotice(link)
-        : "Проверка записи…";
+        : t("events.checking");
   const canRetry =
     mediaFailed ||
     (mode === "archive" &&
@@ -100,7 +102,7 @@ function EventPreview({
         site={site}
         target={target}
         notice={notice}
-        title={mode === "archive" ? "Запись события" : "Эфир камеры"}
+        title={mode === "archive" ? t("events.recording") : t("events.live")}
         mode={mode}
         onMode={(next) => {
           if (next !== mode) {
@@ -113,7 +115,7 @@ function EventPreview({
         {...(canRetry ? { retry: retryPreview } : {})}
       />
       <RouteButton className="ws-event-open" to={monitor}>
-        Открыть тревогу в мониторинге
+        {t("events.openAlert")}
       </RouteButton>
     </>
   );
@@ -137,6 +139,7 @@ export function CameraEvents({
   onReview: (id: string | null) => void;
   monitor: (id: string) => string;
 }) {
+  const t = useT();
   const [limit, setLimit] = useState(pageSize);
   const [query, setQuery] = useState("");
   const heading = useId();
@@ -153,7 +156,7 @@ export function CameraEvents({
     matchesQuery(
       query,
       alertName(e.type),
-      e.work_state && alertStates[e.work_state],
+      e.work_state && alertStateLabel(e.work_state),
       formatUtc(e.observed_at),
     ),
   );
@@ -162,21 +165,21 @@ export function CameraEvents({
   );
   const status =
     feed.status === "loading"
-      ? "Загрузка событий…"
+      ? t("events.loading")
       : feed.status === "denied"
-        ? "Доступ к событиям закрыт"
+        ? t("events.denied")
         : feed.status === "reconnecting"
-          ? "Связь с лентой прервана. Ожидаем обновления."
+          ? t("events.reconnecting")
           : !events.length
-            ? "В текущей ленте нет событий этой камеры."
+            ? t("events.empty")
             : "";
   return (
     <section className="ws-camera-events" aria-labelledby={heading}>
-      <h3 id={heading}>События камеры</h3>
+      <h3 id={heading}>{t("events.title")}</h3>
       {needsListSearch(events.length, query) && (
         <FilterPanel
-          label="Фильтры событий камеры"
-          queryLabel="Поиск событий"
+          label={t("events.filters")}
+          queryLabel={t("events.search")}
           query={query}
           onQuery={(value) => {
             setQuery(value);
@@ -186,7 +189,7 @@ export function CameraEvents({
         />
       )}
       {query && !matching.length && !status && (
-        <p role="status">События не найдены.</p>
+        <p role="status">{t("events.none")}</p>
       )}
       {status && <p role="status">{status}</p>}
       {feed.status !== "denied" && visible.length > 0 && (
@@ -212,7 +215,7 @@ export function CameraEvents({
                         className="ws-event-state"
                         data-state={item.work_state}
                       >
-                        {alertStates[item.work_state]}
+                        {alertStateLabel(item.work_state)}
                       </span>
                     )}
                     <time dateTime={item.observed_at}>
@@ -224,7 +227,7 @@ export function CameraEvents({
                           <use href={icons + "#i-play"} />
                         </svg>
                       )}
-                      {open ? "Свернуть" : "Проверить"}
+                      {open ? t("action.collapse") : t("action.check")}
                     </span>
                   </button>
                   {open && (
@@ -247,7 +250,9 @@ export function CameraEvents({
           </ol>
           {matching.length > visible.length && (
             <Button onClick={() => setLimit((n) => n + pageSize)}>
-              Показать ещё ({matching.length - visible.length})
+              {t("action.showMore", {
+                count: matching.length - visible.length,
+              })}
             </Button>
           )}
         </>

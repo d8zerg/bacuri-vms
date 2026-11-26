@@ -1,17 +1,19 @@
-# ADR-003. Фиксация архива и восстановление каталога
+# ADR-003. Archive commit and catalog recovery
 
-**Статус** - Принято.
+[Русская версия](../ru/adr/003-archive.md)
 
-**Контекст.** Блок видео и его строка каталога сохраняются на разных носителях состояния. Процесс может остановиться между публикацией файла, фиксацией журнала и ответом базы.
+**Status** - Accepted.
 
-**Варианты.** Хранить медиа в PostgreSQL, считать список файлов каталогом или публиковать проверяемый блок на томе и регистрировать его с повтором.
+**Context.** A video block and its catalog row are stored on different state media. A process can stop between publishing the file, committing the journal and the database response.
 
-**Решение.** Единственный владелец тома синхронизирует файлы и манифест, публикует каталог блока атомарным переименованием, фиксирует его в SQLite и передаёт манифест в PostgreSQL. Ключ и содержимое определяют повтор. При открытии тома владелец сверяет завершённые блоки, происхождение и контрольные суммы.
+**Options.** Store media in PostgreSQL, treat the list of files as the catalog, or publish a verifiable block on the volume and register it with retries.
 
-**Основания.** Запись на исправный том продолжается при временной недоступности БД. По сохранившимся проверенным манифестам можно восстановить каталог.
+**Decision.** The only owner of the volume syncs the files and the manifest, publishes the block directory by an atomic rename, commits it in SQLite and passes the manifest to PostgreSQL. The key and the content define a repeat. When the volume opens, the owner reconciles the completed blocks, their origin and checksums.
 
-**Последствия.** Между записью и поиском возможна задержка. Сверка читает данные с диска. Требуются видимые состояния ожидания, повреждения и пропуска. Утрата единственного носителя приводит к потере находившегося на нём видео.
+**Rationale.** Writing to a healthy volume continues while the database is temporarily unavailable. The catalog can be rebuilt from the preserved verified manifests.
 
-**Восстановление после потери БД.** Конфигурация и области доступа восстанавливаются из аутентифицированного снимка. Вариант выдачи по мере импорта отвергнут: часть блоков ещё ожидает сверки, а прежняя сессия могла получить доступ при другом состоянии каталога. Ядро сначала фиксирует в PostgreSQL запрет архивной выдачи площадки. После проверки структуры fMP4, происхождения, размера и SHA-256 под блокировкой тома оно публикует результаты сверки и снимает запрет одной транзакцией. Прерывание оставляет запрет в силе. Локальная проверка при обычном запуске регистратора также исключает одновременное чтение проверяемого тома. Подтверждённые сведения о пропусках сохраняются в SQLite для повторного построения шкалы. Время открытия архива зависит от объёма сохранённых файлов и пропускной способности носителя. [Процедура](../recovery.md)
+**Consequences.** A delay between recording and search is possible. Reconciliation reads data from disk. Visible states for pending, damaged and gap intervals are needed. The loss of the only medium loses the video on it.
 
-**Проверка и пересмотр.** Для требований «Данные и доступ» и «Эксплуатация» прервать каждую границу фиксации, потерять подтверждение, повредить блок и восстановить каталог. На исправный завершённый блок приходится одна запись, открывается правильный кадр, повреждение объяснимо. Пересмотреть для другой семантики файловой системы, обязательного резервирования или неприемлемого времени сверки. [Протокол фиксации](../domain-model.md#запись-и-сверка-на-томе) · [Требования](../quality.md#требования-к-приёмке)
+**Recovery after the loss of the database.** The configuration and the access scopes are restored from an authenticated snapshot. Delivering video as the import proceeds was rejected: some blocks still wait for reconciliation, and an earlier session could have gained access under a different catalog state. The core first commits a ban on archive delivery for the site in PostgreSQL. After checking the fMP4 structure, the origin, the size and the SHA-256 under the volume lock, it publishes the reconciliation results and lifts the ban in one transaction. An interruption leaves the ban in force. The local check at a regular start of the recorder also excludes concurrent reads of the volume under check. Confirmed gap information is kept in SQLite to rebuild the timeline again. The time to open the archive depends on the amount of stored files and the throughput of the medium. [Procedure](../recovery.md)
+
+**Verification and review.** For the "Data and access" and "Operation" requirements, interrupt every commit boundary, lose an acknowledgement, damage a block and recover the catalog. A healthy completed block has exactly one record, the correct frame opens, and the damage is explained. Review for other file system semantics, mandatory redundancy or an unacceptable reconciliation time. [Commit protocol](../domain-model.md#recording-and-reconciliation-on-the-volume) · [Requirements](../quality.md#acceptance-requirements)
