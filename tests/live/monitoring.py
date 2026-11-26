@@ -157,7 +157,7 @@ def profiles(point, admin):
     )
     assert live_mask["video"]["reason"] == "privacy_mask" and live_mask["video"]["codec"] == "h264", live_mask
     try:
-        with browser_session("chrome", admin, "/") as (call, _):
+        with browser_session("chrome", admin, "/cameras") as (call, _):
             visible = call(
                 "POST",
                 "/execute/async",
@@ -274,6 +274,12 @@ def check_native_browser(browser, call, point, credentials):
             close(ticket, credentials)
 
 
+def expect_active_grid_sessions(count):
+    query = ("SELECT count(*) FROM bacuri_media_sessions.media_sessions "
+             "WHERE begin_us IS NULL AND NOT closed AND expires_at>now()")
+    control.wait_for(lambda: int(control.query(query)) == count, f"{count} active live sessions")
+
+
 def grid_command(call, action, count, width=None):
     script = Path("tests/live/monitor-grid.js").read_text()
     result = call("POST", "/execute/async", {"script": script, "args": [action, count, width]})
@@ -338,7 +344,7 @@ def run():
             and copy["video"]["width"] == 320
         ), copy
         assert session(hevc, admin, {"mode": "live", "hevc": False}, 429)["code"] == "video_transcoder_limit"
-        with browser_session("chrome", admin, "/") as (call, _):
+        with browser_session("chrome", admin, "/cameras") as (call, _):
             frame = call(
                 "POST",
                 "/execute/async",
@@ -363,14 +369,19 @@ def run():
             for call in [chrome, firefox]:
                 call("POST", "/window/rect", {"width": 1280, "height": 900})
                 grid_command(call, "grid", 4)
+            expect_active_grid_sessions(8)
             grid_command(chrome, "expand", 1, 1280)
+            expect_active_grid_sessions(5)
             grid_command(chrome, "main", 1, 1280)
             grid_command(chrome, "secondary", 1, 640)
             grid_command(chrome, "restore", 4)
             grid_command(firefox, "grid", 4)
+            expect_active_grid_sessions(8)
             subprocess.run([control.CORE, "grant-point", "viewer", hevc], check=True)
             check_native_browser("Chrome", chrome, hevc, admin)
             check_native_browser("Firefox", firefox, hevc, viewer)
+            firefox("POST", "/url", {"url": control.ORIGIN + "/assets/sprite.svg"})
+            expect_active_grid_sessions(4)
             for name, proc in [("recorder", recorder), ("media", delivery)]:
                 print(
                     name,

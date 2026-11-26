@@ -1,3 +1,4 @@
+#include "archive/manifest_json.hpp"
 #include "archive/volume.hpp"
 #include <gtest/gtest.h>
 #include <unistd.h>
@@ -116,10 +117,10 @@ TEST_P(RetirementDeathTest, RestartCompletesOnlyAuthorizedRemoval)
     EXPECT_FALSE(fs::exists(fixture.root / expired_directory));
     EXPECT_TRUE(fs::is_regular_file(fixture.root / protected_directory / "media.mp4"));
     const auto status = archive_status(fixture.root);
-    EXPECT_EQ(status.at("cutoff_utc_us"), cutoff);
-    EXPECT_EQ(status.at("removed_blocks"), 1);
-    EXPECT_EQ(status.at("committed"), 1);
-    EXPECT_EQ(status.at("missing"), 0);
+    EXPECT_EQ(status.cutoff_utc_us, cutoff);
+    EXPECT_EQ(status.removed_blocks, 1);
+    EXPECT_EQ(status.committed, 1);
+    EXPECT_EQ(status.missing, 0);
 }
 INSTANTIATE_TEST_SUITE_P(DurableBoundaries, RetirementDeathTest,
                          testing::Values(RetirementStage::authorized, RetirementStage::renamed,
@@ -208,13 +209,13 @@ TEST(ArchiveVolume, ValidatesRecordedSoundOnReadAndRestart)
         hash = digest_hex(manifest.audio->sha256);
         EXPECT_EQ(volume.read_audio({id, hash, 20, 100}), pcm.substr(20, 100));
         EXPECT_THROW(volume.read_audio({id, std::string(64, '0'), 20, 100}), std::invalid_argument);
-        EXPECT_EQ(archive_status(fixture.root).at("media_bytes").get<std::size_t>(),
+        EXPECT_EQ(archive_status(fixture.root).media_bytes,
                   static_cast<std::size_t>(manifest.size_bytes) + pcm.size());
     }
     ASSERT_TRUE(fs::remove(fixture.root / "blocks" / id / "audio.pcm"));
     Volume restarted{fixture.root, fixture.owner};
     restarted.verification.verify_all();
-    EXPECT_EQ(archive_status(fixture.root).at("corrupt"), 1);
+    EXPECT_EQ(archive_status(fixture.root).corrupt, 1);
 }
 
 // Publishes one block, acknowledges its catalog registration and returns its directory.
@@ -248,7 +249,7 @@ TEST(ArchiveVerification, OpeningDefersMediaChecksumsToBackgroundVerification)
     }
     flip_last_byte(fixture.root / directory / "media.mp4");
     Volume reopened{fixture.root, fixture.owner};
-    EXPECT_EQ(archive_status(fixture.root).at("corrupt"), 0);
+    EXPECT_EQ(archive_status(fixture.root).corrupt, 0);
     EXPECT_FALSE(reopened.journal.pending());
 
     const auto result = reopened.verification.verify_next();
@@ -256,7 +257,7 @@ TEST(ArchiveVerification, OpeningDefersMediaChecksumsToBackgroundVerification)
         FAIL() << "Expected a block due for verification";
     EXPECT_FALSE(result->available);
     EXPECT_GT(result->bytes_read, 0u);
-    EXPECT_EQ(archive_status(fixture.root).at("corrupt"), 1);
+    EXPECT_EQ(archive_status(fixture.root).corrupt, 1);
     const auto changed = reopened.journal.pending();
     if (!changed)
         FAIL() << "Expected a changed verdict to register";
@@ -277,7 +278,7 @@ TEST(ArchiveVerification, OpeningMarksMissingDirectoriesAndVerificationRestoresT
     fs::rename(fixture.root / directory, detached);
     {
         Volume reopened{fixture.root, fixture.owner};
-        EXPECT_EQ(archive_status(fixture.root).at("missing"), 1);
+        EXPECT_EQ(archive_status(fixture.root).missing, 1);
         auto missing = reopened.journal.pending();
         if (!missing)
             FAIL() << "Expected a missing block to register";
@@ -286,12 +287,12 @@ TEST(ArchiveVerification, OpeningMarksMissingDirectoriesAndVerificationRestoresT
     }
     fs::rename(detached, fixture.root / directory);
     Volume repaired{fixture.root, fixture.owner};
-    EXPECT_EQ(archive_status(fixture.root).at("missing"), 1) << "Only verified media becomes available";
+    EXPECT_EQ(archive_status(fixture.root).missing, 1) << "Only verified media becomes available";
     const auto result = repaired.verification.verify_next();
     if (!result)
         FAIL() << "Expected the missing block to be due for verification";
     EXPECT_TRUE(result->available);
-    EXPECT_EQ(archive_status(fixture.root).at("missing"), 0);
+    EXPECT_EQ(archive_status(fixture.root).missing, 0);
     const auto available = repaired.journal.pending();
     if (!available)
         FAIL() << "Expected the restored block to register";
@@ -355,7 +356,7 @@ TEST(ArchiveVerification, RepairsCorruptPrimaryFromVerifiedCopy)
     EXPECT_TRUE(result->available);
     std::ifstream repaired_file{fixture.root / directory / "media.mp4", std::ios::binary};
     EXPECT_EQ(std::string(std::istreambuf_iterator<char>{repaired_file}, {}), original);
-    EXPECT_EQ(archive_status(fixture.root).at("corrupt"), 0);
+    EXPECT_EQ(archive_status(fixture.root).corrupt, 0);
     std::error_code ignored;
     fs::remove_all(mount, ignored);
 }

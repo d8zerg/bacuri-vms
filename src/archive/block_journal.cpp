@@ -1,3 +1,4 @@
+#include "archive/manifest_json.hpp"
 #include "archive/block_journal.hpp"
 #include "archive/volume_io.hpp"
 #include "platform/identifiers.hpp"

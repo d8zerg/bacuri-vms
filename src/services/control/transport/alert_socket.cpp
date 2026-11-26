@@ -1,3 +1,5 @@
+#include "application/control_api/http_json.hpp"
+#include "modules/events/alert_json.hpp"
 #include "services/control/transport/alert_socket.hpp"
 #include "modules/events/alerts.hpp"
 #include "platform/scope_exit.hpp"
@@ -107,7 +109,8 @@ net::awaitable<void> stream_alerts(std::shared_ptr<TlsStream> transport, net::th
                     close = 1013;
                     break;
                 }
-                co_await socket.async_write(net::buffer(frame), net::use_awaitable);
+                const auto payload = encode_frame(frame);
+                co_await socket.async_write(net::buffer(payload), net::use_awaitable);
             }
             timer.cancel();
             if (close == 1013) {

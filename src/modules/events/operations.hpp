@@ -1,6 +1,6 @@
 #pragma once
 
-#include <nlohmann/json.hpp>
+#include <variant>
 
 #include <cstdint>
 #include <optional>
@@ -11,11 +11,6 @@ namespace bacuri::vms::postgresql
 class Database;
 class QuerySession;
 } // namespace bacuri::vms::postgresql
-
-namespace bacuri::vms::control
-{
-using Json = nlohmann::json;
-} // namespace bacuri::vms::control
 
 namespace bacuri::vms::control::events
 {
@@ -29,11 +24,28 @@ std::optional<ArchiveAnchor> archive_anchor(postgresql::QuerySession&, const std
 void record_camera_control(postgresql::Database&, const std::string& site, const std::string& point,
                            const std::string& user, const std::string& outcome, const std::string& command,
                            const std::string& target);
-// A change of recording settings: `change` is the code of the change, `details` its values.
-void record_recording_change(postgresql::Database& db, const std::string& site, const std::string& point,
+struct PolicyRevision {
+    std::string policy, revision;
+};
+struct ManualDuration {
+    int seconds{};
+};
+struct StorageSettings {
+    int days{}, reserve_percent{};
+};
+using RecordingChange = std::variant<std::monostate, PolicyRevision, ManualDuration, StorageSettings>;
+struct FragmentExportAudit {
+    std::string id, start, end, mode, reason;
+    bool audio{};
+};
+struct CaseExportAudit {
+    std::string case_id, revision, mode, start, end;
+};
+using ExportAudit = std::variant<FragmentExportAudit, CaseExportAudit>;
+void record_recording_change(postgresql::QuerySession& db, const std::string& site, const std::string& point,
                              const std::string& user, const std::string& action, const std::string& change,
-                             const Json& details = Json::object());
+                             const RecordingChange& details = {});
 void record_export(postgresql::Database&, const std::string& site, const std::string& point,
                    const std::string& user, const std::string& alert, const std::string& outcome,
-                   const std::string& reason, const std::string& details);
+                   const std::string& reason, const ExportAudit& details);
 } // namespace bacuri::vms::control::events

@@ -1,16 +1,17 @@
 // Device information, stream profiles and the channel check of a selected camera.
 #include "modules/inventory/onvif.hpp"
 #include "modules/inventory/onvif/soap.hpp"
+#include "modules/inventory/onvif/ticket_json.hpp"
 
 namespace bacuri::vms::control
 {
 using namespace onvif;
 
-Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::string& site,
-                   const std::string& selection_ticket, const CameraCredentials& credentials)
+InspectedCamera inspect_onvif(const CameraNetworks& networks, const Key& key, const std::string& site,
+                              const std::string& selection_ticket, const CameraCredentials& credentials)
 {
-    auto selection = read_ticket(key, "probe/" + site, selection_ticket);
-    const std::string url = selection.at("url"), ip = selection.at("ip");
+    auto selection = read_ticket<ProbeCandidate>(key, site, selection_ticket);
+    const std::string url = selection.url, ip = selection.ip;
     auto uri = https_uri(url);
     Object<GInetAddress> peer{g_inet_address_new_from_string(ip.c_str()), g_object_unref};
     if (!peer || !networks.contains(peer.get()))
@@ -18,25 +19,32 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
     CameraClient client{credentials, ip, g_uri_get_host(uri.get()), Clock::now() + 15s};
     auto info = client.call(url, device, "GetDeviceInformation");
     auto* identity = response(info, device, "GetDeviceInformationResponse");
-    Json result{{"endpoint_id", selection.at("id")},
-                {"model", value(child(identity, device, "Model"))},
-                {"manufacturer", value(child(identity, device, "Manufacturer"))},
-                {"firmware", value(child(identity, device, "FirmwareVersion"))},
-                {"serial", value(child(identity, device, "SerialNumber"))}};
+    CameraSelection enrollment{};
+    auto& camera = enrollment.identity;
+    camera.endpoint_id = selection.id;
+    camera.model = value(child(identity, device, "Model"));
+    camera.manufacturer = value(child(identity, device, "Manufacturer"));
+    camera.firmware = value(child(identity, device, "FirmwareVersion"));
+    camera.serial = value(child(identity, device, "SerialNumber"));
     auto caps = client.call(url, device, "GetCapabilities", "<tds:Category>All</tds:Category>");
     auto* services = child(response(caps, device, "GetCapabilitiesResponse"), device, "Capabilities");
     auto* legacy_media = child(child(services, schema, "Media"), schema, "XAddr");
     MediaService service{legacy_media ? value(legacy_media) : "", media};
-    result["ptz"] = child(services, schema, "PTZ") != nullptr;
-    result["events"] = child(services, schema, "Events") != nullptr;
-    Json options = Json::array();
-    Json control{{"ip", ip}, {"host", client.host}, {"device_service", url}};
-    for (const auto* name : {"PTZ", "Events", "Imaging"}) {
+    camera.ptz = child(services, schema, "PTZ") != nullptr;
+    camera.events = child(services, schema, "Events") != nullptr;
+    std::vector<CameraProfile> options;
+    auto& control = enrollment.services;
+    control.ip = ip;
+    control.host = client.host;
+    control.device_service = url;
+    for (auto [name, field] : {std::pair{"PTZ", &OnvifServices::ptz},
+                               {"Events", &OnvifServices::events},
+                               {"Imaging", &OnvifServices::imaging}}) {
         if (auto* address = child(child(services, schema, name), schema, "XAddr"))
-            control[name] = value(address);
+            control.*field = value(address);
     }
     if (auto* address = child(child(child(services, schema, "Extension"), schema, "DeviceIO"), schema, "XAddr"))
-        control["DeviceIO"] = value(address);
+        control.device_io = value(address);
     bool audio_output = false;
     try {
         auto list = client.call(url, device, "GetServices", "<tds:IncludeCapability>true</tds:IncludeCapability>");
@@ -54,13 +62,15 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
                 auto* io = child(child(item, device, "Capabilities"), device_io, "Capabilities");
                 audio_output = g_ascii_strtoull(attribute(io, "AudioOutputs").c_str(), nullptr, 10) > 0;
             }
-            for (auto [name, space] :
-                 {std::pair{"Events", events}, {"Imaging", imaging}, {"PTZ", ptz}, {"DeviceIO", device_io}}) {
+            for (auto [space, field] : {std::pair{events, &OnvifServices::events},
+                                        {imaging, &OnvifServices::imaging},
+                                        {ptz, &OnvifServices::ptz},
+                                        {device_io, &OnvifServices::device_io}}) {
                 if (space != ns || !address.starts_with("https://"))
                     continue;
                 auto endpoint = https_uri(address);
                 if (!g_ascii_strcasecmp(client.host.c_str(), g_uri_get_host(endpoint.get())))
-                    control[name] = address;
+                    control.*field = address;
             }
         }
     } catch (const Failure& error) {
@@ -68,23 +78,23 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         if (error.error != ErrorCode::camera_protocol_error)
             throw;
     }
-    if (control.contains("PTZ")) {
+    if (control.ptz) {
         try {
-            auto reply = client.call(control.at("PTZ"), ptz, "GetServiceCapabilities");
+            auto reply = client.call(*control.ptz, ptz, "GetServiceCapabilities");
             auto* capabilities =
                 child(response(reply, ptz, "GetServiceCapabilitiesResponse"), ptz, "Capabilities");
             const auto flag = attribute(capabilities, "StatusPosition");
             if (flag == "true" || flag == "1" || flag == "false" || flag == "0")
-                control["status_position"] = flag == "true" || flag == "1";
+                control.status_position = flag == "true" || flag == "1";
         } catch (const Failure&) {
             // Older services omit capability discovery. GetStatus can still report a position.
-            control["status_position"] = nullptr;
+            control.status_position.reset();
         }
     }
     if (auto* supported = child(child(services, schema, "Events"), schema, "WSPullPointSupport")) {
         auto flag = value(supported);
         if (flag != "true" && flag != "1")
-            control.erase("Events");
+            control.events.reset();
     }
     if (service.address.empty())
         throw Failure{ErrorCode::camera_incompatible_profiles};
@@ -97,11 +107,10 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         service = {value(legacy_media), media};
         profiles = service.profiles(client);
     }
-    control["media_service"] = service.address;
+    control.media_service = service.address;
     if (service.ns == media2)
-        control["media2"] = true;
-    Json controls = Json::object();
-    std::map<std::string, Json> ptz_options;
+        control.media2 = true;
+    std::map<std::string, std::optional<MoveOptions>> ptz_options;
     std::set<std::string> tokens, addresses;
     bool denied_transport = false;
     for (auto* p = response(profiles, service.ns, "GetProfilesResponse")->children; p; p = p->next) {
@@ -128,43 +137,52 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
         }
         if (!addresses.insert(address).second)
             continue;
-        Json selected{{"profile", id}, {"directions", Json::array()}};
-        selected["audio_input"] = service.configuration(p, "AudioSourceConfiguration", "AudioSource") != nullptr;
+        SelectedProfile selected{};
+        selected.profile = id;
+        selected.directions.emplace();
+        selected.audio_input = service.configuration(p, "AudioSourceConfiguration", "AudioSource") != nullptr;
         auto* io = child(child(services, schema, "Extension"), schema, "DeviceIO");
-        selected["audio_output"] =
+        selected.audio_output =
             audio_output || service.configuration(p, "AudioOutputConfiguration", "AudioOutput") ||
             child(child(p, schema, "Extension"), schema, "AudioOutputConfiguration") ||
             (child(io, schema, "AudioOutputs") &&
              g_ascii_strtoull(value(child(io, schema, "AudioOutputs")).c_str(), nullptr, 10) > 0);
         auto* source = service.configuration(p, "VideoSourceConfiguration", "VideoSource");
-        selected["source"] = attribute(source, "token");
+        selected.source = attribute(source, "token");
         auto* physical_source = child(source, schema, "SourceToken");
-        selected["channel"] = physical_source ? value(physical_source) : selected.at("source").get<std::string>();
-        selected["imaging_source"] = physical_source != nullptr;
+        selected.channel = physical_source ? value(physical_source) : *selected.source;
+        selected.imaging_source = physical_source != nullptr;
         auto config = attribute(service.configuration(p, "PTZConfiguration", "PTZ"), "token");
-        selected["ptz_profile"] = !config.empty();
-        if (!config.empty() && control.contains("PTZ")) {
+        selected.ptz_profile = !config.empty();
+        if (!config.empty() && control.ptz) {
             auto* cfg = service.configuration(p, "PTZConfiguration", "PTZ");
             if (auto* node = child(cfg, schema, "NodeToken"))
-                selected["node"] = value(node);
-            for (auto [field, element] : {std::pair{"pan_space", "DefaultAbsolutePantTiltPositionSpace"},
-                                          std::pair{"zoom_space", "DefaultAbsoluteZoomPositionSpace"}})
-                if (auto* node = child(cfg, schema, element))
-                    selected[field] = value(node);
-            if (!ptz_options.contains(config)) {
+                selected.node = value(node);
+            if (auto* node = child(cfg, schema, "DefaultAbsolutePantTiltPositionSpace"))
+                selected.pan_space = value(node);
+            if (auto* node = child(cfg, schema, "DefaultAbsoluteZoomPositionSpace"))
+                selected.zoom_space = value(node);
+            auto [options_it, inserted] = ptz_options.try_emplace(config);
+            if (inserted) {
                 try {
-                    ptz_options[config] = directions(client, control.at("PTZ"), config);
+                    options_it->second = directions(client, *control.ptz, config);
                 } catch (const Failure&) {
-                    ptz_options[config] = {{"directions", Json::array()}};
+                    // Cache unavailable move options for other streams using the same PTZ profile.
+                    options_it->second.reset();
                 }
             }
-            selected.update(ptz_options.at(config));
+            if (const auto& move = options_it->second) {
+                selected.directions = move->directions;
+                selected.relative_move = move->relative;
+            }
         }
-        Json option{{"token", id},
-                    {"name", value(child(p, service.ns == media2 ? media2 : schema, "Name"))},
-                    {"url", address},
-                    {"channel", selected.at("channel")},
-                    {"codec", encoding == "H264" ? "h264" : "h265"}};
+        CameraProfile option{id,
+                             value(child(p, service.ns == media2 ? media2 : schema, "Name")),
+                             address,
+                             *selected.channel,
+                             encoding == "H264" ? "h264" : "h265",
+                             {},
+                             {}};
         if (auto* resolution = child(enc, schema, "Resolution")) {
             auto dimension = [&](const char* name) {
                 const auto s = value(child(resolution, schema, name));
@@ -174,26 +192,30 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
                     throw Failure{ErrorCode::camera_protocol_error};
                 return n;
             };
-            option["width"] = dimension("Width");
-            option["height"] = dimension("Height");
+            option.width = static_cast<unsigned>(dimension("Width"));
+            option.height = static_cast<unsigned>(dimension("Height"));
         }
-        selected["stream_url"] = address;
-        selected["codec"] = option.at("codec");
-        selected["pixels"] = option.value("width", 0LL) * option.value("height", 0LL);
-        controls[fingerprint(key, "onvif-stream", address)] = std::move(selected);
+        selected.stream_url = address;
+        selected.codec = option.codec;
+        selected.pixels = std::int64_t{option.width.value_or(0)} * option.height.value_or(0);
+        enrollment.profiles[fingerprint(key, "onvif-stream", address)] = std::move(selected);
         options.push_back(std::move(option));
     }
     if (options.size() < 2)
         throw Failure{denied_transport ? ErrorCode::camera_transport_denied
                                        : ErrorCode::camera_incompatible_profiles};
-    Json enrollment = result;
-    enrollment["control"] = std::move(control);
-    enrollment["profiles"] = std::move(controls);
-    result["profiles"] = std::move(options);
-    result["selection"] = ticket(key, "camera/" + site, std::move(enrollment));
-    if (result.at("selection").get_ref<const std::string&>().size() > 24576)
+    auto selection_ticket_out = issue_ticket(key, site, enrollment);
+    if (selection_ticket_out.size() > 24576)
         throw Failure{ErrorCode::camera_protocol_error};
-    return result;
+    return {std::move(camera.endpoint_id),
+            std::move(camera.manufacturer),
+            std::move(camera.model),
+            std::move(camera.firmware),
+            std::move(camera.serial),
+            std::move(selection_ticket_out),
+            camera.ptz,
+            camera.events,
+            std::move(options)};
 }
 
 void verify_camera_channel(const CameraNetworks& networks, const CameraChannel& config)
@@ -232,8 +254,8 @@ void verify_camera_channel(const CameraNetworks& networks, const CameraChannel& 
     verify_stream(required_setting(control.secondary_profile), config.secondary_url);
 }
 
-Json read_camera_ticket(const Key& key, const std::string& site, const std::string& token)
+CameraSelection read_camera_ticket(const Key& key, const std::string& site, const std::string& token)
 {
-    return read_ticket(key, "camera/" + site, token);
+    return read_ticket<CameraSelection>(key, site, token);
 }
 } // namespace bacuri::vms::control

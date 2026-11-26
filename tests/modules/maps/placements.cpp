@@ -1,3 +1,5 @@
+#include "application/control_api/http_json.hpp"
+#include "modules/maps/georeference_json.hpp"
 #include "modules/maps/georeference.hpp"
 #include "modules/maps/operations.hpp"
 #include "storage/postgresql/query_mock.hpp"

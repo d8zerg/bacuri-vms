@@ -1,3 +1,4 @@
+#include "archive/trusted_key_json.hpp"
 #include "archive/verify.hpp"
 #include <sodium.h>
 #include <fstream>
@@ -11,12 +12,13 @@ try {
     if (sodium_init() < 0)
         throw std::runtime_error("Cannot initialize cryptography");
     std::ifstream key{argv[1]};
-    const auto manifest = bacuri::vms::archive::verify_evidence(argv[2], nlohmann::json::parse(key));
-    if (argc == 6 &&
-        (manifest.at("point_id") != std::string{argv[3]} || manifest.at("begin_utc_us").dump() != argv[4] ||
-         manifest.at("end_utc_us").dump() != argv[5]))
+    const auto manifest = bacuri::vms::archive::verify_evidence(
+        argv[2], nlohmann::json::parse(key).get<bacuri::vms::archive::TrustedExportKey>());
+    if (argc == 6 && (!manifest.fragment || manifest.fragment->point_id != argv[3] ||
+                      std::to_string(manifest.fragment->begin_us) != argv[4] ||
+                      std::to_string(manifest.fragment->end_us) != argv[5]))
         throw std::invalid_argument("Evidence does not match the expected point and interval");
-    std::cout << manifest.dump(2) << '\n';
+    std::cout << nlohmann::json::parse(manifest.signed_manifest).dump(2) << '\n';
     return 0;
 } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';

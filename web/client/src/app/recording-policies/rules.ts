@@ -1,3 +1,4 @@
+import "../../i18n/extended";
 // Recording rules: defaults, schedule periods, archive depth and state names.
 import type { CaptureRule, Services } from "../../contracts/workspace";
 import { formatNumber, t as translate, type MessageKey } from "../../i18n";

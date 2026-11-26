@@ -1,11 +1,23 @@
 #pragma once
+#include <optional>
 #include "modules/access/session.hpp"
 #include <stop_token>
 namespace bacuri::vms::control::access
 {
-Json oidc_provider(postgresql::Database&, const Request&, const Key&, const std::string&);
-Json external_identity(postgresql::Database&, const Request&, const std::string&, const std::string&);
-Json configure_provider(postgresql::Database&, const Key&, const std::string& site, const Json&);
-Json bind_identity(postgresql::Database&, const std::string& site, const std::string& user, const Json&);
+struct IdentityProvider {
+    bool enabled{};
+    std::string issuer, client_id, admin_acr;
+};
+struct ProviderSettings {
+    IdentityProvider provider;
+    std::optional<std::string> client_secret;
+};
+struct ExternalIdentity {
+    std::string issuer, subject;
+};
+std::optional<IdentityProvider> oidc_provider(postgresql::QuerySession&, const std::string& site);
+void configure_provider(postgresql::QuerySession&, const Key&, const std::string& site, const ProviderSettings&);
+void bind_identity(postgresql::QuerySession&, const std::string& site, const std::string& user,
+                   const std::optional<ExternalIdentity>&);
 void refresh_identities(const std::stop_token&, const Key&);
 } // namespace bacuri::vms::control::access

@@ -1,4 +1,4 @@
-import { expect, test } from "playwright/test";
+import { expect, test } from "./browser.mjs";
 
 const monitor = "/iframe.html?viewMode=story&id=workspace--monitor";
 

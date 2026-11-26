@@ -96,6 +96,18 @@ TEST_F(ExportPermission, RefusesBothFormatsWithoutViewPermission)
                     testing::Throws<Failure>(testing::Field(&Failure::error, ErrorCode::forbidden)));
     }
 }
+TEST_F(ExportPermission, MasksTheEntireImageForAnEmptyPolicyAndKeepsExplicitRegions)
+{
+    const testing::InSequence order;
+    db.expect("privacy_policies", {"site", "point"});
+    EXPECT_TRUE(access::export_regions(db, "site", "point").empty());
+    db.expect("privacy_policies", {"site", "point"}, {{"[]"}});
+    EXPECT_THAT(access::export_regions(db, "site", "point"),
+                testing::ElementsAre(domain::ImageRegion{0, 0, 1, 1}));
+    db.expect("privacy_policies", {"site", "point"}, {{R"([{"left":0.2,"top":0,"right":1,"bottom":0.8}])"}});
+    EXPECT_THAT(access::export_regions(db, "site", "point"),
+                testing::ElementsAre(domain::ImageRegion{0.2, 0, 1, 0.8}));
+}
 TEST_F(ExportPermission, PrivacyPolicyWithEmptyRegionsBlocksOriginalExport)
 {
     const testing::InSequence order;

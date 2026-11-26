@@ -8,8 +8,6 @@ import { newRecording } from "./recording";
 import { pause } from "../workflows/pause";
 import { api, data, HttpFailure } from "./api";
 import { subscribe } from "./feed";
-import { attach, mediaFailure } from "./video";
-import { factorAnswer } from "./webauthn";
 type Registration = {
   key: string;
   initial: CameraDraft;
@@ -209,6 +207,7 @@ export function createServices(): Services {
           csrf = stage.csrf_token;
           return stage;
         }
+        const { factorAnswer } = await import("./webauthn");
         const verified = await api.POST("/session/webauthn", {
           body: await factorAnswer(stage, username),
         });
@@ -584,6 +583,7 @@ export function createServices(): Services {
       video.muted = true;
       video.playsInline = true;
       const liveSignal = AbortSignal.any([signal, probe.signal]);
+      const { attach } = await import("./video");
       const [main, secondary] = await Promise.allSettled([
         newRecording(
           site,
@@ -682,6 +682,7 @@ export function createServices(): Services {
       renew,
       archiveOrigin,
     ) {
+      const { attach, mediaFailure } = await import("./video");
       try {
         await attach(
           video,

@@ -9,7 +9,7 @@ class RecordingPlan
 {
   public:
     explicit RecordingPlan(const std::filesystem::path& archive_root);
-    void update(std::string payload);
+    void update(PointPolicies rules);
     std::shared_ptr<const CaptureRule> rule(const std::string& point) const;
 
   private:

@@ -1,3 +1,5 @@
+#include "application/control_api/http_json.hpp"
+#include "recording/policy_json.hpp"
 #include "domain/archive.hpp"
 #include "modules/inventory/registry.hpp"
 #include "modules/access/operations.hpp"

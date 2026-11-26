@@ -1,3 +1,4 @@
+#include <nlohmann/json.hpp>
 #include "platform/camera_networks.hpp"
 #include "platform/rpc_status.hpp"
 #include "platform/identifiers.hpp"
@@ -29,6 +30,51 @@
 #include <semaphore>
 #include <stdexcept>
 #include <utility>
+
+namespace bacuri::vms::archive
+{
+void to_json(nlohmann::json& j, const ArchiveStatus& s)
+{
+    auto nullable = [](const auto& v) { return v ? nlohmann::json(*v) : nlohmann::json(nullptr); };
+    j = {{"committed", s.committed},
+         {"pending", s.pending},
+         {"missing", s.missing},
+         {"corrupt", s.corrupt},
+         {"rejected", s.rejected},
+         {"media_bytes", s.media_bytes},
+         {"removed_blocks", s.removed_blocks},
+         {"reserve_percent", s.reserve_percent},
+         {"capacity_bytes", s.capacity_bytes},
+         {"available_bytes", s.available_bytes},
+         {"reserve_bytes", s.reserve_bytes},
+         {"last_commit_utc_us", nullable(s.last_commit_utc_us)},
+         {"retention_days", nullable(s.retention_days)},
+         {"cutoff_utc_us", nullable(s.cutoff_utc_us)},
+         {"write_bytes_per_second", nullable(s.write_bytes_per_second)},
+         {"capacity_depth_seconds", nullable(s.capacity_depth_seconds)},
+         {"estimated_depth_seconds", nullable(s.estimated_depth_seconds)},
+         {"remaining_seconds", nullable(s.remaining_seconds)}};
+    switch (s.state) {
+    case CapacityState::normal:
+        j["state"] = "normal";
+        break;
+    case CapacityState::low_space:
+        j["state"] = "low_space";
+        break;
+    case CapacityState::recording_stopped:
+        j["state"] = "recording_stopped";
+        break;
+    }
+    if (s.replica) {
+        const auto& r = *s.replica;
+        j["replica"] = {{"verified", r.verified},
+                        {"failed", r.failed},
+                        {"pending", r.pending},
+                        {"last_checked_us", r.last_checked_us},
+                        {"online", r.online}};
+    }
+}
+} // namespace bacuri::vms::archive
 
 namespace bacuri::vms
 {
@@ -198,7 +244,7 @@ class Recorder final : public v1::RecorderControl::Service
         if (q->site_id() != site_ || q->recording_node_id() != node_)
             return platform::rpc_status(ErrorCode::assignment_mismatch);
         try {
-            auto status = volume_.status();
+            nlohmann::json status = volume_.status();
             std::scoped_lock guard{mutex_};
             status["point_states"] = sources_.recording_states();
             out->set_status_json(status.dump());
@@ -458,7 +504,7 @@ try {
         const auto status = bacuri::vms::archive::archive_status(
             bacuri::vms::platform::setting("BACURI_ARCHIVE_DIR"),
             bacuri::vms::platform::optional_setting("BACURI_ARCHIVE_REPLICA_DIR"));
-        std::puts(status.dump().c_str());
+        std::puts(nlohmann::json(status).dump().c_str());
         return 0;
     }
     if (argc != 1) {

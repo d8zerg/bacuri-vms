@@ -1,3 +1,4 @@
+#include "application/control_api/http_json.hpp"
 #include "modules/media_sessions/playback_operations.hpp"
 #include "application/control_api/playback_time.hpp"
 #include "modules/access/operations.hpp"
@@ -7,18 +8,12 @@
 namespace bacuri::vms::control::playback
 {
 using namespace std::chrono_literals;
-Json search(postgresql::Database& db, const Key& key, const PointAccess& access, Json params,
-            std::optional<std::int64_t> binding)
+ArchivePage search(postgresql::Database& db, const Key& key, const PointAccess& access, const SearchQuery& query,
+                   std::optional<std::int64_t> binding)
 {
-    const auto cursor = params.value("cursor", std::string{});
-    const bool continued = params.erase("cursor") != 0;
-    const auto presentation = params.value("presentation", "");
-    if (!presentation.empty() && presentation != "masked")
-        throw Failure{ErrorCode::invalid_request};
-    params.erase("presentation");
-    const auto bounds = window(params);
+    const auto bounds = query.interval;
     const auto mask =
-        presentation == "masked" ? access::delivery_regions(db, access.site, access.point, "archive") : "";
+        query.masked ? access::delivery_regions(db, access.site, access.point, "archive") : domain::ImageRegions{};
     if (!access::allowed(db, access.site, access.user, access.point, "view", mask.empty() ? "archive" : "",
                          std::to_string(bounds.start), std::to_string(bounds.end)))
         throw Failure{ErrorCode::not_found};
@@ -27,7 +22,8 @@ Json search(postgresql::Database& db, const Key& key, const PointAccess& access,
     const auto context =
         Json::array({"archive", access.browser, access.role, access.site, access.point, bounds.start, bounds.end})
             .dump();
-    if (continued) {
+    if (query.cursor) {
+        const auto& cursor = *query.cursor;
         try {
             if (cursor.empty() || cursor.size() > 1024) {
                 throw std::invalid_argument("Invalid cursor");
@@ -54,7 +50,7 @@ Json search(postgresql::Database& db, const Key& key, const PointAccess& access,
         q.set_binding_revision(*binding);
     }
     v1::PendingIntervals pending;
-    Json local = Json::array();
+    std::vector<recordings::PendingInterval> local;
     auto horizon = bounds.end;
     if (recorder->ListPending(&rpc, q, &pending).ok()) {
         for (const auto& interval : pending.intervals()) {
@@ -62,34 +58,18 @@ Json search(postgresql::Database& db, const Key& key, const PointAccess& access,
                 horizon = interval.begin_us();
                 break;
             }
-            local.push_back({{"a", interval.begin_us()}, {"b", interval.end_us()}});
+            local.push_back({interval.begin_us(), interval.end_us()});
         }
     }
-    auto rows =
-        recordings::coverage(db, access.site, access.point, std::to_string(position), std::to_string(horizon),
-                             local.dump(), binding ? std::to_string(*binding) : "");
-    auto items = Json::array();
-    for (const auto& row : rows) {
-        if (items.size() == 1000)
-            break;
-        Window span{row.begin, row.end};
-        Json entry{{"interval", span.json()}, {"state", row.state}};
-        if (auto basis = row.time_basis; !basis.empty()) {
-            entry["time_basis"] = basis;
-        }
-        if (auto uncertainty = row.uncertainty; !uncertainty.empty()) {
-            entry["uncertainty_us"] = uncertainty;
-        }
-        if (auto reason = row.reason; !reason.empty()) {
-            entry["reason"] = reason;
-        }
-        items.push_back(std::move(entry));
-        position = span.end;
-    }
-    Json page{{"items", std::move(items)}};
-    if (position < bounds.end) {
-        page["next_cursor"] = seal(key, context, std::to_string(position)).substr(3);
-    }
+    auto rows = recordings::coverage(db, access.site, access.point, std::to_string(position),
+                                     std::to_string(horizon), local, binding ? std::to_string(*binding) : "");
+    if (rows.size() > 1000)
+        rows.resize(1000);
+    if (!rows.empty())
+        position = rows.back().end;
+    ArchivePage page{std::move(rows), {}};
+    if (position < bounds.end)
+        page.next_cursor = seal(key, context, std::to_string(position)).substr(3);
     return page;
 }
 } // namespace bacuri::vms::control::playback

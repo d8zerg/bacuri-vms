@@ -1,3 +1,4 @@
+import "../i18n/extended";
 import { lazy, Suspense } from "react";
 
 import { SubsectionMenu } from "./SubsectionMenu";

@@ -1,3 +1,4 @@
+#include "application/control_api/http_json.hpp"
 #include "modules/access/oidc.hpp"
 #include "modules/access/operations.hpp"
 #include <curl/curl.h>
@@ -185,31 +186,34 @@ std::string flow_cookie(const Request& req)
 } // namespace
 namespace access
 {
-Json oidc_provider(postgresql::Database& db, const Request& req, const Key& key, const std::string& site)
+std::optional<IdentityProvider> oidc_provider(postgresql::QuerySession& db, const std::string& site)
 {
-    if (req.method() == http::verb::get) {
-        auto rows = db.exec(
-            "SELECT "
-            "jsonb_build_object('enabled',enabled,'issuer',issuer,'client_id',client_id,'admin_acr',admin_acr) "
-            "FROM bacuri_access.identity_providers WHERE site_id=$1",
-            {site});
-        return rows.size() ? Json::parse(rows.get(0)) : Json{{"enabled", false}};
-    }
-    if (req.method() != http::verb::put)
-        throw Failure{ErrorCode::method_not_allowed};
-    return configure_provider(db, key, site,
-                              object_body(req, {"enabled", "issuer", "client_id", "client_secret", "admin_acr"}));
+    auto rows =
+        db.exec("SELECT enabled,issuer,client_id,admin_acr FROM bacuri_access.identity_providers WHERE site_id=$1",
+                {site});
+    if (!rows.size())
+        return {};
+    return IdentityProvider{rows.get(0) == "t", rows.get(0, 1), rows.get(0, 2), rows.get(0, 3)};
 }
-Json configure_provider(postgresql::Database& db, const Key& key, const std::string& site, const Json& body)
+namespace
 {
-    auto issuer = string_field(body, "issuer", 1024), client = string_field(body, "client_id", 128),
-         acr = string_field(body, "admin_acr", 128);
-    if (!issuer_url(issuer) || !body.contains("enabled") || !body["enabled"].is_boolean() || acr == "0" ||
-        acr == "1")
+bool valid_field(const std::string& s, std::size_t limit)
+{
+    return !s.empty() && !s.contains('\0') &&
+           static_cast<std::size_t>(
+               std::ranges::count_if(s, [](unsigned char c) { return (c & 0xc0) != 0x80; })) <= limit;
+}
+} // namespace
+void configure_provider(postgresql::QuerySession& db, const Key& key, const std::string& site,
+                        const ProviderSettings& settings)
+{
+    const auto& [enabled, issuer, client, acr] = settings.provider;
+    if (!valid_field(issuer, 1024) || !valid_field(client, 128) || !valid_field(acr, 128) || !issuer_url(issuer) ||
+        acr == "0" || acr == "1" || (settings.client_secret && !valid_field(*settings.client_secret, 2048)))
         throw Failure{ErrorCode::invalid_request};
     std::string secret;
-    if (body.contains("client_secret"))
-        secret = seal(key, "oidc-provider/" + site, string_field(body, "client_secret", 2048));
+    if (settings.client_secret)
+        secret = seal(key, "oidc-provider/" + site, *settings.client_secret);
     else {
         auto old = db.exec("SELECT sealed_secret FROM bacuri_access.identity_providers WHERE site_id=$1 AND "
                            "issuer=$2 AND client_id=$3",
@@ -222,30 +226,23 @@ Json configure_provider(postgresql::Database& db, const Key& key, const std::str
             "UPDATE SET "
             "enabled=excluded.enabled,issuer=excluded.issuer,client_id=excluded.client_id,sealed_secret=excluded."
             "sealed_secret,admin_acr=excluded.admin_acr",
-            {site, body["enabled"] == true ? "true" : "false", issuer, client, secret, acr});
+            {site, enabled ? "true" : "false", issuer, client, secret, acr});
     db.exec("DELETE FROM bacuri_access.browser_sessions WHERE oidc_site=$1", {site});
     db.exec("DELETE FROM bacuri_access.oidc_requests WHERE site_id=$1", {site});
-    return {{"id", site}};
 }
-Json external_identity(postgresql::Database& db, const Request& req, const std::string& site,
-                       const std::string& user)
-{
-    if (req.method() != http::verb::delete_ && req.method() != http::verb::put)
-        throw Failure{ErrorCode::method_not_allowed};
-    return bind_identity(db, site, user,
-                         req.method() == http::verb::delete_ ? Json(nullptr)
-                                                             : object_body(req, {"issuer", "subject"}));
-}
-Json bind_identity(postgresql::Database& db, const std::string& site, const std::string& user, const Json& body)
+void bind_identity(postgresql::QuerySession& db, const std::string& site, const std::string& user,
+                   const std::optional<ExternalIdentity>& identity)
 {
     if (!canonical_id(user) ||
         !db.exec("SELECT FROM bacuri_access.site_roles WHERE site_id=$1 AND user_id=$2 FOR UPDATE", {site, user})
              .size())
         throw Failure{ErrorCode::not_found};
-    if (body.is_null())
+    if (!identity)
         db.exec("DELETE FROM bacuri_access.external_identities WHERE site_id=$1 AND user_id=$2", {site, user});
     else {
-        auto issuer = string_field(body, "issuer", 1024), subject = string_field(body, "subject", 255);
+        const auto& [issuer, subject] = *identity;
+        if (!valid_field(issuer, 1024) || !valid_field(subject, 255))
+            throw Failure{ErrorCode::invalid_request};
         if (!db.exec("SELECT FROM bacuri_access.identity_providers WHERE site_id=$1 AND issuer=$2", {site, issuer})
                  .size())
             throw Failure{ErrorCode::invalid_request};
@@ -260,7 +257,6 @@ Json bind_identity(postgresql::Database& db, const std::string& site, const std:
                 {site, user, issuer, subject});
     }
     db.exec("DELETE FROM bacuri_access.browser_sessions WHERE oidc_site=$1 AND user_id=$2", {site, user});
-    return {{"id", user}};
 }
 } // namespace access
 

@@ -5,11 +5,11 @@
 namespace bacuri::vms::control
 {
 using namespace std::chrono_literals;
-Json export_audio(const archive::BlockManifest& source, std::int64_t begin, std::int64_t end, const fs::path& dir,
-                  const std::string& file)
+std::optional<ExportedAudio> export_audio(const archive::BlockManifest& source, std::int64_t begin,
+                                          std::int64_t end, const fs::path& dir, const std::string& file)
 {
     if (!source.audio)
-        return nullptr;
+        return {};
     const auto& a = *source.audio;
     const auto start = a.start_us, size = a.size_bytes;
     using Pcm = domain::ArchiveSound;
@@ -18,7 +18,7 @@ Json export_audio(const archive::BlockManifest& source, std::int64_t begin, std:
         std::clamp<std::int64_t>((begin - start + Pcm::sample_period_us - 1) / Pcm::sample_period_us, 0, samples);
     const auto last = std::clamp<std::int64_t>((end - start) / Pcm::sample_period_us, 0, samples);
     if (last <= first)
-        return nullptr;
+        return {};
     std::string pcm;
     auto stub = v1::RecorderControl::NewStub(media::local_channel("BACURI_SOCKET"));
     for (auto offset = first * Pcm::bytes_per_sample; offset < last * Pcm::bytes_per_sample;) {
@@ -64,13 +64,7 @@ Json export_audio(const archive::BlockManifest& source, std::int64_t begin, std:
     wav += pcm;
     write_text(dir / file, wav);
     const auto digest = archive::file_digest(dir / file);
-    return {{"file", file},
-            {"codec", "pcm_s16le"},
-            {"sample_rate", Pcm::sample_rate},
-            {"channels", 1},
-            {"sha256", digest.sha256},
-            {"size_bytes", digest.bytes},
-            {"begin_utc_us", start + first * Pcm::sample_period_us},
-            {"end_utc_us", start + last * Pcm::sample_period_us}};
+    return ExportedAudio{file, digest, start + first * Pcm::sample_period_us,
+                         start + last * Pcm::sample_period_us};
 }
 } // namespace bacuri::vms::control

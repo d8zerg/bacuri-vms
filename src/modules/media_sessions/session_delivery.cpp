@@ -1,5 +1,8 @@
+#include "application/control_api/http_json.hpp"
+#include "archive/manifest_json.hpp"
+#include "domain/image_region_json.hpp"
 #include "modules/media_sessions/playback.hpp"
-#include "application/control_api/playback_time.hpp"
+#include "application/control_api/playback_time_json.hpp"
 #include "modules/access/operations.hpp"
 #include "modules/recordings/operations.hpp"
 #include "media/lease.hpp"
@@ -112,15 +115,37 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
     const bool closing = operation.empty();
     const bool offer = operation == "offer";
     allow(req, res, {closing ? http::verb::delete_ : offer ? http::verb::post : http::verb::get});
-    postgresql::Database db;
-    auto who = sessions_.authenticate(db, req, closing || offer, closing || offer);
-    auto browser = fingerprint(key_, "session", who.cookie);
     if (closing) {
-        db.exec("UPDATE bacuri_media_sessions.media_sessions SET closed=true WHERE id=$1 AND browser=$2",
-                {id, browser});
+        v1::LiveSessionRef live;
+        {
+            postgresql::Database db;
+            const auto who = sessions_.authenticate(db, req, true, true);
+            const auto browser = fingerprint(key_, "session", who.cookie);
+            const auto row =
+                db.exec("UPDATE bacuri_media_sessions.media_sessions SET closed=true WHERE id=$1 AND browser=$2 "
+                        "RETURNING begin_us IS NULL",
+                        {id, browser});
+            if (row.size() && row.get(0) == "t") {
+                live.set_media_session_id(id);
+                live.set_browser_session_id(browser);
+            }
+        }
+        if (!live.media_session_id().empty()) {
+            auto stub = v1::LiveDelivery::NewStub(media::local_channel("BACURI_MEDIA_SOCKET"));
+            grpc::ClientContext context;
+            context.set_deadline(std::chrono::system_clock::now() + 3s);
+            google::protobuf::Empty ack;
+            const auto status = stub->Close(&context, live, &ack);
+            // A stopped delivery service has no local peer. The database already denies further access.
+            if (!status.ok() && status.error_code() != grpc::StatusCode::UNAVAILABLE)
+                throw Failure{ErrorCode::media_service_unavailable};
+        }
         res.result(http::status::no_content);
         return;
     }
+    postgresql::Database db;
+    auto who = sessions_.authenticate(db, req, offer, offer);
+    auto browser = fingerprint(key_, "session", who.cookie);
     db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     auto session = db.exec(
         "SELECT site_id,point_id,begin_us,end_us,closed OR "
@@ -132,7 +157,8 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
     const auto surface = session.get(0, 2).empty() ? "live" : "archive";
     const auto video = Json::parse(session.get(0, 7));
     const std::string mask = video.value("mask", "");
-    if (!mask.empty() && access::delivery_regions(db, session.get(0), session.get(0, 1), surface) != mask)
+    if (!mask.empty() &&
+        access::delivery_regions(db, session.get(0), session.get(0, 1), surface) != domain::decode_regions(mask))
         throw Failure{ErrorCode::not_found};
     const auto expiry =
         access::browser_point_expiry(db, browser, session.get(0), session.get(0, 1), mask.empty() ? surface : "",
@@ -201,7 +227,7 @@ void Playback::session(const Request& req, Response& res, const std::string& id,
                              {"media_id", row.media},
                              {"source_codec", row.codec},
                              {"codec", video.value("converted", false) ? "h264" : row.codec},
-                             {"interval", Window{row.begin, row.end}.json()}});
+                             {"interval", Window{row.begin, row.end}}});
         }
         lease.deadline();
         respond(res, {{"mime_type", "video/mp4"}, {"parts", std::move(parts)}});

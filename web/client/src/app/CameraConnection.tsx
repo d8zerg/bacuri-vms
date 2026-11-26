@@ -1,3 +1,4 @@
+import "../i18n/extended";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   Camera,

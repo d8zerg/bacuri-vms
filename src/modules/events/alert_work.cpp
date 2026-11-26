@@ -1,3 +1,4 @@
+#include "application/control_api/http_json.hpp"
 #include "modules/events/workflow.hpp"
 #include "modules/inventory/operations.hpp"
 #include "modules/access/operations.hpp"

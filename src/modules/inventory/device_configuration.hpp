@@ -1,5 +1,5 @@
 #pragma once
-#include <nlohmann/json_fwd.hpp>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -23,7 +23,4 @@ struct CameraChannel {
     CameraCredentials credentials;
     std::string serial, model, firmware, main_url, secondary_url;
 };
-CameraControl camera_control(const nlohmann::json& stored);
-CameraCredentials camera_credentials(const nlohmann::json& stored);
-CameraChannel camera_channel(const nlohmann::json& stored);
 } // namespace bacuri::vms::control

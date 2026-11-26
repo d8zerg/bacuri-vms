@@ -1,3 +1,4 @@
+#include "storage/postgresql/configuration_snapshot.hpp"
 #include "modules/recordings/configuration.hpp"
 namespace bacuri::vms::control::recordings
 {

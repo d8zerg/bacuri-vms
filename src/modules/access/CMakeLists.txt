@@ -11,7 +11,7 @@ target_link_libraries(bacuri-vms-access PUBLIC bacuri-vms-control-api
 target_link_libraries(bacuri-vms-access PRIVATE bacuri-vms-configuration-snapshot)
 
 add_core_module_checks(bacuri-vms-access
-    TESTS access.cpp authorization.cpp)
+    TESTS access.cpp authorization.cpp oidc.cpp)
 
 if(BUILD_TESTING)
     # The access library alone must not resolve a lookup owned by maps.

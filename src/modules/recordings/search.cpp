@@ -1,10 +1,13 @@
+#include "application/control_api/http_json.hpp"
+#include "modules/events/video_json.hpp"
+#include "archive/analysis_json.hpp"
 #include "modules/maps/operations.hpp"
 #include "modules/events/video_rules.hpp"
 #include "modules/recordings/search.hpp"
 #include "modules/recordings/operations.hpp"
 #include "modules/access/operations.hpp"
 #include "modules/access/session.hpp"
-#include "application/control_api/playback_time.hpp"
+#include "application/control_api/playback_time_json.hpp"
 #include "archive/analysis.hpp"
 #include <set>
 
@@ -29,7 +32,7 @@ void search_index(const Request& req, Response& res, const Sessions& sessions, c
     std::vector<archive::MotionArea> roi;
     try {
         if (body.contains("region") && !body.at("region").is_null())
-            roi.push_back(archive::MotionArea::parse(body.at("region")));
+            roi.push_back(body.at("region").get<archive::MotionArea>());
         threshold = body.value("threshold", 24);
         minimum = body.value("min_cells", 1);
         motion = body.value("motion", true);
@@ -61,17 +64,16 @@ void search_index(const Request& req, Response& res, const Sessions& sessions, c
                 permitted = false;
                 break;
             }
-            for (const auto& r : Json::parse(mask))
-                masks.push_back(archive::MotionArea::parse(r));
+            masks.insert(masks.end(), mask.begin(), mask.end());
         }
         if (!permitted || (!plan.empty() && !point_on_plan(db, site, point, plan)))
             continue;
-        auto contexts =
-            masks.empty() ? events::video_context(db, site, point, span.start, span.end, event) : Json::array();
+        auto contexts = masks.empty() ? events::video_context(db, site, point, span.start, span.end, event)
+                                      : std::vector<events::VideoEvent>{};
         std::vector<std::int64_t> anchors;
         if (!event.empty()) {
             for (const auto& item : contexts)
-                anchors.push_back(parse_utc(item.at("at")));
+                anchors.push_back(item.at);
         }
 
         Json row{{"point_id", point},       {"coverage", Json::array()}, {"hits", Json::array()},
@@ -114,7 +116,7 @@ void search_index(const Request& req, Response& res, const Sessions& sessions, c
             }
             if (last > first)
                 row["coverage"].push_back(
-                    {{"interval", Window{first, last}.json()},
+                    {{"interval", Window{first, last}},
                      {"indexed", index.has_value()},
                      {"basis", b.basis},
                      {"uncertainty_us", b.uncertainty ? Json(*b.uncertainty) : Json(nullptr)},
@@ -126,13 +128,11 @@ void search_index(const Request& req, Response& res, const Sessions& sessions, c
             row["next"] = ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(horizon));
         if (horizon > span.start)
             for (const auto& hole :
-                 coverage(db, site, point, std::to_string(span.start), std::to_string(horizon), "[]", ""))
+                 coverage(db, site, point, std::to_string(span.start), std::to_string(horizon), {}, ""))
                 if (hole.state != "recorded")
-                    row["gaps"].push_back(
-                        {{"interval", Window{hole.begin, hole.end}.json()}, {"reason", hole.reason}});
-        std::erase_if(contexts.get_ref<Json::array_t&>(),
-                      [&](const Json& item) { return parse_utc(item.at("at")) >= horizon; });
-        row["events"] = std::move(contexts);
+                    row["gaps"].push_back({{"interval", Window{hole.begin, hole.end}}, {"reason", hole.reason}});
+        std::erase_if(contexts, [&](const auto& item) { return item.at >= horizon; });
+        row["events"] = events::video_events_json(db, site, point, contexts);
         result.push_back(std::move(row));
     }
     db.exec("COMMIT");

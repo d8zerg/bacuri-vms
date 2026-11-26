@@ -1,3 +1,4 @@
+import "../i18n/extended";
 import type { CSSProperties } from "react";
 import type { Placement } from "../contracts/workspace";
 import icons from "../../../../design/bacuri/icons/sprite.svg";

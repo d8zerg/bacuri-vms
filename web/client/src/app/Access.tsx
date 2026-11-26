@@ -1,3 +1,4 @@
+import "../i18n/extended";
 import { FilterPanel, matchesQuery } from "../ui-kit/FilterPanel";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";

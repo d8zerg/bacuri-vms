@@ -85,7 +85,8 @@ struct Pipeline {
 };
 } // namespace
 ClipFrames select_frames(const std::filesystem::path& input, const std::filesystem::path& output,
-                         std::int64_t from_us, std::int64_t until_us, bool fragmented, std::string_view regions)
+                         std::int64_t from_us, std::int64_t until_us, bool fragmented,
+                         const domain::ImageRegions& regions)
 {
     if (from_us < 0 || until_us <= from_us)
         throw std::invalid_argument("Invalid export interval");

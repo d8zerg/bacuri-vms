@@ -1,3 +1,4 @@
+import "../i18n/extended";
 import { useResource } from "../adapters/resource";
 import { useEffect, useRef, useState } from "react";
 import type {

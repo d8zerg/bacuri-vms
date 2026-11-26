@@ -1,3 +1,4 @@
+import "../i18n/extended";
 import {
   catalogMessage,
   describeError,

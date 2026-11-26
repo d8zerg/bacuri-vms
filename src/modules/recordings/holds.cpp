@@ -1,9 +1,10 @@
+#include "application/control_api/http_json.hpp"
 #include "modules/recordings/policies.hpp"
 #include "modules/recordings/operations.hpp"
 #include "modules/access/session.hpp"
 #include "modules/access/operations.hpp"
 #include "modules/events/operations.hpp"
-#include "application/control_api/playback_time.hpp"
+#include "application/control_api/playback_time_json.hpp"
 #include "archive/manifest.hpp"
 #include "modules/recordings/holds.hpp"
 
@@ -24,7 +25,7 @@ bool can_view(postgresql::QuerySession& db, const std::string& site, const std::
     return access::allowed(db, site, user, point, "view", mask.empty() ? "archive" : "",
                            std::to_string(span.start), std::to_string(span.end));
 }
-void protect(postgresql::Database& db, const std::string& site, const std::string& actor, Window span,
+void protect(postgresql::QuerySession& db, const std::string& site, const std::string& actor, Window span,
              const std::string& owner, const std::string& point, const std::string& id, const std::string& reason,
              std::int64_t expiry)
 {
@@ -54,19 +55,18 @@ void lock_archive(postgresql::Database& db, const std::string& site)
     db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,1))", {site});
     require_available(db, site);
 }
-std::int64_t expires(const Json& body)
+std::int64_t expires(const std::string& timestamp)
 {
-    auto expiry = parse_utc(string_field(body, "expires_at", 32));
+    auto expiry = parse_utc(timestamp);
     require(expiry > g_get_real_time());
     return expiry;
 }
-std::string reason_field(const Json& body)
+std::string hold_reason(std::string value)
 {
-    auto value = string_field(body, "reason", 512);
     require(value.find_first_not_of(" \t\r\n") != value.npos);
     return value;
 }
-void release_hold(postgresql::Database& db, const std::string& site, const std::string& id)
+void release_hold(postgresql::QuerySession& db, const std::string& site, const std::string& id)
 {
     db.exec("DELETE FROM bacuri_archive.archive_holds WHERE site_id=$1 AND id=$2", {site, id});
 }
@@ -85,7 +85,8 @@ void holds(const Request& req, Response& res, const Sessions& sessions, const st
         auto body = object_body(req, {"interval", "reason", "expires_at"});
         require(body.contains("interval"));
         const auto id = archive::uuid();
-        protect(db, site, user, window(body.at("interval")), user, point, id, reason_field(body), expires(body));
+        protect(db, site, user, window(body.at("interval")), user, point, id,
+                hold_reason(string_field(body, "reason", 512)), expires(string_field(body, "expires_at", 32)));
         respond(res, {{"id", id}}, 201);
     } else {
         auto rows = db.exec("SELECT id,begin_us,end_us,owner_id,reason,expires_us FROM "
@@ -98,7 +99,7 @@ void holds(const Request& req, Response& res, const Sessions& sessions, const st
             if (can_view(db, site, user, point, span) &&
                 access::allowed(db, site, user, point, "protect", "", rows.get(i, 1), rows.get(i, 2)))
                 list.push_back({{"id", rows.get(i)},
-                                {"interval", span.json()},
+                                {"interval", span},
                                 {"owner", rows.get(i, 3)},
                                 {"reason", rows.get(i, 4)},
                                 {"expires_at", ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(

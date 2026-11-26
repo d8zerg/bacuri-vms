@@ -1,3 +1,7 @@
+#include "application/control_api/http_json.hpp"
+#include "modules/inventory/device_configuration_json.hpp"
+#include "modules/inventory/selection_json.hpp"
+#include "modules/inventory/device_json.hpp"
 #include "modules/inventory/registry.hpp"
 #include "modules/inventory/enrollment.hpp"
 #include "modules/inventory/operations.hpp"
@@ -91,10 +95,9 @@ Json resolve_profiles(const Key& key, const std::string& site, const Json& body,
         throw Failure{ErrorCode::invalid_request};
     const auto channel = string_field(body, "channel", 256, true);
     std::vector<std::pair<std::int64_t, std::string>> options;
-    for (const auto& profile : selection.at("profiles")) {
-        if (profile.value("channel", std::string{}) == channel && profile.value("pixels", 0LL) > 0)
-            options.emplace_back(profile.at("pixels").get<std::int64_t>(),
-                                 profile.at("stream_url").get<std::string>());
+    for (const auto& [id, profile] : selection.profiles) {
+        if (profile.channel.value_or("") == channel && profile.pixels && *profile.pixels > 0 && profile.stream_url)
+            options.emplace_back(*profile.pixels, *profile.stream_url);
     }
     if (options.size() < 2)
         throw Failure{ErrorCode::camera_incompatible_profiles};
@@ -120,30 +123,29 @@ Preview preview(postgresql::Database& db, const Key& key, const CameraNetworks& 
     config["name"] = string_field(body, "name", 256);
     if (config.at("name").get_ref<const std::string&>().find_first_not_of(" \t\n\r") == std::string::npos)
         throw Failure{ErrorCode::invalid_request};
-    auto current = inventory::registered_channel(db, site, config);
+    auto current = inventory::registered_channel(db, site, config.get<SelectedChannel>());
     Json previous = nullptr;
-    if (!current.is_null()) {
+    if (current.has_value()) {
         auto rows = db.exec("SELECT v.settings,r.secret_revision,r.sealed_credentials FROM "
                             "bacuri_inventory.configuration_versions v "
                             "JOIN bacuri_inventory.camera_registry r USING(site_id,device_id) WHERE v.site_id=$1 "
                             "AND v.device_id=$2 AND v.revision=$3",
-                            {site, current.at("id"), current.at("desired_revision")});
+                            {site, current->id, current->desired_revision});
         previous = Json::parse(rows.get(0));
-        previous["name"] = current.at("name");
+        previous["name"] = current->name;
         previous["credentials"] = nullptr;
         if (!rows.get(0, 2).empty())
-            previous["credentials"] = Json::parse(unseal(
-                rows.get(0, 2), key, site + "/" + current.at("id").get<std::string>() + "/" + rows.get(0, 1)));
+            previous["credentials"] =
+                Json::parse(unseal(rows.get(0, 2), key, site + "/" + current->id + "/" + rows.get(0, 1)));
     }
     if (body.contains("point_id")) {
         auto point = string_field(body, "point_id", 36);
         if (!canonical_id(point) || !inventory::point_exists(db, site, point))
             throw Failure{ErrorCode::invalid_request};
-        if ((!current.is_null() && current.at("point_id") != point) ||
-            (current.is_null() &&
-             db.exec("SELECT FROM bacuri_inventory.camera_registry WHERE site_id=$1 AND point_id=$2",
-                     {site, point})
-                 .size()))
+        if ((current.has_value() && current->point_id != point) ||
+            (!current && db.exec("SELECT FROM bacuri_inventory.camera_registry WHERE site_id=$1 AND point_id=$2",
+                                 {site, point})
+                             .size()))
             throw Failure{ErrorCode::camera_binding_conflict};
         config["point_id"] = point;
     }
@@ -154,30 +156,29 @@ Preview preview(postgresql::Database& db, const Key& key, const CameraNetworks& 
         brightness = settings.at("brightness");
         if (!brightness.is_number())
             throw Failure{ErrorCode::invalid_request};
-        if (image.is_null() || brightness < image.at("min") || brightness > image.at("max"))
+        if (!image || brightness < image->min || brightness > image->max)
             throw Failure{ErrorCode::camera_image_unsupported};
     }
-    Json before = current.is_null() ? Json(nullptr) : public_settings(current);
-    if (!before.is_null())
-        before["point_id"] = current.at("point_id");
+    Json before = nullptr;
+    if (current) {
+        before = public_settings(Json(*current));
+        before["point_id"] = current->point_id;
+    }
     auto after = public_settings(config);
-    after["point_id"] =
-        config.value("point_id", current.is_null() ? std::string{} : current.at("point_id").get<std::string>());
+    after["point_id"] = config.value("point_id", !current ? std::string{} : current->point_id);
     Json receipt{{"camera", meta},
                  {"before", before},
                  {"after", after},
-                 {"image", image},
+                 {"image", image ? Json(*image) : Json(nullptr)},
                  {"brightness", brightness},
                  {"state", "prepared"},
                  {"revision", nullptr},
-                 {"expected_revision", current.is_null() ? Json(nullptr) : current.at("desired_revision")}};
-    if (!current.is_null())
-        receipt["device_id"] = current.at("id");
+                 {"expected_revision", !current ? Json(nullptr) : Json(current->desired_revision)}};
+    if (current.has_value())
+        receipt["device_id"] = current->id;
     if (settings.contains("id"))
         receipt["template"] = settings;
-    Json plan{{"next", config},
-              {"previous", previous},
-              {"device", current.is_null() ? Json(nullptr) : current.at("id")}};
+    Json plan{{"next", config}, {"previous", previous}, {"device", !current ? Json(nullptr) : Json(current->id)}};
     return {std::move(plan), std::move(receipt)};
 }
 
@@ -187,19 +188,19 @@ void change_channel(postgresql::Database& db, const Key& key, const CameraNetwor
 {
     const bool import = plan.at("device").is_null();
     const auto& next = plan.at("next");
-    auto current = inventory::registered_channel(db, site, next);
+    auto current = inventory::registered_channel(db, site, next.get<SelectedChannel>());
     const bool committed = !receipt.at("revision").is_null();
     const auto expected = committed ? receipt.at("revision") : receipt.at("expected_revision");
     if (expected.is_null()) {
-        if (!current.is_null())
+        if (current.has_value())
             throw Failure{ErrorCode::revision_conflict};
         if (next.contains("point_id") &&
             db.exec("SELECT FROM bacuri_inventory.camera_registry WHERE site_id=$1 AND point_id=$2",
                     {site, next.at("point_id")})
                 .size())
             throw Failure{ErrorCode::camera_binding_conflict};
-    } else if (current.is_null() || current.at("desired_revision") != expected ||
-               current.at("id") != (committed ? receipt.at("device_id") : plan.at("device")))
+    } else if (!current || expected != current->desired_revision ||
+               (committed ? receipt.at("device_id") : plan.at("device")) != current->id)
         throw Failure{ErrorCode::revision_conflict};
 
     const auto channel = camera_channel(next);
@@ -216,7 +217,7 @@ void change_channel(postgresql::Database& db, const Key& key, const CameraNetwor
     db.exec("SELECT bacuri_inventory.record_camera_transport_policy($1,$2::jsonb)",
             {site, Json(networks.legacy_addresses()).dump()});
     const std::string id =
-        current.is_null() ? inventory::register_device(db, site, next) : current.at("id").get<std::string>();
+        !current ? inventory::register_device(db, site, next.get<CameraRegistration>()) : current->id;
     const auto revision =
         expected.is_null() ? std::string{"1"} : std::to_string(std::stoll(expected.get<std::string>()) + 1);
     if (rollback && import) {
@@ -231,7 +232,7 @@ void change_channel(postgresql::Database& db, const Key& key, const CameraNetwor
                 throw Failure{ErrorCode::camera_transport_denied};
         db.exec("UPDATE bacuri_inventory.devices SET name=$3 WHERE site_id=$1 AND device_id=$2",
                 {site, id, settings.at("name")});
-        inventory::write_version(db, key, site, id, revision, settings);
+        inventory::write_version(db, key, site, id, revision, settings.get<CameraVersion>());
     }
     db.exec("INSERT INTO "
             "bacuri_inventory.configuration_audit(request_id,user_id,site_id,device_id,action,previous_revision,"

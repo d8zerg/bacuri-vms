@@ -4,7 +4,6 @@ import { t, type MessageKey } from "../i18n";
 import { HttpFailure } from "./api";
 
 export type ErrorCode = keyof typeof catalog;
-export type ErrorInfo = (typeof catalog)[ErrorCode];
 export type Retry = "never" | "after_change" | "later" | "user_action";
 
 // Every cause of the catalog has a message in each language; a missing one stops the type check here.
@@ -42,12 +41,8 @@ export function errorCode(error: unknown): ErrorCode {
   return "internal_error";
 }
 
-export function errorInfo(code: ErrorCode): ErrorInfo {
-  return catalog[code];
-}
-
 export function retryOf(error: unknown): Retry {
-  return errorInfo(errorCode(error)).retry as Retry;
+  return catalog[errorCode(error)] as Retry;
 }
 
 // The text of a failure. A screen passes its own wording for causes it explains in its context.

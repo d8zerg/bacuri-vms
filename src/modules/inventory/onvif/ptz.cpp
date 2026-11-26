@@ -1,4 +1,5 @@
 // PTZ position, camera controls and movement commands.
+#include "application/control_api/http_json.hpp"
 #include "modules/inventory/onvif.hpp"
 #include "modules/inventory/onvif/soap.hpp"
 
@@ -6,8 +7,9 @@ namespace bacuri::vms::control
 {
 using namespace onvif;
 
-Json read_ptz_position(const CameraNetworks& networks, const CameraControl& control,
-                       const CameraCredentials& credentials)
+std::optional<inventory::CameraPosition> read_ptz_position(const CameraNetworks& networks,
+                                                           const CameraControl& control,
+                                                           const CameraCredentials& credentials)
 {
     auto client = control_client(networks, control, credentials);
     auto doc =
@@ -35,10 +37,9 @@ Json read_ptz_position(const CameraNetworks& networks, const CameraControl& cont
     if (x && std::abs(*x) > 1e9)
         throw Failure{ErrorCode::camera_protocol_error};
     if (!x || space.empty())
-        return nullptr;
-    Json sample{{"pan", *x}, {"space", space}};
-    if (auto tilt = number(pan, "y"))
-        sample["tilt"] = *tilt;
+        return {};
+    inventory::CameraPosition sample{*x, space, {}, {}, {}, {}, {}};
+    sample.tilt = number(pan, "y");
     auto* motion = child(status, schema, "MoveStatus");
     bool moving = false, idle = false, unknown = false;
     for (const auto* axis : {"PanTilt", "Zoom"}) {
@@ -50,34 +51,34 @@ Json read_ptz_position(const CameraNetworks& networks, const CameraControl& cont
         }
     }
     if (moving || (idle && !unknown))
-        sample["moving"] = moving;
+        sample.moving = moving;
     if (auto fov = number(child(status, schema, "FieldOfView"), "hfov"); fov && *fov > 0 && *fov < 180)
-        sample["hfov"] = *fov;
+        sample.hfov = fov;
     auto* zoom = child(position, schema, "Zoom");
     auto zspace = attribute(zoom, "space");
     if (zspace.empty())
         zspace = control.zoom_space;
     if (auto z = number(zoom, "x");
         z && *z >= 0 && *z <= 1 && zspace == "http://www.onvif.org/ver10/tptz/ZoomSpaces/PositionGenericSpace")
-        sample["zoom"] = *z;
+        sample.zoom = z;
     const auto stamp = value(child(status, schema, "UtcTime"));
     Timestamp parsed;
     if (!ProtoTime::FromString(stamp, &parsed))
         throw Failure{ErrorCode::camera_protocol_error};
-    sample["source_time"] = ProtoTime::ToString(parsed);
+    sample.source_time = ProtoTime::ToString(parsed);
     return sample;
 }
 
-Json read_camera_controls(const CameraNetworks& networks, const CameraControl& control,
-                          const CameraCredentials& credentials)
+DeviceControls read_camera_controls(const CameraNetworks& networks, const CameraControl& control,
+                                    const CameraCredentials& credentials)
 {
     auto client = control_client(networks, control, credentials);
     client.deadline = Clock::now() + 12s;
-    Json actions = Json::array(), inputs = Json::array();
+    DeviceControls result;
     auto add = [&](std::string_view command, const std::string& target = {},
-                   const std::string& title = {}) -> Json& {
-        return actions.emplace_back(
-            Json{{"command", command}, {"target", target}, {"label", title.empty() ? target : title}});
+                   const std::string& title = {}) -> DeviceCommand& {
+        return result.actions.emplace_back(
+            DeviceCommand{std::string(command), target, title.empty() ? target : title, {}, 0, {}});
     };
     auto optional = [&](const std::optional<std::string>& service, std::string_view ns, const char* op,
                         const std::string& params, const auto& consume, const AddressingHeaders& headers = {}) {
@@ -106,8 +107,8 @@ Json read_camera_controls(const CameraNetworks& networks, const CameraControl& c
                     if (speed == 0)
                         continue;
                     auto& action = add(near ? "focus_near" : "focus_far");
-                    action["mode"] = mode;
-                    action["amount"] = speed;
+                    action.mode = mode;
+                    action.amount = speed;
                 }
                 add("focus_stop");
                 break;
@@ -134,7 +135,7 @@ Json read_camera_controls(const CameraNetworks& networks, const CameraControl& c
                 const bool bounded =
                     limit > 0 && limit <= 60 && child(child(n, schema, "TourSpot"), schema, "PresetDetail");
                 if (bounded)
-                    add("tour_start", token, title)["duration"] = static_cast<int>(std::ceil(limit));
+                    add("tour_start", token, title).duration = static_cast<int>(std::ceil(limit));
                 auto* state = child(child(n, schema, "Status"), schema, "State");
                 if (bounded || (state && (value(state) == "Touring" || value(state) == "Paused")))
                     add("tour_stop", token, title);
@@ -174,13 +175,13 @@ Json read_camera_controls(const CameraNetworks& networks, const CameraControl& c
              {"http://www.onvif.org/ver10/deviceio/wsdl/GetRelayOutputs", {}});
     optional(control.device_io, device_io, "GetDigitalInputs", {},
              [&](xmlNode* root) {
-                 for (auto* n = root->children; n && inputs.size() < 64; n = n->next)
+                 for (auto* n = root->children; n && result.inputs.size() < 64; n = n->next)
                      if (const auto token = attribute(n, "token");
                          named(n, device_io, "DigitalInputs") && !token.empty())
-                         inputs.push_back({{"token", token}});
+                         result.inputs.push_back(token);
              },
              {"http://www.onvif.org/ver10/deviceio/wsdl/GetDigitalInputs", {}});
-    return {{"actions", actions}, {"inputs", inputs}};
+    return result;
 }
 
 void operate_camera(const CameraNetworks& networks, const CameraControl& control,

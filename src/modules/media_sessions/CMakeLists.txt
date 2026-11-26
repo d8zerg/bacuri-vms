@@ -14,5 +14,5 @@ target_link_libraries(bacuri-vms-media-sessions PUBLIC bacuri-vms-manifest bacur
 target_link_libraries(bacuri-vms-media-sessions PRIVATE bacuri-vms-configuration-snapshot)
 
 add_core_module_checks(bacuri-vms-media-sessions
-    TESTS layouts.cpp
+    TESTS layouts.cpp session_store.cpp
     ARCHIVES bacuri-vms-media-session-store)

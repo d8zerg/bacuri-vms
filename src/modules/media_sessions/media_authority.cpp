@@ -1,3 +1,6 @@
+#include "application/control_api/http_json.hpp"
+#include "modules/media_sessions/export_scope_json.hpp"
+#include "domain/image_region_json.hpp"
 #include "modules/access/operations.hpp"
 #include "platform/rpc_status.hpp"
 #include "modules/recordings/operations.hpp"
@@ -49,10 +52,10 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
                          q->point().point_id(), std::to_string(bounds.start), std::to_string(bounds.end)});
             if (!source.size())
                 return platform::rpc_status(ErrorCode::media_scope_denied);
-            auto p = Json::parse(source.get(0));
-            auto grant = access::export_lease(db, q->browser_session_id(), p.at("export_grant"),
-                                              q->point().point_id(), p.at("begin"), p.at("end"),
-                                              p.at("derivative"), p.at("regions"), p.at("sound"));
+            const auto scope = Json::parse(source.get(0)).get<media_sessions::ExportScope>();
+            auto grant =
+                access::export_lease(db, q->browser_session_id(), scope.grant, q->point().point_id(), scope.begin,
+                                     scope.end, scope.derivative, scope.regions, scope.sound);
             if (!grant || grant->milliseconds <= 0)
                 return platform::rpc_status(ErrorCode::media_scope_denied);
             db.exec("COMMIT");
@@ -63,7 +66,7 @@ grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::A
         const auto surface = q->has_live() ? "live" : "archive";
         if (!q->privacy_regions().empty() &&
             access::delivery_regions(db, q->point().site_id(), q->point().point_id(), surface) !=
-                q->privacy_regions())
+                domain::decode_regions(q->privacy_regions()))
             return platform::rpc_status(ErrorCode::privacy_policy_changed);
         const auto expiry = access::browser_point_expiry(
             db, q->browser_session_id(), q->point().site_id(), q->point().point_id(),

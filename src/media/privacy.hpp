@@ -1,4 +1,5 @@
 #pragma once
+#include "domain/image_region.hpp"
 #include <gst/gst.h>
 #include <string_view>
 #include <vector>
@@ -8,6 +9,7 @@ class PrivacyMask
 {
   public:
     explicit PrivacyMask(std::string_view json);
+    explicit PrivacyMask(domain::ImageRegions regions) : regions_(std::move(regions)) {}
     void attach(GstElement* encoder);
     bool empty() const
     {
@@ -15,10 +17,7 @@ class PrivacyMask
     }
 
   private:
-    struct Region {
-        double left, top, right, bottom;
-    };
-    std::vector<Region> regions_;
+    domain::ImageRegions regions_;
     bool cover(GstPad*, GstPadProbeInfo*) const;
 };
 } // namespace bacuri::vms::media

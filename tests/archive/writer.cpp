@@ -1,3 +1,5 @@
+#include "recording/policy_json.hpp"
+#include "archive/manifest_json.hpp"
 #include "archive/writer.hpp"
 
 #include <gst/app/gstappsink.h>
@@ -77,10 +79,12 @@ TEST(ArchiveWriter, FramesDiscardedAfterTheBlockLimitAreJournaledAsKeyframeGap)
     Volume volume{temp.root, {uuid(), uuid()}};
     const Origin origin{uuid(), uuid(), uuid(), uuid(), 1};
     recording::RecordingPlan plan{temp.root};
-    plan.update(Json{
-        {origin.point,
-         {{"id", uuid()}, {"revision", 1}, {"since", 0}, {"rule", continuous_rule()}, {"windows", Json::array()}}}}
-                    .dump());
+    plan.update(recording::decode_plan(Json{{origin.point,
+                                             {{"id", uuid()},
+                                              {"revision", 1},
+                                              {"since", 0},
+                                              {"rule", continuous_rule()},
+                                              {"windows", Json::array()}}}}));
     // One frame per second: the block reaches its duration limit at the 17th frame.
     const auto long_group = encoded_frames(20);
     const auto next_group = encoded_frames(1);

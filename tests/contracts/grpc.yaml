@@ -92,6 +92,10 @@ close_live:
     point: { site_id: *site, point_id: *point }
     live: {}
   response: {}
+close_live_delivery:
+  rpc: LiveDelivery.Close
+  request: { media_session_id: 80000000-0000-4000-8000-000000000001, browser_session_id: internal-browser }
+  response: {}
 live_delivery:
   rpc: LiveDelivery.Negotiate
   request:

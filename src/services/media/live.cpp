@@ -5,6 +5,7 @@
 #include "platform/identifiers.hpp"
 #include "observability/metrics.hpp"
 #include "platform/scope_exit.hpp"
+#include <atomic>
 #include <cstdio>
 #include <future>
 #include <utility>
@@ -118,7 +119,9 @@ grpc::Status LiveDelivery::Negotiate(grpc::ServerContext* context, const v1::Liv
     auto future = ready.get_future();
     {
         std::scoped_lock guard{mutex_};
-        std::erase_if(peers_, [](const auto& entry) { return entry.second->done.load(); });
+        std::erase_if(peers_, [](const auto& entry) {
+            return entry.second->stopped.wait_for(0s) == std::future_status::ready;
+        });
         auto id = offer->scope().media_session_id();
         if (peers_.contains(id)) {
             return platform::rpc_status(ErrorCode::idempotency_conflict);
@@ -127,10 +130,13 @@ grpc::Status LiveDelivery::Negotiate(grpc::ServerContext* context, const v1::Liv
             return platform::rpc_status(ErrorCode::video_session_limit);
         }
         auto peer = std::make_unique<Peer>();
-        peer->worker = std::jthread{[entry = peer.get(), request = *offer,
-                                     result = std::move(ready)](const std::stop_token& stop) mutable {
+        std::promise<void> finished;
+        peer->browser = offer->scope().browser_session_id();
+        peer->stopped = finished.get_future().share();
+        peer->worker = std::jthread{[request = *offer, result = std::move(ready),
+                                     done = std::move(finished)](const std::stop_token& stop) mutable {
             run(stop, request, std::move(result));
-            entry->done = true;
+            done.set_value();
         }};
         peers_.emplace(std::move(id), std::move(peer));
     }
@@ -140,5 +146,23 @@ grpc::Status LiveDelivery::Negotiate(grpc::ServerContext* context, const v1::Liv
     auto [status, sdp] = future.get();
     answer->set_sdp(std::move(sdp));
     return status;
+}
+grpc::Status LiveDelivery::Close(grpc::ServerContext* context, const v1::LiveSessionRef* session,
+                                 google::protobuf::Empty*)
+{
+    if (!platform::canonical_id(session->media_session_id()) || session->browser_session_id().empty())
+        return platform::rpc_status(ErrorCode::invalid_request);
+    std::shared_future<void> stopped;
+    {
+        std::scoped_lock guard{mutex_};
+        const auto it = peers_.find(session->media_session_id());
+        if (it == peers_.end() || it->second->browser != session->browser_session_id())
+            return grpc::Status::OK;
+        stopped = it->second->stopped;
+        it->second->worker.request_stop();
+    }
+    if (stopped.wait_until(context->deadline()) != std::future_status::ready)
+        return platform::rpc_status(ErrorCode::media_service_unavailable);
+    return grpc::Status::OK;
 }
 } // namespace bacuri::vms::media

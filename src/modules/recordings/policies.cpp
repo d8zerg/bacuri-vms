@@ -1,3 +1,5 @@
+#include "application/control_api/http_json.hpp"
+#include "recording/policy_json.hpp"
 #include "modules/recordings/policies.hpp"
 #include "modules/recordings/operations.hpp"
 #include "modules/access/operations.hpp"
@@ -26,35 +28,47 @@ std::int64_t clock_us(postgresql::Database& db)
 {
     return std::stoll(db.exec("SELECT (extract(epoch FROM clock_timestamp())*1000000)::bigint").get(0));
 }
-Json listed(postgresql::Database& db, const std::string& site)
+struct RecordingPolicy {
+    std::string scope, target;
+    int priority;
+    recording::CaptureRule rule;
+};
+void to_json(Json& j, const RecordingPolicy& p)
 {
-    Json result = Json::array();
-    auto rows = db.exec("SELECT "
-                        "jsonb_build_object('id',id,'scope',scope,'target',target,'priority',priority,'rule',rule,"
-                        "'revision',revision::text,'since',changed_us) FROM bacuri_archive.recording_policies "
-                        "WHERE site_id=$1 ORDER BY (scope='point') DESC,priority DESC,id",
-                        {site});
-    for (auto& s : rows.column())
-        result.push_back(Json::parse(s));
+    j = {{"id", p.rule.id},
+         {"scope", p.scope},
+         {"target", p.target},
+         {"priority", p.priority},
+         {"rule", recording::capture_rule_json(p.rule)},
+         {"revision", std::to_string(p.rule.revision)},
+         {"since", p.rule.since}};
+}
+std::vector<RecordingPolicy> listed(postgresql::Database& db, const std::string& site)
+{
+    auto rows =
+        db.exec("SELECT id,scope,target,priority,rule,revision,changed_us FROM bacuri_archive.recording_policies "
+                "WHERE site_id=$1 ORDER BY (scope='point') DESC,priority DESC,id",
+                {site});
+    std::vector<RecordingPolicy> result;
+    for (int i = 0; i < rows.size(); ++i) {
+        auto rule = recording::parse_capture_rule(Json::parse(rows.get(i, 4)));
+        rule.id = rows.get(i);
+        rule.revision = std::stoll(rows.get(i, 5));
+        rule.since = std::stoll(rows.get(i, 6));
+        result.push_back({rows.get(i, 1), rows.get(i, 2), std::stoi(rows.get(i, 3)), std::move(rule)});
+    }
     return result;
 }
-Json effective(postgresql::Database& db, const std::string& site, const Json& policies)
+recording::PointPolicies effective(postgresql::Database& db, const std::string& site,
+                                   const std::vector<RecordingPolicy>& policies)
 {
     const auto groups = access::group_memberships(db, site);
-    Json plan = Json::object();
+    recording::PointPolicies plan;
     for (const auto& row : policies) {
-        auto add = [&](const std::string& point) {
-            if (!plan.contains(point))
-                plan[point] = {{"id", row.at("id")},
-                               {"revision", std::stoll(row.at("revision").get<std::string>())},
-                               {"rule", row.at("rule")},
-                               {"since", row.at("since")},
-                               {"windows", Json::array()}};
-        };
-        auto target = row.at("target").get<std::string>();
-        if (row.at("scope") == "point")
-            add(target);
-        else if (auto it = groups.find(target); it != groups.end())
+        auto add = [&](const std::string& point) { plan.try_emplace(point, row.rule); };
+        if (row.scope == "point")
+            add(row.target);
+        else if (auto it = groups.find(row.target); it != groups.end())
             for (const auto& p : it->second)
                 add(p);
     }
@@ -70,7 +84,7 @@ std::string authorize(postgresql::Database& db, const Request& req, const Sessio
     return user;
 }
 } // namespace
-Json recording_plan(postgresql::Database& db, const std::string& site)
+recording::PointPolicies recording_plan(postgresql::Database& db, const std::string& site)
 {
     auto plan = effective(db, site, listed(db, site));
     auto windows =
@@ -80,25 +94,26 @@ Json recording_plan(postgresql::Database& db, const std::string& site)
                 {site});
     for (int i = 0; i < windows.size(); ++i) {
         auto p = plan.find(windows.get(i));
-        if (p == plan.end() || p->at("id") != windows.get(i, 1) ||
-            p->at("revision") != std::stoll(windows.get(i, 2)))
+        if (p == plan.end() || p->second.id != windows.get(i, 1) ||
+            p->second.revision != std::stoll(windows.get(i, 2)))
             continue;
-        auto& ranges = p->at("windows");
+        auto& ranges = p->second.windows;
         auto binding = std::stoll(windows.get(i, 3)), begin = std::stoll(windows.get(i, 4)),
              end = std::stoll(windows.get(i, 5));
-        if (!ranges.empty() && ranges.back()[0] == binding && ranges.back()[2] >= begin)
-            ranges.back()[2] = std::max(end, ranges.back()[2].get<long long>());
+        if (!ranges.empty() && ranges.back().binding == binding && ranges.back().end >= begin)
+            ranges.back().end = std::max<std::int64_t>(end, ranges.back().end);
         else
-            ranges.push_back(Json::array({binding, begin, end}));
+            ranges.push_back({binding, begin, end});
     }
     return plan;
 }
-void advance_point_retention(postgresql::Database& db, const std::string& site, const Json& plan)
+void advance_point_retention(postgresql::Database& db, const std::string& site,
+                             const recording::PointPolicies& plan)
 {
     Json days = Json::object();
-    for (const auto& [point, p] : plan.items())
-        if (!p.at("rule").at("days").is_null())
-            days[point] = p.at("rule").at("days");
+    for (const auto& [point, p] : plan)
+        if (p.days != 0)
+            days[point] = p.days;
     db.exec(
         R"sql(UPDATE bacuri_archive.point_retention SET cutoff_us=greatest(cutoff_us,bacuri_archive.retention_now_us()-days*86400000000::bigint),days=NULL
       WHERE site_id=$1 AND days IS NOT NULL AND NOT ($2::jsonb ? point_id::text))sql",
@@ -114,14 +129,13 @@ void motion_recording(postgresql::Database& db, const std::string& site, const s
     db.exec("SELECT pg_advisory_xact_lock_shared(hashtextextended($1,1))", {site});
     auto plan = effective(db, site, listed(db, site));
     auto p = plan.find(point);
-    if (p == plan.end() || !p->at("rule").at("event").get<bool>() || at < p->at("since").get<std::int64_t>())
+    if (p == plan.end() || !p->second.event || at < p->second.since)
         return;
-    const auto& rule = p->at("rule");
+    const auto& rule = p->second;
     db.exec("INSERT INTO bacuri_archive.recording_windows VALUES($1,$2,$3,$4,$5,'event',$6,$7)",
-            {site, point, std::to_string(binding), p->at("id").get<std::string>(), p->at("revision").dump(),
-             std::to_string(std::max(p->at("since").get<std::int64_t>(),
-                                     at - rule.at("pre").get<int>() * std::int64_t{1000000})),
-             std::to_string(at + rule.at("post").get<int>() * std::int64_t{1000000})});
+            {site, point, std::to_string(binding), p->second.id, std::to_string(p->second.revision),
+             std::to_string(std::max(p->second.since, at - rule.pre * std::int64_t{1000000})),
+             std::to_string(at + rule.post * std::int64_t{1000000})});
 }
 void policies(const Request& req, Response& res, const Sessions& sessions, const std::string& site,
               const std::string& id)
@@ -138,7 +152,7 @@ void policies(const Request& req, Response& res, const Sessions& sessions, const
         if (id.empty())
             respond(res, {{"policies", list}, {"effective", effective(db, site, list)}});
         else {
-            auto item = std::ranges::find_if(list, [&](const auto& row) { return row.at("id") == id; });
+            auto item = std::ranges::find_if(list, [&](const auto& row) { return row.rule.id == id; });
             if (item == list.end())
                 throw Failure{ErrorCode::not_found};
             respond(res, *item);
@@ -159,7 +173,7 @@ void policies(const Request& req, Response& res, const Sessions& sessions, const
             db.exec("DELETE FROM bacuri_archive.recording_policies WHERE site_id=$1 AND id=$2", {site, id});
             events::record_recording_change(db, site, current.get(0, 1) == "point" ? current.get(0, 2) : "", user,
                                             "recording_policy", "policy_deleted",
-                                            {{"policy", id}, {"revision", current.get(0)}});
+                                            events::PolicyRevision{id, current.get(0)});
             res.result(http::status::no_content);
         } else {
             auto body = object_body(req, {"scope", "target", "priority", "rule", "revision"});
@@ -191,7 +205,7 @@ void policies(const Request& req, Response& res, const Sessions& sessions, const
                 {site, id, scope, target, body["priority"].dump(), body["rule"].dump(),
                  std::to_string(clock_us(db))});
             events::record_recording_change(db, site, scope == "point" ? target : "", user, "recording_policy",
-                                            "policy_saved", {{"policy", id}, {"revision", saved.get(0)}});
+                                            "policy_saved", events::PolicyRevision{id, saved.get(0)});
             respond(res, {{"id", id}, {"revision", saved.get(0)}});
         }
         advance_point_retention(db, site, effective(db, site, listed(db, site)));
@@ -212,11 +226,11 @@ void manual_recording(const Request& req, Response& res, const Sessions& session
     auto plan = effective(db, site, listed(db, site));
     auto p = plan.find(point);
     auto bindings = inventory::recording_bindings(db, site);
-    const bool enabled = p != plan.end() && p->at("rule").at("manual").get<bool>() && bindings.contains(point);
+    const bool enabled = p != plan.end() && p->second.manual && bindings.contains(point);
     auto stamp = clock_us(db);
     std::int64_t until = 0;
     if (enabled) {
-        std::string id = p->at("id"), revision = p->at("revision").dump(),
+        std::string id = p->second.id, revision = std::to_string(p->second.revision),
                     binding = std::to_string(bindings.at(point));
         auto current =
             db.exec("SELECT max(end_us) FROM bacuri_archive.recording_windows WHERE site_id=$1 AND point_id=$2 "
@@ -229,7 +243,7 @@ void manual_recording(const Request& req, Response& res, const Sessions& session
             require(b.contains("active") && b["active"].is_boolean());
             auto seconds = b.contains("seconds") ? b["seconds"] : Json(900);
             require(seconds.is_number_integer() && seconds >= 1 && seconds <= 3600);
-            if (b.at("active") == true && p->at("rule").at("audio") == true &&
+            if (b.at("active") == true && p->second.audio == recording::RecordingAudio::enabled &&
                 !access::allowed(db, site, user, point, "audio_record", "live"))
                 throw Failure{ErrorCode::forbidden};
             if (b.at("active") == true && !until) {
@@ -237,7 +251,8 @@ void manual_recording(const Request& req, Response& res, const Sessions& session
                 db.exec("INSERT INTO bacuri_archive.recording_windows VALUES($1,$2,$3,$4,$5,'manual',$6,$7)",
                         {site, point, binding, id, revision, std::to_string(stamp), std::to_string(until)});
                 events::record_recording_change(db, site, point, user, "manual_recording",
-                                                "manual_recording_started", {{"seconds", seconds}});
+                                                "manual_recording_started",
+                                                events::ManualDuration{seconds.get<int>()});
             } else if (b.at("active") == false && until) {
                 db.exec("UPDATE bacuri_archive.recording_windows SET end_us=greatest(begin_us,$6) WHERE "
                         "site_id=$1 AND point_id=$2 AND policy_id=$3 AND revision=$4 AND binding=$5 AND "
@@ -273,7 +288,7 @@ void volumes(const Request& req, Response& res, const Sessions& sessions, const 
                 b["reserve_percent"] >= 1 && b["reserve_percent"] <= 90);
         change_retention(db, site, b.at("days"), b.at("reserve_percent"));
         events::record_recording_change(db, site, "", user, "recording_storage", "storage_changed",
-                                        {{"days", b.at("days")}, {"reserve_percent", b.at("reserve_percent")}});
+                                        events::StorageSettings{b.at("days"), b.at("reserve_percent")});
     }
     auto config = db.exec(
         "SELECT days,reserve_percent,revision FROM bacuri_archive.archive_retention WHERE site_id=$1", {site});

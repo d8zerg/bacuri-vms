@@ -1,10 +1,11 @@
+#include "modules/events/alert_json.hpp"
 #include "services/control/transport/server.hpp"
 #include "services/control/transport/https.hpp"
 #include "modules/events/video_rules.hpp"
 #include "modules/inventory/telemetry.hpp"
 #include "modules/inventory/registry.hpp"
 #include "application/export/export.hpp"
-#include "application/control_api/api.hpp"
+#include "application/control_api/http_json.hpp"
 #include "modules/investigations/cases.hpp"
 #include "modules/recordings/policies.hpp"
 #include "modules/recordings/search.hpp"
@@ -358,6 +359,8 @@ void serve()
                 throw Failure{ErrorCode::invalid_request};
             }
             route(req, res, peer, sessions, registry, playback, key, origin);
+        } catch (const HttpProblem& failure) {
+            problem(res, failure);
         } catch (const Failure& failure) {
             problem(res, failure);
         } catch (const postgresql::DatabaseUnavailable& error) {

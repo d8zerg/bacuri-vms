@@ -1,7 +1,9 @@
+#include "archive/manifest_json.hpp"
+#include "archive/analysis_json.hpp"
 #include "storage/postgresql/database.hpp"
 #include "archive_sql.hpp"
 #include "modules/recordings/operations.hpp"
-#include "application/control_api/api.hpp"
+#include "application/control_api/http_json.hpp"
 
 namespace bacuri::vms::control::recordings
 {
@@ -69,7 +71,7 @@ std::optional<PreviousRecording> previous_binding_recording(postgresql::Database
     return PreviousRecording{r.get(0), std::stoll(r.get(0, 1)), std::stoll(r.get(0, 2))};
 }
 std::int64_t export_lifetime_ms(postgresql::Database& db, const std::string& site, const std::string& point,
-                                const std::string& hashes)
+                                const std::map<std::string, std::string>& hashes)
 {
     auto r = db.exec(R"sql(
         SELECT least(1000,floor((min(greatest(bacuri_archive.hold_until(b.site_id,b.block_id)::numeric, b.end_utc_us::numeric+
@@ -79,7 +81,7 @@ std::int64_t export_lifetime_ms(postgresql::Database& db, const std::string& sit
             AND b.manifest#>>'{media,sha256}'=source.value AND b.unavailable_reason IS NULL
         HAVING count(b.block_id)=count(*) AND NOT EXISTS(SELECT FROM bacuri_archive.archive_recovery WHERE site_id=$1)
     )sql",
-                     {site, point, hashes});
+                     {site, point, Json(hashes).dump()});
     return r.size() ? std::stoll(r.get(0)) : 0;
 }
 std::vector<archive::BlockManifest> manifests_for_export(postgresql::Database& db, const std::string& site,
@@ -99,9 +101,12 @@ std::vector<archive::BlockManifest> manifests_for_export(postgresql::Database& d
 }
 std::vector<CoverageInterval> coverage(postgresql::Database& db, const std::string& site, const std::string& point,
                                        const std::string& begin, const std::string& end,
-                                       const std::string& pending, const std::string& revision)
+                                       const std::vector<PendingInterval>& pending, const std::string& revision)
 {
-    auto rows = db.exec(archive::sql::search, {site, point, begin, end, pending, revision});
+    Json local = Json::array();
+    for (const auto& span : pending)
+        local.push_back({{"a", span.begin}, {"b", span.end}});
+    auto rows = db.exec(archive::sql::search, {site, point, begin, end, local.dump(), revision});
     std::vector<CoverageInterval> intervals;
     intervals.reserve(static_cast<std::size_t>(rows.size()));
     for (int i = 0; i < rows.size(); ++i)
@@ -245,11 +250,7 @@ std::vector<IndexedBlock> indexed_blocks(postgresql::QuerySession& db, const std
         if (auto uncertainty = rows.get(i, 4); !uncertainty.empty())
             block.uncertainty = std::stoll(uncertainty);
         if (auto stored = rows.get(i, 5); !stored.empty()) {
-            const auto index = Json::parse(stored);
-            auto& motion = block.index.emplace();
-            index.at("frames").get_to(motion.frames);
-            for (const auto& sample : index.at("samples"))
-                motion.samples.push_back({sample.at("at"), sample.at("cells"), sample.at("image")});
+            block.index = Json::parse(stored).get<archive::MotionIndex>();
         }
         result.push_back(std::move(block));
     }

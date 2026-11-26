@@ -1,9 +1,10 @@
+#include "archive/trusted_key_json.hpp"
 #include "storage/postgresql/migrations.hpp"
 #include "services/control/transport/server.hpp"
 #include "modules/inventory/operations.hpp"
 #include "modules/access/operations.hpp"
 #include "modules/recordings/operations.hpp"
-#include "application/control_api/api.hpp"
+#include "application/control_api/http_json.hpp"
 #include "modules/access/enrollment.hpp"
 #include "modules/access/oidc.hpp"
 #include "application/control_api/playback_time.hpp"
@@ -97,18 +98,14 @@ try {
             if (!std::getline(std::cin, secret))
                 throw std::invalid_argument("Expected client secret on stdin");
             access::configure_provider(db, load_key(setting("BACURI_KEY_FILE")), site,
-                                       {{"enabled", true},
-                                        {"issuer", argv[2]},
-                                        {"client_id", argv[3]},
-                                        {"admin_acr", argv[4]},
-                                        {"client_secret", secret}});
+                                       {{true, argv[2], argv[3], argv[4]}, secret});
         } else {
-            access::bind_identity(db, site, argv[2], {{"issuer", argv[3]}, {"subject", argv[4]}});
+            access::bind_identity(db, site, argv[2], access::ExternalIdentity{argv[3], argv[4]});
         }
         db.exec("COMMIT");
     } else if (action == "export-public-key" && argc == 2) {
-        std::cout << bacuri::vms::archive::export_public_key(load_key(setting("BACURI_EXPORT_KEY_FILE")),
-                                                             setting("BACURI_SITE_ID"))
+        std::cout << nlohmann::json(bacuri::vms::archive::export_public_key(
+                                        load_key(setting("BACURI_EXPORT_KEY_FILE")), setting("BACURI_SITE_ID")))
                          .dump()
                   << '\n';
     } else if ((action == "grant-export" && argc == 6) || (action == "revoke-export" && argc == 4)) {

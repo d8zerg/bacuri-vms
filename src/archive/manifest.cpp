@@ -1,3 +1,4 @@
+#include "archive/manifest_json.hpp"
 #include "archive/manifest.hpp"
 
 #include <sodium.h>

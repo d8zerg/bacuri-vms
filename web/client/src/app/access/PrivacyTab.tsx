@@ -1,3 +1,4 @@
+import "../../i18n/extended";
 // Privacy masks and their effect on viewing and export.
 
 import { FilterPanel } from "../../ui-kit/FilterPanel";

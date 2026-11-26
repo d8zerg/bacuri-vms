@@ -2,7 +2,7 @@
 
 Usage:
   errors.py cpp OUTPUT.hpp     C++ header with ErrorCode and its properties
-  errors.py json OUTPUT.json   properties of each code for the web client
+  errors.py json OUTPUT.json   retry behavior of each code for the web client
   errors.py docs               writes the error reference in English and Russian
   errors.py check              the catalog against the OpenAPI contract, the server sources, the client messages and
                                the error reference
@@ -111,7 +111,7 @@ constexpr std::optional<ErrorCode> parse_error(std::string_view code)
 
 def client(output):
     _, errors = load()
-    data = {code: {k: e[k] for k in ("category", "http", "retry", "audience")} for code, e in errors.items()}
+    data = {code: entry["retry"] for code, entry in errors.items()}
     Path(output).parent.mkdir(parents=True, exist_ok=True)
     Path(output).write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
 

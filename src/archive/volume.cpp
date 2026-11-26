@@ -1,3 +1,4 @@
+#include "archive/manifest_json.hpp"
 #include "archive/volume.hpp"
 #include "archive/volume_io.hpp"
 #include "archive/mp4.hpp"

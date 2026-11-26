@@ -1,3 +1,4 @@
+import "../../i18n/extended";
 // Resource groups of observation points.
 import { Button } from "../../ui-kit/FormControls";
 import {

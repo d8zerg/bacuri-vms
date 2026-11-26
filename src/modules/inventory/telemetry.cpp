@@ -1,3 +1,6 @@
+#include "application/control_api/http_json.hpp"
+#include "modules/inventory/device_configuration_json.hpp"
+#include "modules/inventory/orientation_json.hpp"
 #include "modules/inventory/telemetry.hpp"
 #include "modules/inventory/device.hpp"
 #include "modules/events/operations.hpp"
@@ -112,7 +115,8 @@ bool poll_one(postgresql::Database& db, const std::string& site, const CameraNet
         auto credentials =
             camera_credentials(Json::parse(unseal(row.get(0, 4), key, site + "/" + device + "/" + row.get(0, 3))));
         const auto control = camera_control(Json::parse(row.get(0, 2)));
-        sample = device_family(control).read_ptz_position(networks, control, credentials);
+        if (const auto position = device_family(control).read_ptz_position(networks, control, credentials))
+            sample = *position;
     } catch (const Failure&) {
         answered = false;
     } catch (const std::exception&) {

@@ -13,10 +13,6 @@ inline std::string utc_text(std::int64_t microseconds)
 }
 struct Window {
     std::int64_t start, end;
-    Json json() const
-    {
-        return {{"start", utc_text(start)}, {"end", utc_text(end)}};
-    }
 };
 inline constexpr std::int64_t alert_context_us = 15'000'000;
 inline Window alert_window(std::int64_t time)
@@ -39,12 +35,8 @@ inline std::int64_t parse_utc(const std::string& value)
     }
     return utc_us(t);
 }
-inline Window window(const Json& object)
+inline Window checked_window(Window result)
 {
-    if (!object.is_object() || object.size() != 2) {
-        throw Failure{ErrorCode::invalid_request};
-    }
-    Window result{parse_utc(string_field(object, "start", 32)), parse_utc(string_field(object, "end", 32))};
     constexpr auto hour = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::hours{1}).count();
     if (result.end <= result.start || result.end - result.start > hour) {
         throw Failure{ErrorCode::invalid_request};

@@ -1,3 +1,4 @@
+import "../i18n/extended";
 import { useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import type { components } from "../../../../build/contracts/api";

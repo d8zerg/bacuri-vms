@@ -29,9 +29,9 @@ std::string hex(std::span<const unsigned char> bytes)
     return result;
 }
 } // namespace
-Json export_public_key(const platform::Key& seed, const std::string& site)
+TrustedExportKey export_public_key(const platform::Key& seed, const std::string& site)
 {
-    return {{"site_id", site}, {"algorithm", "Ed25519"}, {"public_key", hex(SigningKey(seed).pub)}};
+    return {site, "Ed25519", hex(SigningKey(seed).pub)};
 }
 std::string sign_description(const platform::Key& seed, const std::string& description)
 {

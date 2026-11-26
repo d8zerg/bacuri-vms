@@ -1,3 +1,4 @@
+#include "recording/policy_json.hpp"
 #include "recording/policy.hpp"
 #include <glib.h>
 #include <algorithm>
@@ -44,6 +45,49 @@ CaptureRule parse_capture_rule(const nlohmann::json& o)
         r.schedule.push_back(s);
     }
     return r;
+}
+nlohmann::json capture_rule_json(const CaptureRule& rule)
+{
+    using Json = nlohmann::json;
+    Json schedule = Json::array();
+    for (const auto& p : rule.schedule)
+        schedule.push_back({{"day", p.day}, {"start", p.start}, {"end", p.end}});
+    return {{"continuous", rule.continuous},
+            {"manual", rule.manual},
+            {"event", rule.event},
+            {"audio", rule.audio == RecordingAudio::enabled},
+            {"pre", rule.pre},
+            {"post", rule.post},
+            {"days", rule.days ? Json(rule.days) : Json(nullptr)},
+            {"zone", rule.zone ? g_time_zone_get_identifier(rule.zone.get()) : "UTC"},
+            {"schedule", std::move(schedule)}};
+}
+void to_json(nlohmann::json& out, const CaptureRule& rule)
+{
+    auto windows = nlohmann::json::array();
+    for (const auto& w : rule.windows)
+        windows.push_back({w.binding, w.begin, w.end});
+    out = {{"id", rule.id},
+           {"revision", rule.revision},
+           {"since", rule.since},
+           {"rule", capture_rule_json(rule)},
+           {"windows", std::move(windows)}};
+}
+void from_json(const nlohmann::json& entry, CaptureRule& result)
+{
+    auto rule = parse_capture_rule(entry.at("rule"));
+    rule.id = entry.at("id");
+    rule.revision = entry.at("revision");
+    rule.since = entry.at("since");
+    for (const auto& w : entry.at("windows"))
+        rule.windows.push_back({w.at(0), w.at(1), w.at(2)});
+    result = std::move(rule);
+}
+PointPolicies decode_plan(const nlohmann::json& j)
+{
+    if (!j.is_object())
+        throw std::invalid_argument("Invalid recording plan");
+    return j.get<PointPolicies>();
 }
 bool CaptureRule::selects(std::int64_t utc, std::int64_t binding) const
 {

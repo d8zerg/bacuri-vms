@@ -1,3 +1,4 @@
+#include "storage/postgresql/configuration_snapshot.hpp"
 #include "modules/inventory/configuration.hpp"
 namespace bacuri::vms::control::inventory
 {

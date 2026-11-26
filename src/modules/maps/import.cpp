@@ -1,3 +1,4 @@
+#include "application/control_api/http_json.hpp"
 #include "modules/inventory/operations.hpp"
 #include "modules/maps/scene.hpp"
 #include "modules/maps/packages.hpp"
@@ -51,9 +52,9 @@ class Statement
   private:
     std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> stmt{nullptr, sqlite3_finalize};
 };
-Json parse_bounds(std::string_view csv)
+std::array<double, 4> parse_bounds(std::string_view csv)
 {
-    Json values = Json::array();
+    std::array<double, 4> values{};
     for (int i = 0; i < 4; ++i) {
         double coordinate{};
         const char* first = csv.data();
@@ -61,7 +62,7 @@ Json parse_bounds(std::string_view csv)
         auto [next, ec] = std::from_chars(first, end, coordinate);
         require(ec == std::errc{} && std::isfinite(coordinate) &&
                 std::abs(coordinate) <= (i % 2 ? 85.051129 : 180));
-        values.push_back(coordinate);
+        values.at(static_cast<std::size_t>(i)) = coordinate;
         if (i == 3)
             require(next == end);
         else {
@@ -128,41 +129,37 @@ auto open_package(const fs::path& file)
     return handle;
 }
 } // namespace
-Json inspect(const fs::path& file)
+RegionPackage inspect(const fs::path& file)
 {
     auto handle = open_package(file);
     auto* raw = handle.get();
     Statement metadata(raw, "SELECT name,value FROM metadata WHERE name IN "
                             "('name','bounds','format','osm_base_timestamp','region_id')");
-    Json meta = Json::object();
+    std::map<std::string, std::string> meta;
     while (metadata.next()) {
         std::string name{metadata.bytes(0)}, value{metadata.bytes(1)};
         require(value.size() <= 256 && !value.empty() && !meta.contains(name));
         meta[name] = value;
     }
     require(meta.at("format") == "png");
-    const auto bounds = parse_bounds(meta.at("bounds").get<std::string>());
-    auto stamp = meta.at("osm_base_timestamp").get<std::string>();
+    const auto bounds = parse_bounds(meta.at("bounds"));
+    auto stamp = meta.at("osm_base_timestamp");
     std::unique_ptr<GDateTime, decltype(&g_date_time_unref)> time{
         g_date_time_new_from_iso8601(stamp.c_str(), nullptr), g_date_time_unref};
     require(time != nullptr);
-    require(!meta.at("name").get_ref<const std::string&>().empty());
-    const auto id = meta.value("region_id", meta.at("name").get<std::string>());
-    return {{"id", id},
-            {"name", meta.at("name")},
-            {"source_time", stamp},
-            {"bounds", bounds},
-            {"bytes", fs::file_size(file)}};
+    require(!meta.at("name").empty());
+    const auto id = meta.contains("region_id") ? meta.at("region_id") : meta.at("name");
+    return {id, meta.at("name"), stamp, bounds, fs::file_size(file)};
 }
-void install(postgresql::Database& db, const fs::path& file, const std::string& site, const Json& entry,
+void install(postgresql::Database& db, const fs::path& file, const std::string& site, const RegionPackage& entry,
              std::string_view mode)
 {
     const auto meta = inspect(file);
-    for (const auto* key : {"id", "name", "bytes", "bounds"})
-        require(meta.at(key) == entry.at(key));
-    auto id = meta.at("id").get<std::string>();
-    auto stamp = meta.at("source_time").get<std::string>();
-    require(db.exec("SELECT $1::timestamptz=$2::timestamptz", {stamp, entry.at("source_time")}).get(0) == "t");
+    require(meta.id == entry.id && meta.name == entry.name && meta.bytes == entry.bytes &&
+            meta.bounds == entry.bounds);
+    const auto& id = meta.id;
+    const auto& stamp = meta.source_time;
+    require(db.exec("SELECT $1::timestamptz=$2::timestamptz", {stamp, entry.source_time}).get(0) == "t");
     db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,17))", {site + id});
     auto current = db.exec(
         "SELECT source_time<$3::timestamptz FROM bacuri_maps.map_regions WHERE site_id=$1 AND region_id=$2",
@@ -174,7 +171,7 @@ void install(postgresql::Database& db, const fs::path& file, const std::string& 
     db.exec("DELETE FROM bacuri_maps.map_regions WHERE site_id=$1 AND region_id=$2", {site, id});
     db.exec("INSERT INTO bacuri_maps.map_regions(site_id,region_id,name,source_time,bounds,min_zoom,max_zoom) "
             "VALUES($1,$2,$3,$4,$5,0,0)",
-            {site, id, meta.at("name"), stamp, meta.at("bounds").dump()});
+            {site, id, meta.name, stamp, Json(meta.bounds).dump()});
     auto handle = open_package(file);
     auto* raw = handle.get();
     Statement tiles(raw, "SELECT zoom_level,tile_column,tile_row,tile_data FROM tiles");

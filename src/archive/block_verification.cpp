@@ -1,3 +1,4 @@
+#include "archive/manifest_json.hpp"
 #include "archive/block_verification.hpp"
 #include "archive/retention.hpp"
 #include "archive/replica.hpp"

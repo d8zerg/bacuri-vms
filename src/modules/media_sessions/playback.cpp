@@ -1,10 +1,11 @@
+#include "application/control_api/http_json.hpp"
 #include "modules/inventory/operations.hpp"
 #include "modules/events/operations.hpp"
 #include "modules/access/operations.hpp"
 #include "modules/recordings/operations.hpp"
 #include "modules/media_sessions/playback.hpp"
-#include "application/control_api/playback_time.hpp"
-#include "modules/media_sessions/playback_operations.hpp"
+#include "application/control_api/playback_time_json.hpp"
+#include "modules/media_sessions/playback_json.hpp"
 #include "domain/time.hpp"
 namespace bacuri::vms::control
 {
@@ -43,6 +44,61 @@ Json query_parameters(std::string_view target)
     return fields;
 }
 
+playback::SearchQuery search_query(std::string_view target)
+{
+    auto params = query_parameters(target);
+    std::optional<std::string> cursor;
+    if (params.contains("cursor")) {
+        cursor = params.at("cursor").get<std::string>();
+        params.erase("cursor");
+    }
+    const auto presentation = params.value("presentation", "");
+    if (!presentation.empty() && presentation != "masked")
+        throw Failure{ErrorCode::invalid_request};
+    params.erase("presentation");
+    return {window(params), cursor, presentation == "masked"};
+}
+playback::SessionSelection read_selection(const Request& req)
+{
+    auto body = object_body(req, {"mode", "interval", "binding_revision", "quality", "hevc", "accept_masked",
+                                  "cell_width", "bandwidth_kbps"});
+    const auto mode = string_field(body, "mode", 16);
+    std::optional<Window> range;
+    if (mode == "archive" && body.contains("interval")) {
+        range = window(body.at("interval"));
+    } else if (mode != "live" || body.contains("interval") || body.contains("binding_revision")) {
+        throw Failure{ErrorCode::invalid_request};
+    }
+    auto options = body;
+    for (const char* field : {"mode", "interval", "binding_revision"})
+        options.erase(field);
+    if ((range &&
+         (options.contains("quality") || options.contains("cell_width") || options.contains("bandwidth_kbps"))) ||
+        (options.contains("hevc") && !options.at("hevc").is_boolean()) ||
+        (options.contains("accept_masked") && !options.at("accept_masked").is_boolean()) ||
+        (options.contains("quality") && options.at("quality") != "auto" && options.at("quality") != "main" &&
+         options.at("quality") != "secondary"))
+        throw Failure{ErrorCode::invalid_request};
+    for (auto field : {"cell_width", "bandwidth_kbps"})
+        if (options.contains(field)) {
+            const auto& value = options.at(field);
+            if (!value.is_number_unsigned() || value < 1 ||
+                value > (std::string_view(field) == "cell_width" ? 16384 : 1000000))
+                throw Failure{ErrorCode::invalid_request};
+        }
+    std::optional<std::int64_t> binding;
+    std::string revision;
+    if (body.contains("binding_revision")) {
+        revision = string_field(body, "binding_revision", 19);
+        std::int64_t value{};
+        auto [endptr, err] = std::from_chars(revision.data(), revision.data() + revision.size(), value);
+        if (err != std::errc{} || endptr != revision.data() + revision.size() || value <= 0 ||
+            revision.front() == '0')
+            throw Failure{ErrorCode::invalid_request};
+        binding = value;
+    }
+    return {mode, range, binding, options.get<playback::PresentationOptions>()};
+}
 } // namespace
 void Playback::point(const Request& req, Response& res, const std::string& site, const std::string& point,
                      bool searching) const
@@ -56,9 +112,13 @@ void Playback::point(const Request& req, Response& res, const std::string& site,
     playback::PointAccess access{site, point, fingerprint(key_, "session", who.cookie),
                                  access::site_role(db, site, who.user, access::RoleLock::read), who.user};
     if (searching) {
-        respond(res, playback::search(db, key_, access, query_parameters(std::string_view{req.target()})));
+        respond(res, playback::search(db, key_, access, search_query(std::string_view{req.target()})));
     } else {
-        respond(res, playback::create(db, key_, access, req), 201);
+        const auto selection = read_selection(req);
+        const std::string request_key{req["Idempotency-Key"]};
+        if (req.count("Idempotency-Key") != 1 || !canonical_id(request_key))
+            throw Failure{ErrorCode::invalid_request};
+        respond(res, playback::create(db, key_, access, selection, request_key), 201);
     }
     db.exec("COMMIT");
 }
@@ -79,7 +139,7 @@ void Playback::alert_archive(const Request& req, Response& res, const std::strin
         throw Failure{ErrorCode::not_found};
     recordings::require_available(db, site);
     const auto time = anchor->time;
-    Json link{{"point_id", point}, {"state", "uncertain_time"}, {"archive_interval", alert_window(time).json()}};
+    Json link{{"point_id", point}, {"state", "uncertain_time"}, {"archive_interval", alert_window(time)}};
     if (anchor->basis == "source_clock" && std::stoll(anchor->uncertainty) <= alert_context_us) {
         const auto uncertainty = std::stoll(anchor->uncertainty);
         Window instant{time - uncertainty, time + uncertainty + 1};
@@ -96,18 +156,18 @@ void Playback::alert_archive(const Request& req, Response& res, const std::strin
             if (interval && error <= Microseconds::max().count() - uncertainty &&
                 interval->contains(UtcTime{Microseconds{time}}, Microseconds{uncertainty + error})) {
                 link["state"] = "ready";
-                link["interval"] = block.json();
+                link["interval"] = block;
                 link["position"] = ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(time));
             }
         } else if (blocks.empty() || (blocks.size() == 1 && !blocks.front().unavailable_reason.empty())) {
             auto page =
                 playback::search(db, key_, {site, point, fingerprint(key_, "session", who.cookie), role, who.user},
-                                 instant.json(), std::stoll(anchor->revision));
-            const auto& items = page.at("items");
-            if (items.size() == 1 && items[0].at("state") != "recorded") {
-                link["state"] = items[0].at("state");
-                if (items[0].contains("reason")) {
-                    link["reason"] = items[0].at("reason");
+                                 {instant, {}, false}, std::stoll(anchor->revision));
+            const auto& items = page.items;
+            if (items.size() == 1 && items[0].state != "recorded") {
+                link["state"] = items[0].state;
+                if (!items[0].reason.empty()) {
+                    link["reason"] = items[0].reason;
                 }
             }
         }

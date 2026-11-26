@@ -1,3 +1,4 @@
+import "../../i18n/extended";
 // The recording state, archive depth and applied rule of one camera.
 
 import type {

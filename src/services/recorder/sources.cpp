@@ -1,3 +1,4 @@
+#include "archive/manifest_json.hpp"
 #include "services/recorder/detector.hpp"
 #include "services/recorder/sources.hpp"
 
@@ -151,9 +152,9 @@ v1::PointStates Sources::point_states()
     return result;
 }
 
-archive::Json Sources::recording_states()
+std::map<std::string, std::string> Sources::recording_states()
 {
-    auto result = Json::object();
+    std::map<std::string, std::string> result;
     const auto states = point_states();
     for (const auto& point : states.points()) {
         const char* state = "disabled";

@@ -60,6 +60,8 @@ Live video uses a complete SDP offer and answer with the gathered ICE candidates
 
 One live session allows one successful negotiation. To reconnect, the client creates a new session. The delivery process serves up to 16 WebRTC connections at a time, including those still being established. 5 seconds are allowed from the start of negotiation to the established connection. The SDP limit is 64 KiB. The browser receives one H.264 video track over DTLS-SRTP.
 
+When the owning browser closes a live session, Core revokes it in PostgreSQL and calls `LiveDelivery.Close`. The running delivery service acknowledges the request after its WebRTC worker has stopped and released the preview stream. When changing a grid layout, the browser waits for its pending releases before opening replacement sessions.
+
 The recording node publishes the secondary profile through `PreviewSource.Subscribe` on a separate Unix socket. At most 16 subscriptions. For each viewer, the queue on the recording node and the input queue of the delivery process are limited to 8 frames and 1 MiB each. After an overflow, delivery resumes from a keyframe. The main profile uses its own recording queue.
 
 - Before delivery starts, the process calls `AuthorizeDelivery` with the actual point, mode and interval. The permit is measured on the monotonic clock from the start of the call. Its duration is limited to 5 seconds and the remaining terms of both sessions.

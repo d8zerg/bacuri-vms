@@ -1,3 +1,5 @@
+#include "application/control_api/http_json.hpp"
+#include "modules/inventory/device_configuration_json.hpp"
 #include "modules/inventory/camera_events.hpp"
 #include "modules/inventory/device.hpp"
 #include "modules/events/observations.hpp"

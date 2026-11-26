@@ -1,9 +1,12 @@
+#include "application/control_api/http_json.hpp"
+#include "modules/inventory/device_configuration_json.hpp"
+#include "modules/inventory/device_json.hpp"
 #include "modules/inventory/registry.hpp"
 #include "modules/access/operations.hpp"
 #include "modules/inventory/device.hpp"
 #include "modules/recordings/operations.hpp"
 #include "modules/recordings/recorder.hpp"
-#include "application/control_api/playback_time.hpp"
+#include "application/control_api/playback_time_json.hpp"
 #include "media/lease.hpp"
 #include "platform/rpc_status.hpp"
 
@@ -19,12 +22,12 @@ void CameraRegistry::previous_recording(const Request& req, Response& res, const
         throw Failure{ErrorCode::forbidden};
     const auto current = camera(db, site, device);
     const auto recording =
-        recordings::previous_binding_recording(db, site, current.at("point_id"), current.at("binding_revision"));
+        recordings::previous_binding_recording(db, site, current.point_id, current.binding_revision);
     if (!recording)
         throw Failure{ErrorCode::not_found};
     db.exec("COMMIT");
-    respond(res, {{"binding_revision", recording->revision},
-                  {"interval", Window{recording->start, recording->end}.json()}});
+    respond(res,
+            {{"binding_revision", recording->revision}, {"interval", Window{recording->start, recording->end}}});
 }
 
 void CameraRegistry::edge_archive(const Request& req, Response& res, const std::string& site,
@@ -66,35 +69,35 @@ void CameraRegistry::edge_archive(const Request& req, Response& res, const std::
             throw Failure{ErrorCode::camera_binding_conflict};
     }
     auto gaps = recordings::edge_gaps(db, site, point, binding, range.start, range.end);
-    Json result{{"supported", false}, {"recordings", Json::array()}};
+    EdgeArchive catalog;
+    Json result;
     if (!row.get(0).empty() && row.get(0) != "null" && !row.get(0, 2).empty()) {
         auto credentials = camera_credentials(
             Json::parse(unseal(row.get(0, 2), key_, site + "/" + device + "/" + row.get(0, 1))));
         const auto control = camera_control(Json::parse(row.get(0)));
-        result = device_family(control).read_edge_archive(networks_, control, credentials, key_,
-                                                          recover ? &selection : nullptr);
+        catalog = device_family(control).read_edge_archive(networks_, control, credentials, key_,
+                                                           recover ? &selection : nullptr);
     }
     if (!recover) {
+        result = catalog;
         result["binding_revision"] = binding;
         result["gaps"] = Json::array();
         for (const auto& gap : gaps)
-            result["gaps"].push_back(Window{gap.begin, gap.end}.json());
+            result["gaps"].push_back(Window{gap.begin, gap.end});
     } else {
         if (selection.uri.empty())
             throw Failure{ErrorCode::edge_recording_unavailable};
         Json progress{{"blocks", 0}, {"duration_us", 0}, {"outcome", "no_frames"}, {"next", nullptr}};
         for (const auto& gap : gaps) {
             bool attempted = false;
-            for (const auto& record : result.at("recordings")) {
-                if (record.at("id") != selection.id)
+            for (const auto& record : catalog.recordings) {
+                if (record.id != selection.id)
                     continue;
-                for (const auto& track : record.at("tracks")) {
-                    if (track.at("kind") != "Video" || track.at("bounds").is_null())
+                for (const auto& track : record.tracks) {
+                    if (track.kind != "Video" || !track.bounds)
                         continue;
-                    const auto a =
-                        std::max(gap.begin, parse_utc(track.at("bounds").at("start")) + selection.offset_us);
-                    const auto b = std::min(
-                        {gap.end, parse_utc(track.at("bounds").at("end")) + selection.offset_us, a + 15000000});
+                    const auto a = std::max(gap.begin, track.bounds->first + selection.offset_us);
+                    const auto b = std::min({gap.end, track.bounds->second + selection.offset_us, a + 15000000});
                     if (a >= b)
                         continue;
                     v1::EdgeReplayRequest q;

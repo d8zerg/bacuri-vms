@@ -1,3 +1,4 @@
+#include "application/control_api/http_json.hpp"
 #include "modules/access/operations.hpp"
 #include "modules/inventory/operations.hpp"
 #include "modules/media_sessions/playback.hpp"
@@ -13,21 +14,19 @@ void media_sessions::layout_configuration(postgresql::ConfigurationSnapshot& sna
     snapshot.section("bacuri_media_sessions.monitor_layouts");
 }
 
-std::vector<std::string> media_sessions::layout_points(const Json& slots, const PointVisibility& visible)
+std::vector<std::string> media_sessions::layout_points(std::vector<std::string> slots,
+                                                       const PointVisibility& visible)
 {
-    std::vector<std::string> points;
     std::set<std::string> unique;
-    for (const auto& slot : slots) {
-        if (!slot.is_string() || !canonical_id(slot.get_ref<const std::string&>()))
+    for (const auto& point : slots) {
+        if (!canonical_id(point))
             throw Failure{ErrorCode::invalid_request};
-        const auto& point = slot.get_ref<const std::string&>();
         if (!unique.insert(point).second)
             throw Failure{ErrorCode::invalid_request};
         if (!visible(point))
             throw Failure{ErrorCode::not_found};
-        points.push_back(point);
     }
-    return points;
+    return slots;
 }
 
 void Playback::layouts(const Request& req, Response& res, const std::string& site, const std::string& id) const
@@ -94,9 +93,13 @@ void Playback::layouts(const Request& req, Response& res, const std::string& sit
                 throw Failure{ErrorCode::forbidden};
             if (revision != (current.size() ? current.get(0, 2) : "0"))
                 throw Failure{ErrorCode::revision_conflict};
-            const auto points = media_sessions::layout_points(body.at("points"), [&](const std::string& point) {
-                return inventory::point_exists(db, site, point) && access::allowed(db, site, user, point, "view");
-            });
+            if (!std::ranges::all_of(body.at("points"), [](const auto& item) { return item.is_string(); }))
+                throw Failure{ErrorCode::invalid_request};
+            const auto points = media_sessions::layout_points(
+                body.at("points").get<std::vector<std::string>>(), [&](const std::string& point) {
+                    return inventory::point_exists(db, site, point) &&
+                           access::allowed(db, site, user, point, "view");
+                });
             if (!current.size() && db.exec("SELECT count(*)>=128 FROM bacuri_media_sessions.monitor_layouts WHERE "
                                            "site_id=$1 AND owner_id=$2",
                                            {site, user})

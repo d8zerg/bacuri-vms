@@ -1,3 +1,5 @@
+#include "archive/manifest_json.hpp"
+#include "domain/image_region_json.hpp"
 #include "archive/replica.hpp"
 #include "platform/rpc_status.hpp"
 #include "archive/mp4.hpp"
@@ -178,7 +180,8 @@ class Delivery final : public v1::ArchiveDelivery::Service
                 return entry.file;
         auto out = std::make_shared<Descriptor>(memfd_create("bacuri-playback", MFD_CLOEXEC));
         const auto file = [](int fd) { return std::filesystem::path{"/proc/self/fd"} / std::to_string(fd); };
-        const auto result = archive::select_frames(file(source), file(out->fd), 0, duration, true, regions);
+        const auto result = archive::select_frames(file(source), file(out->fd), 0, duration, true,
+                                                   domain::decode_regions(regions));
         struct stat size{};
         if (!result.count || fstat(out->fd, &size) || size.st_size <= 0 || size.st_size > 32L * 1024 * 1024)
             throw std::runtime_error("Compatible block unavailable");

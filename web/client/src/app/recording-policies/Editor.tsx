@@ -1,3 +1,4 @@
+import "../../i18n/extended";
 // The editor of a recording rule of a camera or a group.
 import { useState } from "react";
 import type {

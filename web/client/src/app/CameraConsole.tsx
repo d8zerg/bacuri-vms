@@ -1,3 +1,4 @@
+import "../i18n/extended";
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import type {

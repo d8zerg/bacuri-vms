@@ -1,4 +1,5 @@
 #pragma once
+#include "archive/analysis.hpp"
 
 #include "archive/manifest.hpp"
 #include "modules/recordings/status.hpp"
@@ -17,8 +18,11 @@ class QuerySession;
 
 namespace bacuri::vms::control::recordings
 {
+struct PendingInterval {
+    std::int64_t begin{}, end{};
+};
 struct CoverageInterval {
-    std::int64_t begin, end;
+    std::int64_t begin{}, end{};
     std::string state, time_basis, uncertainty, reason;
 };
 struct ManifestPart {
@@ -48,13 +52,13 @@ std::vector<CoverageInterval> edge_gaps(postgresql::Database&, const std::string
                                         const std::string& binding, std::int64_t since, std::int64_t until);
 void require_available(postgresql::Database&, const std::string& site);
 std::int64_t export_lifetime_ms(postgresql::Database&, const std::string& site, const std::string& point,
-                                const std::string& block_hashes);
+                                const std::map<std::string, std::string>& block_hashes);
 std::vector<archive::BlockManifest> manifests_for_export(postgresql::Database&, const std::string& site,
                                                          const std::string& point, const std::string& begin,
                                                          const std::string& end, const std::string& revision);
 std::vector<CoverageInterval> coverage(postgresql::Database&, const std::string& site, const std::string& point,
                                        const std::string& begin, const std::string& end,
-                                       const std::string& pending, const std::string& revision);
+                                       const std::vector<PendingInterval>& pending, const std::string& revision);
 
 std::int64_t retention_cutoff(postgresql::Database&, const std::string& site, const std::string& point);
 
@@ -81,19 +85,11 @@ void set_retention(postgresql::Database& db, const std::string& site, int days, 
 
 void await_verification(postgresql::Database& db, const std::string& site);
 
-struct MotionSample {
-    std::int64_t offset;
-    std::string cells, image;
-};
-struct MotionIndex {
-    std::vector<std::int64_t> frames;
-    std::vector<MotionSample> samples;
-};
 struct IndexedBlock {
     std::int64_t begin, end;
     std::string basis, binding;
     std::optional<std::int64_t> uncertainty;
-    std::optional<MotionIndex> index;
+    std::optional<archive::MotionIndex> index;
 };
 std::vector<IndexedBlock> indexed_blocks(postgresql::QuerySession&, const std::string& site,
                                          const std::string& point, std::int64_t begin, std::int64_t end,

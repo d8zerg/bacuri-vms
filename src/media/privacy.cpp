@@ -1,3 +1,4 @@
+#include "domain/image_region_json.hpp"
 #include "media/privacy.hpp"
 #include <gst/video/video.h>
 #include <nlohmann/json.hpp>
@@ -7,20 +8,7 @@
 #include <stdexcept>
 namespace bacuri::vms::media
 {
-PrivacyMask::PrivacyMask(std::string_view json)
-{
-    if (json.empty())
-        return;
-    const auto items = nlohmann::json::parse(json);
-    if (!items.is_array() || items.size() > 32)
-        throw std::invalid_argument("Invalid video mask");
-    for (const auto& item : items) {
-        const Region r{item.at("left"), item.at("top"), item.at("right"), item.at("bottom")};
-        if (!(r.left >= 0 && r.top >= 0 && r.right <= 1 && r.bottom <= 1 && r.left < r.right && r.top < r.bottom))
-            throw std::invalid_argument("Invalid video mask bounds");
-        regions_.push_back(r);
-    }
-}
+PrivacyMask::PrivacyMask(std::string_view json) : regions_(domain::decode_regions(json)) {}
 bool PrivacyMask::cover(GstPad* pad, GstPadProbeInfo* probe) const
 {
     std::unique_ptr<GstCaps, decltype(&gst_caps_unref)> caps{gst_pad_get_current_caps(pad), gst_caps_unref};

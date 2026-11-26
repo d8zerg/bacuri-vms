@@ -1,10 +1,32 @@
-#include "modules/access/session.hpp"
 #pragma once
+#include <optional>
+#include "modules/access/session.hpp"
 #include "application/control_api/api.hpp"
+#include <variant>
 namespace bacuri::vms::control
 {
+struct Alert {
+    std::string id, point_id, type, work_state, time_basis;
+    std::int64_t observed_at{};
+    std::optional<std::int64_t> uncertainty;
+};
+struct AlertSnapshot {
+    std::vector<Alert> items;
+    std::string cursor;
+};
+struct AlertRemoved {
+    std::string cursor, alert_id;
+};
+struct AlertUpdated {
+    std::string cursor;
+    Alert alert;
+};
+struct ResyncRequired {
+    std::string reason;
+};
+using AlertFrame = std::variant<AlertRemoved, AlertUpdated, ResyncRequired>;
 struct FeedBatch {
-    std::vector<std::string> frames;
+    std::vector<AlertFrame> frames;
     unsigned close_code{};
 };
 class AlertFeed
@@ -14,7 +36,7 @@ class AlertFeed
         : sessions_{sessions}, key_{key}, request_{std::move(request)}, site_{std::move(site)}
     {
     }
-    Json snapshot();
+    AlertSnapshot snapshot();
     void authorize();
     FeedBatch poll(std::string_view after);
 

@@ -1,19 +1,22 @@
-import { ArchivePlayer } from "./archivePlayer";
+import type { ArchivePlayer } from "./archivePlayer";
 import type { Target } from "../contracts/workspace";
 import { api, data, HttpFailure } from "./api";
 import { t } from "../i18n";
 import { describeError, errorCode } from "./errors";
 // Releases of closed media sessions that the server may not have applied yet. A new session waits for them, so a
 // limited resource such as the conversion slot is free again when the next view opens.
-let releasing: Promise<unknown> = Promise.resolve();
-function afterReleases(signal: AbortSignal) {
-  return Promise.race([
-    releasing,
-    new Promise((resolve) => setTimeout(resolve, 2000)),
-    new Promise((resolve) =>
-      signal.addEventListener("abort", resolve, { once: true }),
-    ),
-  ]);
+const releases = new Set<Promise<void>>();
+function trackRelease(release: Promise<void>) {
+  const settled: Promise<void> = release
+    .catch(() => {})
+    .finally(() => releases.delete(settled));
+  releases.add(settled);
+}
+async function afterReleases(signal: AbortSignal) {
+  while (releases.size) {
+    signal.throwIfAborted();
+    await Promise.all(releases);
+  }
 }
 export function mediaFailure(error: unknown) {
   const code = errorCode(error);
@@ -65,7 +68,11 @@ export async function attach(
         ) ?? false);
   for (const hevc of supportsHevc ? [true, false] : [false]) {
     const attempt = new AbortController();
-    const scoped = AbortSignal.any([signal, attempt.signal]);
+    signal.throwIfAborted();
+    signal.addEventListener("abort", () => attempt.abort(), {
+      once: true,
+      signal: attempt.signal,
+    });
     let native = false,
       ready = false;
     try {
@@ -74,9 +81,9 @@ export async function attach(
         siteId,
         target,
         header,
-        scoped,
+        attempt.signal,
         (message) => {
-          if (scoped.aborted) return;
+          if (attempt.signal.aborted) return;
           if (native && !ready) attempt.abort();
           else fail(message);
         },
@@ -162,9 +169,7 @@ async function connect(
           target.requireSecondary &&
           result.video?.profile !== "secondary"
         ) {
-          await api.DELETE("/media-sessions/{mediaSessionId}", {
-            params: { path: { mediaSessionId: result.id }, header },
-          });
+          await closeSession(result.id);
           throw new HttpFailure(503, "video_source_unavailable");
         }
         return result;
@@ -179,7 +184,27 @@ async function connect(
       }
     }
   }
-  const session = await openAvailable();
+  async function closeSession(id: string) {
+    const close = () =>
+      api.DELETE("/media-sessions/{mediaSessionId}", {
+        params: { path: { mediaSessionId: id }, header },
+        keepalive: true,
+        signal: AbortSignal.timeout(4000),
+      });
+    const response = await close().catch(() => undefined);
+    if (!response || response.response.status >= 500) await close();
+  }
+  const opening = openAvailable();
+  // Cancellation can arrive after the server receives the POST and before its ID reaches the browser.
+  const cancelOpening = () =>
+    trackRelease(opening.then((session) => closeSession(session.id)));
+  signal.addEventListener("abort", cancelOpening, { once: true });
+  const session = await opening.catch((error: unknown) => {
+    signal.removeEventListener("abort", cancelOpening);
+    throw error;
+  });
+  signal.removeEventListener("abort", cancelOpening);
+  signal.throwIfAborted();
   const path = { mediaSessionId: session.id };
   if (session.video) {
     const v = session.video;
@@ -207,19 +232,6 @@ async function connect(
         reason,
     );
   }
-  function releaseSession() {
-    const release = api
-      .DELETE("/media-sessions/{mediaSessionId}", {
-        params: { path, header },
-        keepalive: true,
-      })
-      .catch(() => {});
-    releasing = Promise.allSettled([releasing, release]);
-  }
-  if (signal.aborted) {
-    releaseSession();
-    signal.throwIfAborted();
-  }
   let peer: RTCPeerConnection | undefined, player: ArchivePlayer | undefined;
   const expire = setTimeout(
     () =>
@@ -232,11 +244,11 @@ async function connect(
     clearTimeout(verifyTimer);
     clearTimeout(timeout);
     clearTimeout(expire);
+    trackRelease(closeSession(session.id));
     peer?.close();
     player?.stop();
     video.pause();
     video.srcObject = null;
-    releaseSession();
   }
   signal.addEventListener("abort", stop, { once: true });
   video.addEventListener("error", () => fail(t("media.decodeError")), {
@@ -278,6 +290,8 @@ async function connect(
             ? " · " + t("media.variant.converted")
             : " · " + t("monitor.archive")),
       );
+    const { ArchivePlayer } = await import("./archivePlayer");
+    signal.throwIfAborted();
     player = new ArchivePlayer(video, session.id, manifest, fail);
     if (!(await player.seek(target.position))) throw Error("Frame unavailable");
     const activePlayer = player;

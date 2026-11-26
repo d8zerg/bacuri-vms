@@ -1,3 +1,4 @@
+#include "modules/inventory/device_configuration_json.hpp"
 #include "modules/inventory/device_configuration.hpp"
 #include <nlohmann/json.hpp>
 namespace bacuri::vms::control

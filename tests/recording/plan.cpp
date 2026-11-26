@@ -1,3 +1,4 @@
+#include "recording/policy_json.hpp"
 #include "recording/plan.hpp"
 #include "schedule.hpp"
 
@@ -75,16 +76,16 @@ TEST_F(RecordingPlanTest, RestoresOnlyTheLastCommittedRules)
     {
         RecordingPlan plan{root};
         EXPECT_FALSE(plan.rule("point"));
-        plan.update(Json{{"point", entry}}.dump());
+        plan.update(decode_plan(Json{{"point", entry}}));
         const auto active = plan.rule("point");
         ASSERT_TRUE(active);
         EXPECT_TRUE(active->selects(120, 4));
         EXPECT_FALSE(active->selects(120, 5));
         EXPECT_TRUE(plan.rule("another")->continuous);
-        plan.update(Json{{"point", entry}}.dump());
+        plan.update(decode_plan(Json{{"point", entry}}));
         EXPECT_EQ(active, plan.rule("point"));
-        EXPECT_THROW(plan.update("[]"), std::invalid_argument);
-        EXPECT_THROW(plan.update(R"({"point":{}})"), Json::exception);
+        EXPECT_THROW(plan.update(decode_plan(Json::array())), std::invalid_argument);
+        EXPECT_THROW(plan.update(decode_plan(Json::parse(R"({"point":{}})"))), Json::exception);
         EXPECT_EQ(active, plan.rule("point"));
     }
     {
@@ -96,7 +97,7 @@ TEST_F(RecordingPlanTest, RestoresOnlyTheLastCommittedRules)
         EXPECT_EQ(rule->since, 100);
         EXPECT_TRUE(rule->selects(149, 4));
         EXPECT_FALSE(rule->selects(150, 4));
-        restored.update("{}");
+        restored.update({});
         EXPECT_TRUE(restored.rule("point")->continuous);
         EXPECT_FALSE(rule->continuous);
     }
@@ -108,13 +109,13 @@ TEST_F(RecordingPlanTest, RestoresOnlyTheLastCommittedRules)
 TEST_F(RecordingPlanTest, FailedPersistenceLeavesActiveRulesIntact)
 {
     RecordingPlan plan{root};
-    plan.update("{}");
+    plan.update({});
     storage::Sqlite journal{root / "journal.db"};
     journal.exec(
         "CREATE TRIGGER reject_update BEFORE UPDATE ON recording_plan BEGIN SELECT RAISE(ABORT,'rejected'); END");
     Json next{{"point",
                {{"id", "next"}, {"revision", 2}, {"since", 0}, {"rule", weekly()}, {"windows", Json::array()}}}};
-    EXPECT_THROW(plan.update(next.dump()), std::runtime_error);
+    EXPECT_THROW(plan.update(decode_plan(next)), std::runtime_error);
     EXPECT_TRUE(plan.rule("point")->continuous);
     RecordingPlan reopened{root};
     EXPECT_TRUE(reopened.rule("point")->continuous);

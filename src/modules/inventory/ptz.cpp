@@ -1,3 +1,6 @@
+#include "application/control_api/http_json.hpp"
+#include "modules/inventory/device_configuration_json.hpp"
+#include "modules/inventory/device_json.hpp"
 #include "modules/inventory/registry.hpp"
 #include "modules/access/operations.hpp"
 #include "modules/inventory/device.hpp"
@@ -56,11 +59,7 @@ void CameraRegistry::ptz(const Request& req, Response& res, const std::string& s
         } catch (const Failure& e) {
             catalog["capability_error"] = std::string{e.code()};
         }
-        for (auto& item : catalog["actions"]) {
-            item.erase("amount");
-            item.erase("mode");
-            item.erase("duration");
-        }
+
         auto states = db.exec("SELECT token,active,observed_at FROM bacuri_inventory.digital_input_states "
                               "WHERE site_id=$1 AND device_id=$2 AND revision=$3",
                               {site, device, rows.get(0, 4)});
@@ -155,20 +154,20 @@ void CameraRegistry::dispatch_ptz(const postgresql::Rows& rows, const std::strin
         const auto& allowed = control.directions;
         auto credentials = camera_credentials(
             Json::parse(unseal(rows.get(0, 2), key_, site + "/" + device + "/" + rows.get(0, 1))));
-        Json action;
+        std::optional<DeviceCommand> action;
         if (std::ranges::find(allowed, command) == allowed.end() || !target.empty()) {
             auto catalog = device_family(control).read_controls(networks_, control, credentials);
-            for (const auto& entry : catalog.at("actions"))
-                if (entry.at("command") == command && entry.at("target") == target) {
+            for (const auto& entry : catalog.actions)
+                if (entry.command == command && entry.target == target) {
                     action = entry;
                     break;
                 }
-            if (action.is_null())
+            if (!action)
                 throw Failure{ErrorCode::camera_ptz_unsupported};
         }
         const int lease = command == "stop" || command == "focus_stop" || command == "tour_stop" ? 0
-                          : action.is_object() ? action.value("duration", 1)
-                                               : 1;
+                          : action ? action->duration.value_or(1)
+                                   : 1;
         auto owner = journal.exec("SELECT user_id,lease_until>clock_timestamp() FROM "
                                   "bacuri_inventory.ptz_commands WHERE site_id=$1 AND device_id=$2 "
                                   "ORDER BY started_at DESC LIMIT 1",
@@ -186,7 +185,7 @@ void CameraRegistry::dispatch_ptz(const postgresql::Rows& rows, const std::strin
                                     {site, user, request_key, device, point, command, target,
                                      role == "administrator" ? "2" : "1", std::to_string(lease)});
         if (created.size()) {
-            if (action.is_object() && action.value("mode", std::string{}) == "Continuous")
+            if (action && action->mode == "Continuous")
                 journal.exec("UPDATE bacuri_inventory.ptz_commands SET "
                              "focus_revision=$4,stop_after=clock_timestamp()+interval '1 second' "
                              "WHERE site_id=$1 AND user_id=$2 AND request_key=$3",
@@ -197,12 +196,11 @@ void CameraRegistry::dispatch_ptz(const postgresql::Rows& rows, const std::strin
         if (created.size()) {
             inventory::refresh_position(journal, site, device);
             try {
-                if (action.is_null())
+                if (!action)
                     device_family(control).move(networks_, control, credentials, command);
                 else
-                    device_family(control).operate(
-                        networks_, control, credentials,
-                        {command, target, action.value("mode", std::string{}), action.value("amount", 0.0)});
+                    device_family(control).operate(networks_, control, credentials,
+                                                   {command, target, action->mode, action->amount});
             } catch (const Failure& e) {
                 // A missing SOAP acknowledgement leaves the outcome unknown even when the request reached the
                 // device.

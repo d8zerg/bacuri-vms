@@ -6,14 +6,20 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { ru, type Message, type MessageKey } from "./ru";
-import { en } from "./en";
+import type { MessageKey } from "./ru";
+import { messages } from "./messages";
 
 export type Language = "ru" | "en";
 export const languages = ["ru", "en"] as const satisfies readonly Language[];
 export type { MessageKey };
 
-const catalogs: Record<Language, Record<MessageKey, Message>> = { ru, en };
+const loaders = {
+  ru: async () => (await import("./ru")).ru,
+  en: async () => (await import("./en")).en,
+};
+async function loadLanguage(language: Language) {
+  Object.assign(messages[language], await loaders[language]());
+}
 const locales: Record<Language, string> = { ru: "ru-RU", en: "en-GB" };
 const storageKey = "bacuri.vms.language";
 
@@ -39,6 +45,8 @@ export function preferredLanguage(): Language {
 }
 
 let current: Language = preferredLanguage();
+await loadLanguage(current);
+let requested = current;
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void) {
@@ -50,8 +58,11 @@ export function currentLanguage(): Language {
   return current;
 }
 
-export function selectLanguage(language: Language) {
+export async function selectLanguage(language: Language) {
+  requested = language;
   if (language === current) return;
+  await loadLanguage(language);
+  if (requested !== language) return;
   current = language;
   try {
     localStorage.setItem(storageKey, language);
@@ -78,7 +89,9 @@ export function translate(
   key: MessageKey,
   params: Params = {},
 ): string {
-  const message = catalogs[language][key];
+  const message = messages[language][key];
+  if (message === undefined)
+    throw new Error(`Missing translation for ${language}: ${key}`);
   const text =
     typeof message === "string"
       ? message
@@ -136,7 +149,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     function sync(event: StorageEvent) {
       if (event.key === storageKey || event.key === null) {
         const choice = saved();
-        if (choice) selectLanguage(choice);
+        if (choice) void selectLanguage(choice);
       }
     }
     window.addEventListener("storage", sync);

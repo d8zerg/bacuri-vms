@@ -2,6 +2,8 @@ import { createElement } from "react";
 import { useEffect } from "storybook/preview-api";
 import { LanguageProvider, selectLanguage } from "../src/i18n";
 
+let toolbarLanguage;
+
 export default {
   parameters: { layout: "padded" },
   globalTypes: {
@@ -28,11 +30,19 @@ export default {
     },
   },
   initialGlobals: { theme: "system", language: "ru" },
+  loaders: [
+    async ({ globals }) => {
+      const language = globals.language === "en" ? "en" : "ru";
+      if (language !== toolbarLanguage) {
+        toolbarLanguage = language;
+        await selectLanguage(language);
+      }
+      return {};
+    },
+  ],
   decorators: [
     (story, { globals }) => {
       const theme = globals.theme;
-      // Selected before rendering, so the first frame of a story already uses the chosen language.
-      selectLanguage(globals.language === "en" ? "en" : "ru");
       useEffect(() => {
         const root = document.documentElement;
         if (theme === "light" || theme === "dark") root.dataset.theme = theme;

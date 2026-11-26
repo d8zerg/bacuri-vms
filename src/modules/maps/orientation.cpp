@@ -1,3 +1,5 @@
+#include "application/control_api/http_json.hpp"
+#include "modules/maps/orientation_json.hpp"
 #include "modules/maps/orientation.hpp"
 #include "modules/inventory/operations.hpp"
 #include <cmath>
@@ -34,64 +36,54 @@ void calibrate(postgresql::Database& db, const Request& req, const std::string& 
             .size())
         throw Failure{ErrorCode::position_from_plan};
     auto cameras = inventory::camera_orientations(db, site, {point});
-    if (!cameras.contains(point) || cameras.at(point).at("device_id") != device)
+    if (!cameras.contains(point) || cameras.at(point).device_id != device)
         throw Failure{ErrorCode::camera_binding_conflict};
     const auto& cam = cameras.at(point);
-    if (!inventory::lock_camera_revision(db, site, point, device, cam.at("revision")))
+    if (!inventory::lock_camera_revision(db, site, point, device, cam.revision))
         throw Failure{ErrorCode::camera_binding_conflict};
-    Json config{{"device_id", device},
-                {"bearing", number(b, "bearing", 0, 360)},
-                {"hfov", number(b, "hfov", 0.1, 179.9)},
-                {"ptz", cam.at("ptz")}};
-    if (cam.at("ptz") == true) {
-        if (!cam.value("fresh", false) || cam.value("moving", false) || !b.contains("space") ||
-            b.at("space") != cam.at("space") ||
-            std::abs(number(b, "reference_pan", -1e9, 1e9) - cam.at("pan").get<double>()) > 0.00001)
+    Calibration config{device, number(b, "bearing", 0, 360), number(b, "hfov", 0.1, 179.9), {}};
+    if (cam.ptz) {
+        if (!cam.position || !cam.fresh || cam.position->moving.value_or(false) || !b.contains("space") ||
+            b.at("space") != cam.position->space ||
+            std::abs(number(b, "reference_pan", -1e9, 1e9) - cam.position->pan) > 0.00001)
             throw Failure{ErrorCode::camera_position_changed};
-        config["profile"] = cam.at("profile");
-        config["space"] = cam.at("space");
-        config["reference_pan"] = cam.at("pan");
         const double scale =
-            cam.at("space") == "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSpaceDegrees"
+            cam.position->space == "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSpaceDegrees"
                 ? 1.0
                 : number(b, "degrees_per_unit", -36000, 36000);
         if (scale == 0)
             throw Failure{ErrorCode::invalid_request};
-        config["degrees_per_unit"] = scale;
+        auto& pan =
+            config.pan.emplace(PanCalibration{cam.profile, cam.position->space, cam.position->pan, scale, {}});
         if (b.contains("tele_hfov"))
-            config["tele_hfov"] = number(b, "tele_hfov", 0.1, config.at("hfov"));
+            pan.tele_hfov = number(b, "tele_hfov", 0.1, config.hfov);
     }
     if (!db.exec("UPDATE bacuri_maps.point_placements SET calibration=$4 WHERE site_id=$1 AND point_id=$2 AND "
                  "plan_id IS NOT DISTINCT FROM nullif($3,'')::uuid RETURNING point_id",
-                 {site, point, plan, config.dump()})
+                 {site, point, plan, Json(config).dump()})
              .size())
         throw Failure{ErrorCode::not_found};
 }
-Json sector(const Json& cfg, const Json& cam)
+ViewSector sector(const std::optional<Calibration>& calibration, const inventory::CameraOrientation& cam)
 {
-    Json unknown{{"state", "unknown"}};
-    if (!cfg.is_object() || !cam.is_object() || cfg.at("device_id") != cam.at("device_id") ||
-        cfg.at("ptz") != cam.at("ptz"))
-        return unknown;
-    double bearing = cfg.at("bearing"), width = cfg.at("hfov");
-    if (cfg.at("ptz") == false)
-        return {{"state", "fixed"}, {"bearing", bearing}, {"hfov", width}};
-    if (!cam.contains("pan") || cam.at("space") != cfg.at("space") || cam.at("profile") != cfg.at("profile"))
-        return unknown;
-    bearing += (cam.at("pan").get<double>() - cfg.at("reference_pan").get<double>()) *
-               cfg.at("degrees_per_unit").get<double>();
-    auto angle = std::fmod(bearing, 360.0);
-    Json result{{"bearing", angle < 0 ? angle + 360 : angle},
-                {"state", cam.at("fresh") == true ? "live" : "stale"},
-                {"observed_at", cam.at("observed_at")}};
-    if (cam.contains("hfov"))
-        result["hfov"] = cam.at("hfov");
-    else if (cam.contains("zoom") && cfg.contains("tele_hfov")) {
-        result["hfov"] = std::lerp(width, cfg.at("tele_hfov").get<double>(), cam.at("zoom").get<double>());
-        result["estimated"] = true;
-    } else {
-        result["hfov"] = width;
-        result["estimated"] = true;
+    if (!calibration || calibration->device_id != cam.device_id || calibration->pan.has_value() != cam.ptz)
+        return {};
+    const auto& cfg = *calibration;
+    if (!cfg.pan)
+        return {ViewState::fixed, cfg.bearing, cfg.hfov, {}, false};
+    const auto& pan = *cfg.pan;
+    if (!cam.position || cam.position->space != pan.space || cam.profile != pan.profile)
+        return {};
+    const auto angle =
+        std::fmod(cfg.bearing + (cam.position->pan - pan.reference_pan) * pan.degrees_per_unit, 360.);
+    ViewSector result{cam.fresh ? ViewState::live : ViewState::stale, angle < 0 ? angle + 360 : angle, cfg.hfov,
+                      cam.observed_at, false};
+    if (cam.position->hfov)
+        result.hfov = cam.position->hfov;
+    else {
+        result.estimated = true;
+        if (cam.position->zoom && pan.tele_hfov)
+            result.hfov = std::lerp(cfg.hfov, *pan.tele_hfov, *cam.position->zoom);
     }
     return result;
 }

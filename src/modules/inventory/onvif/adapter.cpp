@@ -13,16 +13,19 @@ class Onvif final : public DeviceFamily
     {
         return "onvif";
     }
-    Json discover(const CameraNetworks& networks, const Key& key, const std::string& site) const override
+    std::vector<DiscoveredCamera> discover(const CameraNetworks& networks, const Key& key,
+                                           const std::string& site) const override
     {
         return discover_onvif(networks, key, site);
     }
-    Json inspect(const CameraNetworks& networks, const Key& key, const std::string& site,
-                 const std::string& selection_ticket, const CameraCredentials& credentials) const override
+    InspectedCamera inspect(const CameraNetworks& networks, const Key& key, const std::string& site,
+                            const std::string& selection_ticket,
+                            const CameraCredentials& credentials) const override
     {
         return inspect_onvif(networks, key, site, selection_ticket, credentials);
     }
-    Json read_selection(const Key& key, const std::string& site, const std::string& ticket) const override
+    CameraSelection read_selection(const Key& key, const std::string& site,
+                                   const std::string& ticket) const override
     {
         return read_camera_ticket(key, site, ticket);
     }
@@ -36,14 +39,14 @@ class Onvif final : public DeviceFamily
     {
         control::read_motion(stop, networks, control, credentials, accept);
     }
-    Json read_edge_archive(const CameraNetworks& networks, const CameraControl& control,
-                           const CameraCredentials& credentials, const Key& key,
-                           EdgeSelection* selected) const override
+    EdgeArchive read_edge_archive(const CameraNetworks& networks, const CameraControl& control,
+                                  const CameraCredentials& credentials, const Key& key,
+                                  EdgeSelection* selected) const override
     {
         return control::read_edge_archive(networks, control, credentials, key, selected);
     }
-    Json brightness(const CameraNetworks& networks, const CameraControl& control,
-                    const CameraCredentials& credentials) const override
+    std::optional<BrightnessRange> brightness(const CameraNetworks& networks, const CameraControl& control,
+                                              const CameraCredentials& credentials) const override
     {
         return camera_brightness(networks, control, credentials);
     }
@@ -52,13 +55,14 @@ class Onvif final : public DeviceFamily
     {
         return apply_camera_brightness(networks, config, change);
     }
-    Json read_ptz_position(const CameraNetworks& networks, const CameraControl& control,
-                           const CameraCredentials& credentials) const override
+    std::optional<inventory::CameraPosition> read_ptz_position(const CameraNetworks& networks,
+                                                               const CameraControl& control,
+                                                               const CameraCredentials& credentials) const override
     {
         return control::read_ptz_position(networks, control, credentials);
     }
-    Json read_controls(const CameraNetworks& networks, const CameraControl& control,
-                       const CameraCredentials& credentials) const override
+    DeviceControls read_controls(const CameraNetworks& networks, const CameraControl& control,
+                                 const CameraCredentials& credentials) const override
     {
         return read_camera_controls(networks, control, credentials);
     }

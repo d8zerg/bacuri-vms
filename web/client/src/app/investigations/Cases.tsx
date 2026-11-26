@@ -1,3 +1,4 @@
+import "../../i18n/extended";
 // Investigation cases: their materials, assignee, retention and the signed release.
 import { useEffect, useRef, useState } from "react";
 import type { Investigation } from "../../contracts/workspace";

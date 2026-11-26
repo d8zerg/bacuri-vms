@@ -1,3 +1,4 @@
+#include "application/control_api/http_json.hpp"
 #include "modules/maps/packages.hpp"
 #include <fstream>
 #include <set>
@@ -66,7 +67,7 @@ void append(postgresql::Database& db, const Request& req, Response& res, const s
     auto offset = std::stoull(rows.get(0)), total = std::stoull(rows.get(0, 1));
     auto header = req["X-Upload-Offset"];
     if (header != std::to_string(offset) || rows.get(0, 2) != "uploading")
-        throw Failure{ErrorCode::conflict, {{"received", offset}}};
+        throw HttpProblem{{ErrorCode::conflict}, {{"received", offset}}};
     check(!req.body().empty() && req.body().size() <= 1048576 && req.body().size() <= total - offset);
     const auto file = directory(id) / "upload";
     if (!offset) {

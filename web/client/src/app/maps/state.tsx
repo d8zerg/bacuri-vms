@@ -1,3 +1,4 @@
+import "../../i18n/extended";
 // The state of the maps screen: the scene read from the server, the selection kept in the address and the
 // editing of positions and plans.
 import { useResource } from "../../adapters/resource";

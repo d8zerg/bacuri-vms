@@ -1,4 +1,5 @@
 // Recordings stored on the camera and their replay addresses.
+#include "application/control_api/http_json.hpp"
 #include "modules/inventory/onvif.hpp"
 #include "modules/inventory/onvif/soap.hpp"
 
@@ -6,11 +7,11 @@ namespace bacuri::vms::control
 {
 using namespace onvif;
 
-Json read_edge_archive(const CameraNetworks& networks, const CameraControl& control,
-                       const CameraCredentials& credentials, const Key& key, EdgeSelection* selected)
+EdgeArchive read_edge_archive(const CameraNetworks& networks, const CameraControl& control,
+                              const CameraCredentials& credentials, const Key& key, EdgeSelection* selected)
 {
     auto client = control_client(networks, control, credentials);
-    Json result{{"supported", false}, {"recordings", Json::array()}};
+    EdgeArchive result;
     auto services = client.call(required_setting(control.device_service), device, "GetServices",
                                 "<tds:IncludeCapability>false</tds:IncludeCapability>");
     std::map<std::string_view, std::string> endpoints;
@@ -34,7 +35,7 @@ Json read_edge_archive(const CameraNetworks& networks, const CameraControl& cont
     }
     if (!endpoints.contains(recording) || !endpoints.contains(search) || !endpoints.contains(replay))
         return result;
-    result["supported"] = true;
+    result.supported = true;
     auto list = client.call(endpoints.at(recording), recording, "GetRecordings");
     auto* body = response(list, recording, "GetRecordingsResponse");
     if (!body)
@@ -52,14 +53,14 @@ Json read_edge_archive(const CameraNetworks& networks, const CameraControl& cont
             child(response(info, search, "GetRecordingInformationResponse"), search, "RecordingInformation");
         if (!record)
             throw Failure{ErrorCode::camera_protocol_error};
-        Json tracks = Json::array();
+        std::vector<EdgeTrack> tracks;
         for (auto* track = record->children; track; track = track->next) {
             if (!named(track, schema, "Track"))
                 continue;
             auto kind = value(child(track, schema, "TrackType"));
             if (kind != "Video" && kind != "Audio" && kind != "Metadata")
                 continue;
-            Json bounds = nullptr;
+            std::optional<std::pair<std::int64_t, std::int64_t>> bounds;
             auto* from = child(track, schema, "DataFrom");
             auto* to = child(track, schema, "DataTo");
             if (from && to) {
@@ -67,21 +68,21 @@ Json read_edge_archive(const CameraNetworks& networks, const CameraControl& cont
                 if (!ProtoTime::FromString(value(from), &a) || !ProtoTime::FromString(value(to), &b))
                     throw Failure{ErrorCode::camera_protocol_error};
                 if (ProtoTime::TimestampToMicroseconds(a) < ProtoTime::TimestampToMicroseconds(b))
-                    bounds = Window{ProtoTime::TimestampToMicroseconds(a), ProtoTime::TimestampToMicroseconds(b)}
-                                 .json();
+                    bounds =
+                        std::pair{ProtoTime::TimestampToMicroseconds(a), ProtoTime::TimestampToMicroseconds(b)};
             }
             if (tracks.size() >= 64)
                 throw Failure{ErrorCode::camera_protocol_error};
-            tracks.push_back({{"kind", kind}, {"bounds", bounds}});
+            tracks.push_back({kind, bounds});
         }
         const auto id = fingerprint(key, "edge-recording",
                                     Json::array({client.host, required_setting(control.source), token}).dump());
         auto* origin = child(record, schema, "Source");
         auto* name = child(origin, schema, "Name");
         const auto label = name ? value(name).substr(0, 256) : std::string{};
-        result["recordings"].push_back({{"id", id}, {"name", label}, {"tracks", tracks}});
+        result.recordings.push_back({id, label, tracks});
         if (selected && selected->id == id) {
-            if (std::ranges::count_if(tracks, [](const Json& t) { return t.at("kind") == "Video"; }) != 1)
+            if (std::ranges::count_if(tracks, [](const auto& t) { return t.kind == "Video"; }) != 1)
                 throw Failure{ErrorCode::edge_recording_unavailable};
             const auto reply =
                 client.call(endpoints.at(replay), replay, "GetReplayUri",

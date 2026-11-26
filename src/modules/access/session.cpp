@@ -1,11 +1,32 @@
 #include "modules/access/session.hpp"
-#include "application/control_api/api.hpp"
+#include "application/control_api/http_json.hpp"
 #include "modules/access/webauthn.hpp"
 
 #include <algorithm>
 
 namespace bacuri::vms::control
 {
+void to_json(Json& j, const FactorChallenge& c)
+{
+    j = {{"challenge", c.challenge},
+         {"ticket", c.ticket},
+         {"rp_id", c.rp_id},
+         {"user_id", c.user_id},
+         {"kind", c.kind}};
+    if (c.credential_id)
+        j["credential_id"] = *c.credential_id;
+}
+void from_json(const Json& j, FactorResponse& f)
+{
+    f = {string_field(j, "ticket", 64),
+         string_field(j, "client_data", 8000),
+         string_field(j, "authenticator_data", 16000),
+         string_field(j, "credential_id", 1500),
+         {}};
+    if (j.contains("signature"))
+        f.signature = string_field(j, "signature", 1024);
+}
+
 namespace
 {
 constexpr std::string_view cookie_name = "__Host-bacuri_session=";
@@ -123,7 +144,10 @@ void Sessions::login(const Request& request, Response& response, const std::stri
     if (db.exec("SELECT FROM bacuri_access.site_roles WHERE user_id=$1 AND enabled AND role='administrator'",
                 {user.get(0)})
             .size()) {
-        auto challenge = begin_webauthn(db, key_, origin_, user.get(0), body);
+        auto challenge = begin_webauthn(db, key_, origin_, user.get(0),
+                                        body.contains("enrollment_code")
+                                            ? std::optional{string_field(body, "enrollment_code", 64)}
+                                            : std::nullopt);
         db.exec("COMMIT");
         return respond(response, challenge, 202);
     }
@@ -140,7 +164,7 @@ void Sessions::factor(const Request& request, Response& response) const
     db.exec("SAVEPOINT verify_factor");
     VerifiedFactor result;
     try {
-        result = finish_webauthn(db, key_, origin_, body);
+        result = finish_webauthn(db, key_, origin_, body.get<FactorResponse>());
     } catch (const Failure&) {
         db.exec("ROLLBACK TO SAVEPOINT verify_factor");
         db.exec("DELETE FROM bacuri_access.webauthn_challenges WHERE ticket_hash=$1", {ticket});

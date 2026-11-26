@@ -28,7 +28,7 @@ class Sources
     std::shared_ptr<FrameQueue> preview(const std::string& point, Profile profile);
     // Stream reception and policy selection of every point assigned to this recorder.
     v1::PointStates point_states();
-    archive::Json recording_states();
+    std::map<std::string, std::string> recording_states();
     v1::VideoProfiles video_profiles(const std::string& point) const;
 
   private:

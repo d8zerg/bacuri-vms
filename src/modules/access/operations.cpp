@@ -1,6 +1,8 @@
+#include "domain/image_region_json.hpp"
+#include <nlohmann/json.hpp>
 #include "storage/postgresql/database.hpp"
 #include "modules/access/operations.hpp"
-#include "application/control_api/api.hpp"
+#include "application/control_api/http_json.hpp"
 
 namespace bacuri::vms::control::access
 {
@@ -48,15 +50,15 @@ bool lock_point_grant(postgresql::Database& db, const std::string& site, const s
     return allowed(db, site, user, point, "view");
 }
 
-std::string delivery_regions(postgresql::QuerySession& db, const std::string& site, const std::string& point,
-                             const std::string& surface)
+domain::ImageRegions delivery_regions(postgresql::QuerySession& db, const std::string& site,
+                                      const std::string& point, const std::string& surface)
 {
     const auto rows = db.exec(
         "SELECT regions::text FROM bacuri_access.privacy_policies WHERE site_id=$1 AND point_id=$2 AND CASE $3 "
         "WHEN 'live' THEN live WHEN 'archive' THEN archive WHEN 'thumbnail' THEN thumbnail WHEN 'export' THEN "
         "export ELSE false END AND jsonb_array_length(regions)>0",
         {site, point, surface});
-    return rows.size() ? rows.get(0) : "";
+    return rows.size() ? domain::decode_regions(rows.get(0)) : domain::ImageRegions{};
 }
 
 bool allowed(postgresql::QuerySession& db, const std::string& site, const std::string& user,
@@ -99,9 +101,12 @@ std::vector<std::string> viewer_ids(postgresql::Database& db, const std::string&
               {site, point})
         .column();
 }
-std::map<std::string, std::string> investigation_assignees(postgresql::Database& db, const std::string& site,
-                                                           const std::string& spans)
+std::map<std::string, std::string> investigation_assignees(postgresql::QuerySession& db, const std::string& site,
+                                                           const std::vector<MaterialAccess>& spans)
 {
+    nlohmann::json entries = nlohmann::json::array();
+    for (const auto& m : spans)
+        entries.push_back({{"point", m.point}, {"a", m.begin}, {"b", m.end}});
     auto rows =
         db.exec("SELECT u.user_id,u.username FROM bacuri_access.local_users u JOIN bacuri_access.site_roles r "
                 "USING(user_id) "
@@ -109,13 +114,13 @@ std::map<std::string, std::string> investigation_assignees(postgresql::Database&
                 "m(point uuid,a bigint,b bigint) "
                 "WHERE NOT bacuri_access.can_use(r.site_id,u.user_id,m.point,'view',m.a,m.b,'') OR NOT "
                 "bacuri_access.can_use(r.site_id,u.user_id,m.point,'protect',m.a,m.b,'')) ORDER BY u.username",
-                {site, spans});
+                {site, entries.dump()});
     std::map<std::string, std::string> names;
     for (int i = 0; i < rows.size(); i++)
         names.emplace(rows.get(i), rows.get(i, 1));
     return names;
 }
-std::string display_name(postgresql::Database& db, const std::string& user)
+std::string display_name(postgresql::QuerySession& db, const std::string& user)
 {
     if (user.empty())
         return {};
@@ -129,14 +134,18 @@ std::string browser_expiry(postgresql::Database& db, const std::string& browser)
               {browser})
         .get(0);
 }
-std::string export_regions(postgresql::QuerySession& db, const std::string& site, const std::string& point)
+domain::ImageRegions export_regions(postgresql::QuerySession& db, const std::string& site,
+                                    const std::string& point)
 {
     auto row = db.exec("SELECT regions::text FROM bacuri_access.privacy_policies WHERE site_id=$1 AND point_id=$2 "
                        "AND (archive OR export)",
                        {site, point});
     if (!row.size())
         return {};
-    return Json::parse(row.get(0)).empty() ? R"([{"left":0,"top":0,"right":1,"bottom":1}])" : row.get(0);
+    auto regions = domain::decode_regions(row.get(0));
+    if (regions.empty())
+        regions.push_back({0, 0, 1, 1});
+    return regions;
 }
 std::string export_permission(postgresql::QuerySession& db, const std::string& site, const std::string& point,
                               const std::string& user, const std::string& begin, const std::string& end,
@@ -157,7 +166,7 @@ std::string export_permission(postgresql::QuerySession& db, const std::string& s
 std::optional<ExportLease> export_lease(postgresql::Database& db, const std::string& browser,
                                         const std::string& grant, const std::string& point,
                                         const std::string& begin, const std::string& end, bool derivative,
-                                        const std::string& regions, bool sound)
+                                        const domain::ImageRegions& regions, bool sound)
 {
     auto rows =
         db.exec(R"sql(

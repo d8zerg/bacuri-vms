@@ -1,3 +1,4 @@
+#include "archive/manifest_json.hpp"
 #include "modules/media_sessions/operations.hpp"
 #include "modules/recordings/archive_recovery.hpp"
 #include "archive/volume.hpp"

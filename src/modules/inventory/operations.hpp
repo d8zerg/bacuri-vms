@@ -1,6 +1,6 @@
 #pragma once
 
-#include <nlohmann/json_fwd.hpp>
+#include <optional>
 #include <vector>
 #include <string>
 #include <map>
@@ -28,6 +28,19 @@ bool site_exists(postgresql::Database&, const std::string& site);
 bool point_exists(postgresql::Database&, const std::string& site, const std::string& point);
 
 // Each point resolves to its current device. Samples belong to a specific configuration revision.
-nlohmann::json camera_orientations(postgresql::Database&, const std::string& site,
-                                   const std::vector<std::string>& points);
+struct CameraPosition {
+    double pan{};
+    std::string space;
+    std::optional<double> tilt, zoom, hfov;
+    std::optional<bool> moving;
+    std::optional<std::string> source_time;
+};
+struct CameraOrientation {
+    std::string device_id, profile, revision;
+    bool ptz{}, fresh{};
+    std::string observed_at;
+    std::optional<CameraPosition> position;
+};
+std::map<std::string, CameraOrientation> camera_orientations(postgresql::QuerySession&, const std::string& site,
+                                                             const std::vector<std::string>& points);
 } // namespace bacuri::vms::control::inventory

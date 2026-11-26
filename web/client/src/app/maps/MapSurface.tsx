@@ -1,3 +1,4 @@
+import "../../i18n/extended";
 // The map region or floor plan with the camera markers and the tools above it.
 
 import { lazy, Suspense } from "react";

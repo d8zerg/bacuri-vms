@@ -1,3 +1,4 @@
+import "../../i18n/extended";
 // Retention days and the free space reserve of the archive volume.
 import { useState } from "react";
 import type { CaptureStorage } from "../../contracts/workspace";

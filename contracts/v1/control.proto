@@ -138,12 +138,18 @@ message PreviewFrame {
 }
 service LiveDelivery {
   rpc Negotiate(LiveOffer) returns (LiveAnswer);
+  // Stop the owning browser's live transport and release its delivery slot before acknowledging.
+  rpc Close(LiveSessionRef) returns (google.protobuf.Empty);
 }
 message LiveOffer {
   AuthorizeDeliveryRequest scope = 1;
   string sdp = 2;
 }
 message LiveAnswer { string sdp = 1; }
+message LiveSessionRef {
+  string media_session_id = 1;
+  string browser_session_id = 2;
+}
 
 service ArchiveDelivery {
   // One verified initialization or media segment, in bounded chunks.

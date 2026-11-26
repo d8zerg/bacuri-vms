@@ -4,9 +4,24 @@
 
 namespace bacuri::vms::archive
 {
-Json archive_status(const fs::path& root, const std::optional<fs::path>& replica = {});
 enum class RetirementStage { authorized, renamed, removed };
 enum class CapacityState { normal, low_space, recording_stopped };
+struct ReplicaStatus {
+    std::int64_t verified{}, failed{}, pending{}, last_checked_us{};
+    bool online{};
+};
+struct ArchiveStatus {
+    std::int64_t committed{}, pending{}, missing{}, corrupt{}, rejected{}, removed_blocks{};
+    std::uintmax_t media_bytes{}, capacity_bytes{}, available_bytes{}, reserve_bytes{};
+    int reserve_percent{};
+    CapacityState state{};
+    std::optional<int> retention_days;
+    std::optional<std::int64_t> last_commit_utc_us, cutoff_utc_us;
+    std::optional<double> write_bytes_per_second, capacity_depth_seconds, estimated_depth_seconds,
+        remaining_seconds;
+    std::optional<ReplicaStatus> replica;
+};
+ArchiveStatus archive_status(const fs::path& root, const std::optional<fs::path>& replica = {});
 struct RetentionPolicy {
     std::int64_t cutoff_us;
     int days;

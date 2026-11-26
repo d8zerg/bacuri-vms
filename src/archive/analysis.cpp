@@ -28,8 +28,8 @@ std::string encode(std::span<const unsigned char> bytes)
     return raw.get();
 }
 } // namespace
-Json motion_sample(std::span<const unsigned char> previous, std::span<const unsigned char> image,
-                   std::int64_t offset)
+MotionSample motion_sample(std::span<const unsigned char> previous, std::span<const unsigned char> image,
+                           std::int64_t offset)
 {
     if (image.size() != Image{}.size() || (!previous.empty() && previous.size() != image.size()))
         throw std::invalid_argument("Invalid detector image");
@@ -45,36 +45,35 @@ Json motion_sample(std::span<const unsigned char> previous, std::span<const unsi
                     }
                 cells[at(gx, gy, grid_width)] = static_cast<unsigned char>((sum + 8) / 16);
             }
-    return {{"at", offset}, {"cells", encode(cells)}, {"image", encode(image)}};
+    return {offset, encode(cells), encode(image)};
 }
-void validate_analysis(const Json& data, std::int64_t duration)
+void validate_analysis(const MotionIndex& index, std::int64_t duration)
 {
-    if (!data.is_object() || data.size() != 2 || !data.at("samples").is_array() || data.at("samples").empty() ||
-        data.at("samples").size() > 256 || !data.at("frames").is_array() || data.at("frames").empty() ||
-        data.at("frames").size() > 4096)
+    if (index.samples.empty() || index.samples.size() > 256 || index.frames.empty() || index.frames.size() > 4096)
         throw std::invalid_argument("Invalid motion index");
     std::int64_t last = -1;
-    for (const auto& t : data.at("frames")) {
-        if (!t.is_number_integer() || t <= last || t >= duration)
+    for (auto t : index.frames) {
+        if (t <= last || t >= duration)
             throw std::invalid_argument("Invalid indexed timestamp");
-        last = t.get<std::int64_t>();
+        last = t;
     }
     last = -1;
-    for (const auto& s : data.at("samples")) {
-        if (s.size() != 3 || !s.at("at").is_number_integer() || s.at("at") <= last || s.at("at") >= duration ||
-            !std::binary_search(data.at("frames").begin(), data.at("frames").end(), s.at("at")))
+    for (const auto& sample : index.samples) {
+        if (sample.offset <= last || sample.offset >= duration ||
+            !std::ranges::binary_search(index.frames, sample.offset))
             throw std::invalid_argument("Invalid motion sample");
-        last = s.at("at");
-        for (auto [name, length] : {std::pair{"cells", 256u}, {"image", 4096u}}) {
-            const auto& bytes = s.at(name).get_ref<const std::string&>();
+        last = sample.offset;
+        auto pixels = [](const std::string& bytes, std::size_t length) {
             if (bytes.size() != length ||
                 bytes.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/") !=
                     bytes.npos)
                 throw std::invalid_argument("Invalid detector pixels");
-        }
+        };
+        pixels(sample.cells, 256);
+        pixels(sample.image, 4096);
     }
 }
-Json analyze_recording(const std::filesystem::path& path, std::int64_t duration)
+MotionIndex analyze_recording(const std::filesystem::path& path, std::int64_t duration)
 {
     using namespace std::chrono_literals;
     gst_init(nullptr, nullptr);
@@ -94,7 +93,7 @@ Json analyze_recording(const std::filesystem::path& path, std::int64_t duration)
     g_object_set(input.get(), "location", path.c_str(), nullptr);
     if (gst_element_set_state(pipe.get(), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE)
         throw std::runtime_error("Index decoder failed");
-    Json result{{"frames", Json::array()}, {"samples", Json::array()}};
+    MotionIndex result;
     const auto deadline = std::chrono::steady_clock::now() + 30s;
     std::int64_t base = -1, last_sample = -250000;
     Image previous{};
@@ -121,17 +120,17 @@ Json analyze_recording(const std::filesystem::path& path, std::int64_t duration)
         const auto offset = pts - base;
         if (offset >= duration)
             continue;
-        if (result["frames"].size() >= 4096)
+        if (result.frames.size() >= 4096)
             throw std::runtime_error("Index frame limit");
-        result["frames"].push_back(offset);
+        result.frames.push_back(offset);
         if (offset - last_sample < 250000)
             continue;
         Image current{};
         if (gst_buffer_extract(buffer, 0, current.data(), current.size()) != current.size())
             throw std::runtime_error("Incomplete detector image");
-        result["samples"].push_back(motion_sample(last_sample < 0 ? std::span<const unsigned char>{}
-                                                                  : std::span<const unsigned char>{previous},
-                                                  current, offset));
+        result.samples.push_back(motion_sample(last_sample < 0 ? std::span<const unsigned char>{}
+                                                               : std::span<const unsigned char>{previous},
+                                               current, offset));
         previous = current;
         last_sample = offset;
     }
@@ -141,18 +140,6 @@ Json analyze_recording(const std::filesystem::path& path, std::int64_t duration)
 } // namespace bacuri::vms::archive
 namespace bacuri::vms::archive
 {
-MotionArea MotionArea::parse(const Json& item)
-{
-    MotionArea r{item.at("left"), item.at("top"), item.at("right"), item.at("bottom")};
-    if (item.size() != 4 ||
-        !(r.left >= 0 && r.top >= 0 && r.right <= 1 && r.bottom <= 1 && r.left < r.right && r.top < r.bottom))
-        throw std::invalid_argument("Invalid analysis area");
-    return r;
-}
-bool MotionArea::overlaps(double x, double y, double w, double h) const
-{
-    return x < right && x + w > left && y < bottom && y + h > top;
-}
 namespace
 {
 std::vector<unsigned char> pixels(const std::string& bytes, std::size_t size)

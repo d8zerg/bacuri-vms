@@ -1,4 +1,6 @@
 #pragma once
+#include <array>
+#include <optional>
 // SOAP transport of the ONVIF adapter: XML parsing, WS-Security tokens, the camera client and the media
 // service. The header is internal to the ONVIF adapter.
 #include <boost/beast/core/flat_buffer.hpp>
@@ -16,7 +18,7 @@
 #include <map>
 #include <thread>
 #include "application/control_api/playback_time.hpp"
-#include "modules/inventory/device_configuration.hpp"
+#include "modules/inventory/device.hpp"
 #include <set>
 #include <sstream>
 #include <utility>
@@ -138,24 +140,6 @@ inline Uri https_uri(const std::string& url)
         g_uri_get_port(uri.get()) == 0)
         throw Failure{ErrorCode::camera_transport_denied};
     return uri;
-}
-
-inline std::string ticket(const Key& key, const std::string& context, Json data)
-{
-    data["expires"] = g_get_real_time() / G_USEC_PER_SEC + 600;
-    return seal(key, context, data.dump());
-}
-
-inline Json read_ticket(const Key& key, const std::string& context, const std::string& token)
-{
-    try {
-        auto data = Json::parse(unseal(token, key, context));
-        if (data.at("expires").get<gint64>() > g_get_real_time() / G_USEC_PER_SEC)
-            return data;
-    } catch (const std::exception&) {
-        throw Failure{ErrorCode::camera_selection_expired};
-    }
-    throw Failure{ErrorCode::camera_selection_expired};
 }
 
 struct AddressingHeaders {
@@ -332,13 +316,17 @@ inline double seconds(const std::string& duration)
     return number(1) * 3600 + number(2) * 60 + number(3);
 }
 
-inline Json directions(const CameraClient& client, const std::string& url, const std::string& config)
+struct MoveOptions {
+    std::vector<std::string> directions;
+    bool relative{};
+};
+inline MoveOptions directions(const CameraClient& client, const std::string& url, const std::string& config)
 {
     auto doc = client.call(url, ptz, "GetConfigurationOptions",
                            "<tptz:ConfigurationToken>" + escape(config) + "</tptz:ConfigurationToken>");
     auto* opts = child(response(doc, ptz, "GetConfigurationOptionsResponse"), ptz, "PTZConfigurationOptions");
     auto* timeout = child(opts, schema, "PTZTimeout");
-    Json result = Json::array();
+    std::vector<std::string> result;
     const auto min = timeout ? seconds(value(child(timeout, schema, "Min"))) : -1;
     const auto max = timeout ? seconds(value(child(timeout, schema, "Max"))) : -1;
     const bool relative = !(min >= 0 && min <= 1 && max >= 1);
@@ -358,10 +346,10 @@ inline Json directions(const CameraClient& client, const std::string& url, const
     auto add_axis = [&](const auto& limits, const std::pair<const char*, const char*> names) {
         const auto [negative, positive] = names;
         const auto [low, high] = limits;
-        if (low <= -step && high >= -step && std::ranges::find(result, Json(negative)) == result.end())
-            result.push_back(negative);
-        if (low <= step && high >= step && std::ranges::find(result, Json(positive)) == result.end())
-            result.push_back(positive);
+        if (low <= -step && high >= -step && std::ranges::find(result, negative) == result.end())
+            result.emplace_back(negative);
+        if (low <= step && high >= step && std::ranges::find(result, positive) == result.end())
+            result.emplace_back(positive);
     };
     for (auto* n = spaces ? spaces->children : nullptr; n; n = n->next) {
         if (named(n, schema, relative ? "RelativePanTiltTranslationSpace" : "ContinuousPanTiltVelocitySpace") &&
@@ -377,8 +365,8 @@ inline Json directions(const CameraClient& client, const std::string& url, const
             add_axis(bounds(child(n, schema, "XRange")), {"zoom_out", "zoom_in"});
     }
     if (!result.empty())
-        result.push_back("stop");
-    return {{"directions", result}, {"relative_move", relative}};
+        result.emplace_back("stop");
+    return {std::move(result), relative};
 }
 
 inline const std::string& required_setting(const std::optional<std::string>& field)
@@ -398,51 +386,6 @@ inline CameraClient control_client(const CameraNetworks& networks, const CameraC
     return {credentials, ip, required_setting(control.host), Clock::now() + 4s};
 }
 
-inline void matches(Json& found, std::set<std::string>& seen, const Doc& doc, const std::string& mid,
-                    const Key& key, const std::string& site, GInetAddress* sender)
-{
-    Chars ip{g_inet_address_to_string(sender), g_free};
-    auto* root = xmlDocGetRootElement(doc.get());
-    auto* header = child(root, soap, "Header");
-    if (!named(root, soap, "Envelope") ||
-        value(child(header, addressing, "Action")) != std::string{discovery} + "/ProbeMatches" ||
-        value(child(header, addressing, "RelatesTo")) != mid)
-        return;
-    const auto* list = child(child(root, soap, "Body"), discovery, "ProbeMatches");
-    for (auto* m = list ? list->children : nullptr; m && found.size() < 64; m = m->next) {
-        if (!named(m, discovery, "ProbeMatch"))
-            continue;
-        auto id = value(child(child(m, addressing, "EndpointReference"), addressing, "Address"));
-        std::istringstream urls(value(child(m, discovery, "XAddrs")));
-        std::string candidate;
-        for (std::string url; urls >> url;) {
-            try {
-                if (url.starts_with("https://")) {
-                    https_uri(url);
-                    candidate = url;
-                    break;
-                }
-                if (!candidate.empty() || !url.starts_with("http://"))
-                    continue;
-                auto uri = https_uri("https" + url.substr(4));
-                if (g_uri_get_port(uri.get()) > 0 && g_uri_get_port(uri.get()) != 80)
-                    continue;
-                // Some devices advertise only their HTTP address even when the same service accepts TLS.
-                Chars secure{g_uri_join(G_URI_FLAGS_ENCODED, "https", nullptr, g_uri_get_host(uri.get()), -1,
-                                        g_uri_get_path(uri.get()), g_uri_get_query(uri.get()), nullptr),
-                             g_free};
-                candidate = secure.get();
-            } catch (const Failure&) {
-                continue;
-            }
-        }
-        if (!candidate.empty() && seen.insert(id).second)
-            found.push_back(
-                {{"endpoint_id", id},
-                 {"device_service", candidate},
-                 {"selection", ticket(key, "probe/" + site, {{"id", id}, {"url", candidate}, {"ip", ip.get()}})}});
-    }
-}
 struct MediaService {
     std::string address;
     std::string_view ns;

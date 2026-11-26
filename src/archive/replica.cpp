@@ -1,3 +1,4 @@
+#include "archive/manifest_json.hpp"
 #include "archive/replica.hpp"
 #include "archive/mp4.hpp"
 #include "platform/identifiers.hpp"

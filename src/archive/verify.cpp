@@ -1,3 +1,4 @@
+#include "archive/manifest_json.hpp"
 #include "archive/verify.hpp"
 #include "archive/mp4.hpp"
 #include "platform/identifiers.hpp"
@@ -48,19 +49,21 @@ MediaDigest file_digest(const std::filesystem::path& path)
 }
 namespace
 {
-Json verify_directory(const std::filesystem::path& dir, const Json& trusted, bool allow_case)
+VerifiedEvidence verify_directory(const std::filesystem::path& dir, const TrustedExportKey& trusted,
+                                  bool allow_case)
 {
     const auto description = read_text(dir / "manifest.json", 4uz * 1024 * 1024);
     const auto sig = unhex<crypto_sign_BYTES>(read_text(dir / "manifest.sig", 2uz * crypto_sign_BYTES));
-    require(trusted.at("algorithm") == "Ed25519");
-    const auto pub = unhex<crypto_sign_PUBLICKEYBYTES>(trusted.at("public_key"));
+    require(trusted.algorithm == "Ed25519");
+    const auto pub = unhex<crypto_sign_PUBLICKEYBYTES>(trusted.public_key);
     require(crypto_sign_verify_detached(sig.data(), reinterpret_cast<const unsigned char*>(description.data()),
                                         description.size(), pub.data()) == 0);
     const auto m = Json::parse(description);
     if (allow_case && m.at("format") == "bacuri.vms.case.v1") {
         const auto& c = m.at("case");
         const auto& parts = m.at("parts");
-        require(m.at("site_id") == trusted.at("site_id") &&
+        const auto mode = m.at("mode").get<std::string>();
+        require((mode == "original" || mode == "derivative") && m.at("site_id") == trusted.site_id &&
                 platform::canonical_id(c.at("id").get_ref<const std::string&>()) && !m.at("reason").empty() &&
                 parts.is_array() && !parts.empty() && parts.size() <= 32 &&
                 parts.size() == c.at("materials").size());
@@ -73,18 +76,18 @@ Json verify_directory(const std::filesystem::path& dir, const Json& trusted, boo
                     std::filesystem::is_directory(std::filesystem::symlink_status(dir / name)) &&
                     part.at("manifest_sha256") == file_digest(dir / name / "manifest.json").sha256);
             const auto inner = verify_directory(dir / name, trusted, false);
-            require(inner.at("mode") == m.at("mode") && inner.at("point_id") == part.at("point_id") &&
-                    inner.at("begin_utc_us") == part.at("begin_utc_us") &&
-                    inner.at("end_utc_us") == part.at("end_utc_us"));
+            require(inner.fragment && mode == inner.mode && part.at("point_id") == inner.fragment->point_id &&
+                    part.at("begin_utc_us") == inner.fragment->begin_us &&
+                    part.at("end_utc_us") == inner.fragment->end_us);
             expected.insert(name);
         }
         for (const auto& entry : std::filesystem::directory_iterator(dir))
             require(expected.erase(entry.path().filename().string()) == 1);
         require(expected.empty());
-        return m;
+        return {description, mode, {}};
     }
     const bool v2 = m.at("format") == "bacuri.vms.export.v2";
-    require((m.at("format") == "bacuri.vms.export.v1" || v2) && m.at("site_id") == trusted.at("site_id") &&
+    require((m.at("format") == "bacuri.vms.export.v1" || v2) && m.at("site_id") == trusted.site_id &&
             platform::canonical_id(m.at("point_id").get_ref<const std::string&>()) &&
             platform::canonical_id(m.at("export_id").get_ref<const std::string&>()));
     std::set<std::string> files{"manifest.json", "manifest.sig"};
@@ -145,10 +148,11 @@ Json verify_directory(const std::filesystem::path& dir, const Json& trusted, boo
     for (const auto& entry : std::filesystem::directory_iterator(dir))
         require(files.erase(entry.path().filename().string()) == 1);
     require(files.empty());
-    return m;
+    return {description, v2 ? m.at("mode").get<std::string>() : "selection",
+            VerifiedFragment{m.at("point_id"), m.at("begin_utc_us"), m.at("end_utc_us")}};
 }
 } // namespace
-Json verify_evidence(const std::filesystem::path& dir, const Json& trusted)
+VerifiedEvidence verify_evidence(const std::filesystem::path& dir, const TrustedExportKey& trusted)
 {
     return verify_directory(dir, trusted, true);
 }

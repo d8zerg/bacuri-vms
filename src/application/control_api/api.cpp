@@ -1,5 +1,5 @@
 // Request parsing and response helpers shared by the HTTP handlers of all modules.
-#include "application/control_api/api.hpp"
+#include "application/control_api/http_json.hpp"
 
 #include <algorithm>
 
@@ -22,7 +22,9 @@ Response request_response()
     return res;
 }
 
-void problem(Response& res, const Failure& error)
+namespace
+{
+void write_problem(Response& res, const Failure& error, const Json& fields)
 {
     // A cause that the client may repeat after a pause tells it when.
     if (info(error.error).retry == Retry::later && !res.count(http::field::retry_after)) {
@@ -34,9 +36,19 @@ void problem(Response& res, const Failure& error)
               {"title", code},
               {"type", "urn:bacuri:vms:problem:" + code},
               {"request_id", std::string{res["X-Request-Id"]}}};
-    body.update(error.fields);
+    body.update(fields);
     respond(res, body, error.status());
     res.set(http::field::content_type, "application/problem+json");
+}
+
+} // namespace
+void problem(Response& res, const Failure& error)
+{
+    write_problem(res, error, Json::object());
+}
+void problem(Response& res, const HttpProblem& error)
+{
+    write_problem(res, error, error.fields);
 }
 
 Json object_body(const Request& request, std::initializer_list<std::string_view> fields)

@@ -1,3 +1,4 @@
+#include "application/control_api/http_json.hpp"
 #include "modules/access/operations.hpp"
 #include "modules/events/alerts.hpp"
 #include "application/control_api/playback_time.hpp"
@@ -7,24 +8,20 @@ namespace
 {
 constexpr std::string_view fields =
     "d.alert_id,d.point_id,d.observed_at_utc_us,d.type,d.time_basis,d.uncertainty_us,d.position,d.work_state";
-Json alert(const postgresql::Rows& rows, int row)
+Alert alert(const postgresql::Rows& rows, int row)
 {
-    const auto time = std::stoll(rows.get(row, 2));
-    Json value{{"id", rows.get(row)},
-               {"point_id", rows.get(row, 1)},
-               {"observed_at", ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(time))},
-               {"type", rows.get(row, 3)},
-               {"work_state", rows.get(row, 7)},
-               {"time_basis", rows.get(row, 4)},
-               {"archive_interval", alert_window(time).json()}};
-    if (auto uncertainty = rows.get(row, 5); !uncertainty.empty()) {
-        value["uncertainty_us"] = uncertainty;
-    }
-    return value;
+    const auto uncertainty = rows.get(row, 5);
+    return {rows.get(row),
+            rows.get(row, 1),
+            rows.get(row, 3),
+            rows.get(row, 7),
+            rows.get(row, 4),
+            std::stoll(rows.get(row, 2)),
+            uncertainty.empty() ? std::nullopt : std::optional<std::int64_t>(std::stoll(uncertainty))};
 }
 FeedBatch resync(std::string_view reason)
 {
-    return {{Json{{"type", "resync_required"}, {"reason", reason}}.dump()}, 1000};
+    return {{ResyncRequired{std::string(reason)}}, 1000};
 }
 } // namespace
 AlertFeed::Scope AlertFeed::scope(postgresql::Database& db) const
@@ -62,7 +59,7 @@ void AlertFeed::authorize()
     scope(db);
     db.exec("COMMIT");
 }
-Json AlertFeed::snapshot()
+AlertSnapshot AlertFeed::snapshot()
 {
     postgresql::Database db;
     const auto rights = scope(db);
@@ -75,12 +72,12 @@ Json AlertFeed::snapshot()
         {site_,
          rights.admin ? "{}" : postgresql::array_parameter(access::granted_point_ids(db, site_, rights.user)),
          rights.admin ? "true" : "false"});
-    auto items = Json::array();
+    std::vector<Alert> items;
     for (int row = rows.size(); row > 0; --row) {
         items.push_back(alert(rows, row - 1));
     }
     db.exec("COMMIT");
-    return {{"items", std::move(items)}, {"cursor", cursor(rights, rights.head)}};
+    return {std::move(items), cursor(rights, rights.head)};
 }
 FeedBatch AlertFeed::poll(std::string_view after)
 {
@@ -132,11 +129,9 @@ FeedBatch AlertFeed::poll(std::string_view after)
     for (int i = 0; i < std::min(rows.size(), 8); ++i) {
         const auto seq = std::stoll(rows.get(i, 6));
         if (auto removed = rows.get(i, 8); !removed.empty() && !(pending_ && position_ == seq)) {
-            batch.frames.push_back(
-                Json{{"type", "remove"}, {"cursor", cursor(rights, seq, true)}, {"alert_id", removed}}.dump());
+            batch.frames.emplace_back(AlertRemoved{cursor(rights, seq, true), removed});
         }
-        batch.frames.push_back(
-            Json{{"type", "upsert"}, {"cursor", cursor(rights, seq)}, {"alert", alert(rows, i)}}.dump());
+        batch.frames.emplace_back(AlertUpdated{cursor(rights, seq), alert(rows, i)});
         position_ = seq;
         pending_ = false;
     }

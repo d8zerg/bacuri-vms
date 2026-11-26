@@ -1,3 +1,7 @@
+#include "application/control_api/http_json.hpp"
+#include "recording/policy_json.hpp"
+#include "archive/manifest_json.hpp"
+#include "archive/analysis_json.hpp"
 #include "modules/events/video_rules.hpp"
 #include "platform/rpc_status.hpp"
 #include "modules/events/observations.hpp"
@@ -80,7 +84,7 @@ grpc::Status ArchiveCatalog::CommitIndex(grpc::ServerContext*, const v1::IndexRe
         const auto m = archive::parse_manifest(archive::Json::parse(q->manifest()));
         if (m.recording.block().site.to_string() != owner_.site || m.recording_node.to_string() != owner_.node)
             return platform::rpc_status(ErrorCode::assignment_mismatch);
-        auto index = archive::Json::parse(q->analysis());
+        const auto index = archive::Json::parse(q->analysis()).get<archive::MotionIndex>();
         archive::validate_analysis(index, m.end_us() - m.begin_us());
         postgresql::Database db;
         db.exec(
@@ -121,7 +125,7 @@ grpc::Status ArchiveCatalog::AdvanceRetention(grpc::ServerContext*, const v1::Re
         for (const auto& point : events::detector_points(db, owner_.site))
             result->add_detector_points(point);
         const auto plan = recordings::recording_plan(db, owner_.site);
-        result->set_recording_plan_json(plan.dump());
+        result->set_recording_plan_json(Json(plan).dump());
         result->set_days(policy.size() ? std::stoi(policy.get(0)) : 0);
         result->set_reserve_percent(policy.size() ? std::stoi(policy.get(0, 1)) : 20);
         if (db.exec("SELECT FROM bacuri_archive.archive_recovery WHERE site_id=$1", {owner_.site}).size()) {

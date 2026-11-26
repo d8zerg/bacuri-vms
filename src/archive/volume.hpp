@@ -48,7 +48,7 @@ class Volume
     bool publish(const Block&, const MediaWriter&, const Observer& observer = {},
                  std::uintmax_t expected_bytes = 0, RecordedSound sound = {});
     std::string read_audio(const AudioSlice& slice);
-    Json status() const
+    ArchiveStatus status() const
     {
         return archive_status(root_, replica_);
     }

@@ -1,5 +1,8 @@
 #pragma once
-#include "storage/postgresql/configuration_snapshot.hpp"
+namespace bacuri::vms::postgresql
+{
+class ConfigurationSnapshot;
+}
 namespace bacuri::vms::control::maps
 {
 void plan_configuration(postgresql::ConfigurationSnapshot& snapshot);

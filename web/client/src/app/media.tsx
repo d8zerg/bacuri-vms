@@ -202,7 +202,17 @@ export function SessionPlayer({
         onFrame?.();
       })
       .catch(() => fail(t("video.unavailable")));
-    return () => ctl.abort();
+    const hide = () => ctl.abort();
+    const show = (event: PageTransitionEvent) => {
+      if (event.persisted) renew((n) => n + 1);
+    };
+    window.addEventListener("pagehide", hide);
+    window.addEventListener("pageshow", show);
+    return () => {
+      window.removeEventListener("pagehide", hide);
+      window.removeEventListener("pageshow", show);
+      ctl.abort();
+    };
   }, [
     services,
     site,

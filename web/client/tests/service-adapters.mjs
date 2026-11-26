@@ -292,44 +292,61 @@ export async function serviceAdapterCoverage() {
       target: "esnext",
       lib: {
         entry: "src/adapters/services.ts",
-        name: "adapters",
-        formats: ["iife"],
+        formats: ["es"],
       },
       write: false,
       sourcemap: "hidden",
     },
   });
-  const chunk = bundle.output.find((item) => item.type === "chunk");
+  const chunks = new Map(
+    bundle.output
+      .filter((item) => item.type === "chunk")
+      .map((chunk) => ["/" + chunk.fileName, chunk]),
+  );
+  const entry = [...chunks.values()].find((chunk) => chunk.isEntry);
+  assert.ok(entry);
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
     await page.route(origin + "/", (route) =>
       route.fulfill({ contentType: "text/html", body: "<!doctype html>" }),
     );
-    await page.route(origin + "/adapters.js", (route) =>
-      route.fulfill({ contentType: "text/javascript", body: chunk.code }),
-    );
+    for (const [path, chunk] of chunks) {
+      await page.route(origin + path, (route) =>
+        route.fulfill({ contentType: "text/javascript", body: chunk.code }),
+      );
+    }
     await page.goto(origin);
     await page.coverage.startJSCoverage();
-    await page.addScriptTag({ url: origin + "/adapters.js" });
-    await page.evaluate(() => {
-      window.services = window.adapters.createServices();
-    });
+    await page.evaluate(
+      async (url) => {
+        const { createServices } = await import(url);
+        window.services = createServices();
+      },
+      origin + "/" + entry.fileName,
+    );
     const token = await login(page);
     await revisions(page, token);
     await cameraRevision(page, token);
     await edgeArchive(page, token);
-    const scripts = (await page.coverage.stopJSCoverage()).filter(
-      (script) => script.url === origin + "/adapters.js",
+    const scripts = await page.coverage.stopJSCoverage();
+    assert.ok(
+      scripts.some((script) => script.url === origin + "/" + entry.fileName),
     );
-    assert.equal(scripts.length, 1);
-    return [
-      {
-        ...scripts[0],
-        url: "file://" + outDir + "/" + chunk.fileName,
-        sourceMap: JSON.parse(chunk.map.toString()),
-      },
-    ];
+    return scripts
+      .filter(
+        (script) =>
+          script.url.startsWith(origin + "/") &&
+          chunks.has(new URL(script.url).pathname),
+      )
+      .map((script) => {
+        const chunk = chunks.get(new URL(script.url).pathname);
+        return {
+          ...script,
+          url: "file://" + outDir + "/" + chunk.fileName,
+          sourceMap: JSON.parse(chunk.map.toString()),
+        };
+      });
   } finally {
     await browser.close();
   }

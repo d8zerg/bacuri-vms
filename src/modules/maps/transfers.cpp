@@ -1,3 +1,4 @@
+#include "application/control_api/http_json.hpp"
 #include "modules/maps/packages.hpp"
 
 #include <archive.h>
@@ -13,6 +14,8 @@
 
 namespace bacuri::vms::control::map_packages
 {
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RegionPackage, id, name, source_time, bounds, bytes)
+
 namespace
 {
 using namespace std::chrono_literals;
@@ -222,7 +225,7 @@ Json unpack(const fs::path& dir)
     std::array<char, 16> magic{};
     std::ifstream(upload, std::ios::binary).read(magic.data(), magic.size());
     if (std::string_view(magic.data(), 15) == "SQLite format 3") {
-        auto entry = inspect(upload);
+        Json entry = inspect(upload);
         entry["file"] = "upload";
         return Json::array({entry});
     }
@@ -255,7 +258,7 @@ Json unpack(const fs::path& dir)
         require(count == 0 && written == bytes);
         file.close();
         total += static_cast<std::uint64_t>(written);
-        auto entry = inspect(dir / filename);
+        Json entry = inspect(dir / filename);
         require(ids.insert(entry.at("id")).second);
         entry["file"] = filename;
         list.push_back(std::move(entry));
@@ -333,7 +336,7 @@ void advance(postgresql::Database& db, const postgresql::Rows& row, std::stop_to
             return;
         db.exec("BEGIN");
         transaction = true;
-        install(db, file, site, e, mode);
+        install(db, file, site, e.get<RegionPackage>(), mode);
         db.exec("UPDATE bacuri_maps.map_jobs SET state='installed' WHERE id=$1", {id});
         db.exec("COMMIT");
     } catch (const PackageError& error) {

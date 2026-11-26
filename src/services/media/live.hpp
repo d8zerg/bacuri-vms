@@ -1,6 +1,6 @@
 #pragma once
 #include "control.grpc.pb.h"
-#include <atomic>
+#include <future>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -12,10 +12,12 @@ class LiveDelivery final : public v1::LiveDelivery::Service
 {
   public:
     grpc::Status Negotiate(grpc::ServerContext*, const v1::LiveOffer*, v1::LiveAnswer*) override;
+    grpc::Status Close(grpc::ServerContext*, const v1::LiveSessionRef*, google::protobuf::Empty*) override;
 
   private:
     struct Peer {
-        std::atomic_bool done{};
+        std::string browser;
+        std::shared_future<void> stopped;
         std::jthread worker;
     };
     std::mutex mutex_;

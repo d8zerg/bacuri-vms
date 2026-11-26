@@ -1,3 +1,5 @@
+#include "application/control_api/http_json.hpp"
+#include "modules/inventory/device_configuration_json.hpp"
 #include "modules/inventory/device.hpp"
 #include "modules/inventory/enrollment.hpp"
 
@@ -54,10 +56,11 @@ TEST(CameraEnrollment, RefusesToBindProfilesFromDifferentPhysicalChannels)
 {
     const Key key{};
     const std::string main = "rtsp://camera/main", secondary = "rtsp://camera/secondary";
-    const Json profiles{{fingerprint(key, "onvif-stream", main), {{"channel", "north"}}},
-                        {fingerprint(key, "onvif-stream", secondary), {{"channel", "south"}}}};
+    CameraSelection selection{};
+    selection.profiles[fingerprint(key, "onvif-stream", main)].channel = "north";
+    selection.profiles[fingerprint(key, "onvif-stream", secondary)].channel = "south";
     try {
-        inventory::channel_configuration(key, {{"profiles", profiles}}, main, secondary);
+        inventory::channel_configuration(key, selection, main, secondary);
         FAIL() << "Accepted profiles from different physical channels";
     } catch (const Failure& failure) {
         EXPECT_EQ(failure.error, ErrorCode::camera_incompatible_profiles);

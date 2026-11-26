@@ -1,3 +1,4 @@
+import "../i18n/extended";
 import { useEffect, useRef, useState } from "react";
 import type { ExportOptions, Interval, Services } from "../contracts/workspace";
 import "./fragment-export.css";

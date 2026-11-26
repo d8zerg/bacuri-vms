@@ -74,6 +74,16 @@ PUBLIC = {
     "modules/recordings/status.hpp",
 }
 
+# Shared representations used by HTTP, storage and message adapters.
+SHARED_CODECS = {
+    "application/control_api/http_json.hpp",
+    "application/control_api/playback_time_json.hpp",
+    "modules/events/alert_json.hpp",
+    "modules/events/video_json.hpp",
+    "modules/inventory/orientation_json.hpp",
+    "modules/investigations/case_json.hpp",
+}
+
 def module(file):
     if file.parts[:2] == ("src", "modules") and len(file.parts) >= 4:
         return file.parts[2]
@@ -177,6 +187,8 @@ def include_error(file, header):
         return False
     target = dest.relative_to("src")
     caller = file.relative_to("src")
+    if caller.as_posix() in PUBLIC and target.name.endswith("_json.hpp"):
+        return True
     # Service implementation headers belong to exactly one executable.
     if target.parts[0] == "services":
         return caller.parts[:2] != target.parts[:2]
@@ -196,6 +208,8 @@ def include_error(file, header):
         return True
     if target.name == "restore.hpp":
         return caller.as_posix() not in {"admin/maintenance.cpp", "application/recovery/configuration_backup.cpp"}
+    if target.as_posix() in SHARED_CODECS:
+        return file.suffix != ".cpp" and caller.as_posix() not in JSON_EDGE_HEADERS
     return target.as_posix() not in PUBLIC
 
 
@@ -224,9 +238,53 @@ def verifier_errors(root, entry=VERIFIER):
     return errors
 
 
+# JSON belongs to the HTTP adapter and explicit format codecs. All other owner headers,
+# including newly added private headers, use C++ types for arguments, results and fields.
+JSON_TYPE = re.compile(r"\b(?:Json|json|ordered_json|basic_json)\b|NLOHMANN_DEFINE_TYPE")
+JSON_EDGE_HEADERS = {
+    "application/control_api/http_json.hpp",
+    "application/control_api/playback_time_json.hpp",
+    "archive/analysis_json.hpp", "archive/manifest_json.hpp",
+    "archive/trusted_key_json.hpp",
+    "modules/events/alert_json.hpp", "modules/events/video_json.hpp",
+    "modules/inventory/device_configuration_json.hpp", "modules/inventory/device_json.hpp",
+    "modules/inventory/onvif/ticket_json.hpp", "modules/inventory/orientation_json.hpp",
+    "modules/inventory/registered_camera_json.hpp", "modules/inventory/selection_json.hpp",
+    "modules/investigations/case_json.hpp",
+    "modules/maps/georeference_json.hpp", "modules/maps/orientation_json.hpp",
+    "modules/media_sessions/playback_json.hpp", "modules/media_sessions/export_scope_json.hpp",
+}
+
+def owner_header(file):
+    return (file.suffix in {".hpp", ".h", ".hh", ".hxx", ".inl"} and
+            file.parts[:2] in {("src", "modules"), ("src", "application"), ("src", "archive")} and
+            file.relative_to("src").as_posix() not in JSON_EDGE_HEADERS)
+
+def exposes_json(file, code):
+    return owner_header(file) and bool(JSON_TYPE.search(CPP_TOKEN.sub("", code)))
+
+def json_include_chain(root, entry):
+    pending = [(entry, [entry.as_posix()])]
+    seen = {entry}
+    while pending:
+        file, chain = pending.pop()
+        code = (root / file).read_text()
+        for header in re.findall(r'^\s*#\s*include\s*["<]([^">]+)[">]', code, re.M):
+            if header.startswith("nlohmann/"):
+                return [*chain, header]
+            target = local_header(root, file, header)
+            if target is None or target in seen:
+                continue
+            path = target.relative_to("src").as_posix()
+            if path in JSON_EDGE_HEADERS or target.name.endswith("_json.hpp"):
+                return [*chain, target.as_posix()]
+            seen.add(target)
+            pending.append((target, [*chain, target.as_posix()]))
+    return []
+
 def check_source(file, code):
     owner = module(file)
-    errors = []
+    errors = ["JSON type outside a serialization boundary"] if exposes_json(file, code) else []
     for header in re.findall(r'^\s*#\s*include\s*["<]([^">]+)[">]', code, re.M):
         if include_error(file, header):
             errors.append(f"private include {header}")
@@ -287,6 +345,10 @@ def check_storage():
     return errors
 
 def check_examples():
+    if duplicates := PUBLIC & JSON_EDGE_HEADERS:
+        raise AssertionError(f"Public module API listed as a JSON adapter: {sorted(duplicates)}")
+    if missing := [name for name in JSON_EDGE_HEADERS if not (ROOT / "src" / name).is_file()]:
+        raise AssertionError(f"Unknown JSON adapter headers: {sorted(missing)}")
     examples = [
         ("SELECT * FROM retained_blocks", {"retained_blocks"}),
         ("SELECT * FROM visible_points", {"visible_points"}),
@@ -304,12 +366,32 @@ def check_examples():
     joined, = literals('"SELECT * " /* separator */ R"sql(FROM )sql" "\\"local_users\\""')
     if violations("events", joined) != {"local_users"}:
         raise AssertionError(joined)
+    for path in ("src/modules/maps/model.hpp", "src/application/export/results.hpp", "src/archive/example.hpp"):
+        for declaration in ("Json get();", "void set(const nlohmann::json&);", "using Payload = nlohmann::ordered_json;",
+                            "std::optional<Json> metadata;", "NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Data, value)"):
+            if not exposes_json(Path(path), declaration):
+                raise AssertionError(f"{path} accepted {declaration}")
+        if exposes_json(Path(path), '// Json format\nstruct Example { std::string name; };'):
+            raise AssertionError("JSON mentioned only in a comment")
+    with tempfile.TemporaryDirectory() as sample:
+        root = Path(sample)
+        entry = Path("src/modules/maps/model.hpp")
+        (root / entry.parent).mkdir(parents=True)
+        (root / entry).write_text('#include "detail.hpp"')
+        detail = root / entry.parent / "detail.hpp"
+        for header in ("nlohmann/json.hpp", "nlohmann/json_fwd.hpp"):
+            detail.write_text(f'#include "model.hpp"\n#include <{header}>')
+            assert json_include_chain(root, entry) == [entry.as_posix(), "src/modules/maps/detail.hpp", header]
+        detail.write_text('#include "model.hpp"')
+        assert not json_include_chain(root, entry)
     caller = Path("src/modules/events/operations.cpp")
     allowed = '#include "modules/inventory/operations.hpp"\n db.exec("SELECT * FROM bacuri_events.alerts");'
     if check_source(caller, allowed):
         raise AssertionError("owner query and public include")
     for path, header in [
         ("src/archive/volume.cpp", "application/control_api/api.hpp"),
+        ("src/modules/events/operations.hpp", "modules/events/alert_json.hpp"),
+        ("src/modules/maps/operations.hpp", "modules/inventory/orientation_json.hpp"),
         ("src/services/media/live.cpp", "modules/access/operations.hpp"),
         ("src/modules/maps/scene.cpp", "../../services/control/transport/routes.hpp"),
         ("src/modules/inventory/registry.cpp", "application/export/export.hpp"),
@@ -379,6 +461,8 @@ if __name__ == "__main__":
     for file in sorted((ROOT / "src").rglob("*")):
         if file.suffix in {".cpp", ".hpp", ".cc", ".cxx", ".hh", ".hxx", ".h", ".inl"}:
             relative, code = file.relative_to(ROOT), file.read_text()
+            if owner_header(relative) and (chain := json_include_chain(ROOT, relative)):
+                issues.append("JSON dependency in owner header: " + " -> ".join(chain))
             issues.extend(check_source(relative, code))
         elif file.suffix == ".sql":
             relative = file.relative_to(ROOT)

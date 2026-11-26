@@ -1,3 +1,4 @@
+#include "archive/manifest_json.hpp"
 #include "services/recorder/detector.hpp"
 #include "archive/analysis.hpp"
 #include "archive/manifest.hpp"
@@ -103,7 +104,7 @@ void decode(const std::stop_token& stop, Stream& stream, const DetectorPoints& d
             last = utc;
             continue;
         }
-        const std::string cells = archive::motion_sample(previous, image, 0).at("cells");
+        const std::string cells = archive::motion_sample(previous, image, 0).cells;
         previous = image;
         last = utc;
         v1::SubmitObservationRequest q;

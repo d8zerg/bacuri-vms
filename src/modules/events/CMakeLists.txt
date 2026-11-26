@@ -1,5 +1,5 @@
 add_library(bacuri-vms-event-journal STATIC operations.cpp)
-target_link_libraries(bacuri-vms-event-journal PUBLIC bacuri-vms-control-storage PRIVATE bacuri-vms-inventory-operations)
+target_link_libraries(bacuri-vms-event-journal PUBLIC bacuri-vms-control-storage PRIVATE bacuri-vms-inventory-operations bacuri-vms-configuration-snapshot)
 
 add_library(bacuri-vms-events STATIC
     alert_work.cpp
@@ -10,7 +10,7 @@ target_link_libraries(bacuri-vms-events PUBLIC bacuri-vms-control-api bacuri-vms
     PRIVATE bacuri-vms-recording-plan bacuri-vms-access bacuri-vms-analysis bacuri-vms-inventory-operations bacuri-vms-recording-catalog bacuri-vms-volume)
 
 add_core_module_checks(bacuri-vms-events
-    TESTS alert_workflow.cpp archive_anchor.cpp
+    TESTS alert_workflow.cpp archive_anchor.cpp video_context.cpp
     ARCHIVES bacuri-vms-event-journal)
 
 if(BUILD_TESTING)

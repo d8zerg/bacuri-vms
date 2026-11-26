@@ -1,3 +1,4 @@
+#include "application/control_api/http_json.hpp"
 #include "modules/access/webauthn.hpp"
 #include <fido.h>
 #include <fido/es256.h>
@@ -75,14 +76,14 @@ std::string enrollment_code(const std::string& username, Enrollment mode)
     db.exec("COMMIT");
     return secret;
 }
-Json begin_webauthn(postgresql::Database& db, const Key& key, const std::string& origin, const std::string& user,
-                    const Json& body)
+FactorChallenge begin_webauthn(postgresql::Database& db, const Key& key, const std::string& origin,
+                               const std::string& user, const std::optional<std::string>& enrollment_code)
 {
     auto cred = db.exec("SELECT credential_id FROM bacuri_access.webauthn_credentials WHERE user_id=$1", {user});
     if (!cred.size()) {
-        if (!body.contains("enrollment_code"))
+        if (!enrollment_code)
             throw Failure{ErrorCode::enrollment_required};
-        const auto secret = string_field(body, "enrollment_code", 64);
+        const auto& secret = *enrollment_code;
         require(db.exec("SELECT FROM bacuri_access.webauthn_enrollment WHERE user_id=$1 AND code_hash=$2 AND "
                         "expires_at>clock_timestamp()",
                         {user, fingerprint(key, "enroll", secret)})
@@ -96,19 +97,17 @@ Json begin_webauthn(postgresql::Database& db, const Key& key, const std::string&
     db.exec("INSERT INTO bacuri_access.webauthn_challenges(challenge,ticket_hash,user_id,enrolling,expires_at) "
             "VALUES($1,$2,$3,$4,now()+interval '2 minutes')",
             {challenge, fingerprint(key, "webauthn", ticket), user, cred.size() ? "false" : "true"});
-    Json result{{"challenge", challenge},
-                {"ticket", ticket},
-                {"rp_id", rp_id(origin)},
-                {"user_id", user},
-                {"kind", cred.size() ? "get" : "create"}};
-    if (cred.size())
-        result["credential_id"] = cred.get(0);
-    return result;
+    return {challenge,
+            ticket,
+            rp_id(origin),
+            user,
+            cred.size() ? "get" : "create",
+            cred.size() ? std::optional{cred.get(0)} : std::nullopt};
 }
 VerifiedFactor finish_webauthn(postgresql::Database& db, const Key& key, const std::string& origin,
-                               const Json& body)
+                               const FactorResponse& body)
 {
-    const auto ticket = fingerprint(key, "webauthn", string_field(body, "ticket", 64));
+    const auto ticket = fingerprint(key, "webauthn", body.ticket);
     auto pending = db.exec("SELECT u.user_id FROM bacuri_access.local_users u JOIN "
                            "bacuri_access.webauthn_challenges c USING(user_id) WHERE "
                            "c.ticket_hash=$1 FOR UPDATE OF u",
@@ -120,19 +119,19 @@ VerifiedFactor finish_webauthn(postgresql::Database& db, const Key& key, const s
     require(challenge.size());
     const bool enroll = challenge.get(0, 2) == "t";
     const auto user = challenge.get(0, 1), rp = rp_id(origin);
-    const auto client = decode(string_field(body, "client_data", 8000));
+    const auto client = decode(body.client_data);
     const auto parsed = Json::parse(client, nullptr, false);
     require(parsed.is_object() && parsed.contains("type") && parsed.contains("origin") &&
             parsed.contains("challenge") && parsed["type"] == (enroll ? "webauthn.create" : "webauthn.get") &&
             parsed["origin"] == origin && parsed["challenge"] == challenge.get(0) &&
             (!parsed.contains("crossOrigin") || parsed["crossOrigin"] == false) && !parsed.contains("topOrigin"));
-    const auto data = decode(string_field(body, "authenticator_data", 16000));
+    const auto data = decode(body.authenticator_data);
     std::array<unsigned char, crypto_hash_sha256_BYTES> hash{};
     crypto_hash_sha256(hash.data(), reinterpret_cast<const unsigned char*>(rp.data()), rp.size());
     require(data.size() >= 37 && sodium_memcmp(hash.data(), data.data(), hash.size()) == 0 && (data[32] & 5) == 5);
-    const auto id = string_field(body, "credential_id", 1500);
+    const auto id = body.credential_id;
     if (enroll) {
-        require((data[32] & 0x40) != 0 && !body.contains("signature"));
+        require((data[32] & 0x40) != 0 && !body.signature);
         require(db.exec("DELETE FROM bacuri_access.webauthn_enrollment WHERE user_id=$1 AND "
                         "expires_at>clock_timestamp() "
                         "RETURNING user_id",
@@ -152,7 +151,9 @@ VerifiedFactor finish_webauthn(postgresql::Database& db, const Key& key, const s
                            "AND credential_id=$2 FOR UPDATE",
                            {user, id});
         require(row.size() && !(data[32] & 0x40));
-        const auto pub = decode(row.get(0)), sig = decode(string_field(body, "signature", 1024));
+        if (!body.signature)
+            throw Failure{ErrorCode::invalid_request};
+        const auto pub = decode(row.get(0)), sig = decode(*body.signature);
         std::unique_ptr<es256_pk_t, FreeFido<es256_pk_t, es256_pk_free>> pk(es256_pk_new());
         check(es256_pk_from_ptr(pk.get(), pub.data(), pub.size()));
         std::unique_ptr<fido_assert_t, FreeFido<fido_assert_t, fido_assert_free>> assertion(fido_assert_new());

@@ -1,4 +1,7 @@
-#include "modules/inventory/operations.hpp"
+#include "application/control_api/http_json.hpp"
+#include "modules/maps/orientation_json.hpp"
+#include "modules/maps/georeference_json.hpp"
+#include "modules/inventory/orientation_json.hpp"
 #include "modules/access/operations.hpp"
 #include "modules/maps/scene.hpp"
 #include "modules/maps/georeference.hpp"
@@ -24,42 +27,98 @@ void found(bool condition)
         throw Failure{ErrorCode::not_found};
 }
 
-bool has_bearing(const Json& marker)
+struct Placement {
+    std::string point;
+    std::optional<std::string> plan, source_plan;
+    double x{}, y{};
+    std::optional<maps_view::ViewSector> view;
+    std::optional<inventory::CameraOrientation> camera;
+    std::optional<maps_view::Calibration> calibration;
+    bool has_bearing() const
+    {
+        return view && view->bearing.has_value();
+    }
+    maps_view::ViewSector rotated(double angle) const
+    {
+        auto result = view.value_or(maps_view::ViewSector{});
+        if (result.bearing)
+            result.bearing = std::fmod(*result.bearing + angle + 360., 360.);
+        return result;
+    }
+};
+void to_json(Json& j, const Placement& p)
 {
-    return marker.contains("view") && marker.at("view").contains("bearing");
+    j = {{"point_id", p.point}, {"plan_id", p.plan ? Json(*p.plan) : Json(nullptr)}, {"x", p.x}, {"y", p.y}};
+    if (p.source_plan)
+        j["source_plan_id"] = *p.source_plan;
+    if (p.view)
+        j["view"] = *p.view;
+    if (p.camera)
+        j["camera"] = *p.camera;
+    if (p.calibration)
+        j["calibration"] = *p.calibration;
 }
-Json rotated_view(const Json& marker, double angle)
+struct SceneRegion {
+    std::string id, revision, name, source_time, style_url;
+    std::array<double, 4> bounds;
+    int min_zoom, max_zoom;
+};
+struct ScenePlan {
+    std::string id, name, image_url;
+    int width, height;
+    std::optional<maps_geo::Footprint> footprint;
+    std::optional<std::string> building;
+    std::optional<maps_geo::PlanDefinition> definition;
+};
+struct MapScene {
+    std::vector<SceneRegion> regions;
+    std::vector<ScenePlan> plans;
+    std::vector<Placement> placements;
+};
+void to_json(Json& j, const SceneRegion& r)
 {
-    auto view = marker.at("view");
-    if (view.contains("bearing"))
-        view["bearing"] = std::fmod(view.at("bearing").get<double>() + angle + 360, 360);
-    return view;
+    j = {{"id", r.id},
+         {"revision", r.revision},
+         {"name", r.name},
+         {"source_time", r.source_time},
+         {"bounds", r.bounds},
+         {"min_zoom", r.min_zoom},
+         {"max_zoom", r.max_zoom},
+         {"style_url", r.style_url},
+         {"attribution", "© OpenStreetMap contributors · ODbL"}};
 }
-Json scene(postgresql::Database& db, const std::string& site, const std::string& user, bool admin)
+void to_json(Json& j, const ScenePlan& p)
 {
-    Json result{{"region", nullptr},
-                {"regions", Json::array()},
-                {"plans", Json::array()},
-                {"placements", Json::array()},
-                {"symbols", "/assets/sprite.svg"},
-                {"fonts", {"/assets/inter-latin.woff2", "/assets/inter-cyrillic.woff2"}}};
+    j = {{"id", p.id}, {"name", p.name}, {"width", p.width}, {"height", p.height}, {"image_url", p.image_url}};
+    if (p.footprint)
+        j["footprint"] = *p.footprint;
+    if (p.building)
+        j["building"] = *p.building;
+    if (p.definition)
+        j["definition"] = *p.definition;
+}
+void to_json(Json& j, const MapScene& s)
+{
+    j = {{"region", s.regions.empty() ? Json(nullptr) : Json(s.regions.front())},
+         {"regions", s.regions},
+         {"plans", s.plans},
+         {"placements", s.placements},
+         {"symbols", "/assets/sprite.svg"},
+         {"fonts", {"/assets/inter-latin.woff2", "/assets/inter-cyrillic.woff2"}}};
+}
+MapScene scene(postgresql::Database& db, const std::string& site, const std::string& user, bool admin)
+{
+    MapScene result;
     const auto base = "/api/v1/sites/" + site + "/maps/";
     auto region = db.exec("SELECT revision,name,to_char(source_time AT TIME ZONE "
                           "'UTC','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'),bounds,min_zoom,max_zoom,region_id FROM "
                           "bacuri_maps.map_regions WHERE site_id=$1 ORDER BY name,region_id",
                           {site});
     for (int i = 0; i < region.size(); ++i)
-        result["regions"].push_back({{"id", region.get(i, 6)},
-                                     {"revision", region.get(i)},
-                                     {"name", region.get(i, 1)},
-                                     {"source_time", region.get(i, 2)},
-                                     {"bounds", Json::parse(region.get(i, 3))},
-                                     {"min_zoom", std::stoi(region.get(i, 4))},
-                                     {"max_zoom", std::stoi(region.get(i, 5))},
-                                     {"style_url", base + region.get(i) + "/style"},
-                                     {"attribution", "© OpenStreetMap contributors · ODbL"}});
-    if (region.size())
-        result["region"] = result["regions"].front();
+        result.regions.push_back({region.get(i, 6), region.get(i), region.get(i, 1), region.get(i, 2),
+                                  base + region.get(i) + "/style",
+                                  Json::parse(region.get(i, 3)).get<std::array<double, 4>>(),
+                                  std::stoi(region.get(i, 4)), std::stoi(region.get(i, 5))});
     const auto points = admin ? "{}" : postgresql::array_parameter(access::granted_point_ids(db, site, user));
     auto plans = db.exec(
         "SELECT plan_id,name,width,height,georeference FROM bacuri_maps.floor_plans p WHERE site_id=$1 AND "
@@ -68,23 +127,22 @@ Json scene(postgresql::Database& db, const std::string& site, const std::string&
         {site, points, admin ? "true" : "false"});
     std::map<std::string, maps_geo::PlanTransform> transforms;
     for (int i = 0; i < plans.size(); ++i) {
-        result["plans"].push_back({{"id", plans.get(i)},
-                                   {"name", plans.get(i, 1)},
-                                   {"width", std::stoi(plans.get(i, 2))},
-                                   {"height", std::stoi(plans.get(i, 3))},
-                                   {"image_url", base + "plans/" + plans.get(i)}});
-        if (!plans.get(i, 4).empty()) {
-            auto definition = Json::parse(plans.get(i, 4));
-            auto& transform =
-                transforms
-                    .try_emplace(plans.get(i), definition, std::stoi(plans.get(i, 2)), std::stoi(plans.get(i, 3)))
-                    .first->second;
-            auto& plan = result["plans"].back();
-            plan["footprint"] = transform.footprint();
-            if (definition.contains("building"))
-                plan["building"] = definition.at("building");
+        auto& plan = result.plans.emplace_back(ScenePlan{plans.get(i),
+                                                         plans.get(i, 1),
+                                                         base + "plans/" + plans.get(i),
+                                                         std::stoi(plans.get(i, 2)),
+                                                         std::stoi(plans.get(i, 3)),
+                                                         {},
+                                                         {},
+                                                         {}});
+        if (const auto stored = plans.get(i, 4); !stored.empty()) {
+            auto definition = Json::parse(stored).get<maps_geo::PlanDefinition>();
+            const auto& transform =
+                transforms.try_emplace(plan.id, definition, plan.width, plan.height).first->second;
+            plan.footprint = transform.footprint();
+            plan.building = definition.building;
             if (admin)
-                plan["definition"] = std::move(definition);
+                plan.definition = std::move(definition);
         }
     }
     auto markers =
@@ -92,63 +150,61 @@ Json scene(postgresql::Database& db, const std::string& site, const std::string&
                 "WHERE site_id=$1 AND ($3::boolean OR point_id=ANY($2::uuid[])) ORDER BY point_id,plan_id",
                 {site, points, admin ? "true" : "false"});
     auto cameras = inventory::camera_orientations(db, site, markers.column(0));
-    std::map<std::string, Json> geographic, plan_views;
+    std::map<std::string, Placement> geographic;
+    std::map<std::string, std::optional<maps_view::ViewSector>> plan_views;
+    auto& local = result.placements;
     for (int i = 0; i < markers.size(); ++i) {
-        const auto point = markers.get(i);
-        Json marker{{"point_id", point},
-                    {"plan_id", markers.get(i, 1).empty() ? Json(nullptr) : Json(markers.get(i, 1))},
-                    {"x", std::stod(markers.get(i, 2))},
-                    {"y", std::stod(markers.get(i, 3))}};
-        const Json cfg = markers.get(i, 4).empty() ? Json(nullptr) : Json::parse(markers.get(i, 4));
-        if (cameras.contains(point)) {
-            const auto& camera = cameras.at(point);
-            marker["view"] = maps_view::sector(cfg, camera);
+        const auto point = markers.get(i), plan = markers.get(i, 1);
+        Placement marker{point, {}, {}, std::stod(markers.get(i, 2)), std::stod(markers.get(i, 3)), {}, {}, {}};
+        if (!plan.empty())
+            marker.plan = plan;
+        if (auto it = cameras.find(point); it != cameras.end()) {
+            const auto& camera = it->second;
+            std::optional<maps_view::Calibration> cfg;
+            if (auto stored = markers.get(i, 4); !stored.empty())
+                cfg = Json::parse(stored).get<maps_view::Calibration>();
+            marker.view = maps_view::sector(cfg, camera);
             if (admin) {
-                marker["camera"] = camera;
-                if (!cfg.is_null() && cfg.at("device_id") == camera.at("device_id"))
-                    marker["calibration"] = cfg;
+                marker.camera = camera;
+                if (cfg && cfg->device_id == camera.device_id)
+                    marker.calibration = cfg;
             }
         }
-        if (marker.at("plan_id").is_null()) {
+        if (!marker.plan) {
             auto [it, inserted] = geographic.try_emplace(point, std::move(marker));
-            if (!inserted && !has_bearing(it->second) && has_bearing(marker))
-                it->second["view"] = marker.at("view");
+            if (!inserted && !it->second.has_bearing() && marker.has_bearing())
+                it->second.view = marker.view;
             continue;
         }
-        if (transforms.contains(markers.get(i, 1)) && has_bearing(marker)) {
-            auto [it, unique] =
-                plan_views.try_emplace(point, rotated_view(marker, transforms.at(markers.get(i, 1)).heading()));
+        if (transforms.contains(plan) && marker.has_bearing()) {
+            auto [it, unique] = plan_views.try_emplace(point, marker.rotated(transforms.at(plan).heading()));
             if (!unique)
-                it->second = nullptr;
+                it->second.reset();
         }
         if (markers.get(i, 5) == "t") {
-            const auto& transform = transforms.at(markers.get(i, 1));
-            const auto pos = transform.project({marker.at("x"), marker.at("y")});
-            Json projected{{"point_id", point},
-                           {"plan_id", nullptr},
-                           {"source_plan_id", markers.get(i, 1)},
-                           {"x", pos.lng},
-                           {"y", pos.lat}};
-            if (marker.contains("view"))
-                projected["view"] = rotated_view(marker, transform.heading());
+            const auto& transform = transforms.at(plan);
+            const auto pos = transform.project({marker.x, marker.y});
+            Placement projected{point, {}, plan, pos.lng, pos.lat, {}, {}, {}};
+            if (marker.view)
+                projected.view = marker.rotated(transform.heading());
             geographic[point] = std::move(projected);
         }
-        result["placements"].push_back(std::move(marker));
+        local.push_back(std::move(marker));
     }
     for (auto& [point, marker] : geographic) {
-        auto view = plan_views.find(point);
-        if (!has_bearing(marker) && view != plan_views.end() && view->second.is_object())
-            marker["view"] = view->second;
+        auto v = plan_views.find(point);
+        if (!marker.has_bearing() && v != plan_views.end() && v->second)
+            marker.view = v->second;
     }
-    for (auto& local : result["placements"]) {
-        auto transform = transforms.find(local.at("plan_id"));
-        auto global = geographic.find(local.at("point_id"));
-        if (!has_bearing(local) && transform != transforms.end() && global != geographic.end() &&
-            has_bearing(global->second))
-            local["view"] = rotated_view(global->second, -transform->second.heading());
+    for (auto& marker : local) {
+        const auto transform = transforms.find(*marker.plan);
+        const auto global = geographic.find(marker.point);
+        if (!marker.has_bearing() && transform != transforms.end() && global != geographic.end() &&
+            global->second.has_bearing())
+            marker.view = global->second.rotated(-transform->second.heading());
     }
     for (auto& [point, marker] : geographic)
-        result["placements"].push_back(std::move(marker));
+        local.push_back(std::move(marker));
     return result;
 }
 void png(Response& res, const postgresql::Rows& rows)

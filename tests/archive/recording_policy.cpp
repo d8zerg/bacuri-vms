@@ -1,3 +1,5 @@
+#include "recording/policy_json.hpp"
+#include "archive/manifest_json.hpp"
 #include "../recording/schedule.hpp"
 #include <gtest/gtest.h>
 #include "archive/writer.hpp"
@@ -57,9 +59,9 @@ TEST(RecordingPolicy, ArchiveDecodesNumberedSamplesAcrossTheRepeatedHour)
     const Origin origin{uuid(), uuid(), uuid(), uuid(), 1};
     const auto rule = recording::test::weekly();
     recording::RecordingPlan plan{temp.root};
-    plan.update(Json{{origin.point,
-                      {{"id", uuid()}, {"revision", 1}, {"since", 0}, {"rule", rule}, {"windows", Json::array()}}}}
-                    .dump());
+    plan.update(recording::decode_plan(
+        Json{{origin.point,
+              {{"id", uuid()}, {"revision", 1}, {"since", 0}, {"rule", rule}, {"windows", Json::array()}}}}));
     auto queue = std::make_shared<ingest::FrameQueue>(ingest::Profile::main);
     const auto day = sys_days{2025y / October / 26};
     std::map<std::int64_t, int> expected;

@@ -76,13 +76,13 @@ std::optional<MotionNotice> motion_notice(xmlNode* notification, const CameraCon
     const auto operation = attribute(message, "PropertyOperation");
     if (operation != "Changed" && !(crossed && operation.empty()) && !(digital && operation == "Initialized"))
         return {};
-    Json source = Json::object();
+    std::map<std::string, std::string> source;
     auto* items = child(message, schema, "Source");
     for (auto* item = items ? items->children : nullptr; item; item = item->next)
         if (named(item, schema, "SimpleItem"))
             source[attribute(item, "Name")] = attribute(item, "Value");
     if (digital) {
-        auto token = source.value("InputToken", std::string{});
+        auto token = source.contains("InputToken") ? source.at("InputToken") : std::string{};
         auto* data = child(message, schema, "Data");
         for (auto* n = data ? data->children : nullptr; n && !token.empty(); n = n->next) {
             if (!named(n, schema, "SimpleItem") || attribute(n, "Name") != "LogicalState")
@@ -99,7 +99,7 @@ std::optional<MotionNotice> motion_notice(xmlNode* notification, const CameraCon
         source.at("VideoSourceConfigurationToken") != required_setting(control.source))
         return {};
     auto* data = child(message, schema, "Data");
-    Json fields = Json::object();
+    std::map<std::string, std::string> fields;
     bool active = crossed;
     for (auto* item = data ? data->children : nullptr; item; item = item->next) {
         if (!named(item, schema, "SimpleItem"))

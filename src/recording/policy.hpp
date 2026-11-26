@@ -1,6 +1,8 @@
 #pragma once
-#include <nlohmann/json.hpp>
+#include <cstdint>
+#include <string>
 #include <memory>
+#include <map>
 #include <limits>
 #include <vector>
 #include <glib.h>
@@ -24,5 +26,5 @@ struct CaptureRule {
     std::vector<CaptureWindow> windows;
     bool selects(std::int64_t utc, std::int64_t binding) const;
 };
-CaptureRule parse_capture_rule(const nlohmann::json& rule);
+using PointPolicies = std::map<std::string, CaptureRule>;
 } // namespace bacuri::vms::recording

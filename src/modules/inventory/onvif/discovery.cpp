@@ -1,12 +1,59 @@
 // WS-Discovery of cameras on the camera networks.
 #include "modules/inventory/onvif.hpp"
 #include "modules/inventory/onvif/soap.hpp"
+#include "modules/inventory/onvif/ticket_json.hpp"
 
 namespace bacuri::vms::control
 {
 using namespace onvif;
+namespace
+{
+void collect_probe_matches(std::vector<DiscoveredCamera>& found, std::set<std::string>& seen, const Doc& doc,
+                           const std::string& mid, const Key& key, const std::string& site, GInetAddress* sender)
+{
+    Chars ip{g_inet_address_to_string(sender), g_free};
+    auto* root = xmlDocGetRootElement(doc.get());
+    auto* header = child(root, soap, "Header");
+    if (!named(root, soap, "Envelope") ||
+        value(child(header, addressing, "Action")) != std::string{discovery} + "/ProbeMatches" ||
+        value(child(header, addressing, "RelatesTo")) != mid)
+        return;
+    const auto* list = child(child(root, soap, "Body"), discovery, "ProbeMatches");
+    for (auto* m = list ? list->children : nullptr; m && found.size() < 64; m = m->next) {
+        if (!named(m, discovery, "ProbeMatch"))
+            continue;
+        auto id = value(child(child(m, addressing, "EndpointReference"), addressing, "Address"));
+        std::istringstream urls(value(child(m, discovery, "XAddrs")));
+        std::string candidate;
+        for (std::string url; urls >> url;) {
+            try {
+                if (url.starts_with("https://")) {
+                    https_uri(url);
+                    candidate = url;
+                    break;
+                }
+                if (!candidate.empty() || !url.starts_with("http://"))
+                    continue;
+                auto uri = https_uri("https" + url.substr(4));
+                if (g_uri_get_port(uri.get()) > 0 && g_uri_get_port(uri.get()) != 80)
+                    continue;
+                // Some devices advertise only their HTTP address even when the same service accepts TLS.
+                Chars secure{g_uri_join(G_URI_FLAGS_ENCODED, "https", nullptr, g_uri_get_host(uri.get()), -1,
+                                        g_uri_get_path(uri.get()), g_uri_get_query(uri.get()), nullptr),
+                             g_free};
+                candidate = secure.get();
+            } catch (const Failure&) {
+                continue;
+            }
+        }
+        if (!candidate.empty() && seen.insert(id).second)
+            found.push_back({id, candidate, issue_ticket(key, site, ProbeCandidate{id, candidate, ip.get()})});
+    }
+}
+} // namespace
 
-Json discover_onvif(const CameraNetworks& networks, const Key& key, const std::string& site)
+std::vector<DiscoveredCamera> discover_onvif(const CameraNetworks& networks, const Key& key,
+                                             const std::string& site)
 {
     const auto mid = uuid();
     const auto probe =
@@ -49,7 +96,7 @@ Json discover_onvif(const CameraNetworks& networks, const Key& key, const std::s
     }
     if (!sent)
         throw Failure{ErrorCode::camera_discovery_unavailable};
-    Json found = Json::array();
+    std::vector<DiscoveredCamera> found;
     std::set<std::string> seen;
     const auto end = Clock::now() + 1200ms;
     pollfd poller{fd, POLLIN, 0};
@@ -70,8 +117,8 @@ Json discover_onvif(const CameraNetworks& networks, const Key& key, const std::s
         if (!networks.contains(ip.get()))
             continue;
         try {
-            matches(found, seen, parse(std::string(buffer.data(), static_cast<std::size_t>(n))), mid, key, site,
-                    ip.get());
+            collect_probe_matches(found, seen, parse(std::string(buffer.data(), static_cast<std::size_t>(n))), mid,
+                                  key, site, ip.get());
         } catch (const Failure&) {
             continue;
         }

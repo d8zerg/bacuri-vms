@@ -84,6 +84,13 @@ export function ThemeSwitch({
 export function LanguageSwitch() {
   const t = useT();
   const language = useLanguage();
+  const [pending, setPending] = useState<typeof language | null>(null);
+  function choose(value: typeof language) {
+    setPending(value);
+    void selectLanguage(value).finally(() => {
+      setPending((requested) => (requested === value ? null : requested));
+    });
+  }
   return (
     <div
       className="ws-theme-switch ws-language-switch"
@@ -97,8 +104,8 @@ export function LanguageSwitch() {
             name="workspace-language"
             value={value}
             aria-label={t(`language.${value}`)}
-            checked={value === language}
-            onChange={() => selectLanguage(value)}
+            checked={value === (pending ?? language)}
+            onChange={() => choose(value)}
           />
           <span aria-hidden="true">{value.toUpperCase()}</span>
         </label>

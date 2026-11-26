@@ -1,3 +1,6 @@
+#include "application/control_api/http_json.hpp"
+#include "archive/manifest_json.hpp"
+#include "domain/image_region_json.hpp"
 #include "application/export/package.hpp"
 #include "application/export/periods.hpp"
 #include "modules/media_sessions/operations.hpp"
@@ -5,21 +8,75 @@
 #include "modules/recordings/operations.hpp"
 #include "modules/access/operations.hpp"
 #include "modules/media_sessions/playback.hpp"
-#include "application/control_api/playback_time.hpp"
+#include "application/control_api/playback_time_json.hpp"
 #include "archive/evidence.hpp"
 #include "media/clip.hpp"
 #include "platform/scope_exit.hpp"
 
 namespace bacuri::vms::control
 {
+void to_json(Json& j, const ExportedAudio& a)
+{
+    j = {
+        {"file", a.file},          {"codec", "pcm_s16le"},      {"sample_rate", domain::ArchiveSound::sample_rate},
+        {"channels", 1},           {"sha256", a.digest.sha256}, {"size_bytes", a.digest.bytes},
+        {"begin_utc_us", a.begin}, {"end_utc_us", a.end}};
+}
+void to_json(Json& j, const ExportGap& g)
+{
+    j = {{"state", "gap"}, {"begin_utc_us", g.begin}, {"end_utc_us", g.end}, {"reason", g.reason}};
+}
+void to_json(Json& j, const ExportClip& c)
+{
+    j = {{"source", archive::manifest_json(c.source)},
+         {"state", "recorded"},
+         {"file", c.file},
+         {"transform", c.transform},
+         {"sha256", c.digest.sha256},
+         {"size_bytes", c.digest.bytes},
+         {"begin_utc_us", c.begin},
+         {"end_utc_us", c.end}};
+    if (c.frame_count)
+        j["frame_count"] = *c.frame_count;
+    if (c.presentation) {
+        const auto& p = *c.presentation;
+        j["codec"] = p.codec;
+        j["masks"] = p.masks;
+        j["audio"] = p.audio ? Json(*p.audio) : Json(nullptr);
+    }
+}
+void to_json(Json& j, const ExportPeriod& p)
+{
+    std::visit([&](const auto& v) { j = v; }, p);
+}
+
+std::string encode_fragment_manifest(const FragmentManifest& manifest)
+{
+    Json body{{"format", "bacuri.vms.export.v1"},  {"site_id", manifest.site_id},
+              {"point_id", manifest.point_id},     {"export_id", manifest.export_id},
+              {"begin_utc_us", manifest.begin_us}, {"end_utc_us", manifest.end_us},
+              {"periods", manifest.periods}};
+    if (manifest.mode != "selection" || manifest.audio) {
+        body["format"] = "bacuri.vms.export.v2";
+        body["mode"] = manifest.mode;
+        body["reason"] = manifest.reason;
+        body["audio_requested"] = manifest.audio;
+    }
+    if (!manifest.alert_id.empty())
+        body["alert_id"] = manifest.alert_id;
+    auto bytes = body.dump(2);
+    if (bytes.size() > 4uz * 1024 * 1024)
+        throw Failure{ErrorCode::export_too_large};
+    return bytes;
+}
 namespace
 {
-void catalog_gaps(postgresql::Database& db, Json& periods, const std::string& site, const std::string& point,
-                  const std::string& revision, std::int64_t a, std::int64_t b)
+void catalog_gaps(postgresql::Database& db, std::vector<ExportPeriod>& periods, const std::string& site,
+                  const std::string& point, const std::string& revision, std::int64_t a, std::int64_t b)
 {
     if (a >= b)
         return;
-    auto spans = recordings::coverage(db, site, point, std::to_string(a), std::to_string(b), "[]", revision);
+    auto spans = recordings::coverage(db, site, point, std::to_string(a), std::to_string(b), {}, revision);
     for (const auto& span : spans) {
         if (span.begin != a || span.state == "recorded")
             throw Failure{ErrorCode::media_unavailable};
@@ -61,8 +118,8 @@ std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response& res, 
             throw Failure{ErrorCode::invalid_request};
     }
     const auto id = archive::uuid(), start = std::to_string(bounds.start), end = std::to_string(bounds.end);
-    const Json details{
-        {"id", id}, {"interval", bounds.json()}, {"mode", mode}, {"reason", reason}, {"audio", sound}};
+    const events::FragmentExportAudit details{id,   utc_text(bounds.start), utc_text(bounds.end), mode, reason,
+                                              sound};
     try {
         const auto permission = access::export_permission(auth, site, point, who.user, start, end, derivative);
         auto stream = std::make_shared<ExportBody>(capacity);
@@ -93,7 +150,7 @@ std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response& res, 
             throw Failure{ErrorCode::media_unavailable};
         if (sources.size() > 256)
             throw Failure{ErrorCode::export_too_large};
-        auto hashes = Json::object();
+        std::map<std::string, std::string> hashes;
         std::int64_t available = archive::evidence_limit;
         std::optional<std::int64_t> previous_end;
         for (const auto& source : sources) {
@@ -105,7 +162,7 @@ std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response& res, 
             previous_end = source.end_us();
             hashes[source.recording.block().id.to_string()] = archive::digest_hex(source.sha256);
         }
-        stream->hashes = hashes.dump();
+        stream->hashes = std::move(hashes);
         if (mode == "original") {
             const auto first = std::min(bounds.start, sources.front().begin_us());
             const auto last = std::max(bounds.end, sources.back().end_us());
@@ -118,11 +175,11 @@ std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response& res, 
             stream->end = std::to_string(last);
             stream->grant = access::export_permission(db, site, point, who.user, stream->begin, stream->end);
         }
-        Json private_scope{{"export_grant", stream->grant}, {"begin", stream->begin},   {"end", stream->end},
-                           {"regions", stream->regions},    {"derivative", derivative}, {"sound", sound}};
+        const media_sessions::ExportScope scope{stream->grant,   stream->begin, stream->end,
+                                                stream->regions, derivative,    sound};
         const auto session =
             media_sessions::open_export(db, browser, site, point, std::to_string(sources.front().begin_us()),
-                                        std::to_string(sources.back().end_us()), private_scope.dump());
+                                        std::to_string(sources.back().end_us()), scope);
         platform::ScopeExit close_session{[&db, &session] {
             // The session also expires if the database goes offline during preparation.
             try {
@@ -133,7 +190,7 @@ std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response& res, 
         }};
         const auto dir = stream->root / "data";
         fs::create_directory(dir);
-        auto periods = Json::array();
+        std::vector<ExportPeriod> periods;
         std::vector<std::string> clips;
         unsigned ordinal{};
         auto cursor = bounds.start;
@@ -149,14 +206,11 @@ std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response& res, 
             copy_export_block(session, m, browser, input);
             if (archive::digest_hex(m.sha256) != archive::file_digest(input).sha256)
                 throw Failure{ErrorCode::media_service_unavailable};
-            Json clip{{"source", archive::manifest_json(m)},
-                      {"state", "recorded"},
-                      {"file", file},
-                      {"transform", "original"}};
+            ExportClip clip{m, file, "original", {}, from, until, {}, {}};
             if (mode == "original" || (!derivative && a == from && b == until)) {
                 fs::rename(input, dir / file);
                 if (mode == "original" && (from != a || until != b))
-                    clip["transform"] = "original_with_decode_context";
+                    clip.transform = "original_with_decode_context";
             } else {
                 auto frames =
                     archive::select_frames(input, dir / file, from - a, until - a, false, stream->regions);
@@ -168,60 +222,41 @@ std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response& res, 
                 add_gap(periods, from, a + frames.begin_us, "no_frame");
                 from = a + frames.begin_us;
                 until = a + frames.end_us;
-                clip["transform"] = stream->regions.empty() ? "h264_frame_selection" : "h264_masked_selection";
-                clip["frame_count"] = frames.count;
+                clip.transform = stream->regions.empty() ? "h264_frame_selection" : "h264_masked_selection";
+                clip.frame_count = frames.count;
             }
             const auto digest = archive::file_digest(dir / file);
             if (digest.bytes > available)
                 throw Failure{ErrorCode::export_too_large};
             available -= digest.bytes;
-            clip.update(Json{{"sha256", digest.sha256},
-                             {"size_bytes", digest.bytes},
-                             {"begin_utc_us", from},
-                             {"end_utc_us", until}});
+            clip.begin = from;
+            clip.end = until;
+            clip.digest = digest;
             ++ordinal;
             if (mode != "selection" || sound) {
-                clip["codec"] =
-                    (clip.at("transform") == "original" || clip.at("transform") == "original_with_decode_context")
-                        ? m.tracks.front().codec
-                        : "h264";
-                clip["masks"] = stream->regions.empty() ? Json::array() : Json::parse(stream->regions);
-                clip["audio"] =
-                    sound ? export_audio(m, from, until, dir, "audio-" + std::to_string(ordinal) + ".wav")
-                          : Json(nullptr);
-                if (!clip.at("audio").is_null()) {
-                    const auto bytes = clip.at("audio").at("size_bytes").get<std::int64_t>();
-                    if (bytes > available)
+                const bool original =
+                    clip.transform == "original" || clip.transform == "original_with_decode_context";
+                auto& presentation = clip.presentation.emplace(
+                    ExportPresentation{original ? m.tracks.front().codec : "h264", stream->regions, {}});
+                if (sound)
+                    presentation.audio =
+                        export_audio(m, from, until, dir, "audio-" + std::to_string(ordinal) + ".wav");
+                if (const auto& audio = presentation.audio) {
+                    if (audio->digest.bytes > available)
                         throw Failure{ErrorCode::export_too_large};
-                    available -= bytes;
-                    clips.push_back(clip.at("audio").at("file").get<std::string>());
+                    available -= audio->digest.bytes;
+                    clips.push_back(audio->file);
                 }
             }
             clips.push_back(file);
-            periods.push_back(std::move(clip));
+            periods.emplace_back(std::move(clip));
             add_gap(periods, until, cursor, "no_frame");
         }
         if (clips.empty())
             throw Failure{ErrorCode::media_unavailable};
         catalog_gaps(db, periods, site, point, revision, cursor, bounds.end);
-        Json manifest{{"format", "bacuri.vms.export.v1"},
-                      {"site_id", site},
-                      {"point_id", point},
-                      {"export_id", id},
-                      {"begin_utc_us", bounds.start},
-                      {"end_utc_us", bounds.end},
-                      {"periods", std::move(periods)}};
-        if (mode != "selection" || sound) {
-            manifest["format"] = "bacuri.vms.export.v2";
-            manifest["mode"] = mode;
-            manifest["reason"] = reason;
-            manifest["audio_requested"] = sound;
-        }
-        if (!alert.empty())
-            manifest["alert_id"] = alert;
-        const auto description = manifest.dump(2);
-        if (description.size() > 4uz * 1024 * 1024)
-            throw Failure{ErrorCode::export_too_large};
+        const auto description = encode_fragment_manifest(
+            {site, point, id, alert, bounds.start, bounds.end, mode, reason, sound, std::move(periods)});
         write_text(dir / "manifest.json", description);
         write_text(dir / "manifest.sig",
                    archive::sign_description(load_key(setting("BACURI_EXPORT_KEY_FILE")), description));
@@ -236,7 +271,7 @@ std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response& res, 
         if (!stream->input)
             throw std::runtime_error("Cannot open export package");
         stream->authorize();
-        events::record_export(db, site, point, who.user, alert, "applied", "release", details.dump());
+        events::record_export(db, site, point, who.user, alert, "applied", "release", details);
         res.result(http::status::ok);
         res.set(http::field::content_type, "application/x-tar");
         res.set(http::field::content_disposition, "attachment; filename=\"bacuri-" + id + ".tar\"");
@@ -245,11 +280,10 @@ std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response& res, 
         res.media = stream;
         return stream;
     } catch (const Failure& error) {
-        events::record_export(auth, site, point, who.user, alert, "denied", std::string{error.code()},
-                              details.dump());
+        events::record_export(auth, site, point, who.user, alert, "denied", std::string{error.code()}, details);
         throw;
     } catch (const std::exception&) {
-        events::record_export(auth, site, point, who.user, alert, "denied", "media_unavailable", details.dump());
+        events::record_export(auth, site, point, who.user, alert, "denied", "media_unavailable", details);
         throw Failure{ErrorCode::media_service_unavailable};
     }
 }

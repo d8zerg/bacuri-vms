@@ -1,9 +1,9 @@
 #pragma once
-#include "storage/postgresql/configuration_snapshot.hpp"
+namespace bacuri::vms::postgresql
+{
+class ConfigurationSnapshot;
+}
 namespace bacuri::vms::control::events
 {
-inline void rule_configuration(postgresql::ConfigurationSnapshot& snapshot)
-{
-    snapshot.section("bacuri_events.video_rules");
-}
+void rule_configuration(postgresql::ConfigurationSnapshot& snapshot);
 } // namespace bacuri::vms::control::events

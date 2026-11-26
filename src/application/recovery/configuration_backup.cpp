@@ -8,9 +8,8 @@
 #include "modules/access/configuration.hpp"
 #include "modules/inventory/configuration.hpp"
 #include "application/recovery/recovery.hpp"
-#include "application/recovery/site.hpp"
 #include "modules/media_sessions/operations.hpp"
-#include "storage/postgresql/database.hpp"
+#include "storage/postgresql/configuration_snapshot.hpp"
 #include "application/control_api/support.hpp"
 
 #include <nlohmann/json.hpp>
@@ -36,12 +35,12 @@ void visit_configuration(postgresql::ConfigurationSnapshot& snapshot)
     events::rule_configuration(snapshot);
     media_sessions::layout_configuration(snapshot);
 }
-std::string context(const std::string& site)
+std::string context(const std::string& site, const std::string& node)
 {
-    return "configuration-backup/v1/" + site + "/" + setting("BACURI_NODE_ID");
+    return "configuration-backup/v1/" + site + "/" + node;
 }
 
-Json snapshot(postgresql::Database& db)
+Json snapshot(postgresql::QuerySession& db)
 {
     postgresql::ConfigurationSnapshot archive{db};
     visit_configuration(archive);
@@ -54,11 +53,17 @@ constexpr std::size_t maximum_ciphertext = 128uz * 1024 * 1024;
 void backup_configuration(std::ostream& output)
 {
     postgresql::Database db;
+    backup_configuration(db, output, setting("BACURI_SITE_ID"), setting("BACURI_NODE_ID"),
+                         load_key(setting("BACURI_KEY_FILE")));
+}
+
+void backup_configuration(postgresql::QuerySession& db, std::ostream& output, const std::string& site,
+                          const std::string& node, const Key& key)
+{
     db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY; SET LOCAL TIME ZONE 'UTC'");
-    const auto site = setting("BACURI_SITE_ID");
     const auto data = snapshot(db);
-    require_single_site(data, site);
-    const auto encrypted = seal(load_key(setting("BACURI_KEY_FILE")), context(site), data.dump());
+    postgresql::ConfigurationSnapshot::require_single_site(data, site);
+    const auto encrypted = seal(key, context(site, node), data.dump());
     if (encrypted.size() > maximum_ciphertext) {
         throw std::runtime_error("Configuration snapshot exceeds backup limit");
     }
@@ -69,21 +74,8 @@ void backup_configuration(std::ostream& output)
     }
 }
 
-bool requires_restore(nlohmann::json existing, const nlohmann::json& backup)
-{
-    if (std::ranges::all_of(existing, [](const auto& rows) { return rows.empty(); }))
-        return true;
-    // Replaying a backup preserves audit entries and policy revisions recorded since the backup.
-    for (const auto* field : {"credential_audit", "access_audit", "policy_versions"})
-        existing[field] = backup.at(field);
-    if (existing != backup)
-        throw std::runtime_error("Restore requires a clean database or an identical inventory");
-    return false;
-}
-
 void restore_configuration(std::istream& input)
 {
-    const auto site = setting("BACURI_SITE_ID");
     std::string encrypted;
     std::array<char, 8192> buffer{};
     while (input.read(buffer.data(), buffer.size()) || input.gcount() > 0) {
@@ -96,7 +88,9 @@ void restore_configuration(std::istream& input)
         throw std::runtime_error("Incomplete configuration backup");
     }
     encrypted.pop_back();
-    auto data = Json::parse(unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site)));
+    const auto site = setting("BACURI_SITE_ID");
+    auto data = Json::parse(
+        unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site, setting("BACURI_NODE_ID"))));
     data.erase("webauthn_credentials");
     for (const auto* table :
          {"video_rules",         "investigations",         "archive_holds",        "held_blocks",
@@ -114,11 +108,11 @@ void restore_configuration(std::istream& input)
     for (auto& role : data.at("site_roles"))
         if (!role.contains("enabled"))
             role["enabled"] = true;
-    require_single_site(data, site);
+    postgresql::ConfigurationSnapshot::require_single_site(data, site);
     postgresql::Database db;
     db.exec("BEGIN ISOLATION LEVEL SERIALIZABLE; SET LOCAL TIME ZONE 'UTC'");
     db.exec("SELECT pg_advisory_xact_lock(hashtextextended($1,1))", {site});
-    if (requires_restore(snapshot(db), data)) {
+    if (postgresql::ConfigurationSnapshot::requires_restore(snapshot(db), data)) {
         db.exec("SET LOCAL bacuri.restoring='yes'");
         postgresql::ConfigurationSnapshot archive{db, data};
         visit_configuration(archive);

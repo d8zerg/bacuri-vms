@@ -1,4 +1,6 @@
+#include "application/control_api/http_json.hpp"
 #include "modules/investigations/cases.hpp"
+#include "modules/access/operations.hpp"
 #include "application/control_api/playback_time.hpp"
 #include "storage/postgresql/query_mock.hpp"
 
@@ -31,7 +33,8 @@ class CaseExport : public testing::Test
     void visibility(const std::string& point, bool masked, bool allowed)
     {
         db.expect("privacy_policies", {"site", point, "archive"},
-                  masked ? postgresql::test::Cells{{"[{}]"}} : postgresql::test::Cells{});
+                  masked ? postgresql::test::Cells{{R"([{"left":0,"top":0.2,"right":1,"bottom":0.9}])"}}
+                         : postgresql::test::Cells{});
         db.expect("bacuri_access.can_use",
                   {"site", "viewer", point, "view", "0", "1000000", masked ? "" : "archive"},
                   {{allowed ? "t" : "f"}});
@@ -82,6 +85,34 @@ TEST_F(CaseExport, StopsAtTheFirstInaccessibleMaterialEvenForTheAdministrator)
     visibility("denied", true, false);
     EXPECT_THAT([&] { lookup(); },
                 testing::Throws<Failure>(testing::Field(&Failure::error, ErrorCode::forbidden)));
+}
+TEST_F(CaseExport, OffersOnlyTheCurrentActorForAnEmptyCase)
+{
+    db.expect("SELECT username", {"viewer"}, {{"Operator"}});
+    EXPECT_THAT(eligible_recipients(db, "site", "viewer", {}),
+                testing::ElementsAre(testing::Pair("viewer", "Operator")));
+}
+TEST_F(CaseExport, RequiresViewAndProtectionBeforeLookingUpPossibleRecipients)
+{
+    visibility("point", false, false);
+    EXPECT_THAT([&] { eligible_recipients(db, "site", "viewer", {{"point", 0, 1000000}}); },
+                testing::Throws<Failure>(testing::Field(&Failure::error, ErrorCode::forbidden)));
+    visibility("point", false, true);
+    db.expect("bacuri_access.can_use", {"site", "viewer", "point", "protect", "0", "1000000", ""}, {{"f"}});
+    EXPECT_THAT([&] { eligible_recipients(db, "site", "viewer", {{"point", 0, 1000000}}); },
+                testing::Throws<Failure>(testing::Field(&Failure::error, ErrorCode::forbidden)));
+}
+TEST_F(CaseExport, ResolvesRecipientsAcrossAllAuthorizedIntervals)
+{
+    for (const auto* point : {"a", "b"}) {
+        visibility(point, false, true);
+        db.expect("bacuri_access.can_use", {"site", "viewer", point, "protect", "0", "1000000", ""}, {{"t"}});
+    }
+    db.expect("jsonb_to_recordset",
+              {"site", R"([{"a":0,"b":1000000,"point":"a"},{"a":0,"b":1000000,"point":"b"}])"},
+              {{"user", "Operator"}});
+    EXPECT_THAT(eligible_recipients(db, "site", "viewer", {{"a", 0, 1000000}, {"b", 0, 1000000}}),
+                testing::ElementsAre(testing::Pair("user", "Operator")));
 }
 } // namespace
 } // namespace bacuri::vms::control::investigations

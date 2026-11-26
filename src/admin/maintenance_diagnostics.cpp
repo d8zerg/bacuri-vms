@@ -1,3 +1,4 @@
+#include <nlohmann/json.hpp>
 #include "maintenance.hpp"
 #include "archive/volume.hpp"
 #include "platform/identifiers.hpp"
@@ -97,12 +98,11 @@ void diagnose(const fs::path& dest)
     s.observe("archive.catalog", [&](Json& fields) {
         auto v = archive::archive_status("/srv/bacuri-archive/recorder",
                                          platform::optional_setting("BACURI_ARCHIVE_REPLICA_DIR"));
-        for (auto [key, name] : {std::pair{"pending", "bacuri_catalog_pending_blocks"},
-                                 {"available_bytes", "bacuri_archive_available_bytes"}}) {
-            fields[key] = v.at(key);
-            s.metrics += std::string(name) + " " + v.at(key).dump() + "\n";
-        }
-        int stopped = v.at("state") == "recording_stopped" ? 1 : 0;
+        fields["pending"] = v.pending;
+        fields["available_bytes"] = v.available_bytes;
+        s.metrics += "bacuri_catalog_pending_blocks " + std::to_string(v.pending) + "\n";
+        s.metrics += "bacuri_archive_available_bytes " + std::to_string(v.available_bytes) + "\n";
+        int stopped = v.state == archive::CapacityState::recording_stopped ? 1 : 0;
         fields["recording_stopped"] = stopped;
         s.metrics += "bacuri_archive_recording_stopped " + std::to_string(stopped) + "\n";
     });

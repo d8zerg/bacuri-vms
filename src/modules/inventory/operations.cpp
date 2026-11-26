@@ -1,6 +1,6 @@
 #include "storage/postgresql/database.hpp"
 #include "modules/inventory/operations.hpp"
-#include <nlohmann/json.hpp>
+#include "modules/inventory/orientation_json.hpp"
 
 namespace bacuri::vms::control::inventory
 {
@@ -64,11 +64,11 @@ bool point_exists(postgresql::Database& db, const std::string& site, const std::
         .size();
 }
 
-nlohmann::json camera_orientations(postgresql::Database& db, const std::string& site,
-                                   const std::vector<std::string>& points)
+std::map<std::string, CameraOrientation> camera_orientations(postgresql::QuerySession& db, const std::string& site,
+                                                             const std::vector<std::string>& points)
 {
     using Json = nlohmann::json;
-    Json result = Json::object();
+    std::map<std::string, CameraOrientation> result;
     if (points.empty())
         return result;
     auto rows = db.exec(R"sql(
@@ -84,15 +84,15 @@ nlohmann::json camera_orientations(postgresql::Database& db, const std::string& 
     )sql",
                         {site, postgresql::array_parameter(points)});
     for (int i = 0; i < rows.size(); ++i) {
-        Json device{{"device_id", rows.get(i, 1)},
-                    {"ptz", rows.get(i, 2) == "t"},
-                    {"profile", rows.get(i, 6)},
-                    {"revision", rows.get(i, 7)}};
-        if (!rows.get(i, 3).empty()) {
-            device.update(Json::parse(rows.get(i, 3)));
-            device["observed_at"] = rows.get(i, 4);
-            device["fresh"] = rows.get(i, 5) == "t";
-        }
+        CameraOrientation device{rows.get(i, 1),
+                                 rows.get(i, 6),
+                                 rows.get(i, 7),
+                                 rows.get(i, 2) == "t",
+                                 rows.get(i, 5) == "t",
+                                 rows.get(i, 4),
+                                 {}};
+        if (const auto stored = rows.get(i, 3); !stored.empty())
+            device.position = Json::parse(stored).get<CameraPosition>();
         result[rows.get(i)] = std::move(device);
     }
     return result;

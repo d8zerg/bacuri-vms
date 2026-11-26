@@ -1,3 +1,4 @@
+#include "application/control_api/http_json.hpp"
 #include "modules/access/admin.hpp"
 #include "modules/access/operations.hpp"
 #include "modules/access/oidc.hpp"
@@ -248,12 +249,41 @@ bool administration(const Request& req, Response& res, const Sessions& sessions,
                 {who.user, fingerprint(key, "session", who.cookie)});
     }
     Json value;
-    if (path == "identity/provider")
-        value = oidc_provider(db, req, key, site);
-    else if (resource == "users" && id.ends_with("/external-identity")) {
+    if (path == "identity/provider") {
+        if (req.method() == http::verb::get) {
+            const auto provider = oidc_provider(db, site);
+            value = provider ? Json{{"enabled", provider->enabled},
+                                    {"issuer", provider->issuer},
+                                    {"client_id", provider->client_id},
+                                    {"admin_acr", provider->admin_acr}}
+                             : Json{{"enabled", false}};
+        } else {
+            if (req.method() != http::verb::put)
+                throw Failure{ErrorCode::method_not_allowed};
+            const auto body = object_body(req, {"enabled", "issuer", "client_id", "admin_acr", "client_secret"});
+            require(body.contains("enabled") && body.at("enabled").is_boolean());
+            ProviderSettings settings{{body.at("enabled"), string_field(body, "issuer", 1024),
+                                       string_field(body, "client_id", 128), string_field(body, "admin_acr", 128)},
+                                      {}};
+            if (body.contains("client_secret"))
+                settings.client_secret = string_field(body, "client_secret", 2048);
+            configure_provider(db, key, site, settings);
+            value = {{"id", site}};
+        }
+    } else if (resource == "users" && id.ends_with("/external-identity")) {
         id.resize(id.size() - std::string_view{"/external-identity"}.size());
         require(canonical_id(id));
-        value = external_identity(db, req, site, id);
+        if (req.method() == http::verb::delete_)
+            bind_identity(db, site, id, std::nullopt);
+        else {
+            if (req.method() != http::verb::put)
+                throw Failure{ErrorCode::method_not_allowed};
+            const auto body = object_body(req, {"issuer", "subject"});
+            bind_identity(
+                db, site, id,
+                ExternalIdentity{string_field(body, "issuer", 1024), string_field(body, "subject", 255)});
+        }
+        value = {{"id", id}};
     } else if (resource == "users")
         value = users(db, req, site, id);
     else if (resource == "resource-groups")

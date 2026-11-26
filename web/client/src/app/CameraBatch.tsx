@@ -1,3 +1,4 @@
+import "../i18n/extended";
 import { useEffect, useRef, useState } from "react";
 import { api, data, HttpFailure } from "../adapters/api";
 import type {

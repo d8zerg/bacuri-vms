@@ -1,3 +1,4 @@
+#include "storage/postgresql/configuration_snapshot.hpp"
 #include "modules/maps/configuration.hpp"
 namespace bacuri::vms::control::maps
 {

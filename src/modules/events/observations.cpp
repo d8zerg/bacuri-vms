@@ -1,3 +1,5 @@
+#include "application/control_api/http_json.hpp"
+#include "modules/events/video_json.hpp"
 #include "modules/inventory/operations.hpp"
 #include "platform/rpc_status.hpp"
 #include "modules/events/observations.hpp"
@@ -140,9 +142,11 @@ grpc::Status store_observation(const RequestData& q, v1::RegistrationResult& res
             return platform::rpc_status(ErrorCode::idempotency_conflict);
         }
         if (inserted.size() && q.type() == "motion") {
-            const auto decision = events::evaluate_observation(db, q.site_id(), point, revision, q.source_id(),
-                                                               q.observation_id(), std::stoll(inserted.get(0)),
-                                                               detector, bool(camera_revision), attributes);
+            const auto motion = detector || camera_revision ? attributes.get<events::MotionAttributes>()
+                                                            : events::MotionAttributes{};
+            const auto decision =
+                events::evaluate_observation(db, q.site_id(), point, revision, q.source_id(), q.observation_id(),
+                                             std::stoll(inserted.get(0)), detector, bool(camera_revision), motion);
             if (detector && !decision.record && !decision.notify &&
                 !db.exec("SELECT FROM bacuri_events.video_matches WHERE site_id=$1 AND source_id=$2 AND "
                          "observation_id=$3",

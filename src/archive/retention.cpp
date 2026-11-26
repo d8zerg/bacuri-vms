@@ -1,3 +1,4 @@
+#include "archive/manifest_json.hpp"
 #include "archive/retention.hpp"
 #include "archive/volume_io.hpp"
 #include "platform/identifiers.hpp"
@@ -45,20 +46,27 @@ const char* name(CapacityState state)
 }
 } // namespace
 
-Json archive_status(const fs::path& root, const std::optional<fs::path>& replica)
+ArchiveStatus archive_status(const fs::path& root, const std::optional<fs::path>& replica)
 {
     storage::Sqlite db{root / "journal.db", storage::OpenMode::read_only};
     db.exec("BEGIN");
-    auto row = db.query("SELECT json_object('committed',count(*),'pending',count(*) FILTER "
-                        "(WHERE registered_at_utc_us IS NULL AND catalog_error IS NULL),"
-                        "'missing',count(*) FILTER (WHERE unavailable_reason='missing'),"
-                        "'corrupt',count(*) FILTER (WHERE unavailable_reason='corrupt'),"
-                        "'rejected',count(catalog_error),'last_commit_utc_us',max(committed_at_utc_us),"
-                        "'media_bytes',coalesce(sum((manifest_json->>'$.media.size_bytes') + "
-                        "coalesce(manifest_json->>'$.audio.size_bytes',0)) FILTER (WHERE "
-                        "unavailable_reason IS NULL),0)) FROM committed_blocks");
+    auto row = db.query(
+        "SELECT count(*),count(*) FILTER (WHERE registered_at_utc_us IS NULL AND catalog_error IS NULL),"
+        "count(*) FILTER (WHERE unavailable_reason='missing'),count(*) FILTER (WHERE "
+        "unavailable_reason='corrupt'),"
+        "count(catalog_error),max(committed_at_utc_us),coalesce(sum((manifest_json->>'$.media.size_bytes')+"
+        "coalesce(manifest_json->>'$.audio.size_bytes',0)) FILTER (WHERE unavailable_reason IS NULL),0) FROM "
+        "committed_blocks");
     next(row.get());
-    auto result = Json::parse(column(row.get(), 0));
+    ArchiveStatus result;
+    result.committed = sqlite3_column_int64(row.get(), 0);
+    result.pending = sqlite3_column_int64(row.get(), 1);
+    result.missing = sqlite3_column_int64(row.get(), 2);
+    result.corrupt = sqlite3_column_int64(row.get(), 3);
+    result.rejected = sqlite3_column_int64(row.get(), 4);
+    if (sqlite3_column_type(row.get(), 5) != SQLITE_NULL)
+        result.last_commit_utc_us = sqlite3_column_int64(row.get(), 5);
+    result.media_bytes = static_cast<std::uintmax_t>(sqlite3_column_int64(row.get(), 6));
     auto version = db.query("PRAGMA user_version");
     next(version.get());
     auto policy =
@@ -74,12 +82,9 @@ Json archive_status(const fs::path& root, const std::optional<fs::path>& replica
         std::error_code error;
         auto status = fs::symlink_status(*replica, error);
         const bool online = !error && fs::is_directory(status);
-        result["replica"] = {
-            {"verified", verified},
-            {"failed", failed},
-            {"online", online},
-            {"pending", std::max<std::int64_t>(0, result.at("committed").get<std::int64_t>() - verified - failed)},
-            {"last_checked_us", sqlite3_column_int64(copies.get(), 2)}};
+        result.replica =
+            ReplicaStatus{verified, failed, std::max<std::int64_t>(0, result.committed - verified - failed),
+                          sqlite3_column_int64(copies.get(), 2), online};
     }
     const auto days = sqlite3_column_int(policy.get(), 1), percent = sqlite3_column_int(policy.get(), 2);
     const auto space = fs::space(root);
@@ -94,24 +99,24 @@ Json archive_status(const fs::path& root, const std::optional<fs::path>& replica
     sqlite3_bind_int64(rate.get(), 1, now_us());
     next(rate.get());
     const auto bytes_per_second = sqlite3_column_double(rate.get(), 0);
-    const auto usable = std::min(space.capacity - floor, free + result.at("media_bytes").get<std::uintmax_t>());
-    result["retention_days"] = days ? Json(days) : Json(nullptr);
-    result["cutoff_utc_us"] = sqlite3_column_int64(policy.get(), 0) == std::numeric_limits<std::int64_t>::min()
-                                  ? Json(nullptr)
-                                  : Json(sqlite3_column_int64(policy.get(), 0));
-    result["removed_blocks"] = sqlite3_column_int64(policy.get(), 3);
-    result["reserve_percent"] = percent;
-    result["capacity_bytes"] = space.capacity;
-    result["available_bytes"] = space.available;
-    result["reserve_bytes"] = floor;
-    result["state"] = name(capacity_state(percent, space, blocked));
-    result["write_bytes_per_second"] = bytes_per_second > 0 ? Json(bytes_per_second) : Json(nullptr);
-    const auto depth = bytes_per_second > 0 ? static_cast<double>(usable) / bytes_per_second : 0;
-    result["capacity_depth_seconds"] = bytes_per_second > 0 ? Json(depth) : Json(nullptr);
-    result["estimated_depth_seconds"] =
-        bytes_per_second > 0 ? Json(days ? std::min(depth, days * 86400.0) : depth) : Json(nullptr);
-    result["remaining_seconds"] =
-        bytes_per_second > 0 ? Json(static_cast<double>(free) / bytes_per_second) : Json(nullptr);
+    const auto usable = std::min(space.capacity - floor, free + result.media_bytes);
+    if (days)
+        result.retention_days = days;
+    if (auto cutoff = sqlite3_column_int64(policy.get(), 0); cutoff != std::numeric_limits<std::int64_t>::min())
+        result.cutoff_utc_us = cutoff;
+    result.removed_blocks = sqlite3_column_int64(policy.get(), 3);
+    result.reserve_percent = percent;
+    result.capacity_bytes = space.capacity;
+    result.available_bytes = space.available;
+    result.reserve_bytes = floor;
+    result.state = capacity_state(percent, space, blocked);
+    if (bytes_per_second > 0) {
+        result.write_bytes_per_second = bytes_per_second;
+        const double depth = static_cast<double>(usable) / bytes_per_second;
+        result.capacity_depth_seconds = depth;
+        result.estimated_depth_seconds = days ? std::min(depth, days * 86400.0) : depth;
+        result.remaining_seconds = static_cast<double>(free) / bytes_per_second;
+    }
     return result;
 }
 

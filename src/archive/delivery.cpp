@@ -1,3 +1,6 @@
+#include "recording/policy_json.hpp"
+#include "archive/manifest_json.hpp"
+#include "archive/analysis_json.hpp"
 #include "archive/delivery.hpp"
 #include "archive/analysis.hpp"
 #include "archive/mp4.hpp"
@@ -50,7 +53,7 @@ void index_blocks(const std::stop_token& stop, Volume& volume, const std::filesy
                                                m.end_us() - m.begin_us());
                 v1::IndexResult data;
                 data.set_manifest(job.manifest());
-                data.set_analysis(index.dump());
+                data.set_analysis(nlohmann::json(index).dump());
                 grpc::ClientContext send;
                 send.set_deadline(std::chrono::system_clock::now() + 3s);
                 google::protobuf::Empty reply;
@@ -110,6 +113,7 @@ void deliver_blocks(const std::stop_token& stop, Volume& volume, recording::Reco
     std::mutex mutex;
     std::unique_lock guard{mutex};
     auto retry = 1s;
+    std::optional<std::string> applied_plan;
     auto refresh = std::chrono::steady_clock::time_point::min();
     while (!stop.stop_requested()) {
         auto delay = 250ms;
@@ -124,7 +128,12 @@ void deliver_blocks(const std::stop_token& stop, Volume& volume, recording::Reco
                 v1::RetentionPolicy policy;
                 if (catalog->AdvanceRetention(&context, query, &policy).ok()) {
                     update_detectors({policy.detector_points().begin(), policy.detector_points().end()});
-                    plan.update(policy.has_recording_plan_json() ? policy.recording_plan_json() : "{}");
+                    const auto& encoded = policy.recording_plan_json();
+                    if (applied_plan != encoded) {
+                        plan.update(policy.has_recording_plan_json() ? recording::decode_plan(Json::parse(encoded))
+                                                                     : recording::PointPolicies{});
+                        applied_plan = encoded;
+                    }
                     if (!policy.retirement_suspended()) {
                         volume.retention.protect_blocks(
                             {policy.protected_blocks().begin(), policy.protected_blocks().end()});

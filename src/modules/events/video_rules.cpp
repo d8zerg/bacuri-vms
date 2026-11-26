@@ -1,10 +1,14 @@
+#include "application/control_api/http_json.hpp"
+#include "recording/policy_json.hpp"
+#include "modules/events/video_json.hpp"
+#include "archive/analysis_json.hpp"
 #include "modules/events/video_rules.hpp"
 #include "modules/events/operations.hpp"
 #include "modules/recordings/operations.hpp"
 #include "modules/access/operations.hpp"
 #include "modules/access/session.hpp"
 #include "modules/inventory/operations.hpp"
-#include "application/control_api/playback_time.hpp"
+#include "application/control_api/playback_time_json.hpp"
 #include "archive/analysis.hpp"
 #include "recording/policy.hpp"
 #include <cmath>
@@ -47,9 +51,9 @@ Detector parse(const Json& body)
             d.cooldown > 3600)
             throw std::invalid_argument("threshold");
         for (const auto& a : areas)
-            d.include.push_back(MotionArea::parse(a));
+            d.include.push_back(a.get<archive::MotionArea>());
         for (const auto& a : exclusions)
-            d.exclude.push_back(MotionArea::parse(a));
+            d.exclude.push_back(a.get<archive::MotionArea>());
         if (!body.at("line").is_null()) {
             d.line = body.at("line").get<std::vector<double>>();
             if (d.line.size() != 4 ||
@@ -73,18 +77,18 @@ Detector parse(const Json& body)
         throw Failure{ErrorCode::invalid_request};
     }
 }
-bool matches(const Detector& d, std::int64_t at, bool local, const Json& sample)
+bool matches(const Detector& d, std::int64_t at, bool local, const MotionAttributes& sample)
 {
     if ((d.source == "local") != local || !d.schedule.selects(at, 1))
         return false;
     if (!local)
-        return sample.contains("topic");
-    const auto a = archive::measure_motion(sample.at("cells"), d.threshold, d.include, d.exclude);
+        return sample.topic.has_value();
+    const auto a = archive::measure_motion(sample.cells, d.threshold, d.include, d.exclude);
     if (a.cells < d.minimum)
         return false;
     if (d.line.empty())
         return true;
-    auto prev = sample.value("previous", std::string{});
+    const auto& prev = sample.previous;
     if (prev.empty())
         return false;
     const auto b = archive::measure_motion(prev, d.threshold, d.include, d.exclude);
@@ -159,7 +163,7 @@ std::vector<std::string> detector_points(postgresql::Database& db, const std::st
 }
 RuleDecision evaluate_observation(postgresql::Database& db, const std::string& site, const std::string& point,
                                   const std::string& binding, const std::string& source, const std::string& obs,
-                                  std::int64_t at, bool local, bool device, const Json& attrs)
+                                  std::int64_t at, bool local, bool device, const MotionAttributes& attrs)
 {
     auto rule = db.exec("SELECT revision,definition,author_id FROM bacuri_events.video_rules WHERE site_id=$1 AND "
                         "point_id=$2 AND effective_us<=$3 ORDER BY revision DESC LIMIT 1",
@@ -183,7 +187,7 @@ RuleDecision evaluate_observation(postgresql::Database& db, const std::string& s
             {site, source, obs, point, binding, revision, std::to_string(at),
              Json{{"source", d.source},
                   {"include", Json::parse(rule.get(0, 1)).at("include")},
-                  {"topic", attrs.value("topic", "")},
+                  {"topic", attrs.topic.value_or("")},
                   {"record", d.record},
                   {"notify", d.notify},
                   {"preset", d.preset},
@@ -192,13 +196,14 @@ RuleDecision evaluate_observation(postgresql::Database& db, const std::string& s
              d.preset.empty() ? "none" : "pending"});
     return {d.record, d.notify};
 }
-Json video_context(postgresql::Database& db, const std::string& site, const std::string& point, std::int64_t begin,
-                   std::int64_t end, const std::string& query)
+std::vector<VideoEvent> video_context(postgresql::QuerySession& db, const std::string& site,
+                                      const std::string& point, std::int64_t begin, std::int64_t end,
+                                      const std::string& query)
 {
     auto rows = db.exec(
         "SELECT "
         "o.observed_at_utc_us,o.observation_id,coalesce(m.revision,0),coalesce(o.attributes->>'topic',o.type),"
-        "coalesce(m.context->>'source',o.origin),coalesce(o.attributes->'data','{}'::jsonb),a.alert_id "
+        "coalesce(m.context->>'source',o.origin),o.source_id,a.alert_id "
         "FROM bacuri_events.observations o LEFT JOIN bacuri_events.video_matches m "
         "USING(site_id,source_id,observation_id) LEFT JOIN bacuri_events.alerts a "
         "USING(site_id,source_id,observation_id) "
@@ -207,16 +212,43 @@ Json video_context(postgresql::Database& db, const std::string& site, const std:
         "coalesce(o.attributes->>'topic',o.type),coalesce(m.context->>'source',o.origin),"
         "(o.attributes->'data')::text,a.alert_id::text)),lower($5))>0) ORDER BY o.observed_at_utc_us LIMIT 256",
         {site, point, std::to_string(begin), std::to_string(end), query});
-    auto items = Json::array();
-    for (int i = 0; i < rows.size(); i++)
-        items.push_back({{"at", ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(std::stoll(rows.get(i))))},
-                         {"id", rows.get(i, 1)},
-                         {"rule_revision", rows.get(i, 2)},
-                         {"topic", rows.get(i, 3)},
-                         {"source", rows.get(i, 4)},
-                         {"metadata", Json::parse(rows.get(i, 5))},
-                         {"alert_id", rows.get(i, 6)}});
+    std::vector<VideoEvent> items;
+    items.reserve(static_cast<std::size_t>(rows.size()));
+    for (int i = 0; i < rows.size(); ++i)
+        items.push_back({std::stoll(rows.get(i)), rows.get(i, 1), rows.get(i, 2), rows.get(i, 3), rows.get(i, 4),
+                         rows.get(i, 6), rows.get(i, 5)});
     return items;
+}
+Json video_events_json(postgresql::QuerySession& db, const std::string& site, const std::string& point,
+                       const std::vector<VideoEvent>& events)
+{
+    auto result = Json::array();
+    if (events.empty())
+        return result;
+    std::vector<std::string> sources, ids;
+    for (const auto& event : events) {
+        sources.push_back(event.source_id);
+        ids.push_back(event.id);
+    }
+    const auto rows =
+        db.exec("SELECT coalesce(o.attributes->'data','{}'::jsonb) FROM unnest($3::uuid[],$4::uuid[]) WITH "
+                "ORDINALITY AS k(source_id,observation_id,n) "
+                "JOIN bacuri_events.observations o USING(source_id,observation_id) WHERE o.site_id=$1 AND "
+                "o.point_id=$2 ORDER BY k.n",
+                {site, point, postgresql::array_parameter(sources), postgresql::array_parameter(ids)});
+    if (static_cast<std::size_t>(rows.size()) != events.size())
+        throw std::runtime_error("Incomplete observation metadata");
+    for (int i = 0; i < rows.size(); ++i) {
+        const auto& e = events.at(static_cast<std::size_t>(i));
+        result.push_back({{"at", utc_text(e.at)},
+                          {"id", e.id},
+                          {"rule_revision", e.rule_revision},
+                          {"topic", e.topic},
+                          {"source", e.source},
+                          {"metadata", Json::parse(rows.get(i))},
+                          {"alert_id", e.alert_id}});
+    }
+    return result;
 }
 void video_rule(const Request& req, Response& res, const Sessions& sessions, const std::string& site,
                 const std::string& point, bool simulation)
@@ -264,7 +296,8 @@ void video_rule(const Request& req, Response& res, const Sessions& sessions, con
             complete = events.size() <= 4096;
             for (int i = 0; i < std::min(4096, events.size()); i++) {
                 auto at = std::stoll(events.get(i));
-                if (at - last >= d.cooldown * 1000000LL && matches(d, at, false, Json::parse(events.get(i, 1)))) {
+                if (at - last >= d.cooldown * 1000000LL &&
+                    matches(d, at, false, Json::parse(events.get(i, 1)).get<MotionAttributes>())) {
                     hits.push_back(ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(at)));
                     last = at;
                 }
@@ -293,8 +326,7 @@ void video_rule(const Request& req, Response& res, const Sessions& sessions, con
                         continue;
                     if (at - previous_at > 1000000 || b.binding != binding)
                         prev.clear();
-                    if (at - last >= d.cooldown * 1000000LL &&
-                        matches(d, at, true, {{"cells", sample.cells}, {"previous", prev}})) {
+                    if (at - last >= d.cooldown * 1000000LL && matches(d, at, true, {{}, sample.cells, prev})) {
                         hits.push_back(ProtoTime::ToString(ProtoTime::MicrosecondsToTimestamp(at)));
                         last = at;
                     }

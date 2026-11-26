@@ -1,3 +1,4 @@
+import "../../i18n/extended";
 // The selected point: its camera, events, position on the map and its editing.
 
 import { RouteButton } from "../RouteButton";

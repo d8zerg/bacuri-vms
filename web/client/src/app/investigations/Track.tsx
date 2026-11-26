@@ -1,3 +1,4 @@
+import "../../i18n/extended";
 // The synchronized frame track of one point in the archive search.
 import { useEffect, useRef, useState } from "react";
 import type { SearchTrack, Services } from "../../contracts/workspace";
