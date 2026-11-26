@@ -1,0 +1,126 @@
+# Passport of the desktop workstations.
+# It names the stations on which the client is built and measured, their hardware, the media
+# sources and the server profile. tools/desktop_passport.py compares the stand entry with the
+# actual machine, so every measurement is attributable to a known configuration.
+
+# Operating systems of the release. Only an active target is built and tested.
+targets:
+  linux:
+    state: active
+    stand: stand
+    distribution: Ubuntu 26.04 LTS
+    display_server: Wayland session of GNOME with XWayland
+  windows:
+    state: open
+    reason: No test station. Direct3D 11 output, D3D11 decoding and the MSI package wait for a station
+  macos:
+    state: open
+    reason: No test station. Metal output, VideoToolbox decoding and the signed DMG wait for a station
+
+# Build and run environment of the active target. The client is built in the desktop stage of
+# the Dockerfile and runs in the same image on the stand with the GPU, the display socket and
+# the input devices of the host passed through.
+build:
+  image: desktop
+  base: Debian Trixie
+  qt: 6.8.2
+  gstreamer: 1.26.2
+  sdl: 3.2.10
+  compilers: [GCC 14, Clang 19]
+  gpu_runtime: NVIDIA Container Toolkit with graphics, video, compute and utility capabilities
+
+stations:
+  stand:
+    kind: physical
+    role: Reference station of the Linux target and the candidate recommended configuration
+    os:
+      name: Ubuntu 26.04.1 LTS
+      kernel: 7.0.0-44-generic
+      session: wayland
+    cpu: AMD Ryzen 9 3900X 12-Core Processor
+    threads: 24
+    memory_gib: 61
+    gpu:
+      model: NVIDIA GeForce RTX 4070 Ti
+      memory_mib: 12282
+      driver: 595.99.02
+    graphics:
+      api: OpenGL ES 3.2 through EGL in the desktop image
+      renderer: NVIDIA GeForce RTX 4070 Ti/PCIe/SSE2
+    decoders:
+      hardware: [nvh264dec, nvh265dec, nvav1dec]
+      software: [avdec_h264, avdec_h265]
+    displays:
+      - output: DP-3
+        resolution: 3840x2160
+        refresh_hz: 60
+        scale: 2
+    input:
+      keyboard: standart
+      mouse: standart
+      joystick: none
+      key_panel: none
+    security_key: none
+    network: Wi-Fi to the camera network, the server stand runs on the same host
+
+# Equipment the plan needs that the stand does not have yet. The scenarios that depend on it
+# stay open and are measured when the equipment is connected.
+missing:
+  second_display: Moving windows between screens, different scales, disconnecting a display and the video wall
+  joystick: PTZ axes, calibration and stop on release
+  key_panel: Programmable keys with images
+  security_key: Administrator sign-in with WebAuthn
+  windows_station: The Windows target
+  macos_station: The macOS target
+
+media:
+  reference_recordings:
+    tool: tools/desktop-reference
+    location: build/desktop/reference
+    files:
+      h264-1080p25.mp4: H.264 High, 1920x1080, 25 fps, keyframe every 50 frames, 60 s, fragmented MP4
+      h265-1080p25.mp4: H.265 Main 8-bit, 1920x1080, 25 fps, keyframe every 50 frames, 60 s, fragmented MP4
+    marks: Every frame shows its number from zero at the top left and its buffer time at the bottom right
+  stand_camera:
+    source: Synthetic RTSP camera of the Compose stand
+    profiles:
+      main: H.264, 1280x720, 25 fps, keyframe every 25 frames, 2 Mbit/s
+      sub: H.264, 640x360, 15 fps, keyframe every 15 frames, 0.5 Mbit/s
+      hevc: H.265 Main, 640x360, 15 fps, keyframe every 15 frames, 0.64 Mbit/s
+      hevc-sub: H.265 Main, 320x180, 15 fps, keyframe every 15 frames
+    clock: Takes time from the stand host
+  webcam:
+    source: Sunplus 4K webcam through the RTSP emulator of the stand
+    profiles: Two H.264 profiles from one capture
+    clock: Takes time from the stand host
+  physical_camera:
+    source: PTZ camera of the test stand in the camera network
+    services: ONVIF device, Media, Media2 and PTZ
+    profiles:
+      main: H.264 High, 1920x1080, 25 fps, keyframe every 20 frames, 4 Mbit/s, audio
+      sub: H.264 High, 704x576, 25 fps, keyframe every 20 frames, 0.5 Mbit/s, audio
+      third: H.264 High, 352x288, 25 fps, keyframe every 100 frames, 0.25 Mbit/s, audio
+    codecs: H.264, H.265 and JPEG by the Media2 encoder options. No profile is configured for H.265 yet
+    measured: 22 s of the main stream over RTSP with TCP gave 526 frames, 24.5 fps, H.264 High 1920x1080 and a keyframe every 20 frames
+    clock: Set manually without NTP, 2.2 s behind the stand host, read over ONVIF with a 0.06 s round trip
+
+server:
+  profile: Compose stand on the stand host, one node
+  base_passport: 8 cameras and one live viewer
+  limits: 16 WebRTC connections per media delivery process, 16 subscriptions per recorder
+  workstations: 1
+
+configurations:
+  minimum:
+    state: open
+    decided_after: "1.1"
+    note: Chosen from the measurements of the prototype on integrated graphics and on software decoding
+  recommended:
+    state: candidate
+    station: stand
+    decided_after: "1.1"
+
+# Results of emulated and physical sources are reported separately.
+measurement:
+  emulated: [stand_camera, webcam, reference_recordings]
+  physical: [physical_camera]

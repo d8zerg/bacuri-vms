@@ -477,6 +477,21 @@ tasks:
     deps: [dev:image]
     cmd: '{{.BUILD_RUN}} python3 tools/desktop_parity.py --accept'
 
+  desktop:image:
+    internal: true
+    run: once
+    cmd: docker compose build desktop
+
+  desktop:passport:
+    desc: Compare the desktop workstation passport with this stand host and the desktop image with the GPU
+    deps: [desktop:image]
+    cmd: python3 tools/desktop_passport.py
+
+  desktop:reference:
+    desc: Write the H.264 and H.265 reference recordings with frame numbers to build/desktop/reference
+    deps: [desktop:image]
+    cmd: '{{.COMPOSE_RUN}} -T desktop sh tools/desktop-reference'
+
   api:types:
     deps: [dev:image]
     desc: Generate and type-check TypeScript definitions from OpenAPI and the error catalog
