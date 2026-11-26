@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>План и секторы обзора</title>
+<title>Plan and view sectors</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -19,20 +19,21 @@ button{font:inherit;cursor:pointer}
 
   <header style="height: 44px; flex: 0 0 44px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #1a1917; border-bottom: 1px solid #2c2a27">
     <svg width="24" height="24" viewBox="0 0 24 24" role="img" aria-label="Bacuri"><circle cx="12" cy="12" r="10.5" fill="#33271d" stroke="#f2cc61" stroke-width="2.4"></circle><circle cx="12" cy="12" r="6.8" fill="#f3e7c8"></circle><path d="M12 8.2 15.4 14H8.6z" fill="#33271d"></path></svg>
-    <nav aria-label="Масштаб" style="display: flex; align-items: center; gap: 8px; color: #a6a6a6">
-      <a href="#" style="color: #a6a6a6; text-decoration: none">Регион</a>
+    <nav aria-label="Scale" style="display: flex; align-items: center; gap: 8px; color: #a6a6a6">
+      <a href="#" style="color: #a6a6a6; text-decoration: none">Region</a>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
-      <a href="#" style="color: #a6a6a6; text-decoration: none">Северный терминал</a>
+      <a href="#" style="color: #a6a6a6; text-decoration: none">North terminal</a>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
-      <span style="color: #e8e3d9; font-weight: 600">Корпус 2, этаж 1</span>
+      <span style="color: #e8e3d9; font-weight: 600">Building 2, floor 1</span>
     </nav>
     <span style="flex: 1"></span>
-    <span style="color: #8d8776">Колесо - масштаб, от региона до кадра</span>
+    <div role="group" aria-label="Language" style="display: flex; gap: 2px; padding: 2px; background: #121110; border: 1px solid #2c2a27; border-radius: 7px"><button data-language="en" aria-pressed="true" style="height: 22px; padding: 0 8px; border: 0; border-radius: 5px; background: #504a37; color: #f0ece6; font-size: 11px; font-weight: 600">EN</button><button data-language="ru" aria-pressed="false" style="height: 22px; padding: 0 8px; border: 0; border-radius: 5px; background: transparent; color: #a6a6a6; font-size: 11px; font-weight: 600">RU</button></div>
+      <span style="color: #8d8776">Wheel - scale, from region to frame</span>
   </header>
 
   <div style="flex: 1 1 auto; min-height: 0; display: flex; gap: 8px; padding: 8px">
     <div style="position: relative; flex: 1 1 auto; min-width: 0; border-radius: 8px; overflow: hidden; background: #171614; border: 1px solid #2c2a27">
-      <svg viewBox="0 0 1000 680" preserveAspectRatio="xMidYMid meet" role="img" aria-label="План этажа с камерами и секторами обзора" style="position: absolute; inset: 0; width: 100%; height: 100%">
+      <svg viewBox="0 0 1000 680" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Floor plan with cameras and view sectors" style="position: absolute; inset: 0; width: 100%; height: 100%">
         <defs>
           <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#22211e" stroke-width="1"></path></pattern>
         </defs>
@@ -49,12 +50,12 @@ button{font:inherit;cursor:pointer}
           <path d="M80 190 H180"></path>
         </g>
         <g font-family="Inter, sans-serif" font-size="15" fill="#8d8776">
-          <text x="100" y="120">Вход А</text>
-          <text x="560" y="120">Склад 2</text>
-          <text x="100" y="350">Коридор Б2</text>
-          <text x="320" y="420">Погрузка</text>
-          <text x="720" y="420">Лестница В</text>
-          <text x="100" y="420">Серверная</text>
+          <text x="100" y="120">Entrance A</text>
+          <text x="560" y="120">Warehouse 2</text>
+          <text x="100" y="350">Corridor B2</text>
+          <text x="320" y="420">Loading</text>
+          <text x="720" y="420">Stairs C</text>
+          <text x="100" y="420">Server room</text>
         </g>
         <sc-for list="{{cams}}" as="c" hint-placeholder-count="7">
           <path d="{{c.sector}}" fill="{{c.fill}}" stroke="{{c.stroke}}" stroke-width="1.5"></path>
@@ -73,36 +74,36 @@ button{font:inherit;cursor:pointer}
         <div style="position: relative; aspect-ratio: 16 / 9; border-radius: 4px; overflow: hidden; background: radial-gradient(60% 40% at 50% 38%, #6a675d 0%, #3c3a35 45%, #1d1c1a 100%)">
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%"><path d="M0 100 L42 42 M100 100 L58 42 M42 42 L58 42 M42 42 L42 0 M58 42 L58 0" fill="none" stroke="rgba(255,249,236,.14)" stroke-width=".6" vector-effect="non-scaling-stroke"></path></svg>
           <div style="position: absolute; left: 47%; top: 50%; width: 6%; height: 26%"><div style="width: 40%; aspect-ratio: 1; margin: 0 auto 6%; border-radius: 50%; background: #0c0b0a"></div><div style="height: 72%; border-radius: 40% 40% 8% 8%; background: #0c0b0a"></div></div>
-          <span style="position: absolute; left: 5px; top: 5px; display: flex; align-items: center; gap: 5px; padding: 1px 6px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 11px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #bfcba4"></span>Эфир</span>
+          <span style="position: absolute; left: 5px; top: 5px; display: flex; align-items: center; gap: 5px; padding: 1px 6px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 11px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #bfcba4"></span>Live</span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px; padding: 6px 4px 2px; color: #fff9ec">
-          <span style="font-weight: 500">Коридор Б2</span><span style="flex: 1"></span><span style="color: #c9c2b2; font-size: 12px">клик - открыть</span>
+          <span style="font-weight: 500">Corridor B2</span><span style="flex: 1"></span><span style="color: #c9c2b2; font-size: 12px">click - open</span>
         </div>
       </div>
       <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" style="position: absolute; left: calc(61% - 14px); top: calc(48% - 10px)"><path d="M4 3l14 7-6 2-2 6z" fill="#fff9ec" stroke="#12110f" stroke-width="1.5"></path></svg>
 
       <div style="position: absolute; left: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px">
-        <div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 10px; border-radius: 2px; background: rgba(180,169,137,.22); border: 1px solid #b4a989"></span>Сектор обзора, по измерению</div>
-        <div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 10px; border-radius: 2px; background: rgba(255,163,161,.22); border: 1px solid #ffa3a1"></span>Камера с тревогой</div>
-        <div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 0; border-top: 2px dotted #ffa3a1"></span>Путь по переходам между камерами</div>
+        <div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 10px; border-radius: 2px; background: rgba(180,169,137,.22); border: 1px solid #b4a989"></span>View sector, measured</div>
+        <div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 10px; border-radius: 2px; background: rgba(255,163,161,.22); border: 1px solid #ffa3a1"></span>Camera with an alarm</div>
+        <div style="display: flex; align-items: center; gap: 8px"><span style="width: 18px; height: 0; border-top: 2px dotted #ffa3a1"></span>Path across camera transitions</div>
       </div>
-      <div role="group" aria-label="Этаж" style="position: absolute; right: 12px; top: 12px; display: flex; flex-direction: column; gap: 2px; padding: 3px; background: #121110; border: 1px solid #2c2a27; border-radius: 8px">
+      <div role="group" aria-label="Floor" style="position: absolute; right: 12px; top: 12px; display: flex; flex-direction: column; gap: 2px; padding: 3px; background: #121110; border: 1px solid #2c2a27; border-radius: 8px">
         <button style="width: 36px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: #a6a6a6">2</button>
         <button style="width: 36px; height: 30px; border: 0; border-radius: 6px; background: #504a37; color: #f0ece6">1</button>
       </div>
     </div>
 
-    <aside aria-label="Камеры плана" style="width: 300px; flex: 0 0 300px; display: flex; flex-direction: column; gap: 8px; min-height: 0">
+    <aside aria-label="Plan cameras" style="width: 300px; flex: 0 0 300px; display: flex; flex-direction: column; gap: 8px; min-height: 0">
       <section style="padding: 12px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; box-shadow: inset 3px 0 0 #ffa3a1">
-        <span style="font-weight: 600">Склад 2 · Стеллажи</span>
-        <span style="color: #a6a6a6">Тревога 14:31:59 · новая</span>
+        <span style="font-weight: 600">Warehouse 2 · Racks</span>
+        <span style="color: #a6a6a6">Alarm 14:31:59 · new</span>
         <div style="display: flex; gap: 6px">
-          <a href="alarm.dc.html" style="flex: 1; height: 32px; display: grid; place-items: center; border-radius: 7px; background: #504a37; color: #f0ece6; text-decoration: none; font-weight: 500">Открыть тревогу</a>
-          <a href="archive.dc.html" style="flex: 1; height: 32px; display: grid; place-items: center; border-radius: 7px; background: #252526; border: 1px solid #3a3835; color: #e8e3d9; text-decoration: none">Архив</a>
+          <a href="alarm.dc.html" style="flex: 1; height: 32px; display: grid; place-items: center; border-radius: 7px; background: #504a37; color: #f0ece6; text-decoration: none; font-weight: 500">Open the alarm</a>
+          <a href="archive.dc.html" style="flex: 1; height: 32px; display: grid; place-items: center; border-radius: 7px; background: #252526; border: 1px solid #3a3835; color: #e8e3d9; text-decoration: none">Archive</a>
         </div>
       </section>
       <section style="flex: 1 1 auto; min-height: 0; padding: 12px 0; background: #1a1917; border: 1px solid #2c2a27; border-radius: 8px; display: flex; flex-direction: column">
-        <span style="font-weight: 600; padding: 0 12px 6px">На этом этаже</span>
+        <span style="font-weight: 600; padding: 0 12px 6px">On this floor</span>
         <sc-for list="{{cams}}" as="c" hint-placeholder-count="7">
           <a href="focus.dc.html" style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; color: #e8e3d9; text-decoration: none; border-top: 1px solid #262523">
             <span style="{{c.listDot}}"></span>
@@ -124,13 +125,13 @@ class Component extends DCLogic {
       return 'M' + x + ' ' + y + ' L' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' A' + r + ' ' + r + ' 0 0 1 ' + x2.toFixed(1) + ' ' + y2.toFixed(1) + ' Z';
     }
     var list = [
-      ['Вход А · Турникеты', 110, 270, 45, 80, 170, 'ok', '45° · 80°'],
-      ['Склад 2 · Ворота', 540, 100, 135, 70, 200, 'ok', '135° · 70°'],
-      ['Склад 2 · Стеллажи', 900, 100, 225, 75, 260, 'alarm', '225° · 75°'],
-      ['Коридор Б2', 430, 340, 90, 50, 290, 'hover', '90° · 50°'],
-      ['Погрузка 1', 320, 580, 45, 70, 200, 'gap', '45° · 70°'],
-      ['Лестница В', 900, 580, 315, 60, 170, 'ok', '315° · 60°'],
-      ['Серверная', 100, 580, 30, 60, 160, 'ok', '30° · 60°']
+      ['Entrance A · Turnstiles', 110, 270, 45, 80, 170, 'ok', '45° · 80°'],
+      ['Warehouse 2 · Gate', 540, 100, 135, 70, 200, 'ok', '135° · 70°'],
+      ['Warehouse 2 · Racks', 900, 100, 225, 75, 260, 'alarm', '225° · 75°'],
+      ['Corridor B2', 430, 340, 90, 50, 290, 'hover', '90° · 50°'],
+      ['Loading 1', 320, 580, 45, 70, 200, 'gap', '45° · 70°'],
+      ['Stairs C', 900, 580, 315, 60, 170, 'ok', '315° · 60°'],
+      ['Server room', 100, 580, 30, 60, 160, 'ok', '30° · 60°']
     ];
     var cams = list.map(function (c) {
       var alarm = c[6] === 'alarm', hover = c[6] === 'hover', gap = c[6] === 'gap';

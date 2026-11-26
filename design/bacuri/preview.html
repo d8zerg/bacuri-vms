@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ru" data-theme="light">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Цвет и иконки · Bacuri VMS</title>
+    <title>Color and icons · Bacuri VMS</title>
     <link rel="icon" href="brand/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="tokens.css" />
     <link rel="stylesheet" href="preview.css" />
@@ -460,44 +460,48 @@
         <div class="wordmark">
           <img src="brand/mark.svg" alt="" /><b>bacuri</b><small>VMS</small>
         </div>
-        <nav aria-label="Разделы предложения">
-          <a href="#themes">Темы</a><a href="#brand">Знак</a
-          ><a href="#icons">Иконки</a>
+        <nav aria-label="Proposal sections">
+          <a href="#themes">Themes</a><a href="#brand">Mark</a
+          ><a href="#icons">Icons</a>
         </nav>
       </div>
     </header>
     <main class="wrap">
       <header class="intro" id="themes">
         <div>
-          <h1>Цвет и иконки</h1>
-          <p>Один кадр и одна тревога в двух темах рабочего места оператора.</p>
+          <h1>Color and icons</h1>
+          <p>One frame and one alarm in two themes of the operator workspace.</p>
         </div>
-        <div class="modes" role="group" aria-label="Режим сравнения тем">
-          <button data-mode="both" aria-pressed="true">Сравнить</button
-          ><button data-mode="light" aria-pressed="false">Светлая</button
-          ><button data-mode="dark" aria-pressed="false">Тёмная</button>
+        <div class="modes" role="group" aria-label="Theme comparison mode">
+          <button data-mode="both" aria-pressed="true">Compare</button
+          ><button data-mode="light" aria-pressed="false">Light</button
+          ><button data-mode="dark" aria-pressed="false">Dark</button>
+        </div>
+        <div class="modes" role="group" aria-label="Language">
+          <button data-language="en" aria-pressed="true" lang="en">EN</button
+          ><button data-language="ru" aria-pressed="false" lang="ru">RU</button>
         </div>
       </header>
       <div class="compare">
-        <article class="screen" data-theme="light" aria-label="Светлая тема">
+        <article class="screen" data-theme="light" aria-label="Light theme">
           <div class="cardtitle">
             <span
               ><svg class="icon" aria-hidden="true" focusable="false">
                 <use href="#i-sun" /></svg
-              ><b>Светлая тема</b></span
-            ><small>Склад «Север»</small>
+              ><b>Light theme</b></span
+            ><small>Warehouse “North”</small>
           </div>
           <div class="station">
             <div class="vhead">
               <div>
-                <h3>Погрузочная зона</h3>
-                <p class="vmeta">Камера 04 · Северные ворота</p>
+                <h3>Loading area</h3>
+                <p class="vmeta">Camera 04 · North gate</p>
               </div>
               <span class="badge success"
                 ><svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-circle-check" />
                 </svg>
-                На связи</span
+                Connected</span
               >
             </div>
             <div class="layout">
@@ -505,11 +509,11 @@
                 <div class="video">
                   <img
                     src="assets/yard.webp"
-                    alt="Погрузочная зона склада с грузовиками у ворот"
+                    alt="Loading area of the warehouse with trucks at the gate"
                   /><span class="osd ol"
                     ><svg class="icon" aria-hidden="true" focusable="false">
                       <use href="#i-radio" /></svg
-                    ><span class="kind">Эфир</span></span
+                    ><span class="kind">Live</span></span
                   ><span class="osd or">14:26:00</span>
                 </div>
                 <div class="timeline">
@@ -520,16 +524,16 @@
                   <div
                     class="track"
                     role="img"
-                    aria-label="Сначала запись, затем пропуск и продолжение записи. В конце интервал с оценочным временем и каталогизация."
+                    aria-label="First a recording, then a gap and the recording again. At the end an interval with estimated time and cataloging."
                   >
                     <i class="rec"></i><i class="gap"></i><i class="rec"></i
                     ><i class="est"></i><i class="pend"></i>
                   </div>
                   <div class="legend">
-                    <span><i class="rec"></i>Запись</span
-                    ><span><i class="gap"></i>Пропуск</span
-                    ><span><i class="est"></i>Время оценочное</span
-                    ><span><i class="pend"></i>Каталогизация</span>
+                    <span><i class="rec"></i>Recording</span
+                    ><span><i class="gap"></i>Gap</span
+                    ><span><i class="est"></i>Estimated time</span
+                    ><span><i class="pend"></i>Cataloging</span>
                   </div>
                 </div>
               </div>
@@ -542,7 +546,7 @@
                       focusable="false"
                     >
                       <use href="#i-bell-ring" /></svg
-                    ><b>Тревога у ворот</b><time>14:23:18</time>
+                    ><b>Alarm at the gate</b><time>14:23:18</time>
                   </div>
                   <div class="event">
                     <svg
@@ -551,40 +555,40 @@
                       focusable="false"
                     >
                       <use href="#i-clock-alert" /></svg
-                    >Время камеры оценочное<time>14:22:54</time>
+                    >Camera time is estimated<time>14:22:54</time>
                   </div>
                 </div>
                 <div class="tools">
-                  <small class="context" aria-live="polite">Архив · UTC+3</small
+                  <small class="context" aria-live="polite">Archive · UTC+3</small
                   ><button class="cta" type="button">
                     <svg class="icon" aria-hidden="true" focusable="false">
                       <use href="#i-archive" /></svg
-                    ><span>Открыть архив</span>
+                    ><span>Open archive</span>
                   </button>
                 </div>
               </div>
             </div>
           </div>
         </article>
-        <article class="screen" data-theme="dark" aria-label="Тёмная тема">
+        <article class="screen" data-theme="dark" aria-label="Dark theme">
           <div class="cardtitle">
             <span
               ><svg class="icon" aria-hidden="true" focusable="false">
                 <use href="#i-moon" /></svg
-              ><b>Тёмная тема</b></span
-            ><small>Склад «Север»</small>
+              ><b>Dark theme</b></span
+            ><small>Warehouse “North”</small>
           </div>
           <div class="station">
             <div class="vhead">
               <div>
-                <h3>Погрузочная зона</h3>
-                <p class="vmeta">Камера 04 · Северные ворота</p>
+                <h3>Loading area</h3>
+                <p class="vmeta">Camera 04 · North gate</p>
               </div>
               <span class="badge success"
                 ><svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-circle-check" />
                 </svg>
-                На связи</span
+                Connected</span
               >
             </div>
             <div class="layout">
@@ -592,11 +596,11 @@
                 <div class="video">
                   <img
                     src="assets/yard.webp"
-                    alt="Погрузочная зона склада с грузовиками у ворот"
+                    alt="Loading area of the warehouse with trucks at the gate"
                   /><span class="osd ol"
                     ><svg class="icon" aria-hidden="true" focusable="false">
                       <use href="#i-radio" /></svg
-                    ><span class="kind">Эфир</span></span
+                    ><span class="kind">Live</span></span
                   ><span class="osd or">14:26:00</span>
                 </div>
                 <div class="timeline">
@@ -607,16 +611,16 @@
                   <div
                     class="track"
                     role="img"
-                    aria-label="Сначала запись, затем пропуск и продолжение записи. В конце интервал с оценочным временем и каталогизация."
+                    aria-label="First a recording, then a gap and the recording again. At the end an interval with estimated time and cataloging."
                   >
                     <i class="rec"></i><i class="gap"></i><i class="rec"></i
                     ><i class="est"></i><i class="pend"></i>
                   </div>
                   <div class="legend">
-                    <span><i class="rec"></i>Запись</span
-                    ><span><i class="gap"></i>Пропуск</span
-                    ><span><i class="est"></i>Время оценочное</span
-                    ><span><i class="pend"></i>Каталогизация</span>
+                    <span><i class="rec"></i>Recording</span
+                    ><span><i class="gap"></i>Gap</span
+                    ><span><i class="est"></i>Estimated time</span
+                    ><span><i class="pend"></i>Cataloging</span>
                   </div>
                 </div>
               </div>
@@ -629,7 +633,7 @@
                       focusable="false"
                     >
                       <use href="#i-bell-ring" /></svg
-                    ><b>Тревога у ворот</b><time>14:23:18</time>
+                    ><b>Alarm at the gate</b><time>14:23:18</time>
                   </div>
                   <div class="event">
                     <svg
@@ -638,15 +642,15 @@
                       focusable="false"
                     >
                       <use href="#i-clock-alert" /></svg
-                    >Время камеры оценочное<time>14:22:54</time>
+                    >Camera time is estimated<time>14:22:54</time>
                   </div>
                 </div>
                 <div class="tools">
-                  <small class="context" aria-live="polite">Архив · UTC+3</small
+                  <small class="context" aria-live="polite">Archive · UTC+3</small
                   ><button class="cta" type="button">
                     <svg class="icon" aria-hidden="true" focusable="false">
                       <use href="#i-archive" /></svg
-                    ><span>Открыть архив</span>
+                    ><span>Open archive</span>
                   </button>
                 </div>
               </div>
@@ -655,19 +659,19 @@
         </article>
       </div>
       <section class="section" id="brand" aria-labelledby="brand-title">
-        <h2 id="brand-title">Знак Bacuri</h2>
-        <p class="sub">В знаке «Срез-диафрагма» три дольки бакури образуют треугольный просвет.</p>
+        <h2 id="brand-title">Bacuri mark</h2>
+        <p class="sub">In the “Section aperture” mark three bacuri segments form a triangular opening.</p>
         <div class="brandrow">
           <article class="brandcell">
-            <h3>Фирменный знак</h3>
+            <h3>Brand mark</h3>
             <div class="lockup">
               <img src="brand/mark.svg" alt="" /><b>bacuri</b
               ><small>VMS</small>
             </div>
-            <p>Кожура спелого плода · #F2CC61</p>
+            <p>Rind of the ripe fruit · #F2CC61</p>
           </article>
           <article class="brandcell">
-            <h3>Знак в натуральном размере</h3>
+            <h3>The mark at actual size</h3>
             <div class="scale">
               <figure>
                 <img src="brand/favicon.svg" width="16" height="16" alt="" />
@@ -688,345 +692,346 @@
             </div>
           </article>
           <article class="brandcell">
-            <h3>Вкладка браузера</h3>
+            <h3>Browser tab</h3>
             <div class="sample-tab">
-              <img src="brand/favicon.svg" alt="" />Мониторинг · Bacuri VMS
+              <img src="brand/favicon.svg" alt="" />Monitoring · Bacuri VMS
             </div>
             <div class="sample-tab dark" data-theme="dark">
-              <img src="brand/favicon.svg" alt="" />Мониторинг · Bacuri VMS
+              <img src="brand/favicon.svg" alt="" />Monitoring · Bacuri VMS
             </div>
           </article>
         </div>
       </section>
       <section class="section" aria-labelledby="pal-title">
-        <h2 id="pal-title">Палитра</h2>
+        <h2 id="pal-title">Palette</h2>
         <p class="sub">
-          Светлая тема использует оттенки мякоти, тёмная - серый фон и текст VS Code Dark+. Главное действие и выбор выделены приглушёнными песочно-жёлтыми оттенками.
-          Предупреждения выделены терракотовым и подписаны.
+          The light theme uses the shades of the pulp, the dark one the gray background and text of VS Code Dark+. The main action and the selection use muted sand-yellow shades.
+          Warnings are terracotta and labeled.
         </p>
         <div class="palette">
           <article class="swatches" data-theme="light">
-            <h3>Светлая тема</h3>
+            <h3>Light theme</h3>
             <div class="chips">
               <div class="chip">
-                <i style="background: var(--canvas)"></i><strong>Фон</strong
+                <i style="background: var(--canvas)"></i><strong>Background</strong
                 ><code>#F7F4ED</code>
               </div>
               <div class="chip">
-                <i style="background: var(--surface)"></i><strong>Панель</strong
+                <i style="background: var(--surface)"></i><strong>Panel</strong
                 ><code>#FFFDF8</code>
               </div>
               <div class="chip">
                 <i style="background: var(--raised)"></i
-                ><strong>Вложенный фон</strong><code>#EFEADF</code>
+                ><strong>Nested background</strong><code>#EFEADF</code>
               </div>
               <div class="chip">
                 <i style="background: var(--control)"></i
-                ><strong>Граница поля</strong><code>#827D6F</code>
+                ><strong>Field border</strong><code>#827D6F</code>
               </div>
               <div class="chip">
-                <i style="background: var(--ink)"></i><strong>Текст</strong
+                <i style="background: var(--ink)"></i><strong>Text</strong
                 ><code>#202020</code>
               </div>
               <div class="chip">
                 <i style="background: var(--muted)"></i
-                ><strong>Метаданные</strong><code>#575757</code>
+                ><strong>Metadata</strong><code>#575757</code>
               </div>
               <div class="chip">
                 <i style="background: var(--action-fill)"></i
-                ><strong>Кнопка</strong><code>#E1D8BB</code>
+                ><strong>Button</strong><code>#E1D8BB</code>
               </div>
               <div class="chip">
                 <i style="background: var(--action)"></i
-                ><strong>Ссылка и выбор</strong><code>#696046</code>
+                ><strong>Link and selection</strong><code>#696046</code>
               </div>
               <div class="chip">
                 <i style="background: var(--on-action)"></i
-                ><strong>Текст кнопки</strong><code>#202020</code>
+                ><strong>Button text</strong><code>#202020</code>
               </div>
               <div class="chip">
                 <i style="background: var(--selected)"></i
-                ><strong>Фон выбора</strong><code>#EEE9DA</code>
+                ><strong>Selection background</strong><code>#EEE9DA</code>
               </div>
               <div class="chip">
                 <i style="background: var(--recorded)"></i
-                ><strong>Запись</strong><code>#8B8062</code>
+                ><strong>Recording</strong><code>#8B8062</code>
               </div>
               <div class="chip">
-                <i style="background: var(--focus)"></i><strong>Фокус</strong
+                <i style="background: var(--focus)"></i><strong>Focus</strong
                 ><code>#6B6044</code>
               </div>
               <div class="chip">
                 <i style="background: var(--success)"></i
-                ><strong>Подтверждено</strong><code>#56603F</code>
+                ><strong>Confirmed</strong><code>#56603F</code>
               </div>
               <div class="chip">
                 <i style="background: var(--warning)"></i
-                ><strong>Предупреждение</strong><code>#94421E</code>
+                ><strong>Warning</strong><code>#94421E</code>
               </div>
               <div class="chip">
-                <i style="background: var(--danger)"></i><strong>Тревога</strong
+                <i style="background: var(--danger)"></i><strong>Alarm</strong
                 ><code>#A13239</code>
               </div>
               <div class="chip">
                 <i style="background: var(--info)"></i
-                ><strong>Информация</strong><code>#63594F</code>
+                ><strong>Information</strong><code>#63594F</code>
               </div>
             </div>
           </article>
           <article class="swatches" data-theme="dark">
-            <h3>Тёмная тема</h3>
+            <h3>Dark theme</h3>
             <div class="chips">
               <div class="chip">
-                <i style="background: var(--canvas)"></i><strong>Фон</strong
+                <i style="background: var(--canvas)"></i><strong>Background</strong
                 ><code>#1e1e1e</code>
               </div>
               <div class="chip">
-                <i style="background: var(--surface)"></i><strong>Панель</strong
+                <i style="background: var(--surface)"></i><strong>Panel</strong
                 ><code>#252526</code>
               </div>
               <div class="chip">
                 <i style="background: var(--raised)"></i
-                ><strong>Вложенный фон</strong><code>#303031</code>
+                ><strong>Nested background</strong><code>#303031</code>
               </div>
               <div class="chip">
                 <i style="background: var(--control)"></i
-                ><strong>Граница поля</strong><code>#8D8776</code>
+                ><strong>Field border</strong><code>#8D8776</code>
               </div>
               <div class="chip">
-                <i style="background: var(--ink)"></i><strong>Текст</strong
+                <i style="background: var(--ink)"></i><strong>Text</strong
                 ><code>#D4D4D4</code>
               </div>
               <div class="chip">
                 <i style="background: var(--muted)"></i
-                ><strong>Метаданные</strong><code>#A6A6A6</code>
+                ><strong>Metadata</strong><code>#A6A6A6</code>
               </div>
               <div class="chip">
                 <i style="background: var(--action-fill)"></i
-                ><strong>Кнопка</strong><code>#504A37</code>
+                ><strong>Button</strong><code>#504A37</code>
               </div>
               <div class="chip">
                 <i style="background: var(--action)"></i
-                ><strong>Ссылка и выбор</strong><code>#B4A989</code>
+                ><strong>Link and selection</strong><code>#B4A989</code>
               </div>
               <div class="chip">
                 <i style="background: var(--on-action)"></i
-                ><strong>Текст кнопки</strong><code>#F0ECE6</code>
+                ><strong>Button text</strong><code>#F0ECE6</code>
               </div>
               <div class="chip">
                 <i style="background: var(--selected)"></i
-                ><strong>Фон выбора</strong><code>#373428</code>
+                ><strong>Selection background</strong><code>#373428</code>
               </div>
               <div class="chip">
                 <i style="background: var(--recorded)"></i
-                ><strong>Запись</strong><code>#9B8D6F</code>
+                ><strong>Recording</strong><code>#9B8D6F</code>
               </div>
               <div class="chip">
-                <i style="background: var(--focus)"></i><strong>Фокус</strong
+                <i style="background: var(--focus)"></i><strong>Focus</strong
                 ><code>#BBB08E</code>
               </div>
               <div class="chip">
                 <i style="background: var(--success)"></i
-                ><strong>Подтверждено</strong><code>#BFCBA4</code>
+                ><strong>Confirmed</strong><code>#BFCBA4</code>
               </div>
               <div class="chip">
                 <i style="background: var(--warning)"></i
-                ><strong>Предупреждение</strong><code>#FFAE86</code>
+                ><strong>Warning</strong><code>#FFAE86</code>
               </div>
               <div class="chip">
-                <i style="background: var(--danger)"></i><strong>Тревога</strong
+                <i style="background: var(--danger)"></i><strong>Alarm</strong
                 ><code>#FFA3A1</code>
               </div>
               <div class="chip">
                 <i style="background: var(--info)"></i
-                ><strong>Информация</strong><code>#CFC2B1</code>
+                ><strong>Information</strong><code>#CFC2B1</code>
               </div>
             </div>
           </article>
         </div>
       </section>
       <section class="section" id="icons" aria-labelledby="icons-title">
-        <h2 id="icons-title">Иконки платформы</h2>
-        <p class="sub">Lucide · сетка 24 × 24 · штрих 2 · 30 пиктограмм</p>
+        <h2 id="icons-title">Platform icons</h2>
+        <p class="sub">Lucide · 24 × 24 grid · stroke 2 · 30 icons</p>
         <div class="icongroups">
           <article class="igroup">
-            <h3>Рабочее место</h3>
+            <h3>Workspace</h3>
             <div class="ilist">
               <div class="iname" title="monitor-play">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-monitor-play" /></svg
-                ><span>Мониторинг</span>
+                ><span>Monitoring</span>
               </div>
               <div class="iname" title="cctv">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-cctv" /></svg
-                ><span>Камеры</span>
+                ><span>Cameras</span>
               </div>
               <div class="iname" title="archive">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-archive" /></svg
-                ><span>Архив</span>
+                ><span>Archive</span>
               </div>
               <div class="iname" title="bell-ring">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-bell-ring" /></svg
-                ><span>Тревоги</span>
+                ><span>Alarms</span>
               </div>
               <div class="iname" title="map">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-map" /></svg
-                ><span>Карта</span>
+                ><span>Map</span>
               </div>
               <div class="iname" title="settings-2">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-settings-2" /></svg
-                ><span>Настройки</span>
+                ><span>Settings</span>
               </div>
             </div>
           </article>
           <article class="igroup">
-            <h3>Камера и сеть</h3>
+            <h3>Camera and network</h3>
             <div class="ilist">
               <div class="iname" title="scan-line">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-scan-line" /></svg
-                ><span>Обнаружить камеру</span>
+                ><span>Discover camera</span>
               </div>
               <div class="iname" title="map-pin">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-map-pin" /></svg
-                ><span>Точка наблюдения</span>
+                ><span>Observation point</span>
               </div>
               <div class="iname" title="move">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-move" /></svg
-                ><span>Управление PTZ</span>
+                ><span>PTZ control</span>
               </div>
               <div class="iname" title="link-2">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-link-2" /></svg
-                ><span>Подключение</span>
+                ><span>Connection</span>
               </div>
               <div class="iname" title="unplug">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-unplug" /></svg
-                ><span>Связь потеряна</span>
+                ><span>Connection lost</span>
               </div>
               <div class="iname" title="rotate-cw">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-rotate-cw" /></svg
-                ><span>Повторить</span>
+                ><span>Retry</span>
               </div>
             </div>
           </article>
           <article class="igroup">
-            <h3>Видео и архив</h3>
+            <h3>Video and archive</h3>
             <div class="ilist">
               <div class="iname" title="radio">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-radio" /></svg
-                ><span>Прямой эфир</span>
+                ><span>Live video</span>
               </div>
               <div class="iname" title="play">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-play" /></svg
-                ><span>Воспроизвести</span>
+                ><span>Play</span>
               </div>
               <div class="iname" title="pause">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-pause" /></svg
-                ><span>Приостановить</span>
+                ><span>Pause</span>
               </div>
               <div class="iname" title="step-forward">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-step-forward" /></svg
-                ><span>Следующий кадр</span>
+                ><span>Next frame</span>
               </div>
               <div class="iname" title="expand">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-expand" /></svg
-                ><span>Полный экран</span>
+                ><span>Full screen</span>
               </div>
               <div class="iname" title="file-down">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-file-down" /></svg
-                ><span>Экспортировать</span>
+                ><span>Export</span>
               </div>
             </div>
           </article>
           <article class="igroup">
-            <h3>Состояния</h3>
+            <h3>States</h3>
             <div class="ilist">
               <div class="iname" title="circle-check">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-circle-check" /></svg
-                ><span>Подтверждено</span>
+                ><span>Confirmed</span>
               </div>
               <div class="iname" title="clock-alert">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-clock-alert" /></svg
-                ><span>Время оценочное</span>
+                ><span>Estimated time</span>
               </div>
               <div class="iname" title="hourglass">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-hourglass" /></svg
-                ><span>Каталогизация</span>
+                ><span>Cataloging</span>
               </div>
               <div class="iname" title="archive-x">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-archive-x" /></svg
-                ><span>Пропуск записи</span>
+                ><span>Recording gap</span>
               </div>
               <div class="iname" title="triangle-alert">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-triangle-alert" /></svg
-                ><span>Предупреждение</span>
+                ><span>Warning</span>
               </div>
               <div class="iname" title="circle-x">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-circle-x" /></svg
-                ><span>Ошибка</span>
+                ><span>Error</span>
               </div>
             </div>
           </article>
           <article class="igroup">
-            <h3>Система</h3>
+            <h3>System</h3>
             <div class="ilist">
               <div class="iname" title="hard-drive">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-hard-drive" /></svg
-                ><span>Хранилище</span>
+                ><span>Storage</span>
               </div>
               <div class="iname" title="shield-check">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-shield-check" /></svg
-                ><span>Права доступа</span>
+                ><span>Permissions</span>
               </div>
               <div class="iname" title="list-filter">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-list-filter" /></svg
-                ><span>Фильтровать</span>
+                ><span>Filter</span>
               </div>
               <div class="iname" title="search">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-search" /></svg
-                ><span>Найти</span>
+                ><span>Search</span>
               </div>
               <div class="iname" title="sun">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-sun" /></svg
-                ><span>Светлая тема</span>
+                ><span>Light theme</span>
               </div>
               <div class="iname" title="moon">
                 <svg class="icon" aria-hidden="true" focusable="false">
                   <use href="#i-moon" /></svg
-                ><span>Тёмная тема</span>
+                ><span>Dark theme</span>
               </div>
             </div>
           </article>
         </div>
       </section>
     </main>
+    <script src="preview-i18n.js"></script>
     <script src="preview.js"></script>
   </body>
 </html>

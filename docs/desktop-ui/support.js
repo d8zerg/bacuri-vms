@@ -1,8 +1,107 @@
 // Local renderer for the Design Component mockups in this folder.
 // Supports the subset the mockups use: {{path}} holes, <sc-for>, <sc-if>,
-// <helmet>, event attributes and DCLogic state.
+// <helmet>, event attributes and DCLogic state. The mockups are written in English,
+// buttons with a data-language attribute switch them to Russian with the texts of i18n.js.
+document.write('<script src="./i18n.js"><\/script>');
 (function () {
   'use strict';
+
+  const STORAGE = 'bacuri.desktop.language';
+  let language = (function () {
+    const requested = new URLSearchParams(location.search).get('lang');
+    if (requested === 'en' || requested === 'ru') return requested;
+    try {
+      const saved = localStorage.getItem(STORAGE);
+      if (saved === 'en' || saved === 'ru') return saved;
+    } catch (error) {
+      // Storage is unavailable for local files in some browsers.
+    }
+    return (navigator.language || '').toLowerCase().startsWith('ru') ? 'ru' : 'en';
+  })();
+  const ATTRIBUTES = ['aria-label', 'title', 'placeholder', 'alt'];
+  const UNITS = [
+    [/(\d)\s?fps\b/g, '$1 к/с'],
+    [/(\d) ms\b/g, '$1 мс'],
+    [/(\d) s\b/g, '$1 с'],
+    [/Mbit\/s/g, 'Мбит/с'],
+    [/°\/s/g, '°/с'],
+  ];
+
+  function dictionary() {
+    return window.bacuriRussian || {};
+  }
+
+  function text(value) {
+    if (language !== 'ru' || typeof value !== 'string') return value;
+    const russian = dictionary();
+    return Object.prototype.hasOwnProperty.call(russian, value) ? russian[value] : value;
+  }
+
+  let phrases = null;
+  function translate(value) {
+    if (language !== 'ru' || !value || !/[A-Za-z]/.test(value)) return value;
+    const russian = dictionary();
+    const trimmed = value.trim();
+    if (Object.prototype.hasOwnProperty.call(russian, trimmed)) return value.replace(trimmed, russian[trimmed]);
+    if (!phrases) phrases = Object.keys(russian).filter((key) => key.trim().length >= 5).sort((a, b) => b.length - a.length);
+    let result = value;
+    for (const phrase of phrases) {
+      if (result.includes(phrase)) result = result.split(phrase).join(russian[phrase]);
+    }
+    for (const [pattern, replacement] of UNITS) result = result.replace(pattern, replacement);
+    return result;
+  }
+
+  function localize(root) {
+    document.documentElement.lang = language;
+    if (language === 'ru') {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      for (const node of nodes) {
+        const parent = node.parentNode && node.parentNode.localName;
+        if (parent === 'script' || parent === 'style') continue;
+        const value = translate(node.nodeValue);
+        if (value !== node.nodeValue) node.nodeValue = value;
+      }
+      for (const element of root.querySelectorAll('*')) {
+        for (const name of ATTRIBUTES) {
+          const value = element.getAttribute(name);
+          if (value) element.setAttribute(name, translate(value));
+        }
+      }
+      if (document.title) document.title = translate(document.title);
+    }
+    for (const button of root.querySelectorAll('[data-language]')) {
+      const active = button.getAttribute('data-language') === language;
+      button.setAttribute('aria-pressed', String(active));
+      button.style.background = active ? '#504a37' : 'transparent';
+      button.style.color = active ? '#f0ece6' : '#a6a6a6';
+    }
+  }
+
+  window.bacuriLanguage = () => language;
+  window.bacuriText = text;
+  const localizeAll = () => localize(document.body);
+  let refresh = localizeAll;
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest && event.target.closest('[data-language]');
+    if (!button) return;
+    const next = button.getAttribute('data-language');
+    if (next === language) return;
+    try {
+      localStorage.setItem(STORAGE, next);
+    } catch (error) {
+      // The choice is kept for this page only.
+    }
+    if (next === 'en' && language === 'ru' && refresh === localizeAll) {
+      language = next;
+      location.reload();
+      return;
+    }
+    language = next;
+    refresh();
+  });
 
   class DCLogic {
     constructor(props) {
@@ -96,7 +195,10 @@
   function start() {
     const template = document.querySelector('x-dc');
     const script = document.querySelector('script[data-dc-script]');
-    if (!template || !script) return;
+    if (!template || !script) {
+      localize(document.body);
+      return;
+    }
     template.remove();
 
     const helmet = template.querySelector('helmet');
@@ -132,6 +234,7 @@
       const fragment = document.createDocumentFragment();
       renderNodes(template.childNodes, component.renderVals(), fragment);
       root.replaceChildren(fragment);
+      localize(root);
       if (focusId) {
         const again = document.getElementById(focusId);
         if (again) {
@@ -140,6 +243,7 @@
         }
       }
     };
+    refresh = component.__render;
     component.__render();
     if (component.componentDidMount) component.componentDidMount();
   }

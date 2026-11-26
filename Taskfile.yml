@@ -467,6 +467,16 @@ tasks:
     deps: [dev:image]
     cmd: '{{.DEV_RUN}} sh tests/check-contracts.sh'
 
+  desktop:parity:
+    desc: Check that the desktop parity register covers the contracts, the web sections and the console actions
+    deps: [dev:image]
+    cmd: '{{.BUILD_RUN}} python3 tools/desktop_parity.py'
+
+  desktop:parity:accept:
+    desc: Record the reconciled contract revision in the desktop parity register
+    deps: [dev:image]
+    cmd: '{{.BUILD_RUN}} python3 tools/desktop_parity.py --accept'
+
   api:types:
     deps: [dev:image]
     desc: Generate and type-check TypeScript definitions from OpenAPI and the error catalog

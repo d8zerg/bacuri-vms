@@ -97,6 +97,19 @@ services:
     volumes:
       - .:/workspace
 
+  desktop:
+    profiles: ["tools"]
+    build:
+      context: .
+      target: desktop
+    environment:
+      TMPDIR: /tmp/bacuri-tests
+      XDG_RUNTIME_DIR: /tmp/bacuri-tests
+    tmpfs:
+      - /tmp/bacuri-tests:size=2g,mode=1777
+    volumes:
+      - .:/workspace
+
   quality:
     profiles: ["tools"]
     build:

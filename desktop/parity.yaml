@@ -1,0 +1,1032 @@
+# Parity register of the desktop client.
+# Every public operation of the site and every web client section maps to desktop scenarios.
+# tools/desktop_parity.py checks this file against the contracts, the requirement register
+# and the web client routes.
+
+reference:
+  # Revision of the public contracts the register was reconciled with.
+  api_version: 1.6.0
+  contracts:
+    contracts/v1/openapi.yaml: 842ddcf0ed9bc1517bc53f9bc603a0e21d0a511f308e54e4c1cdc5733f7b4146
+    contracts/v1/alerts.schema.yaml: 02cfa6ca964a90f60bc6e4c282981010bf7dc09d07c3d009c641af83d82870b7
+    contracts/v1/errors.yaml: a9a2a366b53cc6471ab4d928a56a4582afe02720279daf40c0064d0861f50a91
+
+defaults:
+  os: [windows, linux, macos]
+  install: [site]
+  status: open
+
+# Rows of the release matrix of the desktop client.
+areas:
+  language: Interface and help language
+  session: Session, navigation and permissions
+  fleet: Camera fleet and recording
+  live: Live video, PTZ and sound
+  archive: Archive and investigations
+  alerts: Video alarms
+  maps: Maps and plans
+  export: Export
+  administration: Site administration
+  cluster: Cluster and federation
+  help: User help
+  workstation: Desktop workstation
+
+# Functions of the requirement register. The owner is the client step that delivers the function,
+# the criterion defines parity with the web client of the same delivery.
+functions:
+  identity:
+    owner: "1.2"
+    criterion: The same sign-in methods, factor checks, session lifetime and revocation as the web client, applied to all windows of the client
+  access:
+    owner: "3.3"
+    criterion: Users, point groups, grants, privacy policies and the access audit give the same effect and the same audit records from the web and the desktop
+  inventory:
+    owner: "3.1"
+    criterion: Discovery, manual entry, replacement, batches and templates give the same desired and applied revisions as the web client
+  ptz:
+    owner: "3.2"
+    criterion: The same commands within the camera capabilities, the same owner and outcome states, and a stop on release, focus loss and revocation
+  audio:
+    owner: "3.2"
+    criterion: Listening, recording and speech follow separate permissions, speech stops on release, focus loss and revocation
+  media:
+    owner: "2.2"
+    criterion: Live video and archive open through the same media sessions, quotas and masks, and the displayed frame belongs to the selected point and request generation
+  layouts:
+    owner: "5.2"
+    criterion: Personal and shared layouts saved in one client open in the other with the same cameras, owner and edit rights
+  recording:
+    owner: "3.4"
+    criterion: Recording policies, manual recording, retention and the volume reserve give the same applied state and audit as the web client
+  backfill:
+    owner: "5.3"
+    criterion: The download state and the remaining gap on the timeline match the server catalog
+  search:
+    owner: "5.3"
+    criterion: Search by time, area and metadata returns the same episodes and frames as the web client within the same index coverage
+  holds:
+    owner: "5.6"
+    criterion: Protected intervals have the same owner, reason, term and cleanup effect as from the web client
+  rules:
+    owner: "4.5"
+    criterion: A rule edited and tested on a recording in one client gives the same version and the same triggers in the other
+  evidence:
+    owner: "5.6"
+    criterion: Cases, recipients and exports of the original and the derivative match the web client, and offline verification gives the same verdict as the console tool
+  alerts:
+    owner: "4.1"
+    criterion: The feed, handling with version checks, delegation, the archive transition and the journal give one owner and one action record for both clients
+  maps:
+    owner: "4.2"
+    criterion: Regions, plans, placement, georeference and calibration changed in one client are visible in the other, and the map works without external network
+  help:
+    owner: "2.3"
+    criterion: The same articles, identifiers and versions as the web portal of the delivery, available offline and in both languages
+  operations:
+    owner: "6.1"
+    criterion: Node procedures stay on the node, the workstation shows their effect, such as a required repeated sign-in after a restore
+
+# Changes of the public contracts the desktop client needs. They are handed over to the owners of the platform steps.
+contract_requests:
+  desktop-session:
+    need: Sign-in through the system browser with a one-time short-lived code bound to the application instance and exchanged with PKCE S256 for a client session that is not a browser cookie
+    platform: ["8.3", "9.1"]
+  site-capabilities:
+    need: The site API version and the list of optional capabilities in the session response, so that the client hides an unavailable function and keeps the rest working
+    platform: ["8.3"]
+  ptz-continuous:
+    need: Continuous PTZ movement with a velocity vector limited in time and pointing to an area of the frame
+    platform: ["9.3"]
+  keyframes:
+    need: Delivery of separate keyframes of a point for fast scrubbing across all cameras of a layout
+    platform: ["10.4"]
+  analytics-metadata:
+    need: Reading of analysis metadata for an interval and a live subscription for overlays and the activity strip
+    platform: ["analytics 1.2"]
+  camera-neighbors:
+    need: Storage of manually adjusted neighbor links between cameras of a plan
+    platform: ["7.1"]
+  federation:
+    need: Site registry, delegation and shared policies of Bacuri Manager
+    platform: ["manager 1.1", "manager 1.2"]
+
+# Functions that the web client does not have. Each one names the contract it needs, how the client
+# detects that the site provides it and what the client does with an older server.
+extensions:
+  desktop-sign-in:
+    scenarios: [identity-corporate-sign-in, identity-admin-webauthn]
+    requires: [desktop-session]
+    capability: The site lists the desktop sign-in method among its sign-in methods
+    older_server: The client offers no sign-in and names the minimum server version
+  direct-ptz:
+    scenarios: [ptz-direct-manipulation, ptz-joystick]
+    requires: [ptz-continuous, site-capabilities]
+    capability: The site capability list and the camera controls contain continuous movement
+    older_server: Dragging maps to the nearest direction command and the area zoom is hidden
+  layout-scrubbing:
+    scenarios: [archive-layout-scrubbing]
+    requires: [keyframes, site-capabilities]
+    capability: The site capability list contains keyframe delivery
+    older_server: Scrubbing seeks each camera through its playback manifest and shows the previous frame until the new one arrives
+  analytics-overlays:
+    scenarios: [analytics-overlays, analytics-rule-test]
+    requires: [analytics-metadata, site-capabilities]
+    capability: The site capability list contains the analysis metadata schema version
+    older_server: Overlays, the activity strip and proposed masks are hidden, other scenarios work unchanged
+  spatial-navigation:
+    scenarios: [workstation-spatial-navigation]
+    requires: [camera-neighbors]
+    capability: The map scene contains neighbor links
+    older_server: Neighbors are computed from placement and view sectors only, manual adjustment is hidden
+  federation:
+    scenarios: [cluster-federation]
+    requires: [federation]
+    capability: The session names a connected Bacuri Manager
+    older_server: The cluster and federation section is hidden
+  video-wall:
+    scenarios: [workstation-multi-monitor, workstation-video-wall]
+    requires: []
+    capability: Uses the layout and media session operations of the current contract
+    older_server: Works with any server that supports layouts
+  offline-verification:
+    scenarios: [export-offline-verification]
+    requires: []
+    capability: Uses the export bundle format and the site public key handed over by the node procedure
+    older_server: Verifies bundles of any supported format version
+
+# Console and maintenance actions of the requirement register. The desktop client uses the API
+# equivalent where one exists. The others stay node procedures.
+console:
+  equivalents:
+    create-user: createSiteUser
+    grant-point: setGrant
+    revoke-point: deleteGrant
+    grant-export: setGrant
+    revoke-export: deleteGrant
+    configure-oidc: setIdentityProvider
+    bind-identity: bindExternalIdentity
+    set-retention: setRecordingStorage
+    import-map: createMapSource
+  node_procedures:
+    initial-admin: First administrator of a new site, created on the node before any client connects
+    enroll-admin: Enrollment of the administrator factor through the trusted node procedure
+    recover-admin: Recovery of administrator access after the loss of a factor
+    export-public-key: Hands over the site public key that the offline verification trusts independently of the site
+    serve: Runs the services of the node
+    migrate: Migrates the storage schema of the node
+    backup-config: Backup of the site configuration
+    restore-config: Restore of the site configuration, after which clients sign in again
+    recovery-status: State of a running recovery on the node
+    rebuild-archive: Rebuild of the archive catalog from the blocks
+    backup: Backup procedure of the delivery
+    upgrade: Upgrade procedure of the delivery
+    rollback: Rollback procedure of the delivery
+    restore: Restore procedure of the delivery
+    diagnose: Collection of node diagnostics
+    reconcile: Reconciliation of the archive catalog and the blocks
+    scrape: Metrics collection of the node
+    sample: Sample observation of the node
+
+# Scenarios. Fields: function, area, role, precondition, action, result, failure, client steps,
+# platform steps, operations, the web route of the same function, the planned test and the acceptance material.
+scenarios:
+  # Identity and session
+  identity-local-sign-in:
+    function: identity
+    area: session
+    role: operator
+    precondition: A local operator account with a grant on one point
+    action: Sign in with a name and a password, open the permitted point in two windows
+    result: Both windows share one session, the point list contains only the permitted point
+    failure: A wrong password, an expired session and an untrusted certificate show the cause from the error catalog without opening the workspace
+    steps: ["1.2", "2.2"]
+    platform: ["1.2"]
+    operations: [createSession, getSession, listPoints]
+    web: /monitor
+    install: [compact, site]
+    test: desktop/session/local-sign-in
+    material: Session log, screenshots of both windows, server audit records
+  identity-admin-webauthn:
+    function: identity
+    area: session
+    role: administrator
+    precondition: A site without external network and an enrolled security key
+    action: Sign in as the administrator and confirm the factor through the system browser
+    result: The administrator workspace opens with the administrator roles of the site
+    failure: Cancellation, a repeated code, a wrong recipient, a lost key and an untrusted certificate are refused with a catalog code
+    steps: ["1.2", "2.2"]
+    platform: ["1.2", "8.3"]
+    operations: [createSession, verifyAdminFactor]
+    web: /access
+    install: [compact, site]
+    test: desktop/session/admin-webauthn
+    material: RP ID, origin and one-time code checks per operating system
+  identity-corporate-sign-in:
+    function: identity
+    area: session
+    role: operator
+    precondition: A site with a configured OpenID Connect provider and a bound corporate account
+    action: Choose corporate sign-in, finish it on the provider page in the system browser
+    result: The client receives its own session for the same Bacuri user without a second password entry when the provider session is active
+    failure: A wrong PKCE verifier, a return to another instance and an unavailable provider keep the local administrator sign-in available
+    steps: ["1.2", "2.2", "7.2"]
+    platform: ["8.3", "9.1"]
+    operations: [getLoginMethods, beginCorporateLogin, completeCorporateLogin]
+    web: /monitor
+    test: desktop/session/corporate-sign-in
+    material: Sign-in log with the provider, both clients open with one corporate account
+  identity-sign-out:
+    function: identity
+    area: session
+    role: operator
+    precondition: A session with live video in two windows
+    action: Sign out in one window, revoke the session from another client
+    result: All windows close the media sessions and return to the sign-in screen within the server budget
+    failure: A lost network during sign-out still clears local state and the next sign-in starts a new session
+    steps: ["2.2", "6.2"]
+    platform: ["1.2"]
+    operations: [revokeSession]
+    web: /monitor
+    test: desktop/session/sign-out
+    material: Media session release times and audit records
+  identity-provider-settings:
+    function: identity
+    area: administration
+    role: administrator
+    precondition: An administrator session
+    action: Configure the OpenID Connect provider of the site
+    result: The provider is offered at sign-in in both clients
+    failure: An invalid issuer or an unreachable provider is refused with a catalog code and the previous configuration stays
+    steps: ["3.3"]
+    platform: ["9.1"]
+    operations: [getIdentityProvider, setIdentityProvider]
+    web: /access
+    test: desktop/access/identity-provider
+    material: Configuration revision and audit record
+  identity-external-binding:
+    function: identity
+    area: administration
+    role: administrator
+    precondition: A configured provider and a local user
+    action: Bind and unbind a corporate account
+    result: The binding is visible in the web client and in the audit
+    failure: A binding already used by another user is refused
+    steps: ["3.3"]
+    platform: ["9.1"]
+    operations: [bindExternalIdentity, unbindExternalIdentity]
+    web: /access
+    test: desktop/access/external-binding
+    material: Audit records from both clients
+
+  # Access administration
+  access-users:
+    function: access
+    area: administration
+    role: administrator
+    precondition: An administrator session
+    action: Create a user, change the roles, disable the account
+    result: The change is visible in another session and in the audit
+    failure: A conflicting change of another administrator is detected by the version check
+    steps: ["3.3"]
+    platform: ["9.1"]
+    operations: [listSiteUsers, createSiteUser, updateSiteUser]
+    web: /access
+    test: desktop/access/users
+    material: Audit records and the state read from the web client
+  access-resource-groups:
+    function: access
+    area: administration
+    role: administrator
+    precondition: Points of two areas
+    action: Create a point group and change its members
+    result: Grants on the group apply to its points in both clients
+    failure: A version conflict and an unknown point are refused with a catalog code
+    steps: ["3.3"]
+    platform: ["9.1"]
+    operations: [listResourceGroups, createResourceGroup, updateResourceGroup]
+    web: /access
+    test: desktop/access/resource-groups
+    material: Group revision and the resulting point list of an operator
+  access-grants:
+    function: access
+    area: administration
+    role: administrator
+    precondition: An operator with live video open on the point
+    action: Grant and revoke live video, sound, PTZ, protection and export permissions
+    result: A revoked permission stops the media in all windows of the operator within the server budget
+    failure: An operator receives a refusal for administrative operations
+    steps: ["3.3", "6.2"]
+    platform: ["9.1"]
+    operations: [listGrants, setGrant, deleteGrant]
+    web: /access
+    test: desktop/access/grants
+    material: Revocation timing, audit records, screenshots of the closed media
+  access-privacy:
+    function: access
+    area: administration
+    role: administrator
+    precondition: A point with live video in a layout
+    action: Draw a privacy mask and save the policy
+    result: The mask applies to live video, thumbnails, the archive and the derivative export in both clients
+    failure: A version conflict keeps the previous policy
+    steps: ["3.3"]
+    platform: ["9.1"]
+    operations: [listPrivacyPolicies, setPrivacyPolicy]
+    web: /access
+    test: desktop/access/privacy
+    material: Frames with the mask in every view
+  access-audit:
+    function: access
+    area: administration
+    role: administrator
+    precondition: Access changes from both clients
+    action: Search the access audit by user and period
+    result: The same records as in the web client with the actor and the client
+    failure: An operator receives a refusal
+    steps: ["3.3"]
+    platform: ["9.1"]
+    operations: [searchAccessAudit]
+    web: /access
+    test: desktop/access/audit
+    material: Search results from both clients
+
+  # Camera fleet and recording
+  inventory-discovery:
+    function: inventory
+    area: fleet
+    role: administrator
+    precondition: An ONVIF camera in the site network
+    action: Discover the camera, read its profiles and choose the main and secondary streams
+    result: The profiles, codecs and resolutions match the web client
+    failure: Wrong credentials and an untrusted camera certificate are shown with a catalog code and a help article
+    steps: ["3.1"]
+    platform: ["6.2"]
+    operations: [discoverCameras, inspectCamera]
+    web: /cameras
+    test: desktop/fleet/discovery
+    material: Discovery log and profile list
+  inventory-manual-entry:
+    function: inventory
+    area: fleet
+    role: administrator
+    precondition: An RTSP camera with known addresses
+    action: Enter the camera manually, create it with an idempotency key
+    result: The camera is listed with its desired and applied configuration, confirmation waits for the first frame of a new block
+    failure: A repeated request creates one camera, a stream error is diagnosed
+    steps: ["3.1"]
+    platform: ["6.2"]
+    operations: [registerCamera, listCameras, getCamera]
+    web: /cameras
+    test: desktop/fleet/manual-entry
+    material: Camera revision, first recorded frame
+  inventory-edit:
+    function: inventory
+    area: fleet
+    role: administrator
+    precondition: A registered camera
+    action: Change the stream addresses, read the stream issues
+    result: The applied revision is shown after the recorder confirms it
+    failure: A conflicting change of another administrator is refused by the version check
+    steps: ["3.1"]
+    platform: ["6.2"]
+    operations: [updateCamera, getCameraStreamIssues]
+    web: /cameras
+    test: desktop/fleet/edit
+    material: Desired and applied revisions
+  inventory-replacement:
+    function: inventory
+    area: fleet
+    role: administrator
+    precondition: A point with a recorded archive
+    action: Replace the camera of the point
+    result: The point keeps its identifier and the previous interval stays accessible
+    failure: A replacement camera without a first frame is not confirmed
+    steps: ["3.1"]
+    platform: ["9.2"]
+    operations: [updateCamera, previousRecording]
+    web: /cameras
+    test: desktop/fleet/replacement
+    material: Frames before and after the replacement
+  inventory-batches:
+    function: inventory
+    area: fleet
+    role: administrator
+    precondition: A device with several channels and a template
+    action: Prepare a batch, compare the channels with the template, apply, repeat and roll back
+    result: The applied versions match the web client
+    failure: A camera disconnected during the batch and a change from the web client are reported as conflicts
+    steps: ["3.4"]
+    platform: ["9.2"]
+    operations: [listCameraBatches, getCameraBatch, previewCameraBatchItem, changeCameraBatchItem]
+    web: /cameras
+    test: desktop/fleet/batches
+    material: Batch result per channel
+  inventory-templates:
+    function: inventory
+    area: fleet
+    role: administrator
+    precondition: An administrator session
+    action: Save a camera template of the site
+    result: The template is offered for batches in both clients
+    failure: A version conflict keeps the previous template
+    steps: ["3.4"]
+    platform: ["9.2"]
+    operations: [listCameraTemplates, saveCameraTemplate]
+    web: /cameras
+    test: desktop/fleet/templates
+    material: Template revision
+  recording-policies:
+    function: recording
+    area: fleet
+    role: administrator
+    precondition: A group of cameras
+    action: Create, change and delete a recording policy with a schedule, pre-event and post-event intervals and sound
+    result: The applied mode and the time zone of the site are shown, the archive follows the schedule
+    failure: An overlapping policy and a version conflict are refused with a catalog code
+    steps: ["3.4"]
+    platform: ["9.5"]
+    operations: [listRecordingPolicies, getRecordingPolicy, saveRecordingPolicy, deleteRecordingPolicy]
+    web: /cameras
+    test: desktop/fleet/recording-policies
+    material: Frames and sound at the schedule and pre-event bounds
+  recording-storage:
+    function: recording
+    area: administration
+    role: administrator
+    precondition: A volume with a recorded archive
+    action: Change the retention and the reserve
+    result: The consequence for the available interval is shown before saving, the applied volume state follows
+    failure: Lack of space, an unavailable recorder and missing forecast data are distinguished
+    steps: ["3.3"]
+    platform: ["9.5"]
+    operations: [getRecordingStorage, setRecordingStorage]
+    web: /cameras
+    test: desktop/administration/storage
+    material: Volume state and forecast
+  recording-manual:
+    function: recording
+    area: live
+    role: operator
+    precondition: A point with manual recording allowed
+    action: Start and stop manual recording from the live view
+    result: The recording state and the reason for a stop are visible
+    failure: An operator without the permission does not see the command
+    steps: ["3.2"]
+    platform: ["9.5"]
+    operations: [getManualRecording, setManualRecording]
+    web: /monitor
+    test: desktop/live/manual-recording
+    material: Recorded interval bounds
+
+  # Live video, PTZ and sound
+  media-live:
+    function: media
+    area: live
+    role: operator
+    precondition: A permitted point
+    action: Open live video, switch the point quickly, close the window
+    result: The cell always shows a frame of the selected point or an explicit unavailable state, closing releases the media session
+    failure: A late answer of a previous request does not change the cell, a network break shows the cause
+    steps: ["2.2"]
+    platform: ["6.3"]
+    operations: [createMediaSession, negotiateLiveMedia, revokeMediaSession]
+    web: /monitor
+    test: desktop/live/open
+    material: Frame number and point of the displayed frame, media session release
+  media-playback:
+    function: media
+    area: archive
+    role: operator
+    precondition: A point with a recorded interval
+    action: Open the archive, seek across a block boundary and a gap
+    result: The first correct frame after the seek matches the reference
+    failure: An expired permission on pause closes the playback
+    steps: ["2.2", "3.2"]
+    platform: ["10.4"]
+    operations: [createMediaSession, getPlaybackManifest, readPlaybackPart, revokeMediaSession]
+    web: /monitor
+    test: desktop/archive/playback
+    material: Decoded frames against the reference
+  media-main-profile:
+    function: media
+    area: live
+    role: operator
+    precondition: A camera with an H.265 main stream and an H.264 secondary stream
+    action: Expand a cell to show the main stream
+    result: The actual profile, the camera codec and the delivered codec are shown
+    failure: An unavailable main stream or quota shows the chosen profile and the reason
+    steps: ["5.1"]
+    platform: ["9.4"]
+    operations: [createMediaSession, negotiateLiveMedia]
+    web: /monitor
+    test: desktop/live/main-profile
+    material: Decoded frame codec and resolution
+  media-degradation:
+    function: media
+    area: live
+    role: operator
+    precondition: A layout of 16 cameras
+    action: Limit the workstation network, drop packets, disconnect a camera
+    result: The client switches profiles and frame rate without a black frame, the last frame stays with the offline time
+    failure: A profile change never moves a cell
+    steps: ["5.1", "6.1"]
+    platform: ["9.4"]
+    operations: [createMediaSession, negotiateLiveMedia]
+    web: /monitor
+    test: desktop/live/degradation
+    material: Profile change log and cell screenshots
+  ptz-console:
+    function: ptz
+    area: live
+    role: operator
+    precondition: A PTZ camera and a control permission
+    action: Pan, zoom, focus, call presets and patrols, switch the illuminator, the wiper and the outputs
+    result: The owner, the acknowledgement and the observed outcome are shown
+    failure: An unknown outcome, a busy camera and an owner change are shown with a catalog code and a help article
+    steps: ["3.2"]
+    platform: ["9.3"]
+    operations: [getCameraControls, controlPointPtz]
+    web: /monitor
+    test: desktop/live/ptz
+    material: Command log and the camera position
+  ptz-direct-manipulation:
+    function: ptz
+    area: live
+    role: operator
+    precondition: A PTZ camera with continuous movement
+    action: Drag in the frame, select an area with Shift
+    result: The camera turns with a speed following the drag and stops on release, the area moves to the center
+    failure: Focus loss and a network break stop the movement within the command limit
+    steps: ["3.2"]
+    platform: ["9.3"]
+    operations: [getCameraControls, controlPointPtz]
+    web: /monitor
+    test: desktop/live/ptz-direct
+    material: Movement and stop timing
+  ptz-joystick:
+    function: ptz
+    area: workstation
+    role: operator
+    precondition: A supported joystick and a PTZ camera
+    action: Calibrate the axes, turn and zoom the camera, call a preset from a key
+    result: Releasing an axis stops the camera
+    failure: Unplugging the joystick and changing the camera stop the movement
+    steps: ["5.5"]
+    platform: ["9.3"]
+    operations: [getCameraControls, controlPointPtz]
+    web: /monitor
+    test: desktop/workstation/joystick
+    material: Device and camera model, stop timing
+  audio-listen-talk:
+    function: audio
+    area: live
+    role: operator
+    precondition: A camera with a microphone and a speaker
+    action: Listen, hold the talk key and release it
+    result: Each direction shows its state, speech stops on release
+    failure: Focus loss and a revoked permission stop speech
+    steps: ["3.2"]
+    platform: ["9.3"]
+    operations: [exchangeCameraAudio]
+    web: /monitor
+    test: desktop/live/audio
+    material: Audio direction states and permission checks
+
+  # Archive and investigations
+  search-point-archive:
+    function: search
+    area: archive
+    role: operator
+    precondition: A point with recordings, gaps and a clock change
+    action: Search the archive of a point by time and open an interval
+    result: The timeline shows the recording, gaps, waiting for the catalog, uncertain time and unavailable media separately
+    failure: An unavailable recorder is shown as such and not as a gap
+    steps: ["3.2"]
+    platform: ["10.4"]
+    operations: [searchArchive]
+    web: /investigations
+    test: desktop/archive/timeline
+    material: Timeline bounds against the catalog
+  search-investigation:
+    function: search
+    area: archive
+    role: operator
+    precondition: Four points with recordings and partially built index
+    action: Search by area, camera and metadata and play the result synchronously
+    result: Frames of all points match the common UTC position within one frame period of the slowest stream
+    failure: A slow point lags visibly without stopping the others
+    steps: ["5.3"]
+    platform: ["10.4"]
+    operations: [searchArchiveFrames]
+    web: /investigations
+    test: desktop/archive/synchronized
+    material: Frame numbers per point at the common position
+  archive-layout-scrubbing:
+    function: search
+    area: archive
+    role: operator
+    precondition: A layout of 16 cameras with recordings
+    action: Scrub the common timeline back and forth
+    result: No cell shows a black frame, the exact frame appears after the stop
+    failure: A lack of video memory reduces the cache and is shown in the diagnostics
+    steps: ["5.3"]
+    platform: ["10.4"]
+    operations: [getPlaybackManifest, readPlaybackPart]
+    web: /investigations
+    test: desktop/archive/scrubbing
+    material: Time to the exact frame with a cold and a warm cache
+  backfill-gap:
+    function: backfill
+    area: archive
+    role: administrator
+    precondition: A camera with an on-device archive and a gap on the site
+    action: List the device recordings and download the gap
+    result: The timeline shows the original recording, the downloaded part and the remaining gap
+    failure: An interrupted download leaves the remainder as a gap
+    steps: ["5.3"]
+    platform: ["10.1"]
+    operations: [listEdgeRecordings, recoverEdgeGap]
+    web: /cameras
+    test: desktop/archive/backfill
+    material: Timeline against the server catalog
+  holds-protect:
+    function: holds
+    area: archive
+    role: operator
+    precondition: An operator with the protection permission
+    action: Protect an interval with a reason and a term
+    result: The hold is listed with the owner and protects the interval from cleanup
+    failure: Removing a hold of one case keeps the other holds of the interval
+    steps: ["5.6"]
+    platform: ["10.3"]
+    operations: [listArchiveHolds, createArchiveHold]
+    web: /investigations
+    test: desktop/archive/holds
+    material: Frames after a cleanup run
+  evidence-case:
+    function: evidence
+    area: archive
+    role: operator
+    precondition: Bookmarks of several cameras
+    action: Save a case with notes, a responsible person and recipients, open it on another workstation
+    result: The case keeps the exact intervals, the hold state and the copy availability
+    failure: A recipient without permission is refused
+    steps: ["5.6"]
+    platform: ["10.5"]
+    operations: [listInvestigations, getInvestigation, saveInvestigation, listCaseRecipients]
+    web: /investigations
+    test: desktop/archive/case
+    material: Case revision opened on two workstations
+
+  # Alarms
+  alerts-feed:
+    function: alerts
+    area: alerts
+    role: operator
+    precondition: A site with alarms
+    action: Open the feed, break the connection, restore it
+    result: The feed resumes from the cursor or reloads the snapshot and keeps the selected alarm
+    failure: An expired cursor loads a new snapshot without duplicates
+    steps: ["4.1"]
+    platform: ["7.2"]
+    operations: [getAlertSnapshot, openAlertStream]
+    web: /monitor
+    test: desktop/alerts/feed
+    material: Feed contents against the snapshot
+  alerts-handling:
+    function: alerts
+    area: alerts
+    role: operator
+    precondition: Two operators and one new alarm
+    action: Both accept the alarm, one closes it with a note
+    result: One owner, one action record, the other operator sees the state
+    failure: A stale version is refused with a catalog code
+    steps: ["4.1"]
+    platform: ["7.2"]
+    operations: [getAlertWork, applyAlertCommand]
+    web: /monitor
+    test: desktop/alerts/handling
+    material: Alarm journal
+  alerts-archive:
+    function: alerts
+    area: alerts
+    role: operator
+    precondition: An alarm with a recording
+    action: Open the archive of the alarm and return
+    result: The archive opens at the alarm frame, return restores the card and the focus
+    failure: A missing recording is shown as a gap
+    steps: ["4.1"]
+    platform: ["7.2"]
+    operations: [resolveAlertArchive]
+    web: /monitor
+    test: desktop/alerts/archive
+    material: Frame at the alarm time
+  alerts-delegation:
+    function: alerts
+    area: alerts
+    role: operator
+    precondition: A service subject for a point
+    action: Issue and revoke a limited delegation
+    result: A revoked delegation is refused by the server
+    failure: A delegation outside the operator scope is refused
+    steps: ["4.1"]
+    platform: ["7.2"]
+    operations: [issueAlertDelegation, revokeAlertDelegation]
+    web: /monitor
+    test: desktop/alerts/delegation
+    material: Delegation records
+  alerts-journal:
+    function: alerts
+    area: alerts
+    role: operator
+    precondition: Handled alarms
+    action: Search the journal with filters and return to the result
+    result: Filters and the position are kept
+    failure: Records outside the operator scope are not returned
+    steps: ["4.1"]
+    platform: ["7.2"]
+    operations: [searchAlertAudit]
+    web: /audit
+    test: desktop/alerts/journal
+    material: Search results from both clients
+  rules-editor:
+    function: rules
+    area: alerts
+    role: administrator
+    precondition: A point with a labeled recording
+    action: Draw a zone, a line and exclusions, test the rule on the recording, publish it
+    result: The test leaves the camera and the live queue unchanged, after publishing a repeated event creates one alarm
+    failure: A version conflict keeps the published rule
+    steps: ["4.5"]
+    platform: ["10.2"]
+    operations: [getVideoRule, setVideoRule, simulateVideoRule]
+    web: /cameras
+    test: desktop/alerts/rules
+    material: Triggers on the labeled recording
+
+  # Maps
+  maps-view:
+    function: maps
+    area: maps
+    role: operator
+    precondition: A site without external network with a region package and a plan
+    action: Go from the plan to an event and back
+    result: The surface, scale, point, event and focus are kept
+    failure: A missing region, an unavailable plan and a stale measurement are distinguished
+    steps: ["4.2"]
+    platform: ["7.1"]
+    operations: [getMapScene, getRegionStyle, getRegionTile, getFloorPlan]
+    web: /maps
+    test: desktop/maps/view
+    material: Screenshots of the path and the return
+  maps-packages:
+    function: maps
+    area: maps
+    role: administrator
+    precondition: A region package in a ZIP or MBTiles file
+    action: Import the package by parts, pause, resume and install a region
+    result: The server queue survives closing the client, an update error keeps the working map
+    failure: A version conflict of the preview requires a repeated check
+    steps: ["4.3"]
+    platform: ["7.1"]
+    operations: [getMapManagement, createMapSource, getMapSource, uploadMapChunk, queueMapRegions, setMapDownloadPaused]
+    web: /maps
+    test: desktop/maps/packages
+    material: Job states from both clients
+  maps-plans:
+    function: maps
+    area: maps
+    role: administrator
+    precondition: A floor plan image
+    action: Upload the plan and place the points
+    result: The placement is visible in the web client
+    failure: Access to the plan images is closed after a revoked permission
+    steps: ["4.3"]
+    platform: ["7.1"]
+    operations: [addFloorPlan, placePoint]
+    web: /maps
+    test: desktop/maps/plans
+    material: Placement revision
+  maps-georeference:
+    function: maps
+    area: maps
+    role: administrator
+    precondition: A plan and a region
+    action: Georeference the plan by landmarks with a preview
+    result: The plan aligns with the region in both clients
+    failure: A stale preview is refused
+    steps: ["4.3"]
+    platform: ["7.1"]
+    operations: [previewPlanGeoreference, setPlanGeoreference]
+    web: /maps
+    test: desktop/maps/georeference
+    material: Landmark residuals
+  maps-calibration:
+    function: maps
+    area: maps
+    role: administrator
+    precondition: A placed camera
+    action: Calibrate the direction and the field of view
+    result: The view sector matches the frame in both clients
+    failure: A version conflict keeps the previous calibration
+    steps: ["4.3"]
+    platform: ["7.1"]
+    operations: [calibrateCameraView]
+    web: /maps
+    test: desktop/maps/calibration
+    material: Sector against reference marks
+
+  # Export
+  export-fragment:
+    function: evidence
+    area: export
+    role: operator
+    precondition: An export permission on a point
+    action: Export an interval from the archive or an alarm
+    result: The bundle is written to a temporary file and published after completion with the actual bounds
+    failure: Size and duration limits, a revoked permission, a full disk and an existing file leave no ready bundle
+    steps: ["4.4"]
+    platform: ["7.4"]
+    operations: [exportFragment]
+    web: /monitor
+    test: desktop/export/fragment
+    material: Frames and gaps against the reference, audit record
+  export-case:
+    function: evidence
+    area: export
+    role: operator
+    precondition: A saved case with intervals of several cameras
+    action: Queue the case export of the original or the masked derivative
+    result: The queue survives a restart without duplicate files, the derivative describes masks and sound tracks
+    failure: Releasing the original without permission is refused and audited
+    steps: ["5.4", "5.6"]
+    platform: ["10.5"]
+    operations: [exportInvestigation]
+    web: /investigations
+    test: desktop/export/case
+    material: Queue states after restart, bundle contents
+  export-offline-verification:
+    function: evidence
+    area: export
+    role: operator
+    precondition: A bundle and the site public key on a machine without the site
+    action: Open and verify the bundle offline, play H.264 and H.265 with a gap
+    result: The verdict matches the console tool
+    failure: A replaced signature, media, key or file set is refused explicitly
+    steps: ["5.4"]
+    platform: ["10.5"]
+    operations: []
+    test: desktop/export/offline-verification
+    material: Verdicts of the client and the console tool
+
+  # Help and language
+  help-offline:
+    function: help
+    area: help
+    role: operator
+    precondition: No connection to the site and no external network
+    action: Open help from the sign-in screen and search by symptom and by error code
+    result: The article and its illustrations open in the selected language
+    failure: An unknown code leads to the search
+    steps: ["2.3"]
+    platform: ["11.5"]
+    operations: []
+    install: [compact, site]
+    test: desktop/help/offline
+    material: Article identifiers and versions against the web portal
+  help-from-error:
+    function: help
+    area: help
+    role: operator
+    precondition: A busy PTZ camera
+    action: Open the article from the error and return
+    result: The same camera, layout and focus after the return
+    failure: The article in the other language is the same article identifier
+    steps: ["2.3"]
+    platform: ["11.5"]
+    operations: []
+    test: desktop/help/from-error
+    material: Article identifier and the restored layout
+  language-switch:
+    function: help
+    area: language
+    role: operator
+    precondition: Two windows, playback and an open form
+    action: Switch Russian -> English -> Russian
+    result: Texts, accessible names and the help article change in all windows, the input, focus and archive position are kept
+    failure: The choice is kept after a restart and an update
+    steps: ["2.1", "7.2"]
+    platform: ["11.5"]
+    operations: []
+    install: [compact, site]
+    test: desktop/workstation/language
+    material: Screenshots in both languages
+
+  # Workstation functions
+  workstation-command-line:
+    function: layouts
+    area: workstation
+    role: operator
+    precondition: A layout and alarms
+    action: Open the command line, find a camera, a layout and an action, open the archive at a time
+    result: Only permitted objects are found, the command runs without the mouse
+    failure: A query in the wrong keyboard layout is corrected
+    steps: ["2.4"]
+    platform: []
+    operations: [listPoints, listMonitorLayouts]
+    test: desktop/workstation/command-line
+    material: Command timing and result
+  workstation-multi-monitor:
+    function: layouts
+    area: workstation
+    role: operator
+    precondition: Two monitors and a saved layout
+    action: Move windows between monitors, disconnect a monitor, restart
+    result: Windows return to available monitors and controls stay reachable
+    failure: A different scale of the monitors keeps lines and text sharp
+    steps: ["5.2"]
+    platform: []
+    operations: [listMonitorLayouts, saveMonitorLayout, deleteMonitorLayout]
+    web: /monitor
+    test: desktop/workstation/multi-monitor
+    material: Window positions after reconnect and restart
+  workstation-video-wall:
+    function: layouts
+    area: workstation
+    role: operator
+    precondition: A shared layout of the web client
+    action: Open the shared layout full screen on another monitor
+    result: The cameras, edit rights and one subscription per camera match the layout
+    failure: A revoked channel on a running wall closes only that cell
+    steps: ["5.2"]
+    platform: ["9.4"]
+    operations: [listMonitorLayouts, createMediaSession]
+    web: /monitor
+    test: desktop/workstation/video-wall
+    material: Subscriptions per camera and quota use
+  workstation-spatial-navigation:
+    function: maps
+    area: workstation
+    role: operator
+    precondition: Four placed cameras with view sectors
+    action: Follow a person on a reference recording only by frame edge transitions
+    result: The transition keeps the archive moment and the layout
+    failure: A camera without placement offers no neighbors
+    steps: ["5.7"]
+    platform: ["7.1"]
+    operations: [getMapScene]
+    test: desktop/workstation/spatial-navigation
+    material: Transition path and frame times
+  workstation-diagnostics:
+    function: operations
+    area: workstation
+    role: operator
+    precondition: A workstation under the load profile
+    action: Collect the client diagnostics
+    result: The decoding path, the actual profile, the request identifiers and the frame times are available without frames and secrets
+    failure: A restored site configuration asks the user to sign in again
+    steps: ["6.1"]
+    platform: []
+    operations: []
+    test: desktop/workstation/diagnostics
+    material: Diagnostics bundle
+  analytics-overlays:
+    function: search
+    area: archive
+    role: operator
+    precondition: A site with the analytics service
+    action: Show track overlays and the activity strip in live video and the archive
+    result: Overlays follow the object frame by frame, the analysis gap is shown separately from the recording gap
+    failure: A site without the capability hides the overlays
+    steps: ["3.2", "4.5"]
+    platform: ["analytics 1.2"]
+    operations: []
+    test: desktop/archive/analytics-overlays
+    material: Overlay positions against the frames
+  analytics-rule-test:
+    function: rules
+    area: alerts
+    role: administrator
+    precondition: A site with the analytics service and a labeled recording
+    action: Test a line rule with a direction and an object class on the recording
+    result: Triggers and tracks are shown on the timeline and on each event frame
+    failure: A site without the capability uses the current rule simulation
+    steps: ["4.5"]
+    platform: ["analytics 1.3"]
+    operations: [simulateVideoRule]
+    web: /cameras
+    test: desktop/alerts/analytics-rule-test
+    material: Triggers against the labeling
+  cluster-federation:
+    function: operations
+    area: cluster
+    role: administrator
+    precondition: Two sites connected to Bacuri Manager
+    action: Apply a shared policy, switch the recording node, search video across sites
+    result: Each result shows the site, the time zone and the update time
+    failure: A lost connection to the center keeps local sign-in, live video and archive of the site
+    steps: ["4.6"]
+    platform: ["10.3"]
+    operations: []
+    test: desktop/cluster/federation
+    material: Policy versions per site, frames before and after the switch

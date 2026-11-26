@@ -122,6 +122,34 @@ RUN dpkg -i /tmp/conan.deb && rm /tmp/conan.deb && conan --version
 ENV XDG_CACHE_HOME=/tmp/bacuri-vms-cache
 WORKDIR /workspace
 
+FROM toolchain AS desktop
+RUN apt-get -o Acquire::Retries=3 update \
+    && apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+        gstreamer1.0-gl \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-qt6 \
+        libgl1-mesa-dri \
+        libgmock-dev \
+        libgstreamer-plugins-base1.0-dev \
+        libgtest-dev \
+        libhidapi-dev \
+        libsdl3-dev \
+        qml6-module-qtqml-workerscript \
+        qml6-module-qtquick \
+        qml6-module-qtquick-controls \
+        qml6-module-qtquick-layouts \
+        qml6-module-qtquick-templates \
+        qml6-module-qtquick-window \
+        qml6-module-qttest \
+        qt6-base-dev \
+        qt6-declarative-dev \
+        qt6-shadertools-dev \
+        qt6-websockets-dev \
+        xauth \
+        xvfb \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /workspace
+
 FROM node:24-trixie-slim@sha256:af02d57b57719b9657a45199a79264a9437940cd55b3c7b3fc99615654f124a0 AS api-types
 WORKDIR /opt/bacuri-api-tools
 COPY tools/api-client/package.json tools/api-client/package-lock.json ./

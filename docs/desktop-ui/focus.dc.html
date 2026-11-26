@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Камера в фокусе и PTZ</title>
+<title>Camera in focus and PTZ</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -19,15 +19,16 @@ button{font:inherit;cursor:pointer}
 
   <header style="height: 44px; flex: 0 0 44px; display: flex; align-items: center; gap: 12px; padding: 0 14px; background: #1a1917; border-bottom: 1px solid #2c2a27">
     <svg width="24" height="24" viewBox="0 0 24 24" role="img" aria-label="Bacuri"><circle cx="12" cy="12" r="10.5" fill="#33271d" stroke="#f2cc61" stroke-width="2.4"></circle><circle cx="12" cy="12" r="6.8" fill="#f3e7c8"></circle><path d="M12 8.2 15.4 14H8.6z" fill="#33271d"></path></svg>
-    <nav aria-label="Путь" style="display: flex; align-items: center; gap: 8px; color: #a6a6a6">
-      <a href="main.dc.html" style="color: #a6a6a6; text-decoration: none">Периметр</a>
+    <nav aria-label="Path" style="display: flex; align-items: center; gap: 8px; color: #a6a6a6">
+      <a href="main.dc.html" style="color: #a6a6a6; text-decoration: none">Perimeter</a>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
-      <span style="color: #e8e3d9; font-weight: 600">Вход А · Турникеты</span>
+      <span style="color: #e8e3d9; font-weight: 600">Entrance A · Turnstiles</span>
     </nav>
-    <span style="display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; background: #2c3023; color: #bfcba4; font-size: 12px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #bfcba4"></span>Эфир</span>
+    <span style="display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; background: #2c3023; color: #bfcba4; font-size: 12px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #bfcba4"></span>Live</span>
     <span style="flex: 1"></span>
-    <span style="color: #8d8776">Esc - вернуться к раскладке</span>
-    <span class="mono" style="font-size: 14px">14:32:11</span>
+    <span style="color: #8d8776">Esc - back to the layout</span>
+    <div role="group" aria-label="Language" style="display: flex; gap: 2px; padding: 2px; background: #121110; border: 1px solid #2c2a27; border-radius: 7px"><button data-language="en" aria-pressed="true" style="height: 22px; padding: 0 8px; border: 0; border-radius: 5px; background: #504a37; color: #f0ece6; font-size: 11px; font-weight: 600">EN</button><button data-language="ru" aria-pressed="false" style="height: 22px; padding: 0 8px; border: 0; border-radius: 5px; background: transparent; color: #a6a6a6; font-size: 11px; font-weight: 600">RU</button></div>
+      <span class="mono" style="font-size: 14px">14:32:11</span>
   </header>
 
   <div style="flex: 1 1 auto; min-height: 0; display: flex; gap: 8px; padding: 8px">
@@ -43,7 +44,7 @@ button{font:inherit;cursor:pointer}
           <span class="mono" style="font-size: 11.5px">TILT <span style="color: #fff">−12.0°</span></span>
           <span class="mono" style="font-size: 11.5px">ZOOM <span style="color: #fff">×4.1</span></span>
           <span style="width: 1px; height: 14px; background: #4a423a"></span>
-          <span style="font-size: 11.5px; color: #d8d2c4">Управляете вы · другим занята</span>
+          <span style="font-size: 11.5px; color: #d8d2c4">You control it · busy for others</span>
         </div>
 
         <div aria-hidden="true" style="position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%)">
@@ -59,59 +60,59 @@ button{font:inherit;cursor:pointer}
           <path d="M300 420 L452 344" stroke="#fff9ec" stroke-width="2" stroke-dasharray="6 5"></path>
           <path d="M452 344 l-16 1 l9 -13 z" fill="#fff9ec"></path>
         </svg>
-        <div style="position: absolute; left: 32%; top: 77%; padding: 5px 9px; background: #26211d; border-radius: 6px; color: #fff9ec; font-size: 12px; line-height: 1.4">Перетаскивание: поворот <span class="mono">18°/с</span> вправо и вверх<br><span style="color: #c9c2b2">Отпустите кнопку - камера остановится</span></div>
+        <div style="position: absolute; left: 32%; top: 77%; padding: 5px 9px; background: #26211d; border-radius: 6px; color: #fff9ec; font-size: 12px; line-height: 1.4">Drag: turn <span class="mono">18°/s</span> right and up<br><span style="color: #c9c2b2">Release the button - the camera stops</span></div>
 
         <div style="position: absolute; left: 62%; top: 22%; width: 20%; height: 26%; border: 1.5px dashed #fff9ec; background: rgba(255,249,236,.06)">
-          <span style="position: absolute; left: -1px; top: -26px; padding: 3px 8px; background: #26211d; border-radius: 5px; color: #fff9ec; font-size: 12px; white-space: nowrap">Shift + рамка: навести и приблизить <span class="mono">×3.4</span></span>
+          <span style="position: absolute; left: -1px; top: -26px; padding: 3px 8px; background: #26211d; border-radius: 5px; color: #fff9ec; font-size: 12px; white-space: nowrap">Shift + box: point and zoom in <span class="mono">×3.4</span></span>
         </div>
 
-        <a href="main.dc.html" aria-label="Соседняя камера слева: Холл 1" style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 6px; background: #26211d; border-radius: 0 8px 8px 0; color: #fff9ec; text-decoration: none">
+        <a href="main.dc.html" aria-label="Neighbor camera on the left: Hall 1" style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 6px; background: #26211d; border-radius: 0 8px 8px 0; color: #fff9ec; text-decoration: none">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 6-6 6 6 6"></path></svg>
           <span style="display: flex; flex-direction: column; gap: 4px">
             <span style="width: 96px; aspect-ratio: 16 / 9; border-radius: 3px; background: radial-gradient(60% 40% at 50% 38%, #6a675d 0%, #3c3a35 45%, #1d1c1a 100%)"></span>
-            <span style="font-size: 11.5px">Холл 1</span>
+            <span style="font-size: 11.5px">Hall 1</span>
           </span>
         </a>
-        <a href="main.dc.html" aria-label="Соседняя камера справа: Склад 2, Ворота" style="position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 6px 8px 10px; background: #26211d; border-radius: 8px 0 0 8px; color: #fff9ec; text-decoration: none; box-shadow: 0 0 0 1.5px #bbb08e">
+        <a href="main.dc.html" aria-label="Neighbor camera on the right: Warehouse 2, Gate" style="position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 6px 8px 10px; background: #26211d; border-radius: 8px 0 0 8px; color: #fff9ec; text-decoration: none; box-shadow: 0 0 0 1.5px #bbb08e">
           <span style="display: flex; flex-direction: column; gap: 4px">
             <span style="width: 96px; aspect-ratio: 16 / 9; border-radius: 3px; background: linear-gradient(180deg,#3d3a33 0%,#4a463d 55%,#5a554a 56%,#433f37 100%)"></span>
-            <span style="font-size: 11.5px">Склад 2 · Ворота</span>
+            <span style="font-size: 11.5px">Warehouse 2 · Gate</span>
           </span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
         </a>
-        <span style="position: absolute; right: 124px; top: calc(50% + 46px); padding: 3px 7px; background: #26211d; border-radius: 5px; color: #d8d2c4; font-size: 11px">Человек ушёл сюда · <span class="mono">Alt + Вправо</span></span>
+        <span style="position: absolute; right: 124px; top: calc(50% + 46px); padding: 3px 7px; background: #26211d; border-radius: 5px; color: #d8d2c4; font-size: 11px">The person went here · <span class="mono">Alt + Right</span></span>
 
         <div style="position: absolute; left: 8px; bottom: 8px; display: flex; gap: 6px">
           <span class="mono" style="padding: 2px 6px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 11px">14:32:11.240</span>
-          <span class="mono" style="padding: 2px 6px; background: #26211d; color: #d8d2c4; border-radius: 4px; font-size: 11px">MAIN 2560×1440 · H.265 · 25 к/с</span>
+          <span class="mono" style="padding: 2px 6px; background: #26211d; color: #d8d2c4; border-radius: 4px; font-size: 11px">MAIN 2560×1440 · H.265 · 25 fps</span>
         </div>
       </div>
 
       <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
         <div style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px">
           <svg width="44" height="32" viewBox="0 0 44 32" aria-hidden="true"><rect x="1" y="1" width="42" height="30" rx="3" fill="#2a2926" stroke="#3a3835"></rect><circle cx="13" cy="22" r="3" fill="#e8e3d9"></circle><path d="M13 22 L30 11" stroke="#e8e3d9" stroke-width="1.5" stroke-dasharray="3 2"></path></svg>
-          <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600">Тянуть в кадре</span><span style="color: #a6a6a6">Скорость поворота по смещению</span></span>
+          <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600">Drag in the frame</span><span style="color: #a6a6a6">Turn speed follows the offset</span></span>
         </div>
         <div style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px">
           <svg width="44" height="32" viewBox="0 0 44 32" aria-hidden="true"><rect x="1" y="1" width="42" height="30" rx="3" fill="#2a2926" stroke="#3a3835"></rect><rect x="20" y="7" width="16" height="12" fill="none" stroke="#e8e3d9" stroke-dasharray="2 2"></rect></svg>
-          <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600">Shift + рамка</span><span style="color: #a6a6a6">Навести и приблизить область</span></span>
+          <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600">Shift + box</span><span style="color: #a6a6a6">Point and zoom in on an area</span></span>
         </div>
         <div style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px">
           <svg width="44" height="32" viewBox="0 0 44 32" aria-hidden="true"><rect x="1" y="1" width="42" height="30" rx="3" fill="#2a2926" stroke="#3a3835"></rect><circle cx="22" cy="16" r="10" fill="none" stroke="#e8e3d9"></circle><circle cx="22" cy="16" r="3" fill="#e8e3d9"></circle><path d="M22 6v4M32 16h-4M22 26v-4M12 16h4" stroke="#e8e3d9"></path></svg>
-          <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600">Правая кнопка, росчерк</span><span style="color: #a6a6a6">Действие без меню, по направлению</span></span>
+          <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600">Right button, flick</span><span style="color: #a6a6a6">Action by direction, without the menu</span></span>
         </div>
       </div>
 
-      <nav aria-label="Камеры раскладки" style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px">
+      <nav aria-label="Layout cameras" style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px">
         <sc-for list="{{strip}}" as="s" hint-placeholder-count="8">
           <a href="main.dc.html" style="{{s.style}}"><span style="position: absolute; left: 4px; bottom: 4px; padding: 1px 5px; background: #26211d; color: #fff9ec; border-radius: 3px; font-size: 10.5px; max-width: 85%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis">{{s.name}}</span></a>
         </sc-for>
       </nav>
     </div>
 
-    <aside aria-label="Камера" style="width: 312px; flex: 0 0 312px; display: flex; flex-direction: column; gap: 8px; min-height: 0">
+    <aside aria-label="Camera" style="width: 312px; flex: 0 0 312px; display: flex; flex-direction: column; gap: 8px; min-height: 0">
       <section style="padding: 12px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px; display: flex; flex-direction: column; gap: 10px">
-        <div style="display: flex; align-items: center"><span style="font-weight: 600">Предустановки</span><span style="flex: 1"></span><span style="color: #8d8776; font-size: 12px">цифры 1-6</span></div>
+        <div style="display: flex; align-items: center"><span style="font-weight: 600">Presets</span><span style="flex: 1"></span><span style="color: #8d8776; font-size: 12px">keys 1-6</span></div>
         <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px">
           <sc-for list="{{presets}}" as="p" hint-placeholder-count="6">
             <button style="{{p.style}}"><span class="mono" style="width: 18px; height: 18px; display: grid; place-items: center; border: 1px solid #4a4640; border-radius: 4px; font-size: 10.5px; color: #c9c2b2">{{p.key}}</span><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.name}}</span></button>
@@ -119,29 +120,29 @@ button{font:inherit;cursor:pointer}
         </div>
       </section>
       <section style="padding: 12px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px; display: flex; flex-direction: column; gap: 10px">
-        <span style="font-weight: 600">Оптика</span>
-        <label style="display: flex; flex-direction: column; gap: 6px; color: #a6a6a6">Зум <input type="range" min="1" max="30" value="4" style="width: 100%; accent-color: #b4a989"></label>
+        <span style="font-weight: 600">Optics</span>
+        <label style="display: flex; flex-direction: column; gap: 6px; color: #a6a6a6">Zoom <input type="range" min="1" max="30" value="4" style="width: 100%; accent-color: #b4a989"></label>
         <div style="display: flex; gap: 6px">
-          <button style="flex: 1; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9">Фокус ближе</button>
-          <button style="flex: 1; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9">Фокус дальше</button>
+          <button style="flex: 1; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9">Focus near</button>
+          <button style="flex: 1; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9">Focus far</button>
         </div>
         <div style="display: flex; gap: 6px">
-          <button style="flex: 1; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9">ИК-подсветка</button>
-          <button style="flex: 1; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9">Патруль</button>
+          <button style="flex: 1; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9">IR illuminator</button>
+          <button style="flex: 1; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9">Patrol</button>
         </div>
       </section>
       <section style="padding: 12px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px; display: flex; flex-direction: column; gap: 10px">
-        <span style="font-weight: 600">Звук</span>
+        <span style="font-weight: 600">Sound</span>
         <div style="display: flex; align-items: flex-end; gap: 2px; height: 22px">
           <sc-for list="{{meter}}" as="m" hint-placeholder-count="28"><span style="{{m}}"></span></sc-for>
         </div>
         <div style="display: flex; gap: 6px">
-          <button style="flex: 1; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #373428; color: #f0ece6">Слушать</button>
-          <button style="flex: 1; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9">Говорить, удерживать <span class="mono" style="font-size: 10.5px; color: #8d8776">T</span></button>
+          <button style="flex: 1; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #373428; color: #f0ece6">Listen</button>
+          <button style="flex: 1; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9">Talk, hold <span class="mono" style="font-size: 10.5px; color: #8d8776">T</span></button>
         </div>
       </section>
       <section style="flex: 1 1 auto; padding: 12px; background: #1a1917; border: 1px solid #2c2a27; border-radius: 8px; display: flex; flex-direction: column; gap: 6px">
-        <span style="font-weight: 600; margin-bottom: 2px">Поток</span>
+        <span style="font-weight: 600; margin-bottom: 2px">Stream</span>
         <sc-for list="{{stats}}" as="s" hint-placeholder-count="6">
           <div style="display: flex; gap: 8px"><span style="color: #8d8776; flex: 0 0 104px">{{s.k}}</span><span class="mono" style="color: #d8d2c4; font-size: 12px">{{s.v}}</span></div>
         </sc-for>
@@ -162,12 +163,12 @@ class Component extends DCLogic {
       night: 'linear-gradient(180deg,#15181c 0%,#1f2328 50%,#2c2b28 51%,#22211f 100%)'
     };
     var strip = [
-      ['Вход А · Турникеты', 'room', true], ['Коридор Б2', 'corridor'], ['Периметр · Север', 'pano'], ['Склад 2 · Ворота', 'warehouse'],
-      ['Склад 2 · Стеллажи', 'warehouse'], ['Касса 3', 'room'], ['Парковка P1', 'parking'], ['КПП · Въезд', 'night']
+      ['Entrance A · Turnstiles', 'room', true], ['Corridor B2', 'corridor'], ['Perimeter · North', 'pano'], ['Warehouse 2 · Gate', 'warehouse'],
+      ['Warehouse 2 · Racks', 'warehouse'], ['Cash desk 3', 'room'], ['Parking P1', 'parking'], ['Checkpoint · Entry', 'night']
     ].map(function (s) {
       return { name: s[0], style: 'position: relative; display: block; aspect-ratio: 16 / 9; border-radius: 4px; overflow: hidden; background: ' + bg[s[1]] + (s[2] ? '; box-shadow: 0 0 0 2px #bbb08e' : '; opacity: .82') };
     });
-    var presets = [['1', 'Турникеты', true], ['2', 'Дверь охраны'], ['3', 'Касса пропусков'], ['4', 'Лифтовый холл'], ['5', 'Улица, обзор'], ['6', 'Номера авто']].map(function (p) {
+    var presets = [['1', 'Turnstiles', true], ['2', 'Guard door'], ['3', 'Pass office'], ['4', 'Elevator hall'], ['5', 'Street, overview'], ['6', 'License plates']].map(function (p) {
       return { key: p[0], name: p[1], style: 'display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: 7px; text-align: left; color: #e8e3d9; ' + (p[2] ? 'background: #373428; border: 1px solid #6b6044' : 'background: #252526; border: 1px solid #3a3835') };
     });
     var meter = [];
@@ -180,12 +181,12 @@ class Component extends DCLogic {
       presets: presets,
       meter: meter,
       stats: [
-        { k: 'Декодер', v: 'NVDEC · без копий в ОЗУ' },
-        { k: 'Задержка', v: '210 мс до экрана' },
-        { k: 'Поток', v: '6.8 Мбит/с · 0 потерь' },
-        { k: 'Кадры', v: '25.0 к/с · очередь 1' },
-        { k: 'Профиль', v: 'MAIN, выбран по размеру' },
-        { k: 'Запись', v: 'идёт · блок 14:30:00' }
+        { k: 'Decoder', v: 'NVDEC · no copies in RAM' },
+        { k: 'Latency', v: '210 ms to the screen' },
+        { k: 'Stream', v: '6.8 Mbit/s · 0 lost' },
+        { k: 'Frames', v: '25.0 fps · queue 1' },
+        { k: 'Profile', v: 'MAIN, chosen by size' },
+        { k: 'Recording', v: 'running · block 14:30:00' }
       ]
     };
   }

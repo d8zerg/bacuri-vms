@@ -4,6 +4,8 @@
 
 ### Added
 
+- The desktop client has a parity register that maps every public operation, web client section and console action to desktop scenarios with roles, failures, steps, tests and acceptance material. Extensions beyond the web client name the contract they need, how the client detects it and the behavior with an older server. `task desktop:parity` checks the coverage and the reconciled contract revision. [Parity register](desktop/parity.yaml)
+
 - An error catalog names every cause of a failure with its category, HTTP status, gRPC status code, retry class and audience. The server, the API contract, the service gRPC and the web client take their codes from it, and the client shows each cause in the interface language. [Error reference](docs/errors.md) · [ADR-020. Error catalog](docs/adr/020-error-catalog.md)
 
 - The workplace interface switches between Russian and English without a reload. The switch is next to the theme selection, the choice is saved, and the browser language is used by default. Dates, times and numbers are formatted in the selected language.

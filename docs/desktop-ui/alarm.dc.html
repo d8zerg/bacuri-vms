@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Обработка тревоги</title>
+<title>Alarm handling</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -19,20 +19,21 @@ button{font:inherit;cursor:pointer}
 
   <header style="height: 44px; flex: 0 0 44px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #1a1917; border-bottom: 1px solid #2c2a27">
     <svg width="24" height="24" viewBox="0 0 24 24" role="img" aria-label="Bacuri"><circle cx="12" cy="12" r="10.5" fill="#33271d" stroke="#f2cc61" stroke-width="2.4"></circle><circle cx="12" cy="12" r="6.8" fill="#f3e7c8"></circle><path d="M12 8.2 15.4 14H8.6z" fill="#33271d"></path></svg>
-    <span style="font-weight: 600">Тревоги</span>
-    <span style="color: #8d8776">Очередь</span>
+    <span style="font-weight: 600">Alarms</span>
+    <span style="color: #8d8776">Queue</span>
     <sc-for list="{{queue}}" as="q" hint-placeholder-count="4">
       <button style="{{q.style}}"><span style="{{q.dot}}"></span><span>{{q.cam}}</span><span class="mono" style="color: #a6a6a6; font-size: 11.5px">{{q.wait}}</span></button>
     </sc-for>
     <span style="flex: 1"></span>
-    <span style="color: #a6a6a6">Следующая <span class="mono" style="font-size: 11px; padding: 2px 6px; border: 1px solid #3a3835; border-radius: 5px; margin-left: 4px">N</span></span>
+    <div role="group" aria-label="Language" style="display: flex; gap: 2px; padding: 2px; background: #121110; border: 1px solid #2c2a27; border-radius: 7px"><button data-language="en" aria-pressed="true" style="height: 22px; padding: 0 8px; border: 0; border-radius: 5px; background: #504a37; color: #f0ece6; font-size: 11px; font-weight: 600">EN</button><button data-language="ru" aria-pressed="false" style="height: 22px; padding: 0 8px; border: 0; border-radius: 5px; background: transparent; color: #a6a6a6; font-size: 11px; font-weight: 600">RU</button></div>
+      <span style="color: #a6a6a6">Next <span class="mono" style="font-size: 11px; padding: 2px 6px; border: 1px solid #3a3835; border-radius: 5px; margin-left: 4px">N</span></span>
   </header>
 
   <div style="flex: 1 1 auto; min-height: 0; display: flex; gap: 8px; padding: 8px">
     <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px">
       <div style="flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
         <figure style="margin: 0; display: flex; flex-direction: column; gap: 6px; min-height: 0">
-          <figcaption style="display: flex; align-items: center; gap: 8px"><span style="font-weight: 600">Момент тревоги</span><span style="color: #8d8776">повтор с −10 с, по кругу</span></figcaption>
+          <figcaption style="display: flex; align-items: center; gap: 8px"><span style="font-weight: 600">Alarm moment</span><span style="color: #8d8776">replay from −10 s, looped</span></figcaption>
           <div style="position: relative; flex: 1 1 auto; border-radius: 6px; overflow: hidden; background: linear-gradient(180deg,#3d3a33 0%,#4a463d 55%,#5a554a 56%,#433f37 100%); box-shadow: 0 0 0 2px #ffa3a1">
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%"><path d="M0 72 L28 56 L72 56 L100 72 M28 56 L28 8 M72 56 L72 8 M40 56 L40 20 M50 56 L50 20 M60 56 L60 20" fill="none" stroke="rgba(255,249,236,.14)" stroke-width=".6" vector-effect="non-scaling-stroke"></path><path d="M30 92 L46 54 L76 54 L88 92 Z" fill="rgba(255,163,161,.08)" stroke="#ffa3a1" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"></path></svg>
             <div style="position: absolute; left: 58%; top: 42%; width: 7%; height: 32%"><div style="width: 40%; aspect-ratio: 1; margin: 0 auto 6%; border-radius: 50%; background: #0c0b0a"></div><div style="height: 72%; border-radius: 40% 40% 8% 8%; background: #0c0b0a"></div></div>
@@ -42,7 +43,7 @@ button{font:inherit;cursor:pointer}
               <div style="position: absolute; left: 0; bottom: 0; width: 10px; height: 10px; border-left: 1.5px solid #ffa3a1; border-bottom: 1.5px solid #ffa3a1"></div>
               <div style="position: absolute; right: 0; bottom: 0; width: 10px; height: 10px; border-right: 1.5px solid #ffa3a1; border-bottom: 1.5px solid #ffa3a1"></div>
             </div>
-            <span style="position: absolute; left: 31%; top: 85%; padding: 2px 6px; background: #26211d; color: #ffd6d4; border-radius: 4px; font-size: 11px">Зона правила</span>
+            <span style="position: absolute; left: 31%; top: 85%; padding: 2px 6px; background: #26211d; color: #ffd6d4; border-radius: 4px; font-size: 11px">Rule zone</span>
             <div style="position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #26211d; border-radius: 6px">
               <span class="mono" style="color: #fff9ec; font-size: 11px">14:31:49</span>
               <div style="position: relative; flex: 1; height: 4px; border-radius: 2px; background: #4a423a"><span style="position: absolute; left: 0; width: 66%; top: 0; bottom: 0; border-radius: 2px; background: #d8d2c4"></span><span style="position: absolute; left: 50%; top: -3px; width: 2px; height: 10px; background: #ffa3a1"></span></div>
@@ -51,18 +52,18 @@ button{font:inherit;cursor:pointer}
           </div>
         </figure>
         <figure style="margin: 0; display: flex; flex-direction: column; gap: 6px; min-height: 0">
-          <figcaption style="display: flex; align-items: center; gap: 8px"><span style="font-weight: 600">Эфир сейчас</span><span style="color: #8d8776">та же камера</span></figcaption>
+          <figcaption style="display: flex; align-items: center; gap: 8px"><span style="font-weight: 600">Live now</span><span style="color: #8d8776">same camera</span></figcaption>
           <div style="position: relative; flex: 1 1 auto; border-radius: 6px; overflow: hidden; background: linear-gradient(180deg,#3d3a33 0%,#4a463d 55%,#5a554a 56%,#433f37 100%)">
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%"><path d="M0 72 L28 56 L72 56 L100 72 M28 56 L28 8 M72 56 L72 8 M40 56 L40 20 M50 56 L50 20 M60 56 L60 20" fill="none" stroke="rgba(255,249,236,.14)" stroke-width=".6" vector-effect="non-scaling-stroke"></path></svg>
-            <span style="position: absolute; left: 8px; top: 8px; display: flex; align-items: center; gap: 5px; padding: 2px 6px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 11px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #bfcba4"></span>Эфир</span>
+            <span style="position: absolute; left: 8px; top: 8px; display: flex; align-items: center; gap: 5px; padding: 2px 6px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 11px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #bfcba4"></span>Live</span>
             <span class="mono" style="position: absolute; left: 8px; bottom: 8px; padding: 1px 6px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 11px">14:32:15</span>
-            <span style="position: absolute; right: 8px; bottom: 8px; padding: 2px 7px; background: #26211d; color: #d8d2c4; border-radius: 4px; font-size: 11px">В кадре никого</span>
+            <span style="position: absolute; right: 8px; bottom: 8px; padding: 2px 7px; background: #26211d; color: #d8d2c4; border-radius: 4px; font-size: 11px">Nobody in the frame</span>
           </div>
         </figure>
       </div>
 
-      <section aria-label="Соседние камеры" style="display: flex; flex-direction: column; gap: 6px">
-        <div style="display: flex; align-items: baseline; gap: 8px"><span style="font-weight: 600">Куда мог уйти</span><span style="color: #8d8776">соседи по плану, архив на том же моменте</span></div>
+      <section aria-label="Neighbor cameras" style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; align-items: baseline; gap: 8px"><span style="font-weight: 600">Where they may have gone</span><span style="color: #8d8776">plan neighbors, archive at the same moment</span></div>
         <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
           <sc-for list="{{neighbors}}" as="n" hint-placeholder-count="4">
             <a href="focus.dc.html" style="{{n.style}}">
@@ -75,19 +76,19 @@ button{font:inherit;cursor:pointer}
       </section>
     </div>
 
-    <aside aria-label="Карточка тревоги" style="width: 360px; flex: 0 0 360px; display: flex; flex-direction: column; gap: 8px; min-height: 0">
+    <aside aria-label="Alarm card" style="width: 360px; flex: 0 0 360px; display: flex; flex-direction: column; gap: 8px; min-height: 0">
       <section style="padding: 14px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px; display: flex; flex-direction: column; gap: 12px; box-shadow: inset 3px 0 0 #ffa3a1">
         <div style="display: flex; align-items: center; gap: 8px">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffa3a1" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
-          <h1 style="margin: 0; font-size: 16px; font-weight: 600">Движение в закрытой зоне</h1>
+          <h1 style="margin: 0; font-size: 16px; font-weight: 600">Motion in a closed zone</h1>
         </div>
         <dl style="margin: 0; display: grid; grid-template-columns: 96px 1fr; row-gap: 6px; column-gap: 10px">
-          <dt style="color: #8d8776">Камера</dt><dd style="margin: 0">Склад 2 · Стеллажи</dd>
-          <dt style="color: #8d8776">Время</dt><dd class="mono" style="margin: 0; font-size: 12.5px">14:31:59 MSK · 11:31:59 UTC</dd>
-          <dt style="color: #8d8776">Правило</dt><dd style="margin: 0">«Стеллажи ночью», версия 4</dd>
-          <dt style="color: #8d8776">Источник</dt><dd style="margin: 0">Детектор движения площадки</dd>
+          <dt style="color: #8d8776">Camera</dt><dd style="margin: 0">Warehouse 2 · Racks</dd>
+          <dt style="color: #8d8776">Time</dt><dd class="mono" style="margin: 0; font-size: 12.5px">14:31:59 MSK · 11:31:59 UTC</dd>
+          <dt style="color: #8d8776">Rule</dt><dd style="margin: 0">“Racks at night”, version 4</dd>
+          <dt style="color: #8d8776">Source</dt><dd style="margin: 0">Site motion detector</dd>
         </dl>
-        <ol aria-label="Состояние" style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px">
+        <ol aria-label="State" style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px">
           <sc-for list="{{steps}}" as="s" hint-placeholder-count="4">
             <li style="display: flex; flex-direction: column; gap: 5px"><span style="{{s.bar}}"></span><span style="{{s.text}}">{{s.label}}</span></li>
           </sc-for>
@@ -97,12 +98,12 @@ button{font:inherit;cursor:pointer}
             <button style="{{a.style}}"><span>{{a.label}}</span><span class="mono" style="{{a.keyStyle}}">{{a.key}}</span></button>
           </sc-for>
         </div>
-        <label style="display: flex; flex-direction: column; gap: 6px; color: #a6a6a6">Примечание
-          <textarea rows="3" style="resize: none; padding: 8px 10px; background: #121110; border: 1px solid #4a4640; border-radius: 7px; color: #e8e3d9; font: inherit">Человек без жилета, вошёл через ворота в 14:31:44</textarea>
+        <label style="display: flex; flex-direction: column; gap: 6px; color: #a6a6a6">Note
+          <textarea rows="3" style="resize: none; padding: 8px 10px; background: #121110; border: 1px solid #4a4640; border-radius: 7px; color: #e8e3d9; font: inherit">Person without a vest entered through the gate at 14:31:44</textarea>
         </label>
       </section>
       <section style="flex: 1 1 auto; min-height: 0; padding: 12px 14px; background: #1a1917; border: 1px solid #2c2a27; border-radius: 8px; display: flex; flex-direction: column; gap: 10px">
-        <span style="font-weight: 600">Журнал тревоги</span>
+        <span style="font-weight: 600">Alarm journal</span>
         <sc-for list="{{log}}" as="l" hint-placeholder-count="4">
           <div style="display: flex; gap: 10px"><span class="mono" style="color: #a6a6a6; font-size: 12px; flex: 0 0 62px">{{l.t}}</span><span style="color: #d8d2c4; line-height: 1.4">{{l.text}}</span></div>
         </sc-for>
@@ -114,7 +115,7 @@ button{font:inherit;cursor:pointer}
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
 class Component extends DCLogic {
   renderVals() {
-    var queue = [['Склад 2 · Стеллажи', '00:16', true], ['Парковка P2', '00:22'], ['КПП · Въезд', '05:03'], ['Погрузка 1', '13:35']].map(function (q) {
+    var queue = [['Warehouse 2 · Racks', '00:16', true], ['Parking P2', '00:22'], ['Checkpoint · Entry', '05:03'], ['Loading 1', '13:35']].map(function (q) {
       return {
         cam: q[0], wait: q[1],
         dot: 'width: 7px; height: 7px; border-radius: 50%; background: ' + (q[2] ? '#ffa3a1' : '#8d8776'),
@@ -126,17 +127,17 @@ class Component extends DCLogic {
       warehouse: 'linear-gradient(180deg,#3d3a33 0%,#4a463d 55%,#5a554a 56%,#433f37 100%)',
       night: 'linear-gradient(180deg,#15181c 0%,#1f2328 50%,#2c2b28 51%,#22211f 100%)'
     };
-    var neighbors = [['Склад 2 · Ворота', 'слева', 'warehouse', 'был в 14:31:44', '#d8d2c4'], ['Коридор Б2', 'справа', 'corridor', 'движение 14:32:04', '#ffae86'], ['Погрузка 1', 'прямо', 'warehouse', 'нет записи', '#a6a6a6'], ['Лестница В', 'вверх', 'corridor', 'тихо', '#a6a6a6']].map(function (n) {
-      return { name: n[0], dir: n[1], hint: n[3], hintColor: n[4], style: 'position: relative; display: block; aspect-ratio: 16 / 9; border-radius: 5px; overflow: hidden; text-decoration: none; background: ' + bg[n[2]] + (n[1] === 'справа' ? '; box-shadow: 0 0 0 2px #bbb08e' : '') };
+    var neighbors = [['Warehouse 2 · Gate', 'left', 'warehouse', 'seen at 14:31:44', '#d8d2c4'], ['Corridor B2', 'right', 'corridor', 'motion 14:32:04', '#ffae86'], ['Loading 1', 'ahead', 'warehouse', 'no recording', '#a6a6a6'], ['Stairs C', 'up', 'corridor', 'quiet', '#a6a6a6']].map(function (n) {
+      return { name: n[0], dir: n[1], hint: n[3], hintColor: n[4], style: 'position: relative; display: block; aspect-ratio: 16 / 9; border-radius: 5px; overflow: hidden; text-decoration: none; background: ' + bg[n[2]] + (n[1] === 'right' ? '; box-shadow: 0 0 0 2px #bbb08e' : '') };
     });
-    var steps = [['Новая', 2], ['Принята', 1], ['Проверена', 0], ['Закрыта', 0]].map(function (s) {
+    var steps = [['New', 2], ['Accepted', 1], ['Verified', 0], ['Closed', 0]].map(function (s) {
       return {
         label: s[0],
         bar: 'height: 4px; border-radius: 2px; background: ' + (s[1] === 2 ? '#ffa3a1' : (s[1] === 1 ? '#6b6450' : '#33312d')),
         text: 'font-size: 12px; color: ' + (s[1] === 2 ? '#ffd6d4' : '#8d8776')
       };
     });
-    var actions = [['Принять', 'A', true], ['Ложная', 'F'], ['Поручить', 'P'], ['В дело', 'C'], ['Архив −10 с', 'R'], ['Закрыть', 'X']].map(function (a) {
+    var actions = [['Accept', 'A', true], ['False', 'F'], ['Assign', 'P'], ['To case', 'C'], ['Archive −10 s', 'R'], ['Close', 'X']].map(function (a) {
       return {
         label: a[0], key: a[1],
         keyStyle: 'font-size: 10.5px; color: ' + (a[2] ? '#c9bf9f' : '#8d8776'),
@@ -146,10 +147,10 @@ class Component extends DCLogic {
     return {
       queue: queue, neighbors: neighbors, steps: steps, actions: actions,
       log: [
-        { t: '14:31:59', text: 'Правило «Стеллажи ночью» создало тревогу' },
-        { t: '14:32:01', text: 'Показана на посту 1 и посту 2' },
-        { t: '14:32:09', text: 'Ирина Ковалёва открыла момент тревоги' },
-        { t: '14:32:15', text: 'Нет связи с камерой Парковка P2, отдельная тревога' }
+        { t: '14:31:59', text: 'Rule “Racks at night” created the alarm' },
+        { t: '14:32:01', text: 'Shown at workstations 1 and 2' },
+        { t: '14:32:09', text: 'Irina Kovaleva opened the alarm moment' },
+        { t: '14:32:15', text: 'Camera Parking P2 offline, a separate alarm' }
       ]
     };
   }

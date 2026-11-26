@@ -1,6 +1,6 @@
 # Desktop client screens
 
-Mockups of the operator workstation of the desktop client. The screens use the [common color tokens](../design/bacuri/tokens.css) in the dark theme and show the Russian interface. Each file is a Design Component source for the design canvas: an HTML page with `<x-dc>` markup and a `DCLogic` class. The local [support.js](desktop-ui/support.js) renders the files without network access: open [index.html](desktop-ui/index.html) in a browser. Links between screens and the command line work, fonts come from the design kit. Video frames are drawn as placeholder scenes. [Русская версия](ru/desktop-ui.md)
+Mockups of the operator workstation of the desktop client. The screens use the [common color tokens](../design/bacuri/tokens.css) in the dark theme. The interface is in English by default, the EN and RU buttons in the header of each screen switch it to Russian and back, the choice is kept, and `?lang=ru` opens a screen in Russian. Each file is a Design Component source for the design canvas: an HTML page with `<x-dc>` markup and a `DCLogic` class. The local [support.js](desktop-ui/support.js) renders the files without network access: open [index.html](desktop-ui/index.html) in a browser. Links between screens and the command line work, fonts come from the design kit. Video frames are drawn as placeholder scenes. [Русская версия](ru/desktop-ui.md)
 
 | Screen | Content | Source |
 | --- | --- | --- |
