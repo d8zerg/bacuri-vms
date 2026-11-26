@@ -1,4 +1,5 @@
 #pragma once
+#include "recording/plan.hpp"
 #include "archive/volume.hpp"
 #include "ingest/audio.hpp"
 #include <chrono>
@@ -12,7 +13,7 @@ inline constexpr std::chrono::seconds max_block_duration{15};
 // Event and manual recording keep blocks this long after the pre-event interval before publishing them.
 inline constexpr std::chrono::seconds event_buffer_margin{3};
 // Longest expected delay between a received frame and its published block under this rule.
-std::chrono::microseconds publication_lag(const CaptureRule* rule);
+std::chrono::microseconds publication_lag(const recording::CaptureRule* rule);
 
 struct ReplayResult {
     unsigned blocks{};
@@ -35,7 +36,8 @@ ReplayResult recover_gap(Volume&, const ReplayRequest&, const std::function<bool
 class Writer
 {
   public:
-    Writer(Volume&, Origin, std::shared_ptr<ingest::FrameQueue>, std::shared_ptr<ingest::CameraAudio> audio = {});
+    Writer(Volume&, const recording::RecordingPlan&, Origin, std::shared_ptr<ingest::FrameQueue>,
+           std::shared_ptr<ingest::CameraAudio> audio = {});
 
   private:
     void run(const std::stop_token&);
@@ -52,8 +54,9 @@ class Writer
     void report_discarded();
     std::deque<Segment> buffered_;
     std::size_t buffered_bytes_{};
-    std::shared_ptr<const CaptureRule> rule_;
+    std::shared_ptr<const recording::CaptureRule> rule_;
     Volume& volume_;
+    const recording::RecordingPlan& plan_;
     Origin origin_;
     std::shared_ptr<ingest::FrameQueue> queue_;
     std::shared_ptr<ingest::CameraAudio> audio_;

@@ -1,4 +1,4 @@
-#include "archive/recording_policy.hpp"
+#include "../recording/schedule.hpp"
 #include <gtest/gtest.h>
 #include "archive/writer.hpp"
 #include <gst/app/gstappsink.h>
@@ -9,52 +9,6 @@ namespace
 using namespace std::chrono;
 using namespace std::chrono_literals;
 
-Json weekly()
-{
-    return {{"continuous", false},
-            {"manual", true},
-            {"event", true},
-            {"audio", false},
-            {"pre", 5},
-            {"post", 10},
-            {"days", nullptr},
-            {"zone", "Europe/Berlin"},
-            {"schedule", Json::array({{{"day", 7}, {"start", 130}, {"end", 150}}})}};
-}
-
-TEST(RecordingPolicy, BothOccurrencesOfCivilHourUseHalfOpenUtcWindows)
-{
-    const auto policy = parse_capture_rule(weekly());
-    auto sunday = sys_days{2025y / October / 26};
-    auto selected = [&](auto t) {
-        return policy.selects(duration_cast<microseconds>(t.time_since_epoch()).count(), 1);
-    };
-    EXPECT_FALSE(selected(sunday + 9min));
-    EXPECT_TRUE(selected(sunday + 10min));
-    EXPECT_FALSE(selected(sunday + 30min));
-    EXPECT_TRUE(selected(sunday + 70min));
-    EXPECT_FALSE(selected(sunday + 90min));
-    auto spring = sys_days{2025y / March / 30};
-    for (auto minutes = 0min; minutes < 180min; minutes += 1min)
-        EXPECT_FALSE(selected(spring + minutes));
-}
-TEST(RecordingPolicy, OvernightAndOverlappingWindowsIncludeOnlyCurrentBinding)
-{
-    auto rule = weekly();
-    rule["schedule"] =
-        Json::array({{{"day", 7}, {"start", 1380}, {"end", 60}}, {{"day", 1}, {"start", 30}, {"end", 90}}});
-    auto policy = parse_capture_rule(rule);
-    policy.windows = {{5, 100, 200}, {5, 150, 250}, {6, 500, 600}};
-    EXPECT_FALSE(policy.selects(99, 5));
-    EXPECT_TRUE(policy.selects(100, 5));
-    EXPECT_TRUE(policy.selects(249, 5));
-    EXPECT_FALSE(policy.selects(250, 5));
-    EXPECT_FALSE(policy.selects(201, 6));
-    auto utc = sys_days{2025y / January / 5} + 23h + 45min;
-    EXPECT_TRUE(policy.selects(duration_cast<microseconds>(utc.time_since_epoch()).count(), 1));
-    rule["zone"] = "Nowhere/Imaginary";
-    EXPECT_THROW(parse_capture_rule(rule), std::invalid_argument);
-}
 std::vector<std::byte> one_sample(const std::string& description)
 {
     GError* error{};
@@ -101,11 +55,11 @@ TEST(RecordingPolicy, ArchiveDecodesNumberedSamplesAcrossTheRepeatedHour)
     fs::create_directory(temp.root);
     Volume volume{temp.root, {uuid(), uuid()}};
     const Origin origin{uuid(), uuid(), uuid(), uuid(), 1};
-    const auto rule = weekly();
-    volume.update_recording_plan(
-        Json{{origin.point,
-              {{"id", uuid()}, {"revision", 1}, {"since", 0}, {"rule", rule}, {"windows", Json::array()}}}}
-            .dump());
+    const auto rule = recording::test::weekly();
+    recording::RecordingPlan plan{temp.root};
+    plan.update(Json{{origin.point,
+                      {{"id", uuid()}, {"revision", 1}, {"since", 0}, {"rule", rule}, {"windows", Json::array()}}}}
+                    .dump());
     auto queue = std::make_shared<ingest::FrameQueue>(ingest::Profile::main);
     const auto day = sys_days{2025y / October / 26};
     std::map<std::int64_t, int> expected;
@@ -125,14 +79,14 @@ TEST(RecordingPolicy, ArchiveDecodesNumberedSamplesAcrossTheRepeatedHour)
             expected[utc.time_since_epoch().count()] = static_cast<int>(intensity);
     }
     {
-        Writer writer{volume, origin, queue};
+        Writer writer{volume, plan, origin, queue};
     }
     std::size_t count = 0;
-    volume.visit_inventory([&](const Json& manifest, const std::string& unavailable) {
+    volume.journal.visit_inventory([&](const BlockManifest& manifest, const std::string& unavailable) {
         EXPECT_TRUE(unavailable.empty());
-        const auto at = manifest.at("begin_utc_us").get<std::int64_t>();
+        const auto at = manifest.recording.interval().begin().time_since_epoch().count();
         ASSERT_TRUE(expected.contains(at));
-        auto path = temp.root / "blocks" / manifest.at("block_id").get<std::string>() / "media.mp4";
+        auto path = temp.root / "blocks" / manifest.recording.block().id.to_string() / "media.mp4";
         auto decoded = one_sample("filesrc location=" + path.string() +
                                   " ! qtdemux ! h264parse ! avdec_h264 ! videoconvert ! video/x-raw,format=GRAY8 "
                                   "! appsink name=sample sync=false");

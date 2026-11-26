@@ -1,24 +1,9 @@
 #pragma once
-#include "archive/recording_policy.hpp"
-#include <map>
-#include "storage/sqlite/sqlite.hpp"
-#include <optional>
-#include <functional>
-#include <mutex>
-#include <limits>
+#include "archive/block_verification.hpp"
+#include "archive/retention.hpp"
 
 namespace bacuri::vms::archive
 {
-namespace fs = std::filesystem;
-// Counts of the journal, retention and capacity. Copy counts are included when a copy mount is configured.
-Json archive_status(const fs::path& root, const std::optional<fs::path>& replica = {});
-enum class CommitStage { media_synced, manifest_synced, directory_synced, renamed, parent_synced, journaled };
-enum class RetirementStage { authorized, renamed, removed };
-enum class CapacityState { normal, low_space, recording_stopped };
-
-// Committed blocks are verified again after this interval even when the volume stays open.
-inline constexpr std::chrono::days reverification_interval{30};
-
 using InvalidBlock = std::function<void(const std::string&)>;
 struct VolumeOptions {
     // Mount of the second archive copy. New blocks are copied there and damaged blocks are repaired from it.
@@ -26,28 +11,6 @@ struct VolumeOptions {
     // Receives each directory that fails verification while the journal is rebuilt from the directories.
     InvalidBlock invalid;
 };
-
-struct VerificationResult {
-    std::string block_id;
-    // Media and sound bytes read from the primary volume and, during repair, from the copy.
-    std::uintmax_t bytes_read{};
-    bool available{};
-};
-struct RetentionPolicy {
-    std::int64_t cutoff_us;
-    int days;
-    int reserve_percent;
-};
-
-struct Gap {
-    std::string point;
-    std::int64_t binding, begin, end;
-    std::string reason;
-};
-struct Pending {
-    std::string directory, manifest, unavailable;
-};
-
 struct RecordedSound {
     std::int64_t start_us{};
     std::string_view pcm{};
@@ -56,61 +19,9 @@ struct AudioSlice {
     std::string block, hash;
     std::size_t offset, count;
 };
-
+// Owns the archive directory lock and publishes and recovers block files.
 class Volume
 {
-  public:
-    using MediaWriter = std::function<void(const fs::path&)>;
-    using Observer = std::function<void(CommitStage)>;
-    using InvalidBlock = archive::InvalidBlock;
-    // Opening reads only metadata: it imports published directories absent from the journal,
-    // completes interrupted removals and marks journal entries without a directory as missing.
-    // Media of journaled blocks is verified by verify_next() or verify_all().
-    Volume(const fs::path& root, Owner owner, VolumeOptions options = {});
-    // Verifies the checksums of one due block and repairs it from the archive copy when possible.
-    // Returns nothing when no block is due.
-    std::optional<VerificationResult> verify_next();
-    // Verifies every block that is due, for recovery tools that must not report unverified media.
-    void verify_all();
-    CapacityState capacity() const;
-    void visit_inventory(const std::function<void(const Json&, const std::string&)>& visit);
-    bool publish(const Block&, const MediaWriter&, const Observer& observer = {},
-                 std::uintmax_t expected_bytes = 0, RecordedSound sound = {});
-    std::string read_audio(const AudioSlice& slice);
-    using RetirementObserver = std::function<void(RetirementStage)>;
-    void apply_retention(const RetentionPolicy& policy, const RetirementObserver& observer = {});
-    void update_recording_plan(const std::string& payload);
-    std::shared_ptr<const CaptureRule> recording_rule(const std::string& point);
-    std::map<std::string, std::int64_t> point_cutoffs();
-    void protect_blocks(const std::vector<std::string>& ids);
-    void remember_cutoffs(const std::map<std::string, std::int64_t>& cutoffs);
-    Json status() const
-    {
-        return archive_status(root_, replica_);
-    }
-    void reclaim_authorized();
-    bool scrub_copy();
-    std::int64_t retired_through();
-    void confirm_inventory();
-    void visit_gaps(const std::function<void(const Gap&)>& visit);
-    void report_gap(const Gap&);
-    std::optional<std::pair<std::int64_t, Gap>> pending_gap();
-    void acknowledge_gap(std::int64_t id);
-    const Owner& owner() const
-    {
-        return identity_.owner;
-    }
-    std::optional<Pending> pending();
-    std::vector<std::pair<std::int64_t, std::int64_t>>
-    pending_intervals(const std::string& point, std::int64_t begin, std::int64_t end,
-                      std::optional<std::int64_t> binding = {},
-                      std::int64_t cutoff = std::numeric_limits<std::int64_t>::min()) const;
-    [[nodiscard]] std::int64_t generation() const noexcept
-    {
-        return identity_.generation;
-    }
-    void acknowledge(const Pending&, const std::string& rejection = {});
-
   private:
     struct Lock {
         explicit Lock(const fs::path&);
@@ -119,25 +30,39 @@ class Volume
         Lock& operator=(const Lock&) = delete;
         int fd;
     };
-    void reconcile(const InvalidBlock&);
-    void recover_directory(const fs::directory_entry&, const InvalidBlock&);
-    void record(const std::string& relative, const Json& manifest);
-    bool availability(const std::string& relative, const std::string& reason);
     fs::path root_;
     std::optional<fs::path> replica_;
     Lock lock_;
-    storage::Sqlite db_;
-    Identity identity_;
-    mutable std::mutex mutex_;
-    std::mutex plan_mutex_, replica_mutex_;
-    std::string plan_payload_;
-    std::map<std::string, std::shared_ptr<const CaptureRule>> recording_rules_;
-    std::optional<std::pair<std::string, Json>> published_;
-    void reap(const RetirementObserver& observer);
-    void require_space(std::uintmax_t expected_bytes, std::uintmax_t staged_bytes);
-    std::optional<CapacityState> last_capacity_state_;
-    void report_capacity(const fs::space_info& space, std::uintmax_t blocked);
-    int reserve_percent_{20};
-    void journal_published(const Observer& observer = {});
+    std::mutex replica_mutex_;
+
+  public:
+    BlockJournal journal;
+    VolumeRetention retention;
+    BlockVerification verification;
+    using MediaWriter = std::function<void(const fs::path&)>;
+    using Observer = std::function<void(CommitStage)>;
+    // Opening reads only metadata: it imports published directories absent from the journal,
+    // completes interrupted removals and marks journal entries without a directory as missing.
+    // Media of journaled blocks is verified by verify_next() or verify_all().
+    Volume(const fs::path& root, Owner owner, VolumeOptions options = {});
+    bool publish(const Block&, const MediaWriter&, const Observer& observer = {},
+                 std::uintmax_t expected_bytes = 0, RecordedSound sound = {});
+    std::string read_audio(const AudioSlice& slice);
+    Json status() const
+    {
+        return archive_status(root_, replica_);
+    }
+    const Owner& owner() const
+    {
+        return journal.identity_.owner;
+    }
+    [[nodiscard]] std::int64_t generation() const noexcept
+    {
+        return journal.identity_.generation;
+    }
+
+  private:
+    void reconcile(const InvalidBlock&);
+    void recover_directory(const fs::directory_entry&, const InvalidBlock&);
 };
 } // namespace bacuri::vms::archive

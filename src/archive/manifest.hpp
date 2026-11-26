@@ -32,6 +32,10 @@ struct Identity {
 
 inline constexpr std::size_t manifest_limit = 65536;
 std::string uuid();
-Json make_manifest(const Identity&, const std::string& id, const Block&, const MediaDigest&);
-void validate_manifest(const Json&);
+using BlockManifest = domain::BlockManifestV1;
+BlockManifest parse_manifest(const Json&);
+Json manifest_json(const BlockManifest&);
+std::array<std::uint8_t, 32> parse_digest(const std::string& hash);
+std::string digest_hex(const std::array<std::uint8_t, 32>& digest);
+BlockManifest make_manifest(const Identity&, const std::string& id, const Block&, const MediaDigest&);
 } // namespace bacuri::vms::archive

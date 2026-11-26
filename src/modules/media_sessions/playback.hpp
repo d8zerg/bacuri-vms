@@ -1,10 +1,11 @@
-#include "modules/access/session.hpp"
 #pragma once
+#include "modules/access/session.hpp"
+#include "archive/manifest.hpp"
 #include "application/control_api/api.hpp"
 namespace bacuri::vms::control
 {
-void copy_export_block(const std::string& session, const Json& source, const std::string& browser,
-                       const std::filesystem::path& destination);
+void copy_export_block(const std::string& session, const archive::BlockManifest& source,
+                       const std::string& browser, const std::filesystem::path& destination);
 class Playback
 {
   public:

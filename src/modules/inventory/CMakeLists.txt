@@ -1,4 +1,5 @@
 add_library(bacuri-vms-onvif STATIC
+    device_configuration.cpp
     onvif/adapter.cpp
     onvif/discovery.cpp
     onvif/events.cpp
@@ -18,6 +19,9 @@ add_library(bacuri-vms-inventory STATIC
     camera_events.cpp
     configuration.cpp
     delivery.cpp
+    edge_archive.cpp
+    enrollment.cpp
+    ptz.cpp
     registry.cpp
     telemetry.cpp)
 target_link_libraries(bacuri-vms-inventory PUBLIC bacuri-vms-access bacuri-vms-inventory-operations

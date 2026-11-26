@@ -6,7 +6,7 @@
 #include "modules/inventory/operations.hpp"
 #include "application/control_api/playback_time.hpp"
 #include "archive/analysis.hpp"
-#include "archive/recording_policy.hpp"
+#include "recording/policy.hpp"
 #include <cmath>
 #include <condition_variable>
 
@@ -21,7 +21,7 @@ struct Detector {
     int threshold, minimum, cooldown;
     std::vector<MotionArea> include, exclude;
     std::vector<double> line;
-    archive::CaptureRule schedule;
+    recording::CaptureRule schedule;
 };
 Detector parse(const Json& body)
 {
@@ -59,15 +59,15 @@ Detector parse(const Json& body)
         }
         if (d.source == "onvif" && (!areas.empty() || !exclusions.empty() || !d.line.empty()))
             throw std::invalid_argument("No ONVIF motion geometry");
-        d.schedule = archive::parse_capture_rule({{"continuous", body.at("schedule").empty()},
-                                                  {"event", false},
-                                                  {"manual", false},
-                                                  {"audio", false},
-                                                  {"pre", 0},
-                                                  {"post", 1},
-                                                  {"days", nullptr},
-                                                  {"zone", body.at("zone")},
-                                                  {"schedule", body.at("schedule")}});
+        d.schedule = recording::parse_capture_rule({{"continuous", body.at("schedule").empty()},
+                                                    {"event", false},
+                                                    {"manual", false},
+                                                    {"audio", false},
+                                                    {"pre", 0},
+                                                    {"post", 1},
+                                                    {"days", nullptr},
+                                                    {"zone", body.at("zone")},
+                                                    {"schedule", body.at("schedule")}});
         return d;
     } catch (const std::exception&) {
         throw Failure{ErrorCode::invalid_request};

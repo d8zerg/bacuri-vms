@@ -6,14 +6,15 @@ namespace bacuri::vms::control
 {
 using namespace onvif;
 
-Json camera_brightness(const CameraNetworks& networks, const Json& control, const Json& credentials)
+Json camera_brightness(const CameraNetworks& networks, const CameraControl& control,
+                       const CameraCredentials& credentials)
 {
-    if (!control.contains("Imaging") || !control.value("imaging_source", false))
+    if (!control.imaging.has_value() || !control.imaging_source)
         return nullptr;
     auto client = control_client(networks, control, credentials);
-    const auto source = "<timg:VideoSourceToken>" + escape(control.at("channel").get_ref<const std::string&>()) +
-                        "</timg:VideoSourceToken>";
-    auto options = client.call(control.at("Imaging"), imaging, "GetOptions", source);
+    const auto source =
+        "<timg:VideoSourceToken>" + escape(required_setting(control.channel)) + "</timg:VideoSourceToken>";
+    auto options = client.call(required_setting(control.imaging), imaging, "GetOptions", source);
     auto* range = child(child(response(options, imaging, "GetOptionsResponse"), imaging, "ImagingOptions"), schema,
                         "Brightness");
     if (!range)
@@ -26,17 +27,18 @@ Json camera_brightness(const CameraNetworks& networks, const Json& control, cons
             throw Failure{ErrorCode::camera_protocol_error};
         return v;
     };
-    auto settings = client.call(control.at("Imaging"), imaging, "GetImagingSettings", source);
+    auto settings = client.call(required_setting(control.imaging), imaging, "GetImagingSettings", source);
     auto* values = child(response(settings, imaging, "GetImagingSettingsResponse"), imaging, "ImagingSettings");
     return {{"min", read(child(range, schema, "Min"))},
             {"max", read(child(range, schema, "Max"))},
             {"value", read(child(values, schema, "Brightness"))}};
 }
 
-double apply_camera_brightness(const CameraNetworks& networks, const Json& config, BrightnessChange change)
+double apply_camera_brightness(const CameraNetworks& networks, const CameraChannel& config,
+                               BrightnessChange change)
 {
-    const auto& control = config.at("onvif_control");
-    const auto& credentials = config.at("credentials");
+    const auto& control = config.control;
+    const auto& credentials = config.credentials;
     auto matches = [](const Json& value, double target) {
         return value.get<float>() == static_cast<float>(target);
     };
@@ -49,8 +51,8 @@ double apply_camera_brightness(const CameraNetworks& networks, const Json& confi
     if (!matches(current.at("value"), change.expected))
         throw Failure{ErrorCode::revision_conflict};
     auto client = control_client(networks, control, credentials);
-    client.call(control.at("Imaging"), imaging, "SetImagingSettings",
-                "<timg:VideoSourceToken>" + escape(control.at("channel").get_ref<const std::string&>()) +
+    client.call(required_setting(control.imaging), imaging, "SetImagingSettings",
+                "<timg:VideoSourceToken>" + escape(required_setting(control.channel)) +
                     "</timg:VideoSourceToken><timg:ImagingSettings><tt:Brightness>" +
                     Json(change.requested).dump() +
                     "</tt:Brightness></timg:ImagingSettings><timg:ForcePersistence>true</timg:ForcePersistence>");

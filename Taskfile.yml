@@ -40,12 +40,12 @@ tasks:
       sh tools/check-cpp lint build/clang-debug '^/workspace/(src|tests)/'
 
   module:check:
-    desc: Check a Core module with Clang and enforce measured module coverage
+    desc: Check a module with Clang and enforce measured module coverage
     deps: [quality:image, dev:image, stand:up, web:build]
     requires:
       vars:
         - name: MODULE
-          enum: [access, events, export, inventory, investigations, maps, media_sessions, recordings, recovery]
+          enum: [access, events, export, inventory, investigations, maps, media_sessions, recording, recordings, recovery]
     cmds:
       - >-
         {{.COMPOSE_RUN}} -T {{if .JOBS}}-e JOBS={{.JOBS | shellQuote}} -e BUILD_JOBS={{.JOBS | shellQuote}}{{end}} quality

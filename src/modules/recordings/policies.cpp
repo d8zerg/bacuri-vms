@@ -4,7 +4,7 @@
 #include "modules/events/operations.hpp"
 #include "modules/access/session.hpp"
 #include "modules/inventory/operations.hpp"
-#include "archive/recording_policy.hpp"
+#include "recording/policy.hpp"
 #include "media/lease.hpp"
 #include "control.grpc.pb.h"
 #include <grpcpp/grpcpp.h>
@@ -169,7 +169,7 @@ void policies(const Request& req, Response& res, const Sessions& sessions, const
                     body["priority"].is_number_integer() && body["priority"] >= 0 && body["priority"] <= 100 &&
                     body.contains("rule"));
             try {
-                archive::parse_capture_rule(body.at("rule"));
+                recording::parse_capture_rule(body.at("rule"));
             } catch (const std::exception&) {
                 throw Failure{ErrorCode::invalid_request};
             }

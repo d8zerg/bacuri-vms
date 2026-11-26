@@ -14,8 +14,9 @@ namespace bacuri::vms::ingest
 class Sources
 {
   public:
-    Sources(const platform::CameraNetworks& networks, archive::Volume& volume, const DetectorPoints& detectors)
-        : networks_{networks}, volume_{volume}, detectors_{detectors}
+    Sources(const platform::CameraNetworks& networks, archive::Volume& volume,
+            const recording::RecordingPlan& plan, const DetectorPoints& detectors)
+        : networks_{networks}, volume_{volume}, plan_{plan}, detectors_{detectors}
     {
     }
     Sources(const Sources&) = delete;
@@ -49,6 +50,7 @@ class Sources
 
     const platform::CameraNetworks& networks_;
     archive::Volume& volume_;
+    const recording::RecordingPlan& plan_;
     const DetectorPoints& detectors_;
     std::map<Key, Entry> streams_;
 };

@@ -128,7 +128,7 @@ v1::PointStates Sources::point_states()
         if (key.profile != Profile::main)
             continue;
         const auto stats = entry.stream->stats();
-        const auto rule = volume_.recording_rule(key.point);
+        const auto rule = plan_.rule(key.point);
         auto& point = *result.add_points();
         point.set_point_id(key.point);
         point.set_binding_revision(key.binding);
@@ -218,9 +218,9 @@ void Sources::apply(const v1::ApplyConfigurationRequest& assignment)
                 auto record = [&](const auto& begin, const auto& end, auto& previous, domain::GapReason reason) {
                     if (begin && end && *end > *begin && end != previous) {
                         try {
-                            volume_.report_gap({key.point, key.binding, begin->time_since_epoch().count(),
-                                                end->time_since_epoch().count(),
-                                                std::string{domain::name(reason)}});
+                            volume_.journal.report_gap({key.point, key.binding, begin->time_since_epoch().count(),
+                                                        end->time_since_epoch().count(),
+                                                        std::string{domain::name(reason)}});
                             previous = end;
                         } catch (const std::exception&) {
                             std::fputs("Archive gap journal unavailable\n", stderr);
@@ -255,7 +255,8 @@ void Sources::apply(const v1::ApplyConfigurationRequest& assignment)
                                        .channel = key.channel,
                                        .profile = key.main_profile,
                                        .binding = key.binding};
-                writer = std::make_unique<archive::Writer>(volume_, std::move(origin), stream->subscribe(), audio);
+                writer = std::make_unique<archive::Writer>(volume_, plan_, std::move(origin), stream->subscribe(),
+                                                           audio);
             } else {
                 std::fprintf(stderr, "archive awaiting binding for point %s\n", key.point.c_str());
             }

@@ -1,10 +1,10 @@
 #pragma once
-#include "archive/manifest.hpp"
+#include <nlohmann/json.hpp>
 #include <memory>
 #include <limits>
 #include <vector>
 #include <glib.h>
-namespace bacuri::vms::archive
+namespace bacuri::vms::recording
 {
 struct WeeklyPeriod {
     int day, start, end;
@@ -24,5 +24,5 @@ struct CaptureRule {
     std::vector<CaptureWindow> windows;
     bool selects(std::int64_t utc, std::int64_t binding) const;
 };
-CaptureRule parse_capture_rule(const Json& rule);
-} // namespace bacuri::vms::archive
+CaptureRule parse_capture_rule(const nlohmann::json& rule);
+} // namespace bacuri::vms::recording

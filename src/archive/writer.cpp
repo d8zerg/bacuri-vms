@@ -73,17 +73,17 @@ void mux(const fs::path& path, const Frames& frames, const std::vector<SampleTim
     if (!file)
         throw std::runtime_error("Cannot write archive media");
 }
-bool buffers_events(const CaptureRule& rule)
+bool buffers_events(const recording::CaptureRule& rule)
 {
     return !rule.continuous && (rule.manual || rule.event);
 }
-std::chrono::seconds event_buffer(const CaptureRule& rule)
+std::chrono::seconds event_buffer(const recording::CaptureRule& rule)
 {
     return std::chrono::seconds{rule.event ? rule.pre : 0} + event_buffer_margin;
 }
 } // namespace
 
-std::chrono::microseconds publication_lag(const CaptureRule* rule)
+std::chrono::microseconds publication_lag(const recording::CaptureRule* rule)
 {
     std::chrono::microseconds lag = max_block_duration;
     if (rule && buffers_events(*rule))
@@ -201,9 +201,9 @@ ReplayResult recover_gap(Volume& volume, const ReplayRequest& job, const std::fu
     return result;
 }
 
-Writer::Writer(Volume& volume, Origin origin, std::shared_ptr<ingest::FrameQueue> queue,
-               std::shared_ptr<ingest::CameraAudio> audio)
-    : volume_{volume}, origin_{std::move(origin)}, queue_{std::move(queue)}, audio_{std::move(audio)},
+Writer::Writer(Volume& volume, const recording::RecordingPlan& plan, Origin origin,
+               std::shared_ptr<ingest::FrameQueue> queue, std::shared_ptr<ingest::CameraAudio> audio)
+    : volume_{volume}, plan_{plan}, origin_{std::move(origin)}, queue_{std::move(queue)}, audio_{std::move(audio)},
       worker_{[this](const std::stop_token& stop) { run(stop); }}
 {
 }
@@ -217,7 +217,7 @@ void Writer::finish()
     auto bytes = std::exchange(bytes_, 0);
     if (!rule_)
         return;
-    auto sound = audio_ && rule_->audio != RecordingAudio::disabled
+    auto sound = audio_ && rule_->audio != recording::RecordingAudio::disabled
                      ? audio_->recorded(frames.front()->time.received_at().time_since_epoch().count(),
                                         frames.back()->time.utc() - frames.front()->time.utc() +
                                             std::chrono::ceil<domain::Microseconds>(
@@ -273,7 +273,7 @@ void Writer::publish(Segment segment, std::size_t first, std::size_t last)
     const auto end_us = end.time_since_epoch().count();
     try {
         if (storage_gap_) {
-            volume_.report_gap(*storage_gap_);
+            volume_.journal.report_gap(*storage_gap_);
             storage_gap_.reset();
         }
         const auto received = batch.front()->time.received_at().time_since_epoch().count();
@@ -324,7 +324,7 @@ void Writer::publish(Segment segment, std::size_t first, std::size_t last)
                                std::string{domain::name(domain::GapReason::storage_failure)}};
         }
         try {
-            volume_.report_gap(*storage_gap_);
+            volume_.journal.report_gap(*storage_gap_);
             storage_gap_.reset();
         } catch (const std::exception&) {
             std::fputs("Archive gap journal unavailable\n", stderr);
@@ -341,11 +341,11 @@ void Writer::run(const std::stop_token& stop)
     using Clock = std::chrono::steady_clock;
     auto last = Clock::now();
     for (;;) {
-        auto current = volume_.recording_rule(origin_.point);
+        auto current = plan_.rule(origin_.point);
         if (current != rule_) {
             if (rule_ && (!current || current->id != rule_->id || current->revision != rule_->revision ||
                           current->since != rule_->since)) {
-                auto previous = std::make_shared<CaptureRule>(*rule_);
+                auto previous = std::make_shared<recording::CaptureRule>(*rule_);
                 previous->until = current && current->since > rule_->since
                                       ? current->since
                                       : std::chrono::duration_cast<domain::Microseconds>(
@@ -360,7 +360,7 @@ void Writer::run(const std::stop_token& stop)
             }
             rule_ = std::move(current);
             if (audio_)
-                audio_->policy_record(rule_ && rule_->audio == RecordingAudio::enabled);
+                audio_->policy_record(rule_ && rule_->audio == recording::RecordingAudio::enabled);
         }
         // The wait returns as soon as a frame arrives. Its deadline bounds policy and stop checks.
         auto frame = queue_->wait_pop(Clock::now() + policy_check_interval);
@@ -418,7 +418,7 @@ void Writer::report_discarded()
     if (gap.end <= gap.begin || !rule_ || !rule_->selects(gap.begin, origin_.binding))
         return;
     try {
-        volume_.report_gap(gap);
+        volume_.journal.report_gap(gap);
     } catch (const std::exception& error) {
         std::fprintf(stderr, "archive gap journal unavailable point=%s: %s\n", origin_.point.c_str(),
                      error.what());

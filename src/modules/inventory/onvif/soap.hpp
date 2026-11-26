@@ -16,6 +16,7 @@
 #include <map>
 #include <thread>
 #include "application/control_api/playback_time.hpp"
+#include "modules/inventory/device_configuration.hpp"
 #include <set>
 #include <sstream>
 #include <utility>
@@ -101,7 +102,7 @@ inline std::string envelope(const std::string& header, const std::string& body)
            header + "</s:Header><s:Body>" + body + "</s:Body></s:Envelope>";
 }
 
-inline std::string username_token(const Json& credentials)
+inline std::string username_token(const CameraCredentials& credentials)
 {
     Chars nonce{nullptr, g_free}, hash{nullptr, g_free}, created{nullptr, g_free};
     std::array<guchar, 24> random{};
@@ -109,7 +110,7 @@ inline std::string username_token(const Json& credentials)
     nonce.reset(g_base64_encode(random.data(), random.size()));
     std::unique_ptr<GDateTime, decltype(&g_date_time_unref)> now{g_date_time_new_now_utc(), g_date_time_unref};
     created.reset(g_date_time_format(now.get(), "%Y-%m-%dT%H:%M:%SZ"));
-    const auto& password = credentials.at("password").get_ref<const std::string&>();
+    const auto& password = credentials.password;
     std::unique_ptr<GChecksum, decltype(&g_checksum_free)> checksum{g_checksum_new(G_CHECKSUM_SHA1),
                                                                     g_checksum_free};
     g_checksum_update(checksum.get(), random.data(), random.size());
@@ -121,7 +122,7 @@ inline std::string username_token(const Json& credentials)
     g_checksum_get_digest(checksum.get(), digest.data(), &size);
     hash.reset(g_base64_encode(digest.data(), size));
     return R"(<wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><wsse:UsernameToken><wsse:Username>)" +
-           escape(credentials.at("username").get_ref<const std::string&>()) +
+           escape(credentials.username) +
            R"(</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">)" +
            hash.get() +
            R"(</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">)" +
@@ -162,7 +163,7 @@ struct AddressingHeaders {
 };
 
 struct CameraClient {
-    const Json& credentials;
+    CameraCredentials credentials;
     std::string ip, host;
     Clock::time_point deadline;
     bool actuator{};
@@ -380,13 +381,21 @@ inline Json directions(const CameraClient& client, const std::string& url, const
     return {{"directions", result}, {"relative_move", relative}};
 }
 
-inline CameraClient control_client(const CameraNetworks& networks, const Json& control, const Json& credentials)
+inline const std::string& required_setting(const std::optional<std::string>& field)
 {
-    auto ip = control.at("ip").get<std::string>();
+    if (!field)
+        throw Failure{ErrorCode::camera_protocol_error};
+    return *field;
+}
+
+inline CameraClient control_client(const CameraNetworks& networks, const CameraControl& control,
+                                   const CameraCredentials& credentials)
+{
+    auto ip = required_setting(control.ip);
     Object<GInetAddress> peer{g_inet_address_new_from_string(ip.c_str()), g_object_unref};
     if (!peer || !networks.contains(peer.get()))
         throw Failure{ErrorCode::camera_transport_denied};
-    return {credentials, ip, control.at("host"), Clock::now() + 4s};
+    return {credentials, ip, required_setting(control.host), Clock::now() + 4s};
 }
 
 inline void matches(Json& found, std::set<std::string>& seen, const Doc& doc, const std::string& mid,
@@ -465,14 +474,14 @@ inline std::string parameter(const std::string& name, const std::string& text)
     return "<" + name + ">" + escape(text) + "</" + name + ">";
 }
 
-inline std::string source_parameter(const Json& control)
+inline std::string source_parameter(const CameraControl& control)
 {
-    return parameter("timg:VideoSourceToken", control.at("channel"));
+    return parameter("timg:VideoSourceToken", required_setting(control.channel));
 }
 
-inline std::string profile_parameter(const Json& control)
+inline std::string profile_parameter(const CameraControl& control)
 {
-    return parameter("tptz:ProfileToken", control.at("profile"));
+    return parameter("tptz:ProfileToken", required_setting(control.profile));
 }
 
 inline std::optional<double> range_limit(xmlNode* range, const char* tag)

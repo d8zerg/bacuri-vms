@@ -36,13 +36,12 @@ void sync(const fs::path& path, int flags)
     Handle file{path, flags};
     checked(fsync(file.fd));
 }
-void verify_file(const fs::path& path, const Json& spec)
+void verify_file(const fs::path& path, std::int64_t bytes, const std::array<std::uint8_t, 32>& hash)
 {
     Handle file{path, O_RDONLY};
     struct stat info{};
     checked(fstat(file.fd, &info));
-    if (!S_ISREG(info.st_mode) || info.st_size != spec.at("size_bytes").get<off_t>() ||
-        spec.at("sha256") != digest_media(file.fd).sha256)
+    if (!S_ISREG(info.st_mode) || info.st_size != bytes || digest_hex(hash) != digest_media(file.fd).sha256)
         throw std::runtime_error("Archive copy checksum mismatch");
 }
 } // namespace
@@ -64,7 +63,7 @@ std::optional<fs::path> replica_blocks(const std::optional<fs::path>& configured
         throw std::runtime_error("Archive volumes overlap");
     return b / ("bacuri-" + owner.site + "-" + owner.node);
 }
-bool verified_copy(const fs::path& dir, const Json& expected)
+bool verified_copy(const fs::path& dir, const BlockManifest& expected)
 {
     try {
         if (!fs::is_directory(fs::symlink_status(dir)))
@@ -73,11 +72,11 @@ bool verified_copy(const fs::path& dir, const Json& expected)
         if (!fs::is_regular_file(fs::symlink_status(path)) || fs::file_size(path) > manifest_limit)
             return false;
         std::ifstream input{path};
-        if (Json::parse(input) != expected)
+        if (Json::parse(input) != manifest_json(expected))
             return false;
-        verify_file(dir / "media.mp4", expected.at("media"));
-        if (expected.contains("audio"))
-            verify_file(dir / "audio.pcm", expected.at("audio"));
+        verify_file(dir / "media.mp4", expected.size_bytes, expected.sha256);
+        if (expected.audio)
+            verify_file(dir / "audio.pcm", expected.audio->size_bytes, expected.audio->sha256);
         return true;
     } catch (const std::exception&) {
         return false;
@@ -95,18 +94,18 @@ void remove_copy(const fs::path& dir)
     checked(unlinkat(parent.fd, dir.filename().c_str(), AT_REMOVEDIR));
     checked(fsync(parent.fd));
 }
-void restore_copy(const fs::path& from, const Json& expected, const fs::path& target)
+void restore_copy(const fs::path& from, const BlockManifest& expected, const fs::path& target)
 {
     if (!verified_copy(from, expected))
         throw std::runtime_error("No verified archive copy");
     auto parent = target.parent_path();
-    auto temp = parent / (".replicating-" + expected.at("block_id").get<std::string>());
+    auto temp = parent / (".replicating-" + expected.recording.block().id.to_string());
     remove_copy(temp);
     if (!fs::create_directory(temp))
         throw std::runtime_error("Archive copy staging unavailable");
     try {
         for (const auto name : {"media.mp4", "manifest.json", "audio.pcm"}) {
-            if (std::string_view{name} == "audio.pcm" && !expected.contains("audio"))
+            if (std::string_view{name} == "audio.pcm" && !expected.audio)
                 continue;
             fs::copy_file(from / name, temp / name);
             sync(temp / name, O_RDONLY);

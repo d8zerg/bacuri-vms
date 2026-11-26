@@ -24,7 +24,7 @@ void index_blocks(const std::stop_token& stop, Volume& volume, const std::filesy
     while (!stop.stop_requested()) {
         auto delay = 1000ms;
         try {
-            if (volume.scrub_copy())
+            if (volume.verification.scrub_copy())
                 delay = 20ms;
         } catch (const std::exception&) {
             std::fputs("Archive copy volume unavailable\n", stderr);
@@ -37,19 +37,17 @@ void index_blocks(const std::stop_token& stop, Volume& volume, const std::filesy
             ctx.set_deadline(std::chrono::system_clock::now() + 2s);
             v1::IndexJob job;
             if (catalog->NextIndex(&ctx, query, &job).ok() && !job.manifest().empty()) {
-                auto m = Json::parse(job.manifest());
-                validate_manifest(m);
-                const auto input = root / "blocks" / m.at("block_id").get<std::string>() / "media.mp4";
+                const auto m = parse_manifest(Json::parse(job.manifest()));
+                const auto input = root / "blocks" / m.recording.block().id.to_string() / "media.mp4";
                 const int fd = open(input.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK);
                 platform::ScopeExit close_input{[fd] {
                     if (fd >= 0)
                         close(fd);
                 }};
-                if (fd < 0 || m.at("media").at("sha256") != digest_media(fd).sha256)
+                if (fd < 0 || archive::digest_hex(m.sha256) != digest_media(fd).sha256)
                     throw std::runtime_error("Archive integrity failure");
                 auto index = analyze_recording(std::filesystem::path{"/proc/self/fd"} / std::to_string(fd),
-                                               m.at("end_utc_us").get<std::int64_t>() -
-                                                   m.at("begin_utc_us").get<std::int64_t>());
+                                               m.end_us() - m.begin_us());
                 v1::IndexResult data;
                 data.set_manifest(job.manifest());
                 data.set_analysis(index.dump());
@@ -78,7 +76,7 @@ void verify_blocks(const std::stop_token& stop, Volume& volume)
     while (!stop.stop_requested()) {
         auto wake = Clock::now() + idle;
         try {
-            if (const auto result = volume.verify_next()) {
+            if (const auto result = volume.verification.verify_next()) {
                 auto& metrics = observability::Registry::process();
                 metrics
                     .counter({.name = "bacuri_archive_verified_bytes_total",
@@ -102,8 +100,8 @@ void verify_blocks(const std::stop_token& stop, Volume& volume)
     }
 }
 
-void deliver_blocks(const std::stop_token& stop, Volume& volume, const std::string& socket,
-                    const DetectorUpdate& update_detectors)
+void deliver_blocks(const std::stop_token& stop, Volume& volume, recording::RecordingPlan& plan,
+                    const std::string& socket, const DetectorUpdate& update_detectors)
 {
     using namespace std::chrono_literals;
     auto catalog = v1::ArchiveCatalog::NewStub(
@@ -126,25 +124,25 @@ void deliver_blocks(const std::stop_token& stop, Volume& volume, const std::stri
                 v1::RetentionPolicy policy;
                 if (catalog->AdvanceRetention(&context, query, &policy).ok()) {
                     update_detectors({policy.detector_points().begin(), policy.detector_points().end()});
-                    volume.update_recording_plan(policy.has_recording_plan_json() ? policy.recording_plan_json()
-                                                                                  : "{}");
+                    plan.update(policy.has_recording_plan_json() ? policy.recording_plan_json() : "{}");
                     if (!policy.retirement_suspended()) {
-                        volume.protect_blocks(
+                        volume.retention.protect_blocks(
                             {policy.protected_blocks().begin(), policy.protected_blocks().end()});
-                        volume.remember_cutoffs({policy.point_cutoffs().begin(), policy.point_cutoffs().end()});
-                        volume.apply_retention({.cutoff_us = policy.cutoff_us(),
-                                                .days = policy.days(),
-                                                .reserve_percent = policy.reserve_percent()});
+                        volume.retention.remember_cutoffs(
+                            {policy.point_cutoffs().begin(), policy.point_cutoffs().end()});
+                        volume.retention.apply_retention({.cutoff_us = policy.cutoff_us(),
+                                                          .days = policy.days(),
+                                                          .reserve_percent = policy.reserve_percent()});
                     }
                 } else
-                    volume.reclaim_authorized();
+                    volume.retention.reclaim_authorized();
             } catch (const std::exception& error) {
                 std::fprintf(stderr, "archive retention pending: %s\n", error.what());
             }
             refresh = std::chrono::steady_clock::now() + 2s;
         }
         try {
-            if (auto pending = volume.pending_gap()) {
+            if (auto pending = volume.journal.pending_gap()) {
                 const auto& [id, gap] = *pending;
                 grpc::ClientContext context;
                 context.set_deadline(std::chrono::system_clock::now() + 3s);
@@ -160,13 +158,13 @@ void deliver_blocks(const std::stop_token& stop, Volume& volume, const std::stri
                 if (!catalog->RegisterGap(&context, q, &result).ok()) {
                     throw std::runtime_error("Gap catalog unavailable");
                 }
-                volume.acknowledge_gap(id);
+                volume.journal.acknowledge_gap(id);
             }
-            if (auto item = volume.pending()) {
+            if (auto item = volume.journal.pending()) {
                 grpc::ClientContext context;
                 context.set_deadline(std::chrono::system_clock::now() + 3s);
                 v1::RegisterBlockRequest request;
-                request.set_manifest_json(item->manifest);
+                request.set_manifest_json(manifest_json(item->manifest).dump());
                 request.set_verification_generation(volume.generation());
                 if (item->unavailable == "missing") {
                     request.set_availability(v1::BLOCK_AVAILABILITY_MISSING);
@@ -179,13 +177,13 @@ void deliver_blocks(const std::stop_token& stop, Volume& volume, const std::stri
                 if (status.ok() && (result.state() == v1::REGISTRATION_STATE_COMMITTED ||
                                     result.state() == v1::REGISTRATION_STATE_REPLAYED ||
                                     result.state() == v1::REGISTRATION_STATE_RETIRED)) {
-                    volume.acknowledge(*item);
+                    volume.journal.acknowledge(*item);
                     retry = 1s;
                     continue;
                 }
                 if (status.error_code() == grpc::StatusCode::ALREADY_EXISTS ||
                     status.error_code() == grpc::StatusCode::INVALID_ARGUMENT) {
-                    volume.acknowledge(*item, "catalog_rejected");
+                    volume.journal.acknowledge(*item, "catalog_rejected");
                     std::fprintf(stderr, "archive catalog_rejected %s\n", item->directory.c_str());
                     continue;
                 }

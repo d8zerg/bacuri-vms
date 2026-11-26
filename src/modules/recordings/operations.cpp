@@ -82,16 +82,20 @@ std::int64_t export_lifetime_ms(postgresql::Database& db, const std::string& sit
                      {site, point, hashes});
     return r.size() ? std::stoll(r.get(0)) : 0;
 }
-std::vector<std::string> manifests_for_export(postgresql::Database& db, const std::string& site,
-                                              const std::string& point, const std::string& begin,
-                                              const std::string& end, const std::string& revision)
+std::vector<archive::BlockManifest> manifests_for_export(postgresql::Database& db, const std::string& site,
+                                                         const std::string& point, const std::string& begin,
+                                                         const std::string& end, const std::string& revision)
 {
     auto rows = db.exec(
         "SELECT manifest FROM bacuri_archive.retained_blocks WHERE site_id=$1 AND point_id=$2 AND "
         "int8range(begin_utc_us,end_utc_us,'[)') && int8range($3,$4,'[)') AND unavailable_reason IS NULL AND "
         "($5='' OR binding_revision=nullif($5,'')::bigint) ORDER BY begin_utc_us,end_utc_us LIMIT 257",
         {site, point, begin, end, revision});
-    return rows.column();
+    std::vector<archive::BlockManifest> manifests;
+    manifests.reserve(static_cast<std::size_t>(rows.size()));
+    for (int i = 0; i < rows.size(); ++i)
+        manifests.push_back(archive::parse_manifest(Json::parse(rows.get(i))));
+    return manifests;
 }
 std::vector<CoverageInterval> coverage(postgresql::Database& db, const std::string& site, const std::string& point,
                                        const std::string& begin, const std::string& end,

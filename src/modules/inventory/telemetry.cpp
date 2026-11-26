@@ -29,11 +29,11 @@ void stop_pending_focus(postgresql::Database& db, const std::string& site, const
     )sql",
                        {site});
     if (row.size()) {
-        auto credentials =
-            Json::parse(unseal(row.get(0, 4), key, site + "/" + row.get(0, 2) + "/" + row.get(0, 3)));
+        auto credentials = camera_credentials(
+            Json::parse(unseal(row.get(0, 4), key, site + "/" + row.get(0, 2) + "/" + row.get(0, 3))));
         bool stopped = true;
         try {
-            const auto control = Json::parse(row.get(0, 5));
+            const auto control = camera_control(Json::parse(row.get(0, 5)));
             device_family(control).operate(networks, control, credentials, {.command = "focus_stop"});
         } catch (const Failure&) {
             stopped = false;
@@ -109,8 +109,9 @@ bool poll_one(postgresql::Database& db, const std::string& site, const CameraNet
     Json sample;
     bool answered = true;
     try {
-        auto credentials = Json::parse(unseal(row.get(0, 4), key, site + "/" + device + "/" + row.get(0, 3)));
-        const auto control = Json::parse(row.get(0, 2));
+        auto credentials =
+            camera_credentials(Json::parse(unseal(row.get(0, 4), key, site + "/" + device + "/" + row.get(0, 3))));
+        const auto control = camera_control(Json::parse(row.get(0, 2)));
         sample = device_family(control).read_ptz_position(networks, control, credentials);
     } catch (const Failure&) {
         answered = false;

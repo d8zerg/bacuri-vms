@@ -14,7 +14,8 @@ using namespace std::chrono_literals;
 struct CameraReader {
     std::string site, device, point;
     std::int64_t binding, revision, bound_since;
-    Json control, credentials;
+    CameraControl control;
+    CameraCredentials credentials;
 };
 void delay(const std::stop_token& stop, int ticks)
 {
@@ -106,15 +107,15 @@ void camera_events(const std::stop_token& stop, const CameraNetworks& networks, 
                 auto id = rows.get(i) + "/" + rows.get(i, 3);
                 if (readers.contains(id))
                     continue;
-                CameraReader camera{
-                    site,
-                    rows.get(i),
-                    rows.get(i, 1),
-                    std::stoll(rows.get(i, 2)),
-                    std::stoll(rows.get(i, 3)),
-                    std::stoll(rows.get(i, 7)),
-                    Json::parse(rows.get(i, 4)),
-                    Json::parse(unseal(rows.get(i, 6), key, site + "/" + rows.get(i) + "/" + rows.get(i, 5)))};
+                CameraReader camera{site,
+                                    rows.get(i),
+                                    rows.get(i, 1),
+                                    std::stoll(rows.get(i, 2)),
+                                    std::stoll(rows.get(i, 3)),
+                                    std::stoll(rows.get(i, 7)),
+                                    camera_control(Json::parse(rows.get(i, 4))),
+                                    camera_credentials(Json::parse(unseal(
+                                        rows.get(i, 6), key, site + "/" + rows.get(i) + "/" + rows.get(i, 5))))};
                 readers.try_emplace(id, [&, camera = std::move(camera)](const std::stop_token& token) {
                     listen(token, networks, key, camera);
                 });

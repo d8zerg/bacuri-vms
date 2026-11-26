@@ -1,11 +1,12 @@
-#include "archive/recording_policy.hpp"
+#include "recording/policy.hpp"
 #include <glib.h>
 #include <algorithm>
-namespace bacuri::vms::archive
+#include <chrono>
+namespace bacuri::vms::recording
 {
 namespace
 {
-int number(const Json& o, const char* field, int low, int high)
+int number(const nlohmann::json& o, const char* field, int low, int high)
 {
     const auto& n = o.at(field);
     if (!n.is_number_integer() || n < low || n > high)
@@ -13,7 +14,7 @@ int number(const Json& o, const char* field, int low, int high)
     return n.get<int>();
 }
 } // namespace
-CaptureRule parse_capture_rule(const Json& o)
+CaptureRule parse_capture_rule(const nlohmann::json& o)
 {
     CaptureRule r;
     if (!o.is_object() || o.size() != 9)
@@ -68,4 +69,4 @@ bool CaptureRule::selects(std::int64_t utc, std::int64_t binding) const
         return (p.day == weekday && minute >= p.start) || (p.day % 7 + 1 == weekday && minute < p.end);
     });
 }
-} // namespace bacuri::vms::archive
+} // namespace bacuri::vms::recording

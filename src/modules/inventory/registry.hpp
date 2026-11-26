@@ -25,6 +25,8 @@ class CameraRegistry
     void cameras(const Request& request, Response& response, const std::string& site, std::string device) const;
 
   private:
+    static Json camera(postgresql::Database&, const std::string& site, const std::string& device);
+    static std::string site_role(postgresql::Database&, const Identity&, const std::string& site);
     void dispatch_ptz(const postgresql::Rows&, const std::string& site, const std::string& point,
                       const std::string& user, const std::string& request_key, const std::string& command,
                       const std::string& target, const std::string& role) const;

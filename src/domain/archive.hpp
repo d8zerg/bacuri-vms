@@ -104,6 +104,11 @@ struct MediaTrack {
     std::int32_t time_scale;
 };
 
+struct ManifestAudio {
+    std::int64_t start_us, size_bytes;
+    std::array<std::uint8_t, 32> sha256;
+};
+
 struct BlockManifestV1 {
     static constexpr std::int32_t version = 1;
 
@@ -115,6 +120,17 @@ struct BlockManifestV1 {
     std::int64_t size_bytes;
     std::array<std::uint8_t, 32> sha256;
     std::vector<MediaTrack> tracks;
+    std::optional<ManifestAudio> audio;
+    std::optional<std::string> edge_recording;
+
+    [[nodiscard]] std::int64_t begin_us() const noexcept
+    {
+        return recording.interval().begin().time_since_epoch().count();
+    }
+    [[nodiscard]] std::int64_t end_us() const noexcept
+    {
+        return recording.interval().end().time_since_epoch().count();
+    }
 };
 
 } // namespace bacuri::vms::domain

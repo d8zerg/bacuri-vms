@@ -7,7 +7,7 @@ add_library(bacuri-vms-verify STATIC verify.cpp)
 target_link_libraries(bacuri-vms-verify PUBLIC bacuri-vms-manifest PRIVATE bacuri-vms-mp4 PkgConfig::SODIUM)
 add_library(bacuri-vms-analysis STATIC analysis.cpp)
 target_link_libraries(bacuri-vms-analysis PUBLIC bacuri-vms-manifest PRIVATE PkgConfig::GST)
-add_library(bacuri-vms-volume STATIC volume.cpp replica.cpp recording_policy.cpp)
+add_library(bacuri-vms-volume STATIC volume.cpp volume_io.cpp block_journal.cpp retention.cpp block_verification.cpp replica.cpp)
 target_include_directories(bacuri-vms-volume PRIVATE "${generated_dir}")
 target_link_libraries(bacuri-vms-volume PUBLIC bacuri-vms-manifest bacuri-vms-mp4 bacuri-vms-platform bacuri-vms-metrics bacuri-vms-sqlite PkgConfig::GIO
     PRIVATE Boost::headers)
@@ -19,7 +19,7 @@ add_library(bacuri-vms-fmp4 STATIC fmp4.cpp)
 target_include_directories(bacuri-vms-fmp4 PUBLIC "${PROJECT_SOURCE_DIR}/src")
 add_library(bacuri-vms-archive STATIC writer.cpp delivery.cpp)
 target_include_directories(bacuri-vms-archive PRIVATE "${generated_dir}")
-target_link_libraries(bacuri-vms-archive PUBLIC bacuri-vms-analysis bacuri-vms-volume bacuri-vms-ingest bacuri-vms-sqlite
+target_link_libraries(bacuri-vms-archive PUBLIC bacuri-vms-recording-plan bacuri-vms-analysis bacuri-vms-volume bacuri-vms-ingest bacuri-vms-sqlite
     PRIVATE bacuri-vms-fmp4 bacuri-vms-rpc PkgConfig::GST Boost::headers)
 
 if(BUILD_TESTING)

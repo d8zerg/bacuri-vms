@@ -7,7 +7,7 @@ add_library(bacuri-vms-events STATIC
     observations.cpp
     video_rules.cpp)
 target_link_libraries(bacuri-vms-events PUBLIC bacuri-vms-control-api bacuri-vms-event-journal bacuri-vms-rpc
-    PRIVATE bacuri-vms-access bacuri-vms-analysis bacuri-vms-inventory-operations bacuri-vms-recording-catalog bacuri-vms-volume)
+    PRIVATE bacuri-vms-recording-plan bacuri-vms-access bacuri-vms-analysis bacuri-vms-inventory-operations bacuri-vms-recording-catalog bacuri-vms-volume)
 
 add_core_module_checks(bacuri-vms-events
     TESTS alert_workflow.cpp

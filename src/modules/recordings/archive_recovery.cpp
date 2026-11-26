@@ -14,17 +14,19 @@ namespace
 {
 using archive::Json;
 
-void mark_unavailable(postgresql::Database& db, const archive::Owner& owner, const Json& m,
+void mark_unavailable(postgresql::Database& db, const archive::Owner& owner, const archive::BlockManifest& m,
                       const std::string& reason)
 {
     const auto updated = db.exec("UPDATE bacuri_archive.blocks SET unavailable_reason=$4 WHERE site_id=$1 "
                                  "AND recording_node_id=$2 AND block_id=$3 RETURNING 1",
-                                 {owner.site, owner.node, m.at("block_id"), reason});
+                                 {owner.site, owner.node, m.recording.block().id.to_string(), reason});
     if (!updated.size()) {
         // A journal entry can explain a gap but cannot prove that its video survived.
         db.exec("INSERT INTO bacuri_archive.gaps VALUES($1,$2,$3,$4,$5,'storage_failure') ON CONFLICT DO NOTHING",
-                {owner.site, m.at("point_id"), m.at("binding_revision").dump(), m.at("begin_utc_us").dump(),
-                 m.at("end_utc_us").dump()});
+                {owner.site, m.recording.binding().point.to_string(),
+                 std::to_string(m.recording.binding().revision),
+                 std::to_string(m.recording.interval().begin().time_since_epoch().count()),
+                 std::to_string(m.recording.interval().end().time_since_epoch().count())});
     }
 }
 } // namespace
@@ -76,8 +78,8 @@ void rebuild_archive(postgresql::Database& db, std::ostream& output, StorageLayo
                      {owner.site, owner.node, id});
          }}};
     // The rebuilt catalog reports blocks as available only after their media checksums match.
-    volume.verify_all();
-    const auto local_cutoff = volume.retired_through();
+    volume.verification.verify_all();
+    const auto local_cutoff = volume.retention.retired_through();
     if (local_cutoff != std::numeric_limits<std::int64_t>::min())
         db.exec("INSERT INTO bacuri_archive.retired_through VALUES($1,$2) ON CONFLICT(site_id) DO UPDATE SET "
                 "end_us=greatest(retired_through.end_us,excluded.end_us)",
@@ -93,13 +95,13 @@ void rebuild_archive(postgresql::Database& db, std::ostream& output, StorageLayo
                            {owner.site})
                        .column();
         held.insert(ids.begin(), ids.end());
-        volume.protect_blocks(ids);
+        volume.retention.protect_blocks(ids);
     }
     const std::vector<std::string> ids(held.begin(), held.end());
     const auto kept = postgresql::array_parameter(ids);
     std::map<std::string, std::int64_t> retired_points;
     if (!legacy && db.exec("SELECT to_regclass('bacuri_archive.point_retention') IS NOT NULL").get(0) == "t") {
-        for (const auto& [point, end] : volume.point_cutoffs())
+        for (const auto& [point, end] : volume.retention.point_cutoffs())
             db.exec("INSERT INTO bacuri_archive.point_retention(site_id,point_id,cutoff_us) VALUES($1,$2,$3) ON "
                     "CONFLICT(site_id,point_id) DO UPDATE SET "
                     "cutoff_us=greatest(point_retention.cutoff_us,excluded.cutoff_us)",
@@ -133,12 +135,13 @@ void rebuild_archive(postgresql::Database& db, std::ostream& output, StorageLayo
         auto p = retired_points.find(point);
         return end <= cutoff || (p != retired_points.end() && end <= p->second);
     };
-    volume.visit_inventory([&](const Json& m, const std::string& reason) {
-        archive::validate_manifest(m);
-        if (m.at("site_id") != owner.site || m.at("recording_node_id") != owner.node) {
+    volume.journal.visit_inventory([&](const archive::BlockManifest& m, const std::string& reason) {
+        if (m.recording.block().site.to_string() != owner.site || m.recording_node.to_string() != owner.node) {
             throw std::runtime_error("Foreign archive journal entry");
         }
-        if (expired(m.at("point_id"), m.at("end_utc_us")) && !held.contains(m.at("block_id").get<std::string>()))
+        if (expired(m.recording.binding().point.to_string(),
+                    m.recording.interval().end().time_since_epoch().count()) &&
+            !held.contains(m.recording.block().id.to_string()))
             return;
         if (!reason.empty()) {
             mark_unavailable(db, owner, m, reason);
@@ -153,13 +156,13 @@ void rebuild_archive(postgresql::Database& db, std::ostream& output, StorageLayo
                            "ON CONFLICT(site_id,block_id,recording_epoch_id,owner_generation) DO UPDATE SET "
                            "unavailable_reason=NULL,verification_generation=excluded.verification_generation "
                            "WHERE blocks.manifest=excluded.manifest RETURNING 1",
-                           {m.dump(), std::to_string(volume.generation())});
+                           {archive::manifest_json(m).dump(), std::to_string(volume.generation())});
         if (!row.size()) {
             throw std::runtime_error("Catalog identity has different content");
         }
         ++verified;
     });
-    volume.visit_gaps([&](const archive::Gap& gap) {
+    volume.journal.visit_gaps([&](const archive::Gap& gap) {
         if (expired(gap.point, gap.end))
             return;
         db.exec("INSERT INTO bacuri_archive.gaps VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING",
@@ -170,7 +173,7 @@ void rebuild_archive(postgresql::Database& db, std::ostream& output, StorageLayo
                           "AND unavailable_reason='missing'",
                           {owner.site, owner.node});
     // A failed PostgreSQL commit keeps the fence. Its retry scans the entire inventory again.
-    volume.confirm_inventory();
+    volume.journal.confirm_inventory();
     db.exec(legacy ? "DELETE FROM bacuri_inventory.archive_recovery WHERE site_id=$1"
                    : "DELETE FROM bacuri_archive.archive_recovery WHERE site_id=$1",
             {owner.site});

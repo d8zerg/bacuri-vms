@@ -102,18 +102,17 @@ Json verify_directory(const std::filesystem::path& dir, const Json& trusted, boo
         }
         const auto file = "clip-" + std::to_string(++clips) + ".mp4";
         require(span.at("state") == "recorded" && span.at("file") == file);
-        const auto& source = span.at("source");
-        validate_manifest(source);
-        require(source.at("point_id") == m.at("point_id") && source.at("site_id") == m.at("site_id") &&
-                source.at("begin_utc_us") <= a && b <= source.at("end_utc_us"));
+        const auto source = parse_manifest(span.at("source"));
+        require(source.recording.binding().point.to_string() == m.at("point_id").get_ref<const std::string&>() &&
+                source.recording.block().site.to_string() == m.at("site_id").get_ref<const std::string&>() &&
+                source.begin_us() <= a && b <= source.end_us());
         const auto digest = file_digest(dir / file);
         require(span.at("sha256") == digest.sha256 && digest.bytes == span.at("size_bytes"));
         if (span.at("transform") == "original") {
-            require(source.at("media").at("sha256") == digest.sha256 && source.at("begin_utc_us") == a &&
-                    source.at("end_utc_us") == b);
+            require(archive::digest_hex(source.sha256) == digest.sha256 && source.begin_us() == a &&
+                    source.end_us() == b);
         } else if (v2 && span.at("transform") == "original_with_decode_context") {
-            require(m.at("mode") == "original" &&
-                    digest.sha256 == source.at("media").at("sha256").get<std::string>());
+            require(m.at("mode") == "original" && digest.sha256 == archive::digest_hex(source.sha256));
         } else
             require((span.at("transform") == "h264_frame_selection" ||
                      (v2 && span.at("transform") == "h264_masked_selection")) &&
@@ -121,8 +120,7 @@ Json verify_directory(const std::filesystem::path& dir, const Json& trusted, boo
         if (v2) {
             const bool original =
                 span.at("transform") == "original" || span.at("transform") == "original_with_decode_context";
-            require(span.at("codec") ==
-                    (original ? source.at("media").at("tracks").at(0).at("codec") : Json("h264")));
+            require(span.at("codec") == (original ? source.tracks.front().codec : "h264"));
             require(span.at("masks").is_array() &&
                     (span.at("transform") == "h264_masked_selection") == !span.at("masks").empty());
             if (!span.at("audio").is_null()) {

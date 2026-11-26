@@ -54,14 +54,12 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
     if (archive) {
         q.set_mode(v1::AudioRequest::ARCHIVE);
         recordings::require_available(db, site);
-        auto rows = recordings::manifests_for_export(db, site, point, begin, end, "");
-        for (const auto& row : rows) {
-            auto m = Json::parse(row);
-            if (!m.contains("audio"))
+        const auto blocks = recordings::manifests_for_export(db, site, point, begin, end, "");
+        for (const auto& m : blocks) {
+            if (!m.audio)
                 continue;
-            const auto& sound = m.at("audio");
-            auto start = sound.at("start_us").get<std::int64_t>(),
-                 size = sound.at("size_bytes").get<std::int64_t>();
+            const auto& sound = *m.audio;
+            auto start = sound.start_us, size = sound.size_bytes;
             auto cursor = std::max(at, start);
             using Pcm = domain::ArchiveSound;
             auto offset =
@@ -70,8 +68,8 @@ void CameraRegistry::audio(const Request& req, Response& res, const std::string&
                                     (at + 1'000'000 - cursor) / Pcm::sample_period_us * Pcm::bytes_per_sample});
             if (length <= 0)
                 continue;
-            q.set_block_id(m.at("block_id").get<std::string>());
-            q.set_sha256(sound.at("sha256").get<std::string>());
+            q.set_block_id(m.recording.block().id.to_string());
+            q.set_sha256(archive::digest_hex(sound.sha256));
             q.set_at_us(offset);
             q.set_length(static_cast<std::uint32_t>(length));
             at = start + offset / Pcm::bytes_per_sample * Pcm::sample_period_us;

@@ -171,7 +171,7 @@ def local_header(root, file, header):
 
 def include_error(file, header):
     if header == "archive_sql.hpp":
-        return module(file) != "recordings" and file != Path("src/archive/volume.cpp")
+        return module(file) != "recordings" and file != Path("src/archive/block_journal.cpp")
     dest = local_header(ROOT, file, header)
     if dest is None:
         return False
@@ -188,7 +188,7 @@ def include_error(file, header):
         return False
     if caller.parts[:2] == ("application", "control_api"):
         return True
-    if caller.parts[0] in {"domain", "platform", "archive", "ingest", "media", "observability", "storage"}:
+    if caller.parts[0] in {"domain", "platform", "archive", "recording", "ingest", "media", "observability", "storage"}:
         return True
     if caller.parts[0] == "services" and caller.parts[1] != "control":
         return True

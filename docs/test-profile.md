@@ -9,7 +9,7 @@
 | Parameter | Profile of the first run |
 | --- | --- |
 | Node | One Linux x86-64, Intel Core i7-13700H, 20 logical CPUs, 15 GiB of RAM available to the system. The distribution in the containers is Debian Trixie |
-| Storage | ext4 on NVMe on the reference node. The persistent PostgreSQL and archive volumes are separate. A separate 64 MiB tmpfs is allocated for a reproducible fill check |
+| Storage | ext4 on NVMe on the reference node. The persistent PostgreSQL and archive volumes are separate. Archive tests use a private 2 GiB tmpfs for temporary files so the host disk usage does not determine the recorder’s free-space reserve. A separate 64 MiB tmpfs is allocated for a reproducible fill check |
 | Network | The isolated network of the Docker Compose project. On the host the test camera is reachable through loopback. For a run with a physical camera, the network segment, RTT and throughput are recorded |
 | Browsers | Google Chrome and Firefox on Linux. The exact versions and H.264 compatibility are recorded in the browser check protocol |
 | Synthetic camera | RTSP/TCP, H.264, main profile 1280×720, 25 fps, target bitrate 2 Mbit/s. Secondary 640×360, 15 fps, target bitrate 0.5 Mbit/s. A keyframe is requested at least once per second, and the pipeline timestamp is visible in the frame |

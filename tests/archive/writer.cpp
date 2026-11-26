@@ -76,10 +76,11 @@ TEST(ArchiveWriter, FramesDiscardedAfterTheBlockLimitAreJournaledAsKeyframeGap)
     } temp;
     Volume volume{temp.root, {uuid(), uuid()}};
     const Origin origin{uuid(), uuid(), uuid(), uuid(), 1};
-    volume.update_recording_plan(Json{
+    recording::RecordingPlan plan{temp.root};
+    plan.update(Json{
         {origin.point,
          {{"id", uuid()}, {"revision", 1}, {"since", 0}, {"rule", continuous_rule()}, {"windows", Json::array()}}}}
-                                     .dump());
+                    .dump());
     // One frame per second: the block reaches its duration limit at the 17th frame.
     const auto long_group = encoded_frames(20);
     const auto next_group = encoded_frames(1);
@@ -100,11 +101,11 @@ TEST(ArchiveWriter, FramesDiscardedAfterTheBlockLimitAreJournaledAsKeyframeGap)
         push(long_group[i], std::chrono::seconds{static_cast<std::int64_t>(i)});
     push(next_group.front(), 20s);
     {
-        Writer writer{volume, origin, queue};
+        Writer writer{volume, plan, origin, queue};
     }
 
     std::vector<Gap> gaps;
-    volume.visit_gaps([&](const Gap& gap) { gaps.push_back(gap); });
+    volume.journal.visit_gaps([&](const Gap& gap) { gaps.push_back(gap); });
     ASSERT_EQ(gaps.size(), 1u);
     EXPECT_EQ(gaps.front().reason, "keyframe_interval");
     EXPECT_EQ(gaps.front().point, origin.point);
@@ -112,9 +113,9 @@ TEST(ArchiveWriter, FramesDiscardedAfterTheBlockLimitAreJournaledAsKeyframeGap)
     EXPECT_EQ(gaps.front().end, (start + 20s).time_since_epoch().count());
 
     std::vector<std::int64_t> blocks;
-    volume.visit_inventory([&](const Json& manifest, const std::string& unavailable) {
+    volume.journal.visit_inventory([&](const BlockManifest& manifest, const std::string& unavailable) {
         EXPECT_TRUE(unavailable.empty());
-        blocks.push_back(manifest.at("begin_utc_us"));
+        blocks.push_back(manifest.recording.interval().begin().time_since_epoch().count());
     });
     std::ranges::sort(blocks);
     ASSERT_EQ(blocks.size(), 2u);

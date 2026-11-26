@@ -6,12 +6,13 @@ namespace bacuri::vms::control
 {
 using namespace onvif;
 
-Json read_ptz_position(const CameraNetworks& networks, const Json& control, const Json& credentials)
+Json read_ptz_position(const CameraNetworks& networks, const CameraControl& control,
+                       const CameraCredentials& credentials)
 {
     auto client = control_client(networks, control, credentials);
-    auto doc = client.call(control.at("PTZ"), ptz, "GetStatus",
-                           "<tptz:ProfileToken>" + escape(control.at("profile").get_ref<const std::string&>()) +
-                               "</tptz:ProfileToken>");
+    auto doc =
+        client.call(required_setting(control.ptz), ptz, "GetStatus",
+                    "<tptz:ProfileToken>" + escape(required_setting(control.profile)) + "</tptz:ProfileToken>");
     auto* status = child(response(doc, ptz, "GetStatusResponse"), ptz, "PTZStatus");
     if (!status || (child(status, schema, "Error") && child(status, schema, "Error")->children))
         throw Failure{ErrorCode::camera_protocol_error};
@@ -29,7 +30,7 @@ Json read_ptz_position(const CameraNetworks& networks, const Json& control, cons
     };
     auto space = attribute(pan, "space");
     if (space.empty())
-        space = control.value("pan_space", std::string{});
+        space = control.pan_space;
     auto x = number(pan, "x");
     if (x && std::abs(*x) > 1e9)
         throw Failure{ErrorCode::camera_protocol_error};
@@ -55,7 +56,7 @@ Json read_ptz_position(const CameraNetworks& networks, const Json& control, cons
     auto* zoom = child(position, schema, "Zoom");
     auto zspace = attribute(zoom, "space");
     if (zspace.empty())
-        zspace = control.value("zoom_space", std::string{});
+        zspace = control.zoom_space;
     if (auto z = number(zoom, "x");
         z && *z >= 0 && *z <= 1 && zspace == "http://www.onvif.org/ver10/tptz/ZoomSpaces/PositionGenericSpace")
         sample["zoom"] = *z;
@@ -67,7 +68,8 @@ Json read_ptz_position(const CameraNetworks& networks, const Json& control, cons
     return sample;
 }
 
-Json read_camera_controls(const CameraNetworks& networks, const Json& control, const Json& credentials)
+Json read_camera_controls(const CameraNetworks& networks, const CameraControl& control,
+                          const CameraCredentials& credentials)
 {
     auto client = control_client(networks, control, credentials);
     client.deadline = Clock::now() + 12s;
@@ -77,12 +79,12 @@ Json read_camera_controls(const CameraNetworks& networks, const Json& control, c
         return actions.emplace_back(
             Json{{"command", command}, {"target", target}, {"label", title.empty() ? target : title}});
     };
-    auto optional = [&](const char* service, std::string_view ns, const char* op, const std::string& params,
-                        const auto& consume, const AddressingHeaders& headers = {}) {
-        if (!control.contains(service))
+    auto optional = [&](const std::optional<std::string>& service, std::string_view ns, const char* op,
+                        const std::string& params, const auto& consume, const AddressingHeaders& headers = {}) {
+        if (!service)
             return;
         try {
-            auto doc = client.call(control.at(service), ns, op, params, headers);
+            auto doc = client.call(*service, ns, op, params, headers);
             consume(response(doc, ns, (std::string(op) + "Response").c_str()));
         } catch (const Failure& error) {
             // An optional service may not implement an operation. Transport and trust failures are actionable.
@@ -90,8 +92,8 @@ Json read_camera_controls(const CameraNetworks& networks, const Json& control, c
                 throw;
         }
     };
-    if (control.value("imaging_source", false)) {
-        optional("Imaging", imaging, "GetMoveOptions", source_parameter(control), [&](xmlNode* root) {
+    if (control.imaging_source) {
+        optional(control.imaging, imaging, "GetMoveOptions", source_parameter(control), [&](xmlNode* root) {
             auto* options = child(root, imaging, "MoveOptions");
             for (const auto* mode : {"Relative", "Continuous"}) {
                 const bool relative = std::string_view(mode) == "Relative";
@@ -112,16 +114,16 @@ Json read_camera_controls(const CameraNetworks& networks, const Json& control, c
             }
         });
     }
-    if (control.value("ptz_profile", false)) {
+    if (control.ptz_profile) {
         const auto profile = profile_parameter(control);
-        optional("PTZ", ptz, "GetPresets", profile, [&](xmlNode* root) {
+        optional(control.ptz, ptz, "GetPresets", profile, [&](xmlNode* root) {
             for (auto* n = root->children; n; n = n->next) {
                 const auto token = attribute(n, "token");
                 if (named(n, ptz, "Preset") && !token.empty())
                     add("preset_goto", token, child(n, schema, "Name") ? value(child(n, schema, "Name")) : token);
             }
         });
-        optional("PTZ", ptz, "GetPresetTours", profile, [&](xmlNode* root) {
+        optional(control.ptz, ptz, "GetPresetTours", profile, [&](xmlNode* root) {
             for (auto* n = root->children; n; n = n->next) {
                 const auto token = attribute(n, "token");
                 if (!named(n, ptz, "PresetTour") || token.empty())
@@ -138,27 +140,28 @@ Json read_camera_controls(const CameraNetworks& networks, const Json& control, c
                     add("tour_stop", token, title);
             }
         });
-        if (control.contains("node"))
-            optional("PTZ", ptz, "GetNode", parameter("tptz:NodeToken", control.at("node")), [&](xmlNode* root) {
-                auto* node = child(root, ptz, "PTZNode");
-                if (attribute(node, "token") != control.at("node").get_ref<const std::string&>())
-                    return;
-                for (auto* n = node->children; n; n = n->next) {
-                    if (!named(n, schema, "AuxiliaryCommands"))
-                        continue;
-                    const auto token = value(n);
-                    for (const auto& [name, command] : {std::pair{"tt:Wiper|On", "wiper_on"},
-                                                        {"tt:Wiper|Off", "wiper_off"},
-                                                        {"tt:IRLamp|On", "light_on"},
-                                                        {"tt:IRLamp|Off", "light_off"},
-                                                        {"LightOn", "light_on"},
-                                                        {"LightOff", "light_off"}})
-                        if (token == name)
-                            add(command, token);
-                }
-            });
+        if (control.node.has_value())
+            optional(control.ptz, ptz, "GetNode", parameter("tptz:NodeToken", required_setting(control.node)),
+                     [&](xmlNode* root) {
+                         auto* node = child(root, ptz, "PTZNode");
+                         if (attribute(node, "token") != required_setting(control.node))
+                             return;
+                         for (auto* n = node->children; n; n = n->next) {
+                             if (!named(n, schema, "AuxiliaryCommands"))
+                                 continue;
+                             const auto token = value(n);
+                             for (const auto& [name, command] : {std::pair{"tt:Wiper|On", "wiper_on"},
+                                                                 {"tt:Wiper|Off", "wiper_off"},
+                                                                 {"tt:IRLamp|On", "light_on"},
+                                                                 {"tt:IRLamp|Off", "light_off"},
+                                                                 {"LightOn", "light_on"},
+                                                                 {"LightOff", "light_off"}})
+                                 if (token == name)
+                                     add(command, token);
+                         }
+                     });
     }
-    optional("DeviceIO", device, "GetRelayOutputs", {},
+    optional(control.device_io, device, "GetRelayOutputs", {},
              [&](xmlNode* root) {
                  for (auto* n = root->children; n; n = n->next) {
                      const auto token = attribute(n, "token");
@@ -169,7 +172,7 @@ Json read_camera_controls(const CameraNetworks& networks, const Json& control, c
                  }
              },
              {"http://www.onvif.org/ver10/deviceio/wsdl/GetRelayOutputs", {}});
-    optional("DeviceIO", device_io, "GetDigitalInputs", {},
+    optional(control.device_io, device_io, "GetDigitalInputs", {},
              [&](xmlNode* root) {
                  for (auto* n = root->children; n && inputs.size() < 64; n = n->next)
                      if (const auto token = attribute(n, "token");
@@ -180,8 +183,8 @@ Json read_camera_controls(const CameraNetworks& networks, const Json& control, c
     return {{"actions", actions}, {"inputs", inputs}};
 }
 
-void operate_camera(const CameraNetworks& networks, const Json& control, const Json& credentials,
-                    const CameraAction& action)
+void operate_camera(const CameraNetworks& networks, const CameraControl& control,
+                    const CameraCredentials& credentials, const CameraAction& action)
 {
     auto client = control_client(networks, control, credentials);
     client.actuator = true;
@@ -191,7 +194,7 @@ void operate_camera(const CameraNetworks& networks, const Json& control, const J
         const auto source = source_parameter(control);
         auto stop = [&] {
             client.deadline = Clock::now() + 3s;
-            client.call(control.at("Imaging"), imaging, "Stop", source);
+            client.call(required_setting(control.imaging), imaging, "Stop", source);
         };
         if (cmd == "focus_stop") {
             stop();
@@ -203,7 +206,7 @@ void operate_camera(const CameraNetworks& networks, const Json& control, const J
                               parameter(pulse ? "tt:Speed" : "tt:Distance", Json(action.amount).dump()) +
                               "</tt:" + mode + "></timg:Focus>";
         try {
-            client.call(control.at("Imaging"), imaging, "Move", source + movement);
+            client.call(required_setting(control.imaging), imaging, "Move", source + movement);
         } catch (const Failure&) {
             if (pulse) {
                 try {
@@ -225,7 +228,7 @@ void operate_camera(const CameraNetworks& networks, const Json& control, const J
         return;
     }
     if (cmd.starts_with("relay_")) {
-        client.call(control.at("DeviceIO"), device, "SetRelayOutputState",
+        client.call(required_setting(control.device_io), device, "SetRelayOutputState",
                     parameter("tds:RelayOutputToken", target) +
                         parameter("tds:LogicalState", cmd == "relay_on" ? "active" : "inactive"),
                     {"http://www.onvif.org/ver10/deviceio/wsdl/SetRelayOutputState", {}});
@@ -233,28 +236,28 @@ void operate_camera(const CameraNetworks& networks, const Json& control, const J
     }
     auto profile = profile_parameter(control);
     if (cmd == "preset_goto")
-        client.call(control.at("PTZ"), ptz, "GotoPreset", profile + parameter("tptz:PresetToken", target));
+        client.call(required_setting(control.ptz), ptz, "GotoPreset",
+                    profile + parameter("tptz:PresetToken", target));
     else if (cmd == "tour_start" || cmd == "tour_stop")
-        client.call(control.at("PTZ"), ptz, "OperatePresetTour",
+        client.call(required_setting(control.ptz), ptz, "OperatePresetTour",
                     profile + parameter("tptz:PresetTourToken", target) +
                         parameter("tptz:Operation", cmd == "tour_start" ? "Start" : "Stop"));
     else
-        client.call(control.at("PTZ"), ptz, "SendAuxiliaryCommand",
+        client.call(required_setting(control.ptz), ptz, "SendAuxiliaryCommand",
                     profile + parameter("tptz:AuxiliaryData", target));
 }
 
-void move_onvif(const CameraNetworks& networks, const Json& control, const Json& credentials,
+void move_onvif(const CameraNetworks& networks, const CameraControl& control, const CameraCredentials& credentials,
                 const std::string& command)
 {
     auto client = control_client(networks, control, credentials);
     client.actuator = true;
-    auto profile = "<tptz:ProfileToken>" + escape(control.at("profile").get_ref<const std::string&>()) +
-                   "</tptz:ProfileToken>";
-    auto url = control.at("PTZ").get<std::string>();
+    auto profile = "<tptz:ProfileToken>" + escape(required_setting(control.profile)) + "</tptz:ProfileToken>";
+    auto url = required_setting(control.ptz);
     if (command == "stop") {
-        const auto& commands = control.at("directions");
+        const auto& commands = control.directions;
         const auto supports = [&](const char* name) {
-            return std::ranges::find(commands, Json(name)) != commands.end();
+            return std::ranges::find(commands, name) != commands.end();
         };
         const bool pan = supports("left") || supports("right") || supports("up") || supports("down");
         const bool zoom = supports("zoom_in") || supports("zoom_out");
@@ -263,7 +266,7 @@ void move_onvif(const CameraNetworks& networks, const Json& control, const Json&
                         (zoom ? "true" : "false") + "</tptz:Zoom>");
         return;
     }
-    const bool relative = control.value("relative_move", false);
+    const bool relative = control.relative_move;
     const std::string amount = relative ? "0.03" : "0.5";
     std::string axes;
     if (command == "zoom_in" || command == "zoom_out") {

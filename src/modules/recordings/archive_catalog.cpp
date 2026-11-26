@@ -77,13 +77,11 @@ grpc::Status ArchiveCatalog::NextIndex(grpc::ServerContext*, const v1::Retention
 grpc::Status ArchiveCatalog::CommitIndex(grpc::ServerContext*, const v1::IndexResult* q, google::protobuf::Empty*)
 {
     try {
-        auto m = archive::Json::parse(q->manifest());
-        archive::validate_manifest(m);
-        if (m.at("site_id") != owner_.site || m.at("recording_node_id") != owner_.node)
+        const auto m = archive::parse_manifest(archive::Json::parse(q->manifest()));
+        if (m.recording.block().site.to_string() != owner_.site || m.recording_node.to_string() != owner_.node)
             return platform::rpc_status(ErrorCode::assignment_mismatch);
         auto index = archive::Json::parse(q->analysis());
-        archive::validate_analysis(index, m.at("end_utc_us").get<std::int64_t>() -
-                                              m.at("begin_utc_us").get<std::int64_t>());
+        archive::validate_analysis(index, m.end_us() - m.begin_us());
         postgresql::Database db;
         db.exec(
             "UPDATE bacuri_archive.motion_indexes i SET samples=$6 FROM bacuri_archive.retained_blocks b WHERE "
@@ -91,8 +89,8 @@ grpc::Status ArchiveCatalog::CommitIndex(grpc::ServerContext*, const v1::IndexRe
             "epoch_id,b.owner_generation) "
             "AND b.site_id=$1 AND b.block_id=$2 AND b.recording_epoch_id=$3 AND b.owner_generation=$4 AND "
             "b.manifest=$5::jsonb AND b.unavailable_reason IS NULL AND i.samples IS NULL",
-            {owner_.site, m.at("block_id"), m.at("recording_epoch_id"), m.at("owner_generation").dump(),
-             q->manifest(), q->analysis()});
+            {owner_.site, m.recording.block().id.to_string(), m.recording.block().recording_epoch.to_string(),
+             std::to_string(m.recording.block().owner_generation), q->manifest(), q->analysis()});
         return grpc::Status::OK;
     } catch (const std::exception&) {
         return platform::rpc_status(ErrorCode::invalid_request);
@@ -159,37 +157,40 @@ grpc::Status ArchiveCatalog::AdvanceRetention(grpc::ServerContext*, const v1::Re
 grpc::Status ArchiveCatalog::RegisterBlock(grpc::ServerContext*, const v1::RegisterBlockRequest* request,
                                            v1::RegistrationResult* result)
 {
-    archive::Json m;
+    archive::Json wire;
+    std::optional<archive::BlockManifest> manifest;
     try {
         if (request->verification_generation() < 0 || request->manifest_json().size() > archive::manifest_limit ||
             !v1::BlockAvailability_IsValid(request->availability())) {
             throw std::invalid_argument("Invalid archive request");
         }
-        m = archive::Json::parse(request->manifest_json());
-        archive::validate_manifest(m);
+        wire = archive::Json::parse(request->manifest_json());
+        manifest = archive::parse_manifest(wire);
     } catch (const std::exception&) {
         return platform::rpc_status(ErrorCode::invalid_request);
     }
-    if (m.at("site_id") != owner_.site || m.at("recording_node_id") != owner_.node) {
+    const auto& m = *manifest;
+    if (m.recording.block().site.to_string() != owner_.site || m.recording_node.to_string() != owner_.node) {
         return platform::rpc_status(ErrorCode::assignment_mismatch);
     }
     try {
         postgresql::Database db;
         db.exec("BEGIN");
-        if (retired(db, owner_.site, m.at("point_id"), m.at("end_utc_us")) &&
+        if (retired(db, owner_.site, m.recording.binding().point.to_string(), m.end_us()) &&
             !db.exec("SELECT WHERE bacuri_archive.hold_until($1,$2)>bacuri_archive.retention_now_us()",
-                     {owner_.site, m.at("block_id")})
+                     {owner_.site, m.recording.block().id.to_string()})
                  .size()) {
             result->set_state(v1::REGISTRATION_STATE_RETIRED);
             db.exec("COMMIT");
             return grpc::Status::OK;
         }
-        const bool inserted = db.exec(archive::sql::insert_block, {m.dump()}).size() != 0;
-        const std::string id = m.at("block_id"), epoch = m.at("recording_epoch_id");
-        const auto generation = std::to_string(m.at("owner_generation").get<std::int64_t>());
+        const bool inserted = db.exec(archive::sql::insert_block, {request->manifest_json()}).size() != 0;
+        const std::string id = m.recording.block().id.to_string(),
+                          epoch = m.recording.block().recording_epoch.to_string();
+        const auto generation = std::to_string(m.recording.block().owner_generation);
         if (!inserted) {
             auto prior = db.exec(archive::sql::read_block, {owner_.site, id, epoch, generation});
-            if (archive::Json::parse(prior.get(0)) != m) {
+            if (archive::Json::parse(prior.get(0)) != wire) {
                 return platform::rpc_status(ErrorCode::idempotency_conflict);
             }
         }

@@ -1,4 +1,5 @@
 #pragma once
+#include "modules/inventory/device_configuration.hpp"
 #include "application/control_api/api.hpp"
 
 #include <functional>
@@ -46,26 +47,32 @@ class DeviceFamily
     // Devices of the family reachable on the camera networks, each with a selection ticket.
     virtual Json discover(const CameraNetworks&, const Key&, const std::string& site) const = 0;
     // Profiles and services of a selected device, read with the given credentials.
-    virtual Json inspect(const CameraNetworks&, const Key&, const std::string& site, const Json& body) const = 0;
+    virtual Json inspect(const CameraNetworks&, const Key&, const std::string& site,
+                         const std::string& selection_ticket, const CameraCredentials& credentials) const = 0;
     virtual Json read_selection(const Key&, const std::string& site, const std::string& ticket) const = 0;
-    virtual void verify_channel(const CameraNetworks&, const Json& config) const = 0;
-    virtual void read_motion(const std::stop_token&, const CameraNetworks&, const Json& control,
-                             const Json& credentials,
+    virtual void verify_channel(const CameraNetworks&, const CameraChannel& config) const = 0;
+    virtual void read_motion(const std::stop_token&, const CameraNetworks&, const CameraControl& control,
+                             const CameraCredentials& credentials,
                              const std::function<void(const MotionNotice&)>& accept) const = 0;
-    virtual Json read_edge_archive(const CameraNetworks&, const Json& control, const Json& credentials,
-                                   const Key& key, EdgeSelection* selected) const = 0;
-    virtual Json brightness(const CameraNetworks&, const Json& control, const Json& credentials) const = 0;
-    virtual double apply_brightness(const CameraNetworks&, const Json& config, BrightnessChange change) const = 0;
-    virtual Json read_ptz_position(const CameraNetworks&, const Json& control, const Json& credentials) const = 0;
-    virtual Json read_controls(const CameraNetworks&, const Json& control, const Json& credentials) const = 0;
-    virtual void operate(const CameraNetworks&, const Json& control, const Json& credentials,
+    virtual Json read_edge_archive(const CameraNetworks&, const CameraControl& control,
+                                   const CameraCredentials& credentials, const Key& key,
+                                   EdgeSelection* selected) const = 0;
+    virtual Json brightness(const CameraNetworks&, const CameraControl& control,
+                            const CameraCredentials& credentials) const = 0;
+    virtual double apply_brightness(const CameraNetworks&, const CameraChannel& config,
+                                    BrightnessChange change) const = 0;
+    virtual Json read_ptz_position(const CameraNetworks&, const CameraControl& control,
+                                   const CameraCredentials& credentials) const = 0;
+    virtual Json read_controls(const CameraNetworks&, const CameraControl& control,
+                               const CameraCredentials& credentials) const = 0;
+    virtual void operate(const CameraNetworks&, const CameraControl& control, const CameraCredentials& credentials,
                          const CameraAction& action) const = 0;
-    virtual void move(const CameraNetworks&, const Json& control, const Json& credentials,
+    virtual void move(const CameraNetworks&, const CameraControl& control, const CameraCredentials& credentials,
                       const std::string& command) const = 0;
 };
 
 // The adapter of the family named in the control settings of a camera. Settings without a family belong to ONVIF.
-const DeviceFamily& device_family(const Json& control);
+const DeviceFamily& device_family(const CameraControl& control);
 // The adapter of a family by its name, such as "onvif" for discovery.
 const DeviceFamily& device_family_named(std::string_view name);
 } // namespace bacuri::vms::control

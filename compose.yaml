@@ -58,8 +58,10 @@ services:
       - .:/workspace
       - archive-data:/var/lib/bacuri-vms/archive
     tmpfs:
+      - /tmp/bacuri-tests:size=2g,mode=1777
       - /var/lib/bacuri-vms/fault-test:size=64m,mode=1777
     environment:
+      TMPDIR: /tmp/bacuri-tests
       PGHOST: postgres
       CONAN_HOME: /tmp/conan-cache
       PGDATABASE: bacuri_vms
@@ -88,7 +90,10 @@ services:
     pull_policy: never
     network_mode: none
     environment:
+      TMPDIR: /tmp/bacuri-tests
       CONAN_HOME: /tmp/conan-cache
+    tmpfs:
+      - /tmp/bacuri-tests:size=2g,mode=1777
     volumes:
       - .:/workspace
 
@@ -98,6 +103,10 @@ services:
       context: .
       target: quality
     network_mode: none
+    environment:
+      TMPDIR: /tmp/bacuri-tests
+    tmpfs:
+      - /tmp/bacuri-tests:size=2g,mode=1777
     volumes:
       - .:/workspace
 
@@ -160,6 +169,10 @@ services:
     security_opt:
       - no-new-privileges:true
       - seccomp=tests/seccomp/tsan.json
+    environment:
+      TMPDIR: /tmp/bacuri-tests
+    tmpfs:
+      - /tmp/bacuri-tests:size=2g,mode=1777
     volumes:
       - ./build/clang-tsan:/workspace/build/clang-tsan
       - ./CMakePresets.json:/workspace/CMakePresets.json:ro

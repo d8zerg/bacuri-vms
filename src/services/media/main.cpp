@@ -75,18 +75,18 @@ class Delivery final : public v1::ArchiveDelivery::Service
                 if (pread(manifest.fd, json.data(), json.size(), 0) != metadata.st_size) {
                     throw std::runtime_error("Unreadable block manifest");
                 }
-                const auto block = archive::Json::parse(json);
-                archive::validate_manifest(block);
+                const auto wire = archive::Json::parse(json);
+                const auto block = archive::parse_manifest(wire);
                 using Time = google::protobuf::util::TimeUtil;
                 const auto& scope = request->scope();
                 const bool complete = !request->complete_block_manifest().empty();
-                if ((complete && block.dump() != request->complete_block_manifest()) ||
-                    block.at("site_id") != scope.point().site_id() ||
-                    block.at("point_id") != scope.point().point_id() ||
-                    block.at("block_id") != request->block_id() ||
-                    block.at("media").at("sha256") != request->sha256() ||
-                    block.at("begin_utc_us") != Time::TimestampToMicroseconds(scope.archive().start()) ||
-                    block.at("end_utc_us") != Time::TimestampToMicroseconds(scope.archive().end())) {
+                if ((complete && wire.dump() != request->complete_block_manifest()) ||
+                    block.recording.block().site.to_string() != scope.point().site_id() ||
+                    block.recording.binding().point.to_string() != scope.point().point_id() ||
+                    block.recording.block().id.to_string() != request->block_id() ||
+                    archive::digest_hex(block.sha256) != request->sha256() ||
+                    block.begin_us() != Time::TimestampToMicroseconds(scope.archive().start()) ||
+                    block.end_us() != Time::TimestampToMicroseconds(scope.archive().end())) {
                     return platform::rpc_status(ErrorCode::media_scope_denied);
                 }
                 Descriptor media{
@@ -103,8 +103,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
                 const bool masked = !scope.privacy_regions().empty();
                 if (masked && !scope.archive_h264())
                     return platform::rpc_status(ErrorCode::representation_unavailable);
-                const bool converted =
-                    scope.archive_h264() && (masked || block.at("media").at("tracks").at(0).at("codec") == "h265");
+                const bool converted = scope.archive_h264() && (masked || block.tracks.front().codec == "h265");
                 if (complete && (masked || scope.archive_h264()))
                     return platform::rpc_status(ErrorCode::representation_unavailable);
                 if (converted) {

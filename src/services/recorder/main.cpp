@@ -217,7 +217,7 @@ class Recorder final : public v1::RecorderControl::Service
                 std::scoped_lock lock{mutex_};
                 *out = sources_.point_states();
             }
-            switch (volume_.capacity()) {
+            switch (volume_.retention.capacity()) {
             case archive::CapacityState::normal:
                 out->set_capacity(v1::STORAGE_CAPACITY_NORMAL);
                 break;
@@ -243,7 +243,7 @@ class Recorder final : public v1::RecorderControl::Service
             return platform::rpc_status(ErrorCode::invalid_request);
         }
         try {
-            for (const auto& [begin, end] : volume_.pending_intervals(
+            for (const auto& [begin, end] : volume_.journal.pending_intervals(
                      q->point().point_id(), q->begin_us(), q->end_us(),
                      q->has_binding_revision() ? std::optional{q->binding_revision()} : std::nullopt,
                      q->has_retention_cutoff_us() ? q->retention_cutoff_us()
@@ -385,15 +385,16 @@ class Recorder final : public v1::RecorderControl::Service
     archive::Volume volume_{setting("BACURI_ARCHIVE_DIR"),
                             {site_, node_},
                             {.replica = optional_setting("BACURI_ARCHIVE_REPLICA_DIR"), .invalid = {}}};
+    recording::RecordingPlan recording_plan_{setting("BACURI_ARCHIVE_DIR")};
     std::jthread registration_{[this, socket = setting("BACURI_CATALOG_SOCKET")](const std::stop_token& stop) {
-        archive::deliver_blocks(stop, volume_, socket,
+        archive::deliver_blocks(stop, volume_, recording_plan_, socket,
                                 [this](auto points) { detector_points_.replace(std::move(points)); });
     }};
     std::jthread indexer_{[this, socket = setting("BACURI_CATALOG_SOCKET")](const std::stop_token& stop) {
         archive::index_blocks(stop, volume_, setting("BACURI_ARCHIVE_DIR"), socket);
     }};
     std::jthread verifier_{[this](const std::stop_token& stop) { archive::verify_blocks(stop, volume_); }};
-    ingest::Sources sources_{networks_, volume_, detector_points_};
+    ingest::Sources sources_{networks_, volume_, recording_plan_, detector_points_};
 };
 
 class PreviewSource final : public v1::PreviewSource::Service

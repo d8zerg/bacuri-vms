@@ -1,6 +1,4 @@
-#include "modules/investigations/cases.hpp"
-#include "modules/recordings/policies.hpp"
-#include "application/export/export.hpp"
+#include "application/export/package.hpp"
 #include "application/export/periods.hpp"
 #include "modules/media_sessions/operations.hpp"
 #include "modules/events/operations.hpp"
@@ -10,176 +8,12 @@
 #include "application/control_api/playback_time.hpp"
 #include "archive/evidence.hpp"
 #include "media/clip.hpp"
-#include "media/lease.hpp"
 #include "platform/scope_exit.hpp"
-#include <limits>
-#include <fstream>
-#include <semaphore>
 
 namespace bacuri::vms::control
 {
 namespace
 {
-namespace fs = std::filesystem;
-using namespace std::chrono_literals;
-std::counting_semaphore<2> export_slots{2};
-struct Slot {
-    Slot()
-    {
-        if (!export_slots.try_acquire())
-            throw Failure{ErrorCode::rate_limited};
-    }
-    Slot(const Slot&) = delete;
-    Slot& operator=(const Slot&) = delete;
-    ~Slot()
-    {
-        export_slots.release();
-    }
-};
-void write_text(const fs::path& path, const std::string& value)
-{
-    std::ofstream out(path, std::ios::binary);
-    out.exceptions(std::ios::failbit | std::ios::badbit);
-    out << value;
-    out.close();
-}
-class ExportBody final : public MediaBody
-{
-  public:
-    explicit ExportBody(std::shared_ptr<Slot> capacity) : slot{std::move(capacity)}
-    {
-        std::unique_ptr<char, decltype(&g_free)> temp{g_dir_make_tmp("bacuri-export-XXXXXX", nullptr), g_free};
-        if (!temp)
-            throw std::runtime_error("Cannot create temporary export directory");
-        root = temp.get();
-    }
-    ExportBody(const ExportBody&) = delete;
-    ExportBody& operator=(const ExportBody&) = delete;
-    ~ExportBody() override
-    {
-        std::error_code error;
-        fs::remove_all(root, error);
-    }
-    std::chrono::steady_clock::time_point authorize()
-    {
-        if (group_lease)
-            return group_lease();
-        const auto now = std::chrono::steady_clock::now();
-        db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-        const auto lease = access::export_lease(db, browser, grant, point, begin, end, derivative, regions, sound);
-        const auto ms = lease ? std::min(lease->milliseconds,
-                                         recordings::export_lifetime_ms(db, lease->site, lease->point, hashes))
-                              : 0;
-        db.exec("COMMIT");
-        if (ms <= 0)
-            throw Failure{ErrorCode::forbidden};
-        return now + std::chrono::milliseconds{ms};
-    }
-    MediaChunk next() override
-    {
-        if (std::chrono::steady_clock::now() + 100ms >= deadline)
-            deadline = authorize();
-        constexpr std::streamsize chunk_size = 65536;
-        std::string bytes(static_cast<std::size_t>(chunk_size), '\0');
-        input.read(bytes.data(), chunk_size);
-        bytes.resize(static_cast<std::size_t>(input.gcount()));
-        return {std::move(bytes), deadline};
-    }
-    std::shared_ptr<Slot> slot;
-    std::function<std::chrono::steady_clock::time_point()> group_lease;
-    postgresql::Database db;
-    fs::path root;
-    std::string browser, grant, hashes, point, begin, end;
-    bool derivative{}, sound{};
-    std::string regions;
-    std::ifstream input;
-    std::chrono::steady_clock::time_point deadline{};
-};
-void pack(const fs::path& root, const std::vector<std::string>& clips)
-{
-    std::vector<std::string> args{"/usr/bin/tar", "--format=ustar", "-cf",         "../export.tar",
-                                  "--",           "manifest.json",  "manifest.sig"};
-    args.insert(args.end(), clips.begin(), clips.end());
-    std::vector<char*> argv;
-    argv.reserve(args.size());
-    for (auto& arg : args)
-        argv.push_back(arg.data());
-    argv.push_back(nullptr);
-    int status{};
-    if (!g_spawn_sync((root / "data").c_str(), argv.data(), nullptr, G_SPAWN_DEFAULT, nullptr, nullptr, nullptr,
-                      nullptr, &status, nullptr) ||
-        !g_spawn_check_wait_status(status, nullptr))
-        throw std::runtime_error("Cannot package export files");
-}
-Json export_audio(const Json& source, std::int64_t begin, std::int64_t end, const fs::path& dir,
-                  const std::string& file)
-{
-    if (!source.contains("audio"))
-        return nullptr;
-    const auto& a = source.at("audio");
-    const auto start = a.at("start_us").get<std::int64_t>(), size = a.at("size_bytes").get<std::int64_t>();
-    using Pcm = domain::ArchiveSound;
-    const auto samples = size / Pcm::bytes_per_sample;
-    const auto first =
-        std::clamp<std::int64_t>((begin - start + Pcm::sample_period_us - 1) / Pcm::sample_period_us, 0, samples);
-    const auto last = std::clamp<std::int64_t>((end - start) / Pcm::sample_period_us, 0, samples);
-    if (last <= first)
-        return nullptr;
-    std::string pcm;
-    auto stub = v1::RecorderControl::NewStub(media::local_channel("BACURI_SOCKET"));
-    for (auto offset = first * Pcm::bytes_per_sample; offset < last * Pcm::bytes_per_sample;) {
-        const auto length = std::min(Pcm::max_chunk_bytes, last * Pcm::bytes_per_sample - offset);
-        v1::AudioRequest q;
-        q.set_mode(v1::AudioRequest::ARCHIVE);
-        q.set_site_id(source.at("site_id").get<std::string>());
-        q.set_point_id(source.at("point_id").get<std::string>());
-        q.set_block_id(source.at("block_id").get<std::string>());
-        q.set_sha256(a.at("sha256").get<std::string>());
-        q.set_at_us(offset);
-        q.set_length(static_cast<std::uint32_t>(length));
-        grpc::ClientContext ctx;
-        ctx.set_deadline(std::chrono::system_clock::now() + 2s);
-        v1::AudioChunk chunk;
-        if (!stub->ExchangeAudio(&ctx, q, &chunk).ok() || chunk.pcm().size() != static_cast<std::size_t>(length))
-            throw Failure{ErrorCode::media_service_unavailable};
-        pcm += chunk.pcm();
-        offset += length;
-    }
-    std::string wav = "RIFF";
-    // A WAV file stores the sizes in 32 bits.
-    if (pcm.size() > std::numeric_limits<std::uint32_t>::max() - 36)
-        throw Failure{ErrorCode::export_too_large};
-    const auto data_size = static_cast<std::uint32_t>(pcm.size());
-    auto le = [&](std::uint32_t value, int count) {
-        while (count--) {
-            wav.push_back(static_cast<char>(value & 255));
-            value >>= 8;
-        }
-    };
-    le(36 + data_size, 4);
-    wav += "WAVEfmt ";
-    le(16, 4);
-    le(1, 2);
-    le(1, 2);
-    le(Pcm::sample_rate, 4);
-    le(Pcm::sample_rate * Pcm::bytes_per_sample, 4);
-    le(Pcm::bytes_per_sample, 2);
-    le(16, 2);
-    wav += "data";
-    le(data_size, 4);
-    wav += pcm;
-    write_text(dir / file, wav);
-    const auto digest = archive::file_digest(dir / file);
-    return {{"file", file},
-            {"codec", "pcm_s16le"},
-            {"sample_rate", Pcm::sample_rate},
-            {"channels", 1},
-            {"sha256", digest.sha256},
-            {"size_bytes", digest.bytes},
-            {"begin_utc_us", start + first * Pcm::sample_period_us},
-            {"end_utc_us", start + last * Pcm::sample_period_us}};
-}
-
 void catalog_gaps(postgresql::Database& db, Json& periods, const std::string& site, const std::string& point,
                   const std::string& revision, std::int64_t a, std::int64_t b)
 {
@@ -197,11 +31,9 @@ void catalog_gaps(postgresql::Database& db, Json& periods, const std::string& si
         throw Failure{ErrorCode::media_unavailable};
 }
 } // namespace
-static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response& res, const Sessions& sessions,
-                                                    const Key& key, const std::string& site,
-                                                    const std::string& point,
-                                                    const std::shared_ptr<Slot>& capacity,
-                                                    const fs::path& material = {})
+std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response& res, const Sessions& sessions,
+                                             const Key& key, const std::string& site, const std::string& point,
+                                             const std::shared_ptr<ExportSlot>& capacity, const fs::path& material)
 {
     allow(req, res, {http::verb::post});
     postgresql::Database auth;
@@ -256,30 +88,27 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
             revision = anchor->revision;
         }
         recordings::require_available(db, site);
-        auto blocks = recordings::manifests_for_export(db, site, point, start, end, revision);
-        if (blocks.empty())
+        const auto sources = recordings::manifests_for_export(db, site, point, start, end, revision);
+        if (sources.empty())
             throw Failure{ErrorCode::media_unavailable};
-        if (blocks.size() > 256)
+        if (sources.size() > 256)
             throw Failure{ErrorCode::export_too_large};
-        std::vector<Json> sources;
         auto hashes = Json::object();
         std::int64_t available = archive::evidence_limit;
-        for (const auto& block : blocks) {
-            auto m = Json::parse(block);
-            archive::validate_manifest(m);
-            auto size = m.at("media").at("size_bytes").get<std::int64_t>();
-            if (size > available)
+        std::optional<std::int64_t> previous_end;
+        for (const auto& source : sources) {
+            if (source.size_bytes > available)
                 throw Failure{ErrorCode::export_too_large};
-            available -= size;
-            if (!sources.empty() && sources.back().at("end_utc_us") > m.at("begin_utc_us"))
+            available -= source.size_bytes;
+            if (previous_end && *previous_end > source.begin_us())
                 throw Failure{ErrorCode::media_unavailable};
-            hashes[m.at("block_id").get<std::string>()] = m.at("media").at("sha256");
-            sources.push_back(std::move(m));
+            previous_end = source.end_us();
+            hashes[source.recording.block().id.to_string()] = archive::digest_hex(source.sha256);
         }
         stream->hashes = hashes.dump();
         if (mode == "original") {
-            const auto first = std::min(bounds.start, sources.front().at("begin_utc_us").get<std::int64_t>());
-            const auto last = std::max(bounds.end, sources.back().at("end_utc_us").get<std::int64_t>());
+            const auto first = std::min(bounds.start, sources.front().begin_us());
+            const auto last = std::max(bounds.end, sources.back().end_us());
             if (!alert.empty()) {
                 auto anchor = events::archive_anchor(db, site, alert);
                 if (!anchor || first < alert_window(anchor->time).start || last > alert_window(anchor->time).end)
@@ -292,8 +121,8 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
         Json private_scope{{"export_grant", stream->grant}, {"begin", stream->begin},   {"end", stream->end},
                            {"regions", stream->regions},    {"derivative", derivative}, {"sound", sound}};
         const auto session =
-            media_sessions::open_export(db, browser, site, point, sources.front().at("begin_utc_us").dump(),
-                                        sources.back().at("end_utc_us").dump(), private_scope.dump());
+            media_sessions::open_export(db, browser, site, point, std::to_string(sources.front().begin_us()),
+                                        std::to_string(sources.back().end_us()), private_scope.dump());
         platform::ScopeExit close_session{[&db, &session] {
             // The session also expires if the database goes offline during preparation.
             try {
@@ -311,16 +140,19 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
         available = archive::evidence_limit;
         for (const auto& m : sources) {
             stream->authorize();
-            auto a = m.at("begin_utc_us").get<std::int64_t>(), b = m.at("end_utc_us").get<std::int64_t>();
+            auto a = m.begin_us(), b = m.end_us();
             auto from = std::max(a, bounds.start), until = std::min(b, bounds.end);
             catalog_gaps(db, periods, site, point, revision, cursor, from);
             cursor = until;
             const auto file = "clip-" + std::to_string(ordinal + 1) + ".mp4";
             const auto input = stream->root / "source.mp4";
             copy_export_block(session, m, browser, input);
-            if (m.at("media").at("sha256") != archive::file_digest(input).sha256)
+            if (archive::digest_hex(m.sha256) != archive::file_digest(input).sha256)
                 throw Failure{ErrorCode::media_service_unavailable};
-            Json clip{{"source", m}, {"state", "recorded"}, {"file", file}, {"transform", "original"}};
+            Json clip{{"source", archive::manifest_json(m)},
+                      {"state", "recorded"},
+                      {"file", file},
+                      {"transform", "original"}};
             if (mode == "original" || (!derivative && a == from && b == until)) {
                 fs::rename(input, dir / file);
                 if (mode == "original" && (from != a || until != b))
@@ -351,8 +183,8 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
             if (mode != "selection" || sound) {
                 clip["codec"] =
                     (clip.at("transform") == "original" || clip.at("transform") == "original_with_decode_context")
-                        ? m.at("media").at("tracks").at(0).at("codec")
-                        : Json("h264");
+                        ? m.tracks.front().codec
+                        : "h264";
                 clip["masks"] = stream->regions.empty() ? Json::array() : Json::parse(stream->regions);
                 clip["audio"] =
                     sound ? export_audio(m, from, until, dir, "audio-" + std::to_string(ordinal) + ".wav")
@@ -424,88 +256,6 @@ static std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response
 void export_fragment(const Request& req, Response& res, const Sessions& sessions, const Key& key,
                      const std::string& site, const std::string& point)
 {
-    prepare_fragment(req, res, sessions, key, site, point, std::make_shared<Slot>());
-}
-void export_case(const Request& req, Response& res, const Sessions& sessions, const Key& key,
-                 const std::string& site, const std::string& id)
-{
-    allow(req, res, {http::verb::post});
-    postgresql::Database auth;
-    auto who = sessions.authenticate(auth, req, true);
-    auto options = object_body(req, {"mode", "reason", "audio", "revision"});
-    const auto reason = string_field(options, "reason", 512), mode = string_field(options, "mode", 16),
-               revision = string_field(options, "revision", 19);
-    if (mode != "original" && mode != "derivative")
-        throw Failure{ErrorCode::invalid_request};
-    auto file = investigations::case_for_export(auth, site, id, who.user);
-    if (file.at("revision") != revision)
-        throw Failure{ErrorCode::revision_conflict};
-    auto capacity = std::make_shared<Slot>();
-    auto stream = std::make_shared<ExportBody>(capacity);
-    auto dir = stream->root / "data";
-    fs::create_directory(dir);
-    options.erase("revision");
-    std::vector<std::shared_ptr<ExportBody>> grants;
-    std::vector<std::string> paths;
-    std::uintmax_t bytes = 0;
-    auto manifest = Json{{"format", "bacuri.vms.case.v1"},
-                         {"case", file},
-                         {"export_id", archive::uuid()},
-                         {"site_id", site},
-                         {"reason", reason},
-                         {"mode", mode},
-                         {"parts", Json::array()}};
-    for (const auto& item : file.at("materials")) {
-        auto name = "material-" + std::to_string(paths.size() + 1);
-        Request inner = req;
-        options["interval"] = item.at("interval");
-        inner.body() = options.dump();
-        inner.prepare_payload();
-        Response part;
-        grants.push_back(
-            prepare_fragment(inner, part, sessions, key, site, item.at("point_id"), capacity, dir / name));
-        for (const auto& entry : fs::directory_iterator(dir / name)) {
-            bytes += entry.file_size();
-            if (bytes > archive::evidence_limit)
-                throw Failure{ErrorCode::export_too_large};
-        }
-        auto bounds = window(item.at("interval"));
-        manifest["parts"].push_back(
-            {{"directory", name},
-             {"manifest_sha256", archive::file_digest(dir / name / "manifest.json").sha256},
-             {"point_id", item.at("point_id")},
-             {"begin_utc_us", bounds.start},
-             {"end_utc_us", bounds.end}});
-        paths.push_back(std::move(name));
-    }
-    const auto description = manifest.dump(2);
-    write_text(dir / "manifest.json", description);
-    write_text(dir / "manifest.sig",
-               archive::sign_description(load_key(setting("BACURI_EXPORT_KEY_FILE")), description));
-    pack(stream->root, paths);
-    stream->group_lease = [grants = std::move(grants), site, id, user = who.user, revision] {
-        postgresql::Database db;
-        if (investigations::case_for_export(db, site, id, user).at("revision") != revision)
-            throw Failure{ErrorCode::forbidden};
-        auto deadline = std::chrono::steady_clock::time_point::max();
-        for (const auto& grant : grants)
-            deadline = std::min(deadline, grant->authorize());
-        return deadline;
-    };
-    stream->deadline = stream->authorize();
-    const auto tar = stream->root / "export.tar";
-    stream->input.open(tar, std::ios::binary);
-    if (!stream->input)
-        throw Failure{ErrorCode::media_service_unavailable};
-    for (const auto& item : file.at("materials"))
-        events::record_export(
-            auth, site, item.at("point_id"), who.user, "", "applied", reason,
-            Json{{"case", id}, {"revision", revision}, {"mode", mode}, {"interval", item.at("interval")}}.dump());
-    res.result(http::status::ok);
-    res.set(http::field::content_type, "application/x-tar");
-    res.set(http::field::content_disposition, "attachment; filename=\"bacuri-case-" + id + ".tar\"");
-    res.media_size = fs::file_size(tar);
-    fs::remove_all(stream->root);
-    res.media = std::move(stream);
+    prepare_fragment(req, res, sessions, key, site, point, std::make_shared<ExportSlot>());
 }
 } // namespace bacuri::vms::control

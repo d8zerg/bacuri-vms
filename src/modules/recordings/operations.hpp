@@ -1,5 +1,6 @@
 #pragma once
 
+#include "archive/manifest.hpp"
 #include "modules/recordings/status.hpp"
 
 #include <nlohmann/json_fwd.hpp>
@@ -48,9 +49,9 @@ std::vector<CoverageInterval> edge_gaps(postgresql::Database&, const std::string
 void require_available(postgresql::Database&, const std::string& site);
 std::int64_t export_lifetime_ms(postgresql::Database&, const std::string& site, const std::string& point,
                                 const std::string& block_hashes);
-std::vector<std::string> manifests_for_export(postgresql::Database&, const std::string& site,
-                                              const std::string& point, const std::string& begin,
-                                              const std::string& end, const std::string& revision);
+std::vector<archive::BlockManifest> manifests_for_export(postgresql::Database&, const std::string& site,
+                                                         const std::string& point, const std::string& begin,
+                                                         const std::string& end, const std::string& revision);
 std::vector<CoverageInterval> coverage(postgresql::Database&, const std::string& site, const std::string& point,
                                        const std::string& begin, const std::string& end,
                                        const std::string& pending, const std::string& revision);

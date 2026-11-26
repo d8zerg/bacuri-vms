@@ -111,8 +111,8 @@ Preview preview(postgresql::Database& db, const Key& key, const CameraNetworks& 
     const auto settings = template_settings(db, site, body);
     auto config = resolve_profiles(key, site, body, settings.value("record_quality", std::string{}));
     const auto& meta = config.at("onvif");
-    const auto& control = config.at("onvif_control");
-    if (!control.contains("device_service"))
+    const auto control = camera_control(config.at("onvif_control"));
+    if (!control.device_service)
         throw Failure{ErrorCode::camera_selection_expired};
     const auto username = string_field(body, "username", 128);
     const auto password = string_field(body, "password", 1024, true);
@@ -147,7 +147,8 @@ Preview preview(postgresql::Database& db, const Key& key, const CameraNetworks& 
             throw Failure{ErrorCode::camera_binding_conflict};
         config["point_id"] = point;
     }
-    auto image = device_family(control).brightness(networks, control, config.at("credentials"));
+    auto image =
+        device_family(control).brightness(networks, control, camera_credentials(config.at("credentials")));
     Json brightness = nullptr;
     if (settings.contains("brightness")) {
         brightness = settings.at("brightness");
@@ -201,14 +202,14 @@ void change_channel(postgresql::Database& db, const Key& key, const CameraNetwor
                current.at("id") != (committed ? receipt.at("device_id") : plan.at("device")))
         throw Failure{ErrorCode::revision_conflict};
 
-    const auto next_control = next.value("control", Json::object());
-    const auto& family = device_family(next_control);
-    family.verify_channel(networks, next);
+    const auto channel = camera_channel(next);
+    const auto& family = device_family(channel.control);
+    family.verify_channel(networks, channel);
     if (!receipt.at("brightness").is_null()) {
         const auto before = receipt.at("image").at("value").get<double>();
         const auto after = receipt.at("brightness").get<double>();
         receipt["observed_brightness"] = family.apply_brightness(
-            networks, next, {.expected = rollback ? after : before, .requested = rollback ? before : after});
+            networks, channel, {.expected = rollback ? after : before, .requested = rollback ? before : after});
     }
     if (rollback && !committed)
         return;

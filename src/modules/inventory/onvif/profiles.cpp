@@ -6,17 +6,16 @@ namespace bacuri::vms::control
 {
 using namespace onvif;
 
-Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::string& site, const Json& body)
+Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::string& site,
+                   const std::string& selection_ticket, const CameraCredentials& credentials)
 {
-    auto selection = read_ticket(key, "probe/" + site, string_field(body, "selection", 16384));
-    string_field(body, "username", 128);
-    string_field(body, "password", 1024, true);
+    auto selection = read_ticket(key, "probe/" + site, selection_ticket);
     const std::string url = selection.at("url"), ip = selection.at("ip");
     auto uri = https_uri(url);
     Object<GInetAddress> peer{g_inet_address_new_from_string(ip.c_str()), g_object_unref};
     if (!peer || !networks.contains(peer.get()))
         throw Failure{ErrorCode::camera_transport_denied};
-    CameraClient client{body, ip, g_uri_get_host(uri.get()), Clock::now() + 15s};
+    CameraClient client{credentials, ip, g_uri_get_host(uri.get()), Clock::now() + 15s};
     auto info = client.call(url, device, "GetDeviceInformation");
     auto* identity = response(info, device, "GetDeviceInformationResponse");
     Json result{{"endpoint_id", selection.at("id")},
@@ -197,18 +196,17 @@ Json inspect_onvif(const CameraNetworks& networks, const Key& key, const std::st
     return result;
 }
 
-void verify_camera_channel(const CameraNetworks& networks, const Json& config)
+void verify_camera_channel(const CameraNetworks& networks, const CameraChannel& config)
 {
-    const auto& control = config.at("onvif_control");
-    auto client = control_client(networks, control, config.at("credentials"));
-    auto info = client.call(control.at("device_service"), device, "GetDeviceInformation");
+    const auto& control = config.control;
+    auto client = control_client(networks, control, config.credentials);
+    auto info = client.call(required_setting(control.device_service), device, "GetDeviceInformation");
     auto* identity = response(info, device, "GetDeviceInformationResponse");
-    const auto& expected = config.at("onvif");
-    if (value(child(identity, device, "SerialNumber")) != expected.at("serial").get_ref<const std::string&>() ||
-        value(child(identity, device, "Model")) != expected.at("model").get_ref<const std::string&>() ||
-        value(child(identity, device, "FirmwareVersion")) != expected.at("firmware").get_ref<const std::string&>())
+    if (value(child(identity, device, "SerialNumber")) != config.serial ||
+        value(child(identity, device, "Model")) != config.model ||
+        value(child(identity, device, "FirmwareVersion")) != config.firmware)
         throw Failure{ErrorCode::camera_binding_conflict};
-    MediaService service{control.at("media_service"), control.value("media2", false) ? media2 : media};
+    MediaService service{required_setting(control.media_service), control.media2 ? media2 : media};
     auto profiles = service.profiles(client);
     std::set<std::string> compatible;
     for (auto* p = response(profiles, service.ns, "GetProfilesResponse")->children; p; p = p->next) {
@@ -220,18 +218,18 @@ void verify_camera_channel(const CameraNetworks& networks, const Json& config)
             continue;
         auto* source = service.configuration(p, "VideoSourceConfiguration", "VideoSource");
         auto* token = child(source, schema, "SourceToken");
-        if ((token ? value(token) : attribute(source, "token")) ==
-            control.at("channel").get_ref<const std::string&>())
+        if ((token ? value(token) : attribute(source, "token")) == required_setting(control.channel))
             compatible.insert(attribute(p, "token"));
     }
-    for (auto [profile, url] :
-         {std::pair{"profile", "main_url"}, std::pair{"secondary_profile", "secondary_url"}}) {
-        if (!compatible.contains(control.at(profile).get_ref<const std::string&>()))
+    const auto verify_stream = [&](const std::string& profile, const std::string& url) {
+        if (!compatible.contains(profile))
             throw Failure{ErrorCode::camera_binding_conflict};
-        auto uri = service.stream(client, control.at(profile));
-        if (uri != config.at(url).get_ref<const std::string&>() || !networks.permits(uri))
+        const auto uri = service.stream(client, profile);
+        if (uri != url || !networks.permits(uri))
             throw Failure{ErrorCode::camera_binding_conflict};
-    }
+    };
+    verify_stream(required_setting(control.profile), config.main_url);
+    verify_stream(required_setting(control.secondary_profile), config.secondary_url);
 }
 
 Json read_camera_ticket(const Key& key, const std::string& site, const std::string& token)

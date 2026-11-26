@@ -8,8 +8,8 @@ add_library(bacuri-vms-recording-catalog STATIC
     recorder.cpp
     status.cpp)
 target_include_directories(bacuri-vms-recording-catalog PRIVATE "${generated_dir}")
-target_link_libraries(bacuri-vms-recording-catalog PUBLIC bacuri-vms-control-api
-    PRIVATE bacuri-vms-access bacuri-vms-event-journal bacuri-vms-inventory-operations bacuri-vms-media-auth bacuri-vms-volume)
+target_link_libraries(bacuri-vms-recording-catalog PUBLIC bacuri-vms-manifest bacuri-vms-control-api
+    PRIVATE bacuri-vms-recording-plan bacuri-vms-access bacuri-vms-event-journal bacuri-vms-inventory-operations bacuri-vms-media-auth bacuri-vms-volume)
 
 add_library(bacuri-vms-recordings STATIC
     archive_catalog.cpp

@@ -54,7 +54,7 @@ CameraTime camera_time(const std::string& stamp)
     return {ProtoTime::TimestampToMicroseconds(timestamp), precision};
 }
 
-std::optional<MotionNotice> motion_notice(xmlNode* notification, const Json& control)
+std::optional<MotionNotice> motion_notice(xmlNode* notification, const CameraControl& control)
 {
     auto* topic = child(notification, wsn, "Topic");
     if (!topic)
@@ -96,7 +96,7 @@ std::optional<MotionNotice> motion_notice(xmlNode* notification, const Json& con
         return {};
     }
     if (!source.contains("VideoSourceConfigurationToken") ||
-        source.at("VideoSourceConfigurationToken") != control.at("source"))
+        source.at("VideoSourceConfigurationToken") != required_setting(control.source))
         return {};
     auto* data = child(message, schema, "Data");
     Json fields = Json::object();
@@ -119,11 +119,11 @@ std::optional<MotionNotice> motion_notice(xmlNode* notification, const Json& con
 }
 } // namespace
 
-void read_motion(const std::stop_token& stop, const CameraNetworks& networks, const Json& control,
-                 const Json& credentials, const std::function<void(const MotionNotice&)>& accept)
+void read_motion(const std::stop_token& stop, const CameraNetworks& networks, const CameraControl& control,
+                 const CameraCredentials& credentials, const std::function<void(const MotionNotice&)>& accept)
 {
     auto client = control_client(networks, control, credentials);
-    auto subscribed = client.call(control.at("Events"), events, "CreatePullPointSubscription",
+    auto subscribed = client.call(required_setting(control.events), events, "CreatePullPointSubscription",
                                   "<tev:InitialTerminationTime>PT60S</tev:InitialTerminationTime>",
                                   {std::string{events} + "/EventPortType/CreatePullPointSubscriptionRequest", {}});
     auto* reference = child(response(subscribed, events, "CreatePullPointSubscriptionResponse"), events,
@@ -141,7 +141,7 @@ void read_motion(const std::stop_token& stop, const CameraNetworks& networks, co
         }
     };
     try {
-        if (control.contains("DeviceIO")) {
+        if (control.device_io.has_value()) {
             try {
                 client.call(
                     url, events, "SetSynchronizationPoint", {},

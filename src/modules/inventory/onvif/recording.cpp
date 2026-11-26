@@ -6,12 +6,12 @@ namespace bacuri::vms::control
 {
 using namespace onvif;
 
-Json read_edge_archive(const CameraNetworks& networks, const Json& control, const Json& credentials,
-                       const Key& key, EdgeSelection* selected)
+Json read_edge_archive(const CameraNetworks& networks, const CameraControl& control,
+                       const CameraCredentials& credentials, const Key& key, EdgeSelection* selected)
 {
     auto client = control_client(networks, control, credentials);
     Json result{{"supported", false}, {"recordings", Json::array()}};
-    auto services = client.call(control.at("device_service"), device, "GetServices",
+    auto services = client.call(required_setting(control.device_service), device, "GetServices",
                                 "<tds:IncludeCapability>false</tds:IncludeCapability>");
     std::map<std::string_view, std::string> endpoints;
     auto* root = response(services, device, "GetServicesResponse");
@@ -74,8 +74,8 @@ Json read_edge_archive(const CameraNetworks& networks, const Json& control, cons
                 throw Failure{ErrorCode::camera_protocol_error};
             tracks.push_back({{"kind", kind}, {"bounds", bounds}});
         }
-        const auto id =
-            fingerprint(key, "edge-recording", Json::array({client.host, control.at("source"), token}).dump());
+        const auto id = fingerprint(key, "edge-recording",
+                                    Json::array({client.host, required_setting(control.source), token}).dump());
         auto* origin = child(record, schema, "Source");
         auto* name = child(origin, schema, "Name");
         const auto label = name ? value(name).substr(0, 256) : std::string{};
@@ -96,7 +96,8 @@ Json read_edge_archive(const CameraNetworks& networks, const Json& control, cons
                 throw Failure{ErrorCode::camera_transport_denied};
             selected->uri = uri;
             const auto before = g_get_real_time();
-            const auto clock = client.call(control.at("device_service"), device, "GetSystemDateAndTime");
+            const auto clock =
+                client.call(required_setting(control.device_service), device, "GetSystemDateAndTime");
             const auto after = g_get_real_time();
             auto* utc =
                 child(child(response(clock, device, "GetSystemDateAndTimeResponse"), device, "SystemDateAndTime"),

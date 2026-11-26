@@ -54,9 +54,12 @@ On a single node the core combines control, rules, alarms and the search API. Re
 | `src/services/` | Executable entry points and wiring for control, recorder, media delivery and the observation source. The control service owns the HTTPS listener and routing. |
 | `src/admin/` | Site setup, installation, diagnostics, backup and maintenance commands. |
 | `src/storage/` | PostgreSQL sessions, migration runner and snapshot I/O, plus the SQLite adapter. The versioned SQL files are in the repository’s top-level `storage/`. |
+| `src/recording/` | Frame selection rules and the recorder’s recording plan. The plan loads its last saved state from SQLite at startup. |
 | `src/domain/`, `src/platform/`, `src/observability/`, `src/ingest/`, `src/archive/`, `src/media/` | Libraries shared by the services, including stream ingestion, archive formats, media leases and frame transformations. |
 
 The root build connects the production targets. Each domain module, export and configuration recovery declare their libraries and GoogleTest sources locally. Unit test directories under `tests/` mirror the source directories. Service headers are private to their service. Shared libraries can be linked by several services. Integration tests are grouped by scenario. [Build entry point](../CMakeLists.txt) · [Boundary verification](adr/018-core-module-boundary.md#boundary-verification)
+
+The archive volume publishes and recovers block directories. The journal records published blocks and gaps, retention enforces expiry and free-space reserves, and verification checks content and repairs copies. The catalog, export and media delivery exchange a `BlockManifest`. Camera adapters receive typed control settings, channel settings and credentials. Disk and wire formats continue to use JSON. Run `task module:check MODULE=recording` for the recording plan library.
 
 ### Site scenario contracts
 
