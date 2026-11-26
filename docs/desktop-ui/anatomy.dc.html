@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Анатомия ячейки и состояния</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#b4a989}a:hover{color:#d8cfb0}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; padding: 40px 48px; display: grid; grid-template-columns: 1.15fr 1fr; grid-template-rows: auto 1fr; gap: 28px 40px; background: #161513; color: #e8e3d9; font-family: Inter, system-ui, sans-serif; font-size: 13px">
+
+  <section style="display: flex; flex-direction: column; gap: 14px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Ячейка камеры</h2>
+    <div style="display: flex; gap: 20px; align-items: flex-start">
+      <div style="position: relative; width: 460px; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; background: radial-gradient(120% 90% at 50% 15%, #55534c 0%, #34332f 55%, #1f1e1c 100%); box-shadow: 0 0 0 2px #bbb08e">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%"><path d="M0 74 L30 58 L70 58 L100 74 M30 58 L30 0 M70 58 L70 0" fill="none" stroke="rgba(255,249,236,.13)" stroke-width=".6" vector-effect="non-scaling-stroke"></path></svg>
+        <div style="position: absolute; left: 60%; top: 36%; width: 22%; height: 30%; background: repeating-linear-gradient(135deg, #26211d 0 5px, #39322b 5px 10px); display: grid; place-items: center"><span style="font-size: 10px; color: #fff9ec; background: #26211d; padding: 1px 5px; border-radius: 3px">Маска</span></div>
+        <span style="position: absolute; left: 8px; top: 8px; padding: 2px 6px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 11.5px; font-weight: 500">Касса 3</span>
+        <span class="mono" style="position: absolute; right: 64px; top: 8px; padding: 2px 5px; background: #26211d; color: #ffae86; border-radius: 4px; font-size: 10.5px">SUB · 12 к/с</span>
+        <span style="position: absolute; right: 8px; top: 8px; display: flex; align-items: center; gap: 4px; padding: 2px 5px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 10.5px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #c8b27d"></span>ЗАП</span>
+        <span class="mono" style="position: absolute; left: 8px; bottom: 8px; padding: 1px 5px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 10.5px">14:32:07</span>
+        <sc-for list="{{pins}}" as="p" hint-placeholder-count="6"><span class="mono" style="{{p.style}}">{{p.n}}</span></sc-for>
+      </div>
+      <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; flex: 1">
+        <sc-for list="{{legend}}" as="l" hint-placeholder-count="6">
+          <li style="display: flex; gap: 10px"><span class="mono" style="flex: 0 0 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: #f2cc61; color: #33271d; font-size: 11px; font-weight: 600">{{l.n}}</span><span style="line-height: 1.45"><b style="font-weight: 600">{{l.t}}</b> <span style="color: #a6a6a6">{{l.d}}</span></span></li>
+        </sc-for>
+      </ol>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Цвет только для состояний</h2>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+      <sc-for list="{{colors}}" as="c" hint-placeholder-count="6">
+        <div style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px">
+          <span style="{{c.sw}}"></span>
+          <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600">{{c.name}}</span><span style="color: #a6a6a6; font-size: 12px">{{c.use}}</span><span class="mono" style="color: #8d8776; font-size: 11px">{{c.hex}}</span></span>
+        </div>
+      </sc-for>
+    </div>
+    <p style="margin: 0; color: #a6a6a6; line-height: 1.5">Остальное оформление - оттенки графита и песка. Каждое состояние дублируется формой или словом: тревога - колокол и подпись, нет связи - разъём и таймер, пропуск - штриховка.</p>
+  </section>
+
+  <section style="grid-column: 1 / -1; display: grid; grid-template-columns: 2.1fr 1fr; gap: 40px; min-height: 0">
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <h2 style="margin: 0; font-size: 18px; font-weight: 600">Состояния ячейки</h2>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+        <sc-for list="{{states}}" as="s" hint-placeholder-count="8">
+          <figure style="margin: 0; display: flex; flex-direction: column; gap: 6px">
+            <div style="{{s.frame}}">
+              <sc-if value="{{s.dim}}" hint-placeholder-val="{{false}}"><div style="position: absolute; inset: 0; background: rgba(18,17,15,.62)"></div></sc-if>
+              <sc-if value="{{s.hatch}}" hint-placeholder-val="{{false}}"><div style="position: absolute; inset: 0; background: repeating-linear-gradient(135deg, #1a1917 0 6px, #26211d 6px 12px)"></div></sc-if>
+              <span style="position: absolute; left: 5px; top: 5px; padding: 1px 5px; background: #26211d; color: #fff9ec; border-radius: 3px; font-size: 10.5px">Склад 2</span>
+              <sc-if value="{{s.chip}}" hint-placeholder-val="{{true}}"><span style="{{s.chipStyle}}">{{s.chip}}</span></sc-if>
+              <span class="mono" style="position: absolute; left: 5px; bottom: 5px; padding: 1px 5px; background: #26211d; color: #fff9ec; border-radius: 3px; font-size: 10px">{{s.time}}</span>
+            </div>
+            <figcaption style="display: flex; flex-direction: column; gap: 1px"><span style="font-weight: 600">{{s.name}}</span><span style="color: #a6a6a6; font-size: 12px; line-height: 1.4">{{s.note}}</span></figcaption>
+          </figure>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <h2 style="margin: 0; font-size: 18px; font-weight: 600">Радиальное меню</h2>
+      <div style="position: relative; width: 260px; height: 260px; align-self: center">
+        <div style="position: absolute; inset: 0; border-radius: 50%; background: #1e1e1e; border: 1px solid #3a3835"></div>
+        <div style="position: absolute; inset: 86px; border-radius: 50%; background: #161513; border: 1px solid #3a3835"></div>
+        <div style="position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #fff9ec"></div>
+        <sc-for list="{{radial}}" as="r" hint-placeholder-count="6"><span style="{{r.style}}"><span style="font-weight: 500">{{r.label}}</span><span class="mono" style="color: #8d8776; font-size: 10.5px">{{r.dir}}</span></span></sc-for>
+      </div>
+      <p style="margin: 0; color: #a6a6a6; line-height: 1.5">Правая кнопка в кадре. Опытный оператор делает росчерк в направлении действия, не дожидаясь меню: вверх - снимок, вправо - архив, вниз - закладка.</p>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    function pin(n, l, t) { return { n: n, style: 'position: absolute; left: ' + l + '; top: ' + t + '; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: #f2cc61; color: #33271d; font-size: 11px; font-weight: 600; box-shadow: 0 0 0 2px #161513' }; }
+    var bg = 'radial-gradient(120% 90% at 50% 15%, #55534c 0%, #34332f 55%, #1f1e1c 100%)';
+    function frame(extra) { return 'position: relative; aspect-ratio: 16 / 9; border-radius: 5px; overflow: hidden; background: ' + bg + (extra || ''); }
+    function chip(color, bgc) { return 'position: absolute; right: 5px; top: 5px; padding: 1px 5px; border-radius: 3px; font-size: 10px; background: ' + (bgc || '#26211d') + '; color: ' + color; }
+    return {
+      pins: [pin('1', '66px', '-2px'), pin('2', '300px', '-2px'), pin('3', '446px', '-2px'), pin('4', '84px', '232px'), pin('5', '440px', '120px'), pin('6', '-2px', '120px')],
+      legend: [
+        { n: '1', t: 'Имя точки.', d: 'Непрозрачная подложка, читается на любом кадре.' },
+        { n: '2', t: 'Фактический поток.', d: 'Показывается только при отклонении: субпоток, сниженная частота.' },
+        { n: '3', t: 'Запись.', d: 'Отражает каталог архива, а не настройку политики.' },
+        { n: '4', t: 'Время кадра.', d: 'Время самого кадра, а не часы поста; цифры одинаковой ширины.' },
+        { n: '5', t: 'Маска.', d: 'Применяется везде: в стене, миниатюрах, предпросмотре и экспорте.' },
+        { n: '6', t: 'Выделение.', d: 'Обводка 2 пикселя без подсветки и масштабирования кадра.' }
+      ],
+      colors: [
+        { name: 'Выделение и фокус', use: 'Выбранная ячейка, фокус клавиатуры', hex: '#BBB08E', sw: 'flex: 0 0 36px; height: 36px; border-radius: 8px; background: #bbb08e' },
+        { name: 'Запись', use: 'Метка ЗАП, записанный интервал', hex: '#9B8D6F', sw: 'flex: 0 0 36px; height: 36px; border-radius: 8px; background: #9b8d6f' },
+        { name: 'Тревога и отказ', use: 'Тревожный слот, отметки на шкале', hex: '#FFA3A1', sw: 'flex: 0 0 36px; height: 36px; border-radius: 8px; background: #ffa3a1' },
+        { name: 'Внимание', use: 'Нет связи, деградация, пик активности', hex: '#FFAE86', sw: 'flex: 0 0 36px; height: 36px; border-radius: 8px; background: #ffae86' },
+        { name: 'Исправно', use: 'Эфир, связь, подтверждение', hex: '#BFCBA4', sw: 'flex: 0 0 36px; height: 36px; border-radius: 8px; background: #bfcba4' },
+        { name: 'Кожура бакури', use: 'Знак и закладки оператора', hex: '#F2CC61', sw: 'flex: 0 0 36px; height: 36px; border-radius: 8px; background: #f2cc61' }
+      ],
+      states: [
+        { name: 'Эфир', note: 'Обычное состояние, ничего лишнего', time: '14:32:07', frame: frame(), chip: 'ЗАП', chipStyle: chip('#fff9ec') },
+        { name: 'Архив', note: 'Метка АРХ и время кадра', time: '14:31:57.480', frame: frame('; box-shadow: inset 0 0 0 1px #9b8d6f'), chip: 'АРХ', chipStyle: chip('#e3dabd', '#373428') },
+        { name: 'Субпоток', note: 'Клиент снизил профиль, видно почему', time: '14:32:07', frame: frame(), chip: 'SUB · 12 к/с', chipStyle: chip('#ffae86') },
+        { name: 'Ожидание кадра', note: 'Прежний кадр остаётся до нового', time: '14:32:05', frame: frame(), chip: 'переход', chipStyle: chip('#d8d2c4') },
+        { name: 'Нет связи', note: 'Последний кадр приглушён, таймер', time: '14:31:53', frame: frame(), dim: true, chip: 'нет связи 00:14', chipStyle: chip('#ffae86') },
+        { name: 'Пропуск записи', note: 'Штриховка, как на шкале', time: '14:31:40', frame: frame(), hatch: true, chip: 'пропуск', chipStyle: chip('#d8d2c4') },
+        { name: 'Тревога', note: 'Обводка и метка, раскладка не сдвигается', time: '14:31:59', frame: frame('; box-shadow: 0 0 0 2px #ffa3a1'), chip: 'Тревога', chipStyle: chip('#ffd6d4', '#452927') },
+        { name: 'Нет права', note: 'Кадр не загружается вовсе', time: '--:--:--', frame: 'position: relative; aspect-ratio: 16 / 9; border-radius: 5px; overflow: hidden; background: #1a1917; border: 1px dashed #4a4640', chip: 'нет права на эфир', chipStyle: chip('#d8d2c4') }
+      ],
+      radial: [
+        ['Снимок', 'вверх', 130, 34], ['Архив', 'вправо', 214, 130], ['Закладка', 'вниз', 130, 226], ['PTZ', 'влево', 46, 130], ['Разворот', 'вправо-вверх', 196, 62], ['Экспорт', 'вправо-вниз', 196, 198]
+      ].map(function (r) { return { label: r[0], dir: r[1], style: 'position: absolute; left: ' + r[2] + 'px; top: ' + r[3] + 'px; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 12px' + (r[0] === 'Архив' ? '; padding: 4px 8px; border-radius: 6px; background: #373428; color: #f0ece6' : '') }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Командная строка</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#12110f}
+a{color:#b4a989}a:hover{color:#d8cfb0}
+button{font:inherit;cursor:pointer}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+input::placeholder{color:#8d8776}
+</style>
+</helmet>
+<div style="position: relative; width: 100%; height: 900px; background: #12110f; color: #e8e3d9; font-family: Inter, system-ui, sans-serif; font-size: 13px; overflow: hidden">
+
+  <div aria-hidden="true" style="position: absolute; inset: 0; display: flex; flex-direction: column">
+    <div style="height: 44px; background: #1a1917; border-bottom: 1px solid #2c2a27"></div>
+    <div style="flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 8px 8px 8px 60px">
+      <sc-for list="{{wall}}" as="w" hint-placeholder-count="16"><div style="{{w}}"></div></sc-for>
+    </div>
+  </div>
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(12,11,10,.58)"></div>
+
+  <div role="dialog" aria-label="Командная строка" style="position: absolute; left: 50%; top: 96px; transform: translateX(-50%); width: min(720px, calc(100% - 32px)); background: #1e1e1e; border: 1px solid #3a3835; border-radius: 12px; box-shadow: 0 24px 64px rgba(0,0,0,.55); overflow: hidden">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #2c2a27">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6a6a6" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <label for="cmd" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Команда или объект</label>
+      <input id="cmd" value="{{query}}" onChange="{{onQuery}}" onKeyDown="{{onKey}}" placeholder="Камера, время, действие, тревога, раскладка" autocomplete="off" style="flex: 1; height: 28px; background: transparent; border: 0; outline: none; color: #e8e3d9; font: inherit; font-size: 17px">
+      <span class="mono" style="font-size: 11px; padding: 2px 6px; border: 1px solid #3a3835; border-radius: 5px; color: #a6a6a6">Esc</span>
+    </div>
+    <sc-if value="{{hasLayoutFix}}" hint-placeholder-val="{{false}}">
+      <div style="padding: 8px 16px; background: #252526; color: #a6a6a6; border-bottom: 1px solid #2c2a27">Раскладка клавиатуры исправлена: ищем «<span style="color: #e8e3d9">{{fixed}}</span>»</div>
+    </sc-if>
+    <div style="max-height: 520px; overflow: auto; padding: 6px 0">
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+        <div style="padding: 8px 16px 4px; color: #8d8776; font-size: 12px; font-weight: 500">{{g.title}}</div>
+        <sc-for list="{{g.rows}}" as="r" hint-placeholder-count="3">
+          <button onClick="{{r.pick}}" style="{{r.style}}">
+            <span style="{{r.badge}}">{{r.kind}}</span>
+            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+              <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.label}}</span>
+              <span style="color: #8d8776; font-size: 12px">{{r.sub}}</span>
+            </span>
+            <span class="mono" style="color: #8d8776; font-size: 11px">{{r.hint}}</span>
+          </button>
+        </sc-for>
+      </sc-for>
+      <sc-if value="{{empty}}" hint-placeholder-val="{{false}}">
+        <div style="padding: 24px 16px; color: #a6a6a6">Ничего не найдено среди разрешённых вам объектов</div>
+      </sc-if>
+    </div>
+    <div style="display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-top: 1px solid #2c2a27; color: #8d8776; font-size: 12px">
+      <span><span class="mono">Вверх Вниз</span> выбор</span>
+      <span><span class="mono">Enter</span> выполнить</span>
+      <span><span class="mono">Tab</span> уточнить</span>
+      <span style="flex: 1"></span>
+      <span>{{status}}</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { query: 'склад 14:30', sel: 0, done: '' };
+  }
+  renderVals() {
+    var self = this;
+    var en = "qwertyuiop[]asdfghjkl;'zxcvbnm,.`";
+    var ru = 'йцукенгшщзхъфывапролджэячсмитьбюё';
+    function fix(s) {
+      var out = '';
+      for (var i = 0; i < s.length; i++) { var k = en.indexOf(s[i]); out += k >= 0 ? ru[k] : s[i]; }
+      return out;
+    }
+    var raw = (this.state.query || '').toLowerCase();
+    var time = raw.match(/(\d{1,2})[:\s](\d{2})/);
+    var text = raw.replace(/(\d{1,2})[:\s](\d{2})/, '').trim();
+    var latin = /^[a-z\[\];',.`\s]+$/.test(text) && text.length > 0;
+    var fixed = latin ? fix(text) : text;
+    var cams = [
+      ['Склад 2 · Ворота', 'Северный терминал · в сети'], ['Склад 2 · Стеллажи', 'Северный терминал · тревога'], ['Склад 1 · Рампа', 'Южный терминал · в сети'],
+      ['Коридор Б2', 'Северный терминал · в сети'], ['Вход А · Турникеты', 'Северный терминал · PTZ'], ['Парковка P2', 'Северный терминал · нет связи'], ['КПП · Въезд', 'Северный терминал · в сети']
+    ];
+    var actions = [
+      ['Перевести всю раскладку в архив', 'Все камеры на одном моменте', 'Space'], ['Принять следующую тревогу', 'Очередь: 4', 'N'], ['Поставить экспорт в очередь', 'Выбранный интервал', 'E'],
+      ['Сменить язык на English', 'Интерфейс и справка', ''], ['Справка: камера PTZ занята', 'Код camera_ptz_busy', 'F1']
+    ];
+    var layouts = [['Склад', '12 камер · общая'], ['Периметр', '14 камер · личная'], ['Вход', '6 камер · общая']];
+    var alarms = [['Движение в закрытой зоне', 'Склад 2 · Стеллажи · 14:31:59'], ['Потеря связи', 'Парковка P2 · 14:31:53']];
+    function hit(s) { return !fixed || s.toLowerCase().indexOf(fixed) >= 0; }
+    var groups = [];
+    var flat = [];
+    function add(title, rows) { if (rows.length) { groups.push({ title: title, rows: rows }); rows.forEach(function (r) { flat.push(r); }); } }
+    var camHits = cams.filter(function (c) { return hit(c[0]); });
+    if (time && camHits.length) {
+      var t = (time[1].length < 2 ? '0' : '') + time[1] + ':' + time[2];
+      add('Перейти', camHits.slice(0, 2).map(function (c) { return { kind: 'Архив', label: c[0] + ' на ' + t, sub: 'Сегодня, по местному времени площадки', hint: 'Enter' }; }).concat([{ kind: 'Архив', label: 'Вся раскладка «Склад» на ' + t, sub: 'Синхронно, 12 камер', hint: 'Shift Enter' }]));
+    }
+    add('Камеры', camHits.slice(0, 4).map(function (c) { return { kind: 'Камера', label: c[0], sub: c[1], hint: '' }; }));
+    add('Раскладки', layouts.filter(function (l) { return hit(l[0]); }).map(function (l) { return { kind: 'Раскладка', label: l[0], sub: l[1], hint: '' }; }));
+    add('Тревоги', alarms.filter(function (a) { return hit(a[0]) || hit(a[1]); }).map(function (a) { return { kind: 'Тревога', label: a[0], sub: a[1], hint: '' }; }));
+    add('Действия', actions.filter(function (a) { return hit(a[0]) || hit(a[1]); }).map(function (a) { return { kind: 'Действие', label: a[0], sub: a[1], hint: a[2] }; }));
+    var sel = Math.min(this.state.sel, Math.max(flat.length - 1, 0));
+    var badgeColor = { 'Архив': '#373428;color:#e3dabd', 'Камера': '#252526;color:#d8d2c4', 'Раскладка': '#252526;color:#d8d2c4', 'Тревога': '#452927;color:#ffd6d4', 'Действие': '#2c3023;color:#bfcba4' };
+    flat.forEach(function (r, i) {
+      r.badge = 'flex: 0 0 76px; text-align: center; padding: 2px 0; border-radius: 5px; font-size: 11px; background: ' + badgeColor[r.kind];
+      r.style = 'width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 16px; border: 0; text-align: left; color: #e8e3d9; background: ' + (i === sel ? '#373428; box-shadow: inset 2px 0 0 #b4a989' : 'transparent');
+      r.pick = function () { self.setState({ sel: i, done: 'Выполнено: ' + r.label }); };
+    });
+    var wall = [];
+    var tones = ['#3d3a33', '#2a3036', '#55534c', '#59626a', '#1f2328', '#4a463d', '#34332f', '#2f3337'];
+    for (var w = 0; w < 16; w++) wall.push('border-radius: 5px; background: linear-gradient(180deg,' + tones[w % 8] + ' 0%, #1d1c1a 100%)');
+    return {
+      query: this.state.query,
+      groups: groups,
+      empty: flat.length === 0,
+      hasLayoutFix: latin,
+      fixed: fixed,
+      wall: wall,
+      status: this.state.done || ('Найдено: ' + flat.length),
+      onQuery: function (e) { self.setState({ query: e.target.value, sel: 0, done: '' }); },
+      onKey: function (e) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); self.setState({ sel: Math.min(sel + 1, flat.length - 1) }); }
+        if (e.key === 'ArrowUp') { e.preventDefault(); self.setState({ sel: Math.max(sel - 1, 0) }); }
+        if (e.key === 'Enter' && flat[sel]) { e.preventDefault(); self.setState({ done: 'Выполнено: ' + flat[sel].label }); }
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

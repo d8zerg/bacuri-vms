@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Стена мониторинга</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#12110f}
+a{color:#b4a989}a:hover{color:#d8cfb0}
+button{font:inherit;cursor:pointer}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+<div style="width: 100%; height: 900px; display: flex; flex-direction: column; background: #12110f; color: #e8e3d9; font-family: Inter, system-ui, sans-serif; font-size: 13px; overflow: hidden">
+
+  <header style="height: 44px; flex: 0 0 44px; display: flex; align-items: center; gap: 16px; padding: 0 12px 0 14px; background: #1a1917; border-bottom: 1px solid #2c2a27">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <svg width="24" height="24" viewBox="0 0 24 24" role="img" aria-label="Bacuri"><circle cx="12" cy="12" r="10.5" fill="#33271d" stroke="#f2cc61" stroke-width="2.4"></circle><circle cx="12" cy="12" r="6.8" fill="#f3e7c8"></circle><path d="M12 8.2 15.4 14H8.6z" fill="#33271d"></path><circle cx="12" cy="6.6" r="1" fill="#33271d"></circle><circle cx="7.4" cy="15" r="1" fill="#33271d"></circle><circle cx="16.6" cy="15" r="1" fill="#33271d"></circle></svg>
+      <span style="font-weight: 600; letter-spacing: .01em">Bacuri</span>
+    </div>
+    <button style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; background: #252526; border: 1px solid #3a3835; border-radius: 7px; color: #e8e3d9">Северный терминал<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+    <nav aria-label="Раскладки" style="display: flex; gap: 2px; padding: 3px; background: #121110; border: 1px solid #2c2a27; border-radius: 8px">
+      <button style="height: 24px; padding: 0 12px; border: 0; border-radius: 6px; background: #504a37; color: #f0ece6">Периметр</button>
+      <button style="height: 24px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: #a6a6a6">Склад</button>
+      <button style="height: 24px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: #a6a6a6">Вход</button>
+      <button aria-label="Новая раскладка" style="height: 24px; width: 26px; border: 0; border-radius: 6px; background: transparent; color: #a6a6a6">+</button>
+    </nav>
+    <button style="flex: 1 1 auto; max-width: 440px; margin: 0 auto; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 10px; background: #121110; border: 1px solid #2c2a27; border-radius: 8px; color: #8d8776; text-align: left">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <span style="flex: 1">Камера, действие, время, тревога</span>
+      <span class="mono" style="font-size: 11px; padding: 2px 6px; border: 1px solid #3a3835; border-radius: 5px; color: #a6a6a6">Ctrl K</span>
+    </button>
+    <div style="display: flex; align-items: center; gap: 14px">
+      <div style="display: flex; align-items: center; gap: 7px; color: #a6a6a6">
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: #bfcba4; box-shadow: 0 0 0 3px rgba(191,203,164,.16)"></span>
+        <span><span class="mono" style="color: #e8e3d9">47</span> из <span class="mono">48</span> в сети</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px; color: #ffae86"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 2v4M15 2v4M6 6h12v4a6 6 0 0 1-12 0z"></path><path d="M12 16v6"></path></svg><span>1 без связи</span></div>
+      <span class="mono" style="font-size: 14px; color: #e8e3d9">14:32:07</span>
+      <span style="color: #8d8776">MSK</span>
+      <button aria-label="Профиль: Ирина Ковалёва" style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid #3a3835; background: #252526; color: #e8e3d9; font-size: 11px; font-weight: 600">ИК</button>
+    </div>
+  </header>
+
+  <div style="flex: 1 1 auto; display: flex; min-height: 0">
+    <nav aria-label="Разделы" style="width: 52px; flex: 0 0 52px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0; background: #1a1917; border-right: 1px solid #2c2a27">
+      <button aria-label="Мониторинг" style="width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 9px; background: #373428; color: #f0ece6; box-shadow: inset 2px 0 0 #b4a989"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg></button>
+      <button aria-label="Архив" style="width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: #a6a6a6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l3 2"></path></svg></button>
+      <button aria-label="Тревоги, 4 новых" style="position: relative; width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: #a6a6a6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg><span class="mono" style="position: absolute; top: 4px; right: 3px; min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box; border-radius: 8px; background: #ffa3a1; color: #2a1515; font-size: 10px; font-weight: 600; line-height: 15px">4</span></button>
+      <button aria-label="Карты и планы" style="width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: #a6a6a6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"></path><path d="M9 3v15M15 6v15"></path></svg></button>
+      <button aria-label="Дела" style="width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: #a6a6a6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg></button>
+      <button aria-label="Очередь экспорта" style="width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: #a6a6a6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg></button>
+      <div style="flex: 1"></div>
+      <button aria-label="Администрирование" style="width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: #a6a6a6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg></button>
+      <button aria-label="Помощь" style="width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: #a6a6a6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"></path><path d="M12 17.5h.01"></path></svg></button>
+    </nav>
+
+    <main style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column">
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; gap: 8px; padding: 8px">
+
+        <section aria-label="Стена камер" style="flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(5, minmax(0, 1fr)); gap: 4px">
+          <sc-for list="{{cams}}" as="cam" hint-placeholder-count="14">
+            <div style="{{cam.cellStyle}}">
+              <div style="{{cam.frameStyle}}">
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%"><path d="{{cam.lines}}" fill="none" stroke="rgba(255,249,236,.13)" stroke-width=".6" vector-effect="non-scaling-stroke"></path></svg>
+                <sc-for list="{{cam.people}}" as="p" hint-placeholder-count="1">
+                  <div style="{{p.style}}"><div style="width: 34%; aspect-ratio: 1; margin: 0 auto 6%; border-radius: 50%; background: #0c0b0a"></div><div style="height: 70%; border-radius: 40% 40% 8% 8%; background: #0c0b0a"></div></div>
+                </sc-for>
+                <sc-if value="{{cam.masked}}" hint-placeholder-val="{{false}}">
+                  <div style="position: absolute; left: 54%; top: 38%; width: 30%; height: 34%; background: repeating-linear-gradient(135deg, #26211d 0 5px, #39322b 5px 10px); display: grid; place-items: center"><span style="font-size: 10px; color: #fff9ec; background: #26211d; padding: 1px 5px; border-radius: 3px">Маска</span></div>
+                </sc-if>
+              </div>
+              <sc-if value="{{cam.selected}}" hint-placeholder-val="{{false}}">
+                <div aria-hidden="true" style="position: absolute; inset: 10px; pointer-events: none">
+                  <div style="position: absolute; left: 0; top: 0; width: 14px; height: 14px; border-left: 1.5px solid #fff9ec; border-top: 1.5px solid #fff9ec; opacity: .7"></div>
+                  <div style="position: absolute; right: 0; top: 0; width: 14px; height: 14px; border-right: 1.5px solid #fff9ec; border-top: 1.5px solid #fff9ec; opacity: .7"></div>
+                  <div style="position: absolute; left: 0; bottom: 0; width: 14px; height: 14px; border-left: 1.5px solid #fff9ec; border-bottom: 1.5px solid #fff9ec; opacity: .7"></div>
+                  <div style="position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; border-right: 1.5px solid #fff9ec; border-bottom: 1.5px solid #fff9ec; opacity: .7"></div>
+                </div>
+              </sc-if>
+              <sc-if value="{{cam.offline}}" hint-placeholder-val="{{false}}">
+                <div style="position: absolute; inset: 0; background: rgba(18,17,15,.62); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+                  <span style="display: flex; align-items: center; gap: 6px; padding: 4px 9px; background: #26211d; border: 1px solid #5a3b2c; border-radius: 6px; color: #ffae86; font-weight: 500"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 2v4M15 2v4M6 6h12v4a6 6 0 0 1-12 0z"></path><path d="M12 16v6"></path><path d="M3 3l18 18"></path></svg>Нет связи <span class="mono">{{cam.lost}}</span></span>
+                  <span class="mono" style="font-size: 10.5px; color: #fff9ec; background: #26211d; padding: 1px 6px; border-radius: 4px">последний кадр {{cam.last}}</span>
+                </div>
+              </sc-if>
+              <div style="position: absolute; left: 6px; top: 6px; right: 6px; display: flex; align-items: flex-start; gap: 4px">
+                <span style="max-width: 70%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 2px 6px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 11.5px; font-weight: 500">{{cam.name}}</span>
+                <span style="flex: 1"></span>
+                <sc-if value="{{cam.degraded}}" hint-placeholder-val="{{false}}">
+                  <span class="mono" title="Канал перегружен: показан дополнительный поток" style="padding: 2px 5px; background: #26211d; color: #ffae86; border-radius: 4px; font-size: 10.5px">SUB · 12 к/с</span>
+                </sc-if>
+                <sc-if value="{{cam.rec}}" hint-placeholder-val="{{true}}">
+                  <span style="display: flex; align-items: center; gap: 4px; padding: 2px 5px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 10.5px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #c8b27d"></span>ЗАП</span>
+                </sc-if>
+              </div>
+              <div style="position: absolute; left: 6px; bottom: 6px; right: 6px; display: flex; align-items: flex-end; gap: 6px">
+                <span class="mono" style="padding: 1px 5px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 10.5px">{{cam.time}}</span>
+                <span style="flex: 1"></span>
+                <sc-if value="{{cam.selected}}" hint-placeholder-val="{{false}}">
+                  <span class="mono" style="padding: 1px 5px; background: #26211d; color: #d8d2c4; border-radius: 4px; font-size: 10.5px">MAIN 2560×1440 · H.265 · 25 к/с</span>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+        </section>
+
+        <aside aria-label="Тревоги" style="width: 348px; flex: 0 0 348px; display: flex; flex-direction: column; gap: 8px; min-height: 0">
+          <div style="display: flex; align-items: baseline; gap: 8px; padding: 2px 2px 0">
+            <span style="font-weight: 600">Тревожный слот</span>
+            <span style="color: #8d8776">1 активная · 3 в очереди</span>
+          </div>
+          <div style="position: relative; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; background: linear-gradient(180deg,#3d3a33 0%,#4a463d 55%,#5a554a 56%,#433f37 100%); box-shadow: 0 0 0 2px #ffa3a1">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%"><path d="M0 72 L28 56 L72 56 L100 72 M28 56 L28 8 M72 56 L72 8 M40 56 L40 20 M50 56 L50 20 M60 56 L60 20" fill="none" stroke="rgba(255,249,236,.14)" stroke-width=".6" vector-effect="non-scaling-stroke"></path><path d="M30 92 L46 54 L76 54 L88 92 Z" fill="rgba(255,163,161,.08)" stroke="#ffa3a1" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"></path></svg>
+            <div style="position: absolute; left: 57%; top: 40%; width: 7%; height: 32%"><div style="width: 40%; aspect-ratio: 1; margin: 0 auto 6%; border-radius: 50%; background: #0c0b0a"></div><div style="height: 72%; border-radius: 40% 40% 8% 8%; background: #0c0b0a"></div></div>
+            <div aria-hidden="true" style="position: absolute; left: 53.5%; top: 36%; width: 14%; height: 40%">
+              <div style="position: absolute; left: 0; top: 0; width: 8px; height: 8px; border-left: 1.5px solid #ffa3a1; border-top: 1.5px solid #ffa3a1"></div>
+              <div style="position: absolute; right: 0; top: 0; width: 8px; height: 8px; border-right: 1.5px solid #ffa3a1; border-top: 1.5px solid #ffa3a1"></div>
+              <div style="position: absolute; left: 0; bottom: 0; width: 8px; height: 8px; border-left: 1.5px solid #ffa3a1; border-bottom: 1.5px solid #ffa3a1"></div>
+              <div style="position: absolute; right: 0; bottom: 0; width: 8px; height: 8px; border-right: 1.5px solid #ffa3a1; border-bottom: 1.5px solid #ffa3a1"></div>
+            </div>
+            <div style="position: absolute; left: 6px; top: 6px; right: 6px; display: flex; gap: 4px">
+              <span style="padding: 2px 6px; background: #452927; color: #ffd6d4; border-radius: 4px; font-size: 11px; font-weight: 600">Тревога</span>
+              <span style="padding: 2px 6px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 11.5px">Склад 2 · Стеллажи</span>
+            </div>
+            <span class="mono" style="position: absolute; left: 6px; bottom: 6px; padding: 1px 5px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 10.5px">14:31:59 · −8 с</span>
+          </div>
+          <div style="padding: 10px 12px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px; display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; align-items: center; gap: 8px">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffa3a1" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+              <span style="font-weight: 600">Движение в закрытой зоне</span>
+            </div>
+            <div style="color: #a6a6a6; line-height: 1.45">Правило «Стеллажи ночью», версия 4. Новая, никто не принял.</div>
+            <div style="display: flex; gap: 6px">
+              <button style="flex: 1; height: 30px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 7px; background: #504a37; color: #f0ece6; font-weight: 500">Принять <span class="mono" style="font-size: 10.5px; color: #c9bf9f">A</span></button>
+              <button style="flex: 1; height: 30px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9">Архив −10 с <span class="mono" style="font-size: 10.5px; color: #8d8776">R</span></button>
+              <button aria-label="Отметить как ложную, клавиша F" style="width: 44px; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9"><span class="mono" style="font-size: 10.5px; color: #a6a6a6">F</span></button>
+            </div>
+          </div>
+          <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: #1a1917; border: 1px solid #2c2a27; border-radius: 8px; overflow: hidden">
+            <div style="display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid #2c2a27"><span style="font-weight: 600">Лента</span><span style="flex: 1"></span><span style="color: #8d8776; font-size: 12px">все площадки</span></div>
+            <sc-for list="{{feed}}" as="e" hint-placeholder-count="5">
+              <button style="{{e.rowStyle}}">
+                <span class="mono" style="color: #a6a6a6; font-size: 12px">{{e.time}}</span>
+                <span style="display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1">
+                  <span style="color: #e8e3d9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{e.title}}</span>
+                  <span style="color: #8d8776; font-size: 12px">{{e.cam}}</span>
+                </span>
+                <span style="{{e.chipStyle}}">{{e.state}}</span>
+              </button>
+            </sc-for>
+          </div>
+        </aside>
+      </div>
+
+      <footer style="height: 58px; flex: 0 0 58px; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: #1a1917; border-top: 1px solid #2c2a27">
+        <div role="group" aria-label="Режим" style="display: flex; gap: 2px; padding: 3px; background: #121110; border: 1px solid #2c2a27; border-radius: 8px">
+          <button style="height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: #504a37; color: #f0ece6; display: flex; align-items: center; gap: 6px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #bfcba4"></span>Эфир</button>
+          <button style="height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: #a6a6a6">Архив</button>
+        </div>
+        <div style="flex: 1 1 auto; min-width: 0; position: relative; height: 40px">
+          <div style="position: absolute; left: 0; right: 0; top: 2px; height: 18px; display: flex; align-items: flex-end; gap: 1px">
+            <sc-for list="{{activity}}" as="a" hint-placeholder-count="120">
+              <span style="{{a.style}}"></span>
+            </sc-for>
+          </div>
+          <div style="position: absolute; left: 0; right: 0; top: 22px; height: 4px; border-radius: 2px; background: #9b8d6f"></div>
+          <div style="position: absolute; left: 61%; width: 2.2%; top: 22px; height: 4px; background: repeating-linear-gradient(135deg, #3a3835 0 3px, #12110f 3px 6px)"></div>
+          <sc-for list="{{marks}}" as="m" hint-placeholder-count="3">
+            <span style="{{m.style}}"></span>
+          </sc-for>
+          <div style="position: absolute; left: 0; right: 0; top: 29px; display: flex; justify-content: space-between">
+            <sc-for list="{{ticks}}" as="t" hint-placeholder-count="7">
+              <span class="mono" style="font-size: 10.5px; color: #8d8776">{{t}}</span>
+            </sc-for>
+          </div>
+          <div style="position: absolute; right: 0; top: -2px; bottom: 10px; width: 2px; background: #fff9ec"></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; color: #a6a6a6; white-space: nowrap">
+          <span>Вся раскладка в архив</span>
+          <span class="mono" style="font-size: 11px; padding: 2px 6px; border: 1px solid #3a3835; border-radius: 5px">Space</span>
+        </div>
+      </footer>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var scenes = {
+      room: 'radial-gradient(120% 90% at 50% 15%, #55534c 0%, #34332f 55%, #1f1e1c 100%)',
+      corridor: 'radial-gradient(60% 40% at 50% 38%, #6a675d 0%, #3c3a35 45%, #1d1c1a 100%)',
+      pano: 'linear-gradient(180deg,#1d2126 0%,#2a3036 55%,#3b3a35 56%,#2b2a27 100%)',
+      warehouse: 'linear-gradient(180deg,#3d3a33 0%,#4a463d 55%,#5a554a 56%,#433f37 100%)',
+      parking: 'linear-gradient(180deg,#59626a 0%,#6f767c 46%,#4d4d49 47%,#3d3d3a 100%)',
+      night: 'linear-gradient(180deg,#15181c 0%,#1f2328 50%,#2c2b28 51%,#22211f 100%)',
+      server: 'linear-gradient(90deg,#24272a 0%,#2f3337 20%,#24272a 21%,#2f3337 40%,#24272a 41%,#2f3337 60%,#24272a 61%,#2f3337 80%,#24272a 81%)'
+    };
+    var lines = {
+      room: 'M0 74 L30 58 L70 58 L100 74 M30 58 L30 0 M70 58 L70 0',
+      corridor: 'M0 100 L42 42 M100 100 L58 42 M42 42 L58 42 M42 42 L42 0 M58 42 L58 0 M0 10 L42 30 M100 10 L58 30',
+      pano: 'M0 56 L100 56 M6 56 L6 38 L16 38 L16 56 M44 56 L44 30 L60 30 L60 56 M80 56 L80 42 L94 42 L94 56',
+      warehouse: 'M0 72 L28 56 L72 56 L100 72 M28 56 L28 8 M72 56 L72 8 M40 56 L40 20 M50 56 L50 20 M60 56 L60 20',
+      parking: 'M0 62 L100 52 M18 100 L44 56 M82 100 L60 54 M50 100 L52 54',
+      night: 'M0 58 L100 50 M30 100 L46 54 M70 100 L58 53',
+      server: 'M0 90 L100 90'
+    };
+    var list = [
+      { name: 'Вход А · Турникеты', area: 'grid-column: 1 / span 2; grid-row: 1 / span 2', kind: 'room', selected: true, people: [[38, 40, 7, 34], [55, 44, 6, 30]] },
+      { name: 'Коридор Б2', area: 'grid-column: 4; grid-row: 1 / span 3', kind: 'corridor', tall: true, people: [[44, 52, 12, 22]] },
+      { name: 'Периметр · Север, панорама', area: 'grid-column: 1 / span 2; grid-row: 3', kind: 'pano', people: [] },
+      { name: 'Склад 2 · Ворота', area: 'grid-column: 3; grid-row: 1', kind: 'warehouse', people: [[24, 46, 7, 30]] },
+      { name: 'Склад 2 · Стеллажи', area: 'grid-column: 3; grid-row: 2', kind: 'warehouse', people: [[57, 40, 7, 32]] },
+      { name: 'Касса 3', area: 'grid-column: 3; grid-row: 3', kind: 'room', masked: true, people: [] },
+      { name: 'Парковка P1', area: 'grid-column: 1; grid-row: 4', kind: 'parking', people: [] },
+      { name: 'Парковка P2', area: 'grid-column: 2; grid-row: 4', kind: 'parking', offline: true, people: [] },
+      { name: 'Погрузка 1', area: 'grid-column: 3; grid-row: 4', kind: 'warehouse', degraded: true, people: [[70, 44, 6, 30]] },
+      { name: 'Погрузка 2', area: 'grid-column: 4; grid-row: 4', kind: 'warehouse', people: [] },
+      { name: 'Лестница В', area: 'grid-column: 1; grid-row: 5', kind: 'corridor', people: [] },
+      { name: 'Серверная', area: 'grid-column: 2; grid-row: 5', kind: 'server', people: [] },
+      { name: 'КПП · Въезд', area: 'grid-column: 3; grid-row: 5', kind: 'night', people: [[40, 44, 6, 28]] },
+      { name: 'КПП · Выезд', area: 'grid-column: 4; grid-row: 5', kind: 'night', people: [] }
+    ];
+    var cams = list.map(function (c) {
+      var outline = c.selected ? 'box-shadow: 0 0 0 2px #bbb08e;' : '';
+      var frame = c.tall
+        ? 'position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); aspect-ratio: 9 / 16; overflow: hidden; background: ' + scenes[c.kind]
+        : 'position: absolute; inset: 0; overflow: hidden; background: ' + scenes[c.kind];
+      return {
+        name: c.name,
+        selected: !!c.selected,
+        offline: !!c.offline,
+        degraded: !!c.degraded,
+        masked: !!c.masked,
+        rec: !c.offline,
+        lost: '00:14',
+        last: '14:31:53',
+        time: c.offline ? '14:31:53' : '14:32:07',
+        lines: lines[c.kind],
+        cellStyle: 'position: relative; overflow: hidden; border-radius: 5px; background: #0c0b0a; ' + outline + c.area,
+        frameStyle: frame,
+        people: c.people.map(function (p) {
+          return { style: 'position: absolute; left: ' + p[0] + '%; top: ' + p[1] + '%; width: ' + p[2] + '%; height: ' + p[3] + '%' };
+        })
+      };
+    });
+    var states = {
+      'новая': 'padding: 2px 7px; border-radius: 10px; background: #452927; color: #ffd6d4; font-size: 11px; white-space: nowrap',
+      'в работе': 'padding: 2px 7px; border-radius: 10px; background: #373428; color: #e3dabd; font-size: 11px; white-space: nowrap',
+      'закрыта': 'padding: 2px 7px; border-radius: 10px; background: #2c3023; color: #bfcba4; font-size: 11px; white-space: nowrap'
+    };
+    var feed = [
+      ['14:31:59', 'Движение в закрытой зоне', 'Склад 2 · Стеллажи', 'новая', true],
+      ['14:31:53', 'Потеря связи с камерой', 'Парковка P2', 'новая', false],
+      ['14:27:12', 'Пересечение линии', 'КПП · Въезд', 'в работе', false],
+      ['14:18:40', 'Тревожный вход камеры', 'Погрузка 1', 'в работе', false],
+      ['14:02:05', 'Движение в закрытой зоне', 'Серверная', 'закрыта', false],
+      ['13:55:31', 'Пересечение линии', 'Периметр · Север', 'закрыта', false]
+    ].map(function (r) {
+      return {
+        time: r[0], title: r[1], cam: r[2], state: r[3], chipStyle: states[r[3]],
+        rowStyle: 'display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; border: 0; border-bottom: 1px solid #262523; text-align: left; color: inherit; background: ' + (r[4] ? '#2a2422; box-shadow: inset 2px 0 0 #ffa3a1' : 'transparent')
+      };
+    });
+    var activity = [];
+    for (var i = 0; i < 120; i++) {
+      var v = 0.12 + 0.18 * Math.abs(Math.sin(i * 0.37)) + 0.1 * Math.abs(Math.sin(i * 1.7));
+      if (i > 86 && i < 92) v = 0.95 - (i - 86) * 0.08;
+      if (i > 116) v = 0.85;
+      if (i > 72 && i < 75) v = 0.02;
+      activity.push({ style: 'flex: 1; height: ' + Math.round(v * 100) + '%; background: ' + (v > 0.6 ? '#ffae86' : '#5d574a') + '; border-radius: 1px 1px 0 0' });
+    }
+    var marks = [[72.5], [96.4], [99.6]].map(function (m) {
+      return { style: 'position: absolute; left: calc(' + m[0] + '% - 4px); top: 20px; width: 8px; height: 8px; border-radius: 50%; background: #ffa3a1; box-shadow: 0 0 0 2px #1a1917' };
+    });
+    return {
+      cams: cams,
+      feed: feed,
+      activity: activity,
+      marks: marks,
+      ticks: ['14:02', '14:07', '14:12', '14:17', '14:22', '14:27', 'сейчас']
+    };
+  }
+}
+</script>
+</body>
+</html>

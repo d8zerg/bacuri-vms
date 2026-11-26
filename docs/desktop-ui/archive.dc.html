@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Синхронный архив</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#12110f}
+a{color:#b4a989}a:hover{color:#d8cfb0}
+button{font:inherit;cursor:pointer}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+<div style="width: 100%; height: 900px; display: flex; flex-direction: column; background: #12110f; color: #e8e3d9; font-family: Inter, system-ui, sans-serif; font-size: 13px; overflow: hidden">
+
+  <header style="height: 44px; flex: 0 0 44px; display: flex; align-items: center; gap: 12px; padding: 0 14px; background: #1a1917; border-bottom: 1px solid #2c2a27">
+    <svg width="24" height="24" viewBox="0 0 24 24" role="img" aria-label="Bacuri"><circle cx="12" cy="12" r="10.5" fill="#33271d" stroke="#f2cc61" stroke-width="2.4"></circle><circle cx="12" cy="12" r="6.8" fill="#f3e7c8"></circle><path d="M12 8.2 15.4 14H8.6z" fill="#33271d"></path></svg>
+    <span style="color: #a6a6a6">Дело</span>
+    <span style="font-weight: 600">Проникновение на склад 2</span>
+    <span style="padding: 2px 8px; border-radius: 10px; background: #373428; color: #e3dabd; font-size: 12px">Удержание действует</span>
+    <span style="flex: 1"></span>
+    <span style="display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; background: #252526; color: #d8d2c4; font-size: 12px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #c8b27d"></span>Архив · 4 камеры синхронно</span>
+    <button style="height: 28px; padding: 0 10px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9; display: flex; align-items: center; gap: 8px">В эфир <span class="mono" style="font-size: 10.5px; color: #8d8776">Space</span></button>
+  </header>
+
+  <div style="flex: 1 1 auto; min-height: 0; display: flex; gap: 8px; padding: 8px 8px 0">
+    <section aria-label="Камеры" style="flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 4px">
+      <sc-for list="{{cams}}" as="c" hint-placeholder-count="4">
+        <div style="{{c.style}}">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%"><path d="{{c.lines}}" fill="none" stroke="rgba(255,249,236,.13)" stroke-width=".6" vector-effect="non-scaling-stroke"></path></svg>
+          <sc-if value="{{c.person}}" hint-placeholder-val="{{true}}">
+            <div style="{{c.personStyle}}"><div style="width: 38%; aspect-ratio: 1; margin: 0 auto 6%; border-radius: 50%; background: #0c0b0a"></div><div style="height: 74%; border-radius: 40% 40% 8% 8%; background: #0c0b0a"></div></div>
+          </sc-if>
+          <sc-if value="{{c.gap}}" hint-placeholder-val="{{false}}">
+            <div style="position: absolute; inset: 0; background: repeating-linear-gradient(135deg, rgba(18,17,15,.86) 0 8px, rgba(38,33,29,.86) 8px 16px); display: grid; place-items: center">
+              <span style="display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 12px; background: #26211d; border-radius: 6px; color: #fff9ec"><span style="font-weight: 600">Пропуск записи</span><span class="mono" style="font-size: 11.5px; color: #d8d2c4">14:31:40 - 14:32:12 · камера не в сети</span></span>
+            </div>
+          </sc-if>
+          <div style="position: absolute; left: 6px; top: 6px; right: 6px; display: flex; gap: 4px">
+            <span style="padding: 2px 6px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 11.5px; font-weight: 500">{{c.name}}</span>
+            <span style="flex: 1"></span>
+            <sc-if value="{{c.lag}}" hint-placeholder-val="{{false}}">
+              <span class="mono" style="padding: 2px 6px; background: #26211d; color: #ffae86; border-radius: 4px; font-size: 10.5px">догоняет · −0.4 с</span>
+            </sc-if>
+          </div>
+          <span class="mono" style="position: absolute; left: 6px; bottom: 6px; padding: 1px 6px; background: #26211d; color: #fff9ec; border-radius: 4px; font-size: 11px">{{c.time}}</span>
+        </div>
+      </sc-for>
+    </section>
+
+    <aside aria-label="Материалы дела" style="width: 300px; flex: 0 0 300px; display: flex; flex-direction: column; gap: 8px; min-height: 0">
+      <section style="padding: 12px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px; display: flex; flex-direction: column; gap: 4px">
+        <span style="color: #8d8776; font-size: 12px">Позиция</span>
+        <span class="mono" style="font-size: 22px; font-weight: 500; letter-spacing: -.01em">14:31:57.480</span>
+        <span class="mono" style="color: #a6a6a6; font-size: 12px">11:31:57.480 UTC · кадр 1 437</span>
+        <span style="color: #a6a6a6; font-size: 12px">Расхождение камер не больше 40 мс</span>
+      </section>
+      <section style="flex: 1 1 auto; min-height: 0; padding: 12px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px; display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; align-items: center"><span style="font-weight: 600">Материалы</span><span style="flex: 1"></span><button style="height: 26px; padding: 0 8px; border: 1px solid #3a3835; border-radius: 6px; background: #252526; color: #e8e3d9; display: flex; align-items: center; gap: 6px">Закладка <span class="mono" style="font-size: 10.5px; color: #8d8776">B</span></button></div>
+        <sc-for list="{{items}}" as="i" hint-placeholder-count="4">
+          <div style="display: flex; gap: 10px; padding: 8px; border-radius: 7px; background: #252526">
+            <span style="{{i.icon}}"></span>
+            <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+              <span style="font-weight: 500">{{i.title}}</span>
+              <span class="mono" style="color: #a6a6a6; font-size: 11.5px">{{i.span}}</span>
+              <span style="color: #8d8776; font-size: 12px">{{i.note}}</span>
+            </span>
+          </div>
+        </sc-for>
+      </section>
+      <section style="padding: 12px; background: #1e1e1e; border: 1px solid #2c2a27; border-radius: 8px; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-weight: 600">Выдача</span>
+        <div role="radiogroup" aria-label="Вариант" style="display: flex; gap: 2px; padding: 3px; background: #121110; border: 1px solid #2c2a27; border-radius: 8px">
+          <button role="radio" aria-checked="true" style="flex: 1; height: 26px; border: 0; border-radius: 6px; background: #504a37; color: #f0ece6">Копия с масками</button>
+          <button role="radio" aria-checked="false" style="flex: 1; height: 26px; border: 0; border-radius: 6px; background: transparent; color: #a6a6a6">Оригинал</button>
+        </div>
+        <button style="height: 34px; border: 0; border-radius: 7px; background: #504a37; color: #f0ece6; font-weight: 500">В очередь экспорта · 3 фрагмента</button>
+      </section>
+    </aside>
+  </div>
+
+  <section aria-label="Шкала времени" style="flex: 0 0 300px; margin-top: 8px; display: flex; flex-direction: column; background: #1a1917; border-top: 1px solid #2c2a27">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px">
+      <div role="group" aria-label="Воспроизведение" style="display: flex; gap: 4px">
+        <button aria-label="Предыдущий кадр" style="width: 32px; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9; display: grid; place-items: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 5v14"></path><path d="m18 6-8 6 8 6z"></path></svg></button>
+        <button aria-label="Пауза" style="width: 40px; height: 30px; border: 0; border-radius: 7px; background: #504a37; color: #f0ece6; display: grid; place-items: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg></button>
+        <button aria-label="Следующий кадр" style="width: 32px; height: 30px; border: 1px solid #3a3835; border-radius: 7px; background: #252526; color: #e8e3d9; display: grid; place-items: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 5v14"></path><path d="m6 6 8 6-8 6z"></path></svg></button>
+      </div>
+      <div role="group" aria-label="Скорость" style="display: flex; gap: 2px; padding: 3px; background: #121110; border: 1px solid #2c2a27; border-radius: 8px">
+        <button style="height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #a6a6a6" class="mono">×¼</button>
+        <button style="height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: #504a37; color: #f0ece6" class="mono">×1</button>
+        <button style="height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #a6a6a6" class="mono">×4</button>
+        <button style="height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #a6a6a6" class="mono">×16</button>
+      </div>
+      <span class="mono" style="color: #8d8776; font-size: 11.5px">J K L · , .</span>
+      <span style="flex: 1"></span>
+      <div style="display: flex; align-items: center; gap: 4px; color: #8d8776; font-size: 12px">
+        <span>Масштаб</span>
+        <sc-for list="{{zoom}}" as="z" hint-placeholder-count="5"><span style="{{z.style}}">{{z.label}}</span></sc-for>
+      </div>
+      <span style="display: flex; align-items: center; gap: 6px; color: #a6a6a6; font-size: 12px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"></path><path d="m13 6 6 6-6 6"></path></svg>Опорные кадры: <span class="mono" style="color: #d8d2c4">412</span> в памяти GPU</span>
+    </div>
+
+    <div style="position: relative; margin: 0 12px; height: 16px; border-radius: 4px; background: #121110; overflow: hidden">
+      <sc-for list="{{overview}}" as="o" hint-placeholder-count="10"><span style="{{o}}"></span></sc-for>
+      <span style="position: absolute; left: 59.3%; width: 0.6%; top: 0; bottom: 0; background: rgba(255,249,236,.18); box-shadow: 0 0 0 1px #fff9ec"></span>
+      <span class="mono" style="position: absolute; left: 4px; top: 1px; font-size: 10px; color: #8d8776">00:00</span>
+      <span class="mono" style="position: absolute; right: 4px; top: 1px; font-size: 10px; color: #8d8776">24:00</span>
+    </div>
+
+    <div style="position: relative; flex: 1 1 auto; margin: 8px 12px 10px; display: flex; flex-direction: column">
+      <div style="position: relative; height: 26px; margin-left: 150px">
+        <sc-for list="{{ticks}}" as="t" hint-placeholder-count="60"><span style="{{t.style}}"></span></sc-for>
+        <sc-for list="{{labels}}" as="l" hint-placeholder-count="7"><span class="mono" style="{{l.style}}">{{l.text}}</span></sc-for>
+      </div>
+      <sc-for list="{{tracks}}" as="tr" hint-placeholder-count="4">
+        <div style="display: flex; align-items: center; height: 38px; border-top: 1px solid #262523">
+          <span style="flex: 0 0 150px; color: #d8d2c4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px">{{tr.name}}</span>
+          <div style="position: relative; flex: 1 1 auto; height: 24px">
+            <sc-for list="{{tr.segs}}" as="s" hint-placeholder-count="2"><span style="{{s}}"></span></sc-for>
+            <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 9px; display: flex; align-items: flex-end; gap: 1px">
+              <sc-for list="{{tr.act}}" as="a" hint-placeholder-count="80"><span style="{{a}}"></span></sc-for>
+            </div>
+            <sc-for list="{{tr.marks}}" as="m" hint-placeholder-count="1"><span style="{{m}}"></span></sc-for>
+          </div>
+        </div>
+      </sc-for>
+      <div aria-hidden="true" style="position: absolute; left: calc(150px + (100% - 150px) * .479); top: 0; bottom: 0; width: 2px; background: #fff9ec">
+        <span class="mono" style="position: absolute; left: 6px; top: 0; padding: 1px 6px; background: #fff9ec; color: #12110f; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap">14:31:57.480</span>
+      </div>
+      <div aria-hidden="true" style="position: absolute; left: calc(150px + (100% - 150px) * .40); width: calc((100% - 150px) * .30); top: 26px; height: 10px; border: 1.5px solid #bbb08e; border-bottom: 0; border-radius: 4px 4px 0 0"></div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    function pct(sec) { return (sec / 120 * 100).toFixed(2); }
+    var cams = [
+      ['Склад 2 · Ворота', 'linear-gradient(180deg,#3d3a33 0%,#4a463d 55%,#5a554a 56%,#433f37 100%)', 'M0 72 L28 56 L72 56 L100 72 M28 56 L28 8 M72 56 L72 8', '14:31:57.480', [30, 44, 6, 30], false, false],
+      ['Склад 2 · Стеллажи', 'linear-gradient(180deg,#3d3a33 0%,#4a463d 55%,#5a554a 56%,#433f37 100%)', 'M0 72 L28 56 L72 56 L100 72 M28 56 L28 8 M72 56 L72 8 M40 56 L40 20 M50 56 L50 20 M60 56 L60 20', '14:31:57.480', [58, 40, 6, 32], false, false],
+      ['Коридор Б2', 'radial-gradient(60% 40% at 50% 38%, #6a675d 0%, #3c3a35 45%, #1d1c1a 100%)', 'M0 100 L42 42 M100 100 L58 42 M42 42 L58 42 M42 42 L42 0 M58 42 L58 0', '14:31:57.080', [46, 50, 5, 24], true, false],
+      ['Погрузка 1', 'linear-gradient(180deg,#3d3a33 0%,#4a463d 55%,#5a554a 56%,#433f37 100%)', 'M0 72 L28 56 L72 56 L100 72', '--:--:--', null, false, true]
+    ].map(function (c) {
+      return {
+        name: c[0], lines: c[2], time: c[3], lag: c[5], gap: c[6], person: !!c[4],
+        personStyle: c[4] ? 'position: absolute; left: ' + c[4][0] + '%; top: ' + c[4][1] + '%; width: ' + c[4][2] + '%; height: ' + c[4][3] + '%' : '',
+        style: 'position: relative; overflow: hidden; border-radius: 5px; background: ' + c[1] + (c[0] === 'Склад 2 · Стеллажи' ? '; box-shadow: 0 0 0 2px #bbb08e' : '')
+      };
+    });
+    var ticks = [];
+    for (var s = 0; s <= 120; s += 2) {
+      var major = s % 10 === 0;
+      ticks.push({ style: 'position: absolute; bottom: 0; left: ' + pct(s) + '%; width: 1px; height: ' + (major ? 10 : 5) + 'px; background: ' + (major ? '#8d8776' : '#4a4640') });
+    }
+    var labels = [];
+    for (var m = 0; m <= 120; m += 20) {
+      var mm = 31 + Math.floor(m / 60), ss = m % 60;
+      labels.push({ text: '14:' + mm + ':' + (ss < 10 ? '0' : '') + ss, style: 'position: absolute; top: 0; left: ' + pct(m) + '%; transform: translateX(-50%); font-size: 10.5px; color: #a6a6a6' });
+    }
+    function rec(a, b) { return 'position: absolute; top: 4px; height: 8px; border-radius: 2px; left: ' + pct(a) + '%; width: ' + (pct(b) - pct(a)) + '%; background: #9b8d6f'; }
+    function gap(a, b) { return 'position: absolute; top: 4px; height: 8px; left: ' + pct(a) + '%; width: ' + (pct(b) - pct(a)) + '%; background: repeating-linear-gradient(135deg, #4a4640 0 3px, #1a1917 3px 6px)'; }
+    function act(seed, peak) {
+      var out = [];
+      for (var i = 0; i < 80; i++) {
+        var v = 0.1 + 0.15 * Math.abs(Math.sin(i * 0.41 + seed));
+        if (i >= peak && i < peak + 14) v = 0.55 + 0.4 * Math.sin((i - peak) / 14 * Math.PI);
+        out.push('flex: 1; height: ' + Math.round(v * 100) + '%; border-radius: 1px; background: ' + (v > 0.6 ? '#ffae86' : '#4f4a3f'));
+      }
+      return out;
+    }
+    function alarm(sec) { return 'position: absolute; top: 2px; left: calc(' + pct(sec) + '% - 5px); width: 10px; height: 10px; border-radius: 50%; background: #ffa3a1; box-shadow: 0 0 0 2px #1a1917'; }
+    function flag(sec) { return 'position: absolute; top: -2px; left: ' + pct(sec) + '%; width: 2px; height: 18px; background: #f2cc61'; }
+    var tracks = [
+      { name: 'Склад 2 · Ворота', segs: [rec(0, 120)], act: act(0, 28), marks: [flag(52)] },
+      { name: 'Склад 2 · Стеллажи', segs: [rec(0, 120)], act: act(1, 36), marks: [alarm(59), flag(57)] },
+      { name: 'Коридор Б2', segs: [rec(0, 120)], act: act(2, 44), marks: [] },
+      { name: 'Погрузка 1', segs: [rec(0, 40), gap(40, 72), rec(72, 120)], act: act(3, 80), marks: [] }
+    ];
+    var overview = [];
+    var blocks = [[0, 22, 0], [22, 23, 1], [23, 59, 0], [59, 60, 2], [60, 100, 0]];
+    blocks.forEach(function (b) {
+      var color = b[2] === 1 ? 'repeating-linear-gradient(135deg, #4a4640 0 3px, #121110 3px 6px)' : (b[2] === 2 ? '#ffae86' : '#5d574a');
+      overview.push('position: absolute; top: 5px; height: 6px; left: ' + b[0] + '%; width: ' + (b[1] - b[0]) + '%; background: ' + color);
+    });
+    var zoom = ['сутки', 'час', 'минуты', 'секунды', 'кадры'].map(function (z, i) {
+      return { label: z, style: 'padding: 2px 7px; border-radius: 6px; ' + (i === 2 ? 'background: #373428; color: #e3dabd' : 'color: #8d8776') };
+    });
+    return {
+      cams: cams, ticks: ticks, labels: labels, tracks: tracks, overview: overview, zoom: zoom,
+      items: [
+        { title: 'Вход через ворота', span: '14:31:44 - 14:31:58 · 2 камеры', note: 'Удержание до закрытия дела', icon: 'flex: 0 0 4px; border-radius: 2px; background: #bbb08e' },
+        { title: 'Человек у стеллажей', span: '14:31:56 - 14:32:20', note: 'Тревога по правилу «Стеллажи ночью»', icon: 'flex: 0 0 4px; border-radius: 2px; background: #ffa3a1' },
+        { title: 'Проход по коридору Б2', span: '14:32:04 - 14:32:30', note: 'Закладка оператора', icon: 'flex: 0 0 4px; border-radius: 2px; background: #f2cc61' },
+        { title: 'Погрузка 1 без записи', span: '14:31:40 - 14:32:12', note: 'Пропуск: камера не в сети', icon: 'flex: 0 0 4px; border-radius: 2px; background: #6b6450' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
