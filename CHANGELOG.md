@@ -4,6 +4,8 @@
 
 ### Added
 
+- A Qt Quick video prototype of the desktop client plays H.264 and H.265 in 1 to 16 cells with NVDEC or software decoding and reports the decoder output memory, the first frame and the frame after a seek, the interface frame time and the CPU and GPU load. `task desktop:video` runs the series on the stand with reference recordings and live cameras.
+
 - The desktop workstation passport names the build image, the stand hardware, the media sources and the server profile. `task desktop:passport` compares it with the stand and the desktop image with the GPU, and `task desktop:reference` writes and verifies H.264 and H.265 reference recordings with a frame number in every frame. [Workstation passport](desktop/workstation.yaml)
 
 - The desktop client has a parity register that maps every public operation, web client section and console action to desktop scenarios with roles, failures, steps, tests and acceptance material. Extensions beyond the web client name the contract they need, how the client detects it and the behavior with an older server. `task desktop:parity` checks the coverage and the reconciled contract revision. [Parity register](desktop/parity.yaml)

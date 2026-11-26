@@ -1,6 +1,7 @@
 #!/bin/sh
 # Write the reference recordings of the desktop workstation: H.264 High and H.265 Main 8-bit,
-# 1920x1080 at 25 fps, 60 s, fragmented MP4 with 2 s keyframe intervals. Each frame shows its
+# 1920x1080 at 25 fps, 60 s, fragmented MP4 with 2 s keyframe intervals and no B-frames, like
+# surveillance cameras, so the presentation time of a frame equals its number divided by 25. Each frame shows its
 # number from zero and its buffer time, so a displayed frame can be compared with the source.
 set -eu
 
@@ -15,13 +16,13 @@ source="videotestsrc num-buffers=$frames pattern=smpte is-live=false \
 
 # shellcheck disable=SC2086
 eval gst-launch-1.0 -q -e $source \
-  ! x264enc key-int-max=50 bitrate=6000 speed-preset=medium \
+  ! x264enc key-int-max=50 bframes=0 bitrate=6000 speed-preset=medium \
   ! video/x-h264,profile=high ! h264parse ! mp4mux fragment-duration=2000 \
   ! filesink location="$out/h264-1080p25.mp4"
 
 # shellcheck disable=SC2086
 eval gst-launch-1.0 -q -e $source \
-  ! x265enc key-int-max=50 bitrate=6000 speed-preset=fast \
+  ! x265enc key-int-max=50 bitrate=6000 speed-preset=fast option-string=bframes=0 \
   ! video/x-h265,profile=main ! h265parse ! mp4mux fragment-duration=2000 \
   ! filesink location="$out/h265-1080p25.mp4"
 

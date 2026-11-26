@@ -487,6 +487,21 @@ tasks:
     deps: [desktop:image]
     cmd: python3 tools/desktop_passport.py
 
+  desktop:build:
+    desc: Build the desktop client prototype and its tests in the desktop image
+    deps: [desktop:image]
+    cmd: '{{.COMPOSE_RUN}} -T -w /workspace/desktop desktop sh -c "cmake --preset desktop && cmake --build --preset desktop"'
+
+  desktop:test:
+    desc: Run the desktop client unit tests
+    deps: [desktop:build]
+    cmd: '{{.COMPOSE_RUN}} -T -w /workspace/desktop desktop ctest --preset desktop'
+
+  desktop:video:
+    desc: Measure the video prototype on the stand display with hardware and software decoding, 1 to 16 cells
+    deps: [desktop:build]
+    cmd: python3 tools/desktop_prototype.py {{.CLI_ARGS}}
+
   desktop:reference:
     desc: Write the H.264 and H.265 reference recordings with frame numbers to build/desktop/reference
     deps: [desktop:image]
