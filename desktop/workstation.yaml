@@ -3,19 +3,13 @@
 # sources and the server profile. tools/desktop_passport.py compares the stand entry with the
 # actual machine, so every measurement is attributable to a known configuration.
 
-# Operating systems of the release. Only an active target is built and tested.
+# Operating system of the current desktop release.
 targets:
   linux:
     state: active
     stand: stand
     distribution: Ubuntu 26.04 LTS
     display_server: Wayland session of GNOME with XWayland
-  windows:
-    state: open
-    reason: No test station. Direct3D 11 output, D3D11 decoding and the MSI package wait for a station
-  macos:
-    state: open
-    reason: No test station. Metal output, VideoToolbox decoding and the signed DMG wait for a station
 
 # Build and run environment of the active target. The client is built in the desktop stage of
 # the Dockerfile and runs in the same image on the stand with the GPU, the display socket and
@@ -74,8 +68,6 @@ missing:
   joystick: PTZ axes, calibration and stop on release
   key_panel: Programmable keys with images
   security_key: Administrator sign-in with WebAuthn
-  windows_station: The Windows target
-  macos_station: The macOS target
 
 media:
   reference_recordings:

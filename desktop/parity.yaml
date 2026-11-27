@@ -12,7 +12,7 @@ reference:
     contracts/v1/errors.yaml: d6f631f151d08a967a87bd61133db9499848e940a970b4617eee130c71f5b329
 
 defaults:
-  os: [windows, linux, macos]
+  os: [linux]
   install: [site]
   status: open
 
@@ -274,7 +274,7 @@ scenarios:
     web: /access
     install: [compact, site]
     test: desktop/session/admin-webauthn
-    material: RP ID, origin and one-time code checks per operating system
+    material: RP ID, origin and one-time code checks on the Linux workstation
   identity-corporate-sign-in:
     function: identity
     area: session

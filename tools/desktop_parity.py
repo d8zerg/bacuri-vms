@@ -29,7 +29,6 @@ SCENARIO_FIELDS = (
     "steps", "platform", "operations", "test", "material",
 )
 ROLES = {"operator", "administrator", "service"}
-OPERATING_SYSTEMS = {"windows", "linux", "macos"}
 INSTALLS = {"compact", "site"}
 STATUSES = {"open", "ready", "accepted"}
 STEP = re.compile(r"^\d+\.\d+$")
@@ -147,8 +146,8 @@ def check(register: dict) -> list[str]:
             if route not in routes:
                 errors.append(f"{where}: unknown web route {route}")
             covered_routes.add(route)
-        if not set(scenario.get("os", defaults.get("os", []))) <= OPERATING_SYSTEMS:
-            errors.append(f"{where}: unknown operating system")
+        if scenario.get("os", defaults.get("os")) != ["linux"]:
+            errors.append(f"{where}: the current desktop release requires Linux as its only target")
         if not set(scenario.get("install", defaults.get("install", []))) <= INSTALLS:
             errors.append(f"{where}: unknown installation type")
         if scenario.get("status", defaults.get("status")) not in STATUSES:

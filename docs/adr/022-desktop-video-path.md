@@ -2,7 +2,7 @@
 
 [Русская версия](../ru/adr/022-desktop-video-path.md)
 
-**Status** - Accepted for Linux. Windows and macOS are decided on their own stations.
+**Status** - Accepted for Linux. The Windows and macOS video paths are evaluated on their respective workstations under the [additional platform support plan](../devplan-desktop-platforms.md).
 
 **Context.** The desktop client shows live video and the archive of up to 16 cameras on one screen next to a map. The frame has to reach the screen without copies through system memory, the interface has to stay responsive under load, and the workstation has to keep working when the GPU or its decoder fails. Qt Quick can draw through several graphics APIs, GStreamer offers hardware and software decoders, and MapLibre Native for Qt offers a Qt Location plugin and a core library.
 
