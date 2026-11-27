@@ -14,9 +14,12 @@ function inScope(path, integrated) {
   );
 }
 function containsProductSource(entry) {
-  const pathname = new URL(entry.url).pathname;
-  if (!pathname.startsWith("/assets/")) return false;
-  const map = "/results/storybook" + pathname + ".map";
+  const { pathname, protocol } = new URL(entry.url);
+  const localBuild =
+    protocol === "file:" && pathname.startsWith("/results/client/assets/");
+  if (!localBuild && !pathname.startsWith("/assets/")) return false;
+  const map =
+    (localBuild ? pathname : "/results/storybook" + pathname) + ".map";
   if (!existsSync(map)) return false;
   const { sources } = JSON.parse(readFileSync(map, "utf8"));
   return sources.some((source) =>

@@ -34,14 +34,15 @@ namespace
 {
 bool workspace_page(std::string_view path)
 {
-    return path == "/access" || path == "/audit" || path == "/" || path == "/maps" || path == "/monitor" ||
-           path == "/cameras" || path == "/investigations" || path == "/desktop-sign-in";
+    return path == "/access" || path == "/audit" || path == "/" || path == "/help" || path == "/maps" ||
+           path == "/monitor" || path == "/cameras" || path == "/investigations" || path == "/desktop-sign-in";
 }
 
 void workspace_file(const Request& req, Response& res, std::string_view path)
 {
     allow(req, res, {http::verb::get});
-    std::string file_name = "build/web-client/index.html";
+    const bool help = path == "/help";
+    std::string file_name = help ? "build/web-client/help.html" : "build/web-client/index.html";
     std::string_view mime = "text/html; charset=utf-8";
     if (!workspace_page(path)) {
         const auto name = path.substr(std::string_view{"/assets/"}.size());
@@ -74,9 +75,16 @@ void workspace_file(const Request& req, Response& res, std::string_view path)
     }
     res.result(http::status::ok);
     res.set(http::field::content_type, mime);
-    res.set("Content-Security-Policy", "default-src 'self'; worker-src 'self' blob:; img-src 'self' data: blob:; "
-                                       "media-src 'self' blob:; object-src 'none'; "
-                                       "frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    if (help) {
+        res.set("Referrer-Policy", "no-referrer");
+        res.set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; "
+                                           "font-src 'self'; img-src 'self'; connect-src 'none'; "
+                                           "frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+    } else
+        res.set("Content-Security-Policy",
+                "default-src 'self'; worker-src 'self' blob:; img-src 'self' data: blob:; "
+                "media-src 'self' blob:; object-src 'none'; "
+                "frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     res.body().assign(std::istreambuf_iterator<char>{file}, {});
 }
 

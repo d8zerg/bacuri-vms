@@ -3,6 +3,8 @@ set -euo pipefail
 mode=${2:-full}
 case "$mode" in full|coverage) ;; *) echo "Unknown workspace check: $mode" >&2; exit 2 ;; esac
 report=$(sh tools/quality-report-dir workspace)
+# Create the nested mount point as the build user before Docker mounts the web client over it.
+mkdir -p "$report/client"
 export BACURI_UI_RESULTS="$PWD/$report"
 echo "Workspace evidence: $report"
 run=(docker compose run --rm --no-deps -T --user "$(id -u):$(id -g)")

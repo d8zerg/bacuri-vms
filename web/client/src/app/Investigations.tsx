@@ -1,3 +1,4 @@
+import { useScreenHelp } from "./HelpLink";
 import "../i18n/extended";
 import { useResource } from "../adapters/resource";
 import { useEffect, useRef, useState } from "react";
@@ -40,6 +41,7 @@ export default function Investigations({
     [selected, setSelected] = useState<string[]>([]),
     [from, setFrom] = useState(() => localDateTime(Date.now() - 300000)),
     [to, setTo] = useState(() => localDateTime(Date.now()));
+  useScreenHelp(tab === "cases" ? "investigate-export" : "compare-recordings");
   const [motion, setMotion] = useState(true),
     [region, setRegion] = useState<Region>(entire),
     [threshold, setThreshold] = useState(24);

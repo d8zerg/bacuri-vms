@@ -1,6 +1,14 @@
 import { defineConfig } from "vite";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+const { version } = JSON.parse(
+  readFileSync(
+    new URL("../../build/contracts/product-version.json", import.meta.url),
+    "utf8",
+  ),
+);
 export default defineConfig(({ mode }) => ({
+  define: { "import.meta.env.VITE_PRODUCT_VERSION": JSON.stringify(version) },
   cacheDir: "/tmp/bacuri-workspace-vite",
   resolve: {
     alias:
@@ -19,6 +27,7 @@ export default defineConfig(({ mode }) => ({
     sourcemap: "hidden",
     license: { fileName: "assets/third-party-licenses.txt" },
     rolldownOptions: {
+      input: { index: "index.html", help: "help.html" },
       output: {
         assetFileNames: (asset) =>
           asset.names.some((name) =>

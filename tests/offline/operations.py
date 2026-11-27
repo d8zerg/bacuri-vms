@@ -14,7 +14,10 @@ import ssl
 import subprocess
 import time
 import uuid
-from vm import FACTOR_ANSWER, configure_guest, ext4, guest, origin, publish, qemu_command, report, request, until
+from vm import (
+    FACTOR_ANSWER, check_installed_help, configure_guest, ext4, guest,
+    origin, publish, qemu_command, report, request, until,
+)
 
 NEW = "/mnt/bundle/new"
 OLD = "/mnt/bundle/old"
@@ -356,7 +359,7 @@ def diagnostic(cmd, label, check, forbidden):
         assert resource["resource"] == {"attributes": [{"key": "service.name", "value": {"stringValue": "bacuri-maintain"}}]}
         assert scope["scope"] == {"name": "bacuri.vms.operations"}
         traces = scope["spans"]
-        assert len(traces) == 4 and len(logs) == 3
+        assert len(traces) == 5 and len(logs) == 4
         assert all(
             e["ok"]
             and any(
@@ -371,8 +374,10 @@ def diagnostic(cmd, label, check, forbidden):
             e["trace_id"] in cmd("journalctl -n 30 -t bacuri-maintain -o cat --no-pager") for e in logs
         )
         fields = {e["event"]: e["values"] for e in logs}
-        assert fields.keys() == {"systemd.services", "recorder.sources", "archive.catalog"}
+        assert fields.keys() == {"systemd.services", "recorder.sources", "archive.catalog", "services.metrics"}
         assert fields["systemd.services"].keys() == {"core", "media", "recorder"}
+        assert fields["services.metrics"].keys() == {"core", "media", "recorder"}
+        assert set(fields["services.metrics"].values()) <= {0, 1}
         assert fields["archive.catalog"].keys() == {"available_bytes", "pending", "recording_stopped"}
         assert all(str(uuid.UUID(k)) == k for k in fields["recorder.sources"])
         for e in logs:
@@ -381,10 +386,11 @@ def diagnostic(cmd, label, check, forbidden):
             )
             span = next(s for s in traces if s["spanId"] == e["span_id"])
             assert {a["key"]: int(a["value"]["intValue"]) for a in span["attributes"]} == e["values"]
-        assert all(
-            re.fullmatch(r'bacuri_[a-z_]+(?:\{[a-z]+="[a-z0-9.\-]+"\})? [0-9]+', line)
-            for line in raw.splitlines()
-        )
+        name = r"bacuri_[a-z_]+"
+        metric_label = r'[a-z_]+="[a-zA-Z0-9_.+\-]+"'
+        sample = rf'{name}(?:\{{{metric_label}(?:,{metric_label})*\}})? [0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?'
+        metadata = rf'# (?:HELP {name} [^\n]+|TYPE {name} (?:counter|histogram|gauge))'
+        assert all(re.fullmatch(sample, line) or re.fullmatch(metadata, line) for line in raw.splitlines())
         serialized = json.dumps([raw, logs, payload])
         assert all(value not in serialized for value in forbidden)
         scrape = scrape_metrics(cmd)
@@ -490,6 +496,7 @@ for service in bacuri-core bacuri-recorder bacuri-media; do test "$(systemctl is
         cmd(
             "test ! -f /var/lib/bacuri-maintenance/pending; systemctl is-active --quiet bacuri-core bacuri-media bacuri-recorder"
         )
+        check_installed_help(site.trust, json.loads((report / "bundle/sbom.json").read_text()))
         assert query(cmd, schema_query) == str(target_schema)
         forbidden = (
             password,

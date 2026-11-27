@@ -21,6 +21,11 @@ test("Workspace theme follows the system, supports keyboard selection and surviv
   await page.setViewportSize({ width: 320, height: 900 });
   await page.emulateMedia({ colorScheme: "light" });
   await open(page, "monitor");
+  const preferences = page.getByRole("button", {
+    name: "Настройки",
+    exact: true,
+  });
+  await preferences.click();
   const theme = page.getByRole("radiogroup", { name: "Тема оформления" });
   const system = theme.getByRole("radio", { name: "Системная тема" });
   const dark = theme.getByRole("radio", { name: "Тёмная тема" });
@@ -38,6 +43,7 @@ test("Workspace theme follows the system, supports keyboard selection and surviv
   await page.emulateMedia({ colorScheme: "light" });
   await expect(canvas).toHaveCSS("background-color", darkColor);
   await page.reload();
+  await preferences.click();
   await expect(dark).toBeChecked();
   await expect(canvas).toHaveCSS("background-color", darkColor);
   await dark.press("ArrowRight");
@@ -46,6 +52,9 @@ test("Workspace theme follows the system, supports keyboard selection and surviv
   await expect(canvas).toHaveCSS("background-color", lightColor);
   const otherTab = await page.context().newPage();
   await open(otherTab, "monitor");
+  await otherTab
+    .getByRole("button", { name: "Настройки", exact: true })
+    .click();
   await expect(
     otherTab.getByRole("radio", { name: "Светлая тема" }),
   ).toBeChecked();
@@ -56,10 +65,17 @@ test("Workspace theme follows the system, supports keyboard selection and surviv
   await otherTab.close();
   await expect(canvas).toHaveCSS("background-color", darkColor);
   await light.check();
+  await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "Журнал действий" }).click();
+  await preferences.click();
   await expect(light).toBeChecked();
-  await expect(logout).toHaveAttribute("title", "Выйти");
-  await expect(logout).toHaveText("");
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("button", { name: "operator.demo", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "operator.demo" }),
+  ).toContainText("operator.demo");
   await logout.click();
   await expect(
     page.getByRole("heading", { name: "Вход в Bacuri VMS" }),
@@ -73,7 +89,7 @@ test("Workspace navigation keeps icons level and labels inside touch targets", a
   await open(page, "monitor");
   await page.evaluate(() => document.fonts.ready);
   const nav = page.getByRole("navigation", { name: "Рабочее место" });
-  const links = nav.getByRole("link");
+  const links = nav.locator(".ws-nav-section").getByRole("link");
   await expect(links).toHaveCount(6);
   await expect(nav.getByRole("link", { name: "Расследования" })).toBeVisible();
   for (const width of [
@@ -85,29 +101,31 @@ test("Workspace navigation keeps icons level and labels inside touch targets", a
       width <= 752 ? 1 : 0,
     );
     const brand = await page.locator(".ws-brand").boundingBox();
-    const switcher = await page
-      .getByRole("radiogroup", { name: "Тема оформления" })
-      .boundingBox();
-    const logout = await page
-      .getByRole("button", { name: "Выйти" })
-      .boundingBox();
-    expect(switcher.x).toBeGreaterThanOrEqual(brand.x + brand.width);
-    expect(logout.x).toBeGreaterThan(switcher.x + switcher.width);
-    expect(logout.x + logout.width).toBeLessThanOrEqual(width);
+    const header = page.getByRole("banner");
+    const account =
+      width <= 752
+        ? header.getByRole("button", { name: "operator.demo", exact: true })
+        : header
+            .getByText("operator.demo", { exact: true })
+            .filter({ visible: true });
+    const action = header.getByRole("button", {
+      name: width >= 1200 ? "Выйти" : "Настройки",
+      exact: true,
+    });
+    const boxes = await Promise.all(
+      [account, action].map((control) => control.boundingBox()),
+    );
     const menu = await nav.boundingBox();
-    if (
-      menu.y < switcher.y + switcher.height &&
-      switcher.y < menu.y + menu.height
-    ) {
-      expect(switcher.x).toBeGreaterThan(menu.x + menu.width);
+    for (const box of boxes) {
+      expect(box.x).toBeGreaterThanOrEqual(brand.x + brand.width);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      if (menu.y < box.y + box.height && box.y < menu.y + menu.height)
+        expect(box.x).toBeGreaterThan(menu.x + menu.width);
+      if (width < 1200)
+        expect(
+          Math.abs(box.y + box.height / 2 - brand.y - brand.height / 2),
+        ).toBeLessThan(2);
     }
-    if (width < 1200)
-      expect(
-        Math.abs(
-          switcher.y + switcher.height / 2 - (brand.y + brand.height / 2),
-        ),
-      ).toBeLessThan(1);
-    expect(Math.abs(logout.y - switcher.y)).toBeLessThan(1);
     await expect(
       nav.getByRole("link", { name: "Журнал действий", exact: true }),
     ).toHaveText(width <= 480 ? "Журнал" : "Журнал действий", {
@@ -343,7 +361,7 @@ test("The site selector fits below the header controls on a narrow screen", asyn
   await expect(selector.locator("option")).toHaveCount(2);
   const field = await selector.boundingBox();
   const controls = await page
-    .getByRole("button", { name: "Выйти" })
+    .getByRole("button", { name: "Настройки", exact: true })
     .boundingBox();
   const menu = await page
     .getByRole("navigation", { name: "Рабочее место" })

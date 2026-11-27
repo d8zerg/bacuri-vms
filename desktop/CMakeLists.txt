@@ -22,7 +22,7 @@ add_library(bacuri-vms-client-diagnostics STATIC src/diagnostics/frame_stats.cpp
 target_include_directories(bacuri-vms-client-diagnostics PUBLIC src)
 
 # Site: sign-in through the system browser, the desktop session and the gateway for resources of the site.
-add_library(bacuri-vms-client-site STATIC src/site/pkce.cpp src/site/sign_in.cpp src/site/site_proxy.cpp)
+add_library(bacuri-vms-client-site STATIC src/site/help.cpp src/site/pkce.cpp src/site/sign_in.cpp src/site/site_proxy.cpp)
 set_target_properties(bacuri-vms-client-site PROPERTIES AUTOMOC ON)
 target_include_directories(bacuri-vms-client-site PUBLIC src)
 target_link_libraries(bacuri-vms-client-site PUBLIC Qt6::Core Qt6::Gui Qt6::Network)

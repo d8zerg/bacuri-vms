@@ -1,3 +1,4 @@
+import { useScreenHelp } from "./HelpLink";
 import "../i18n/extended";
 import { lazy, Suspense } from "react";
 
@@ -39,6 +40,11 @@ export default function Maps(props: Props) {
     admin,
     points,
   } = m;
+  useScreenHelp(
+    admin && plan && editingPlan === plan.id
+      ? "map-placement"
+      : "camera-on-map",
+  );
   return (
     <>
       {scene && !(admin && plan && editingPlan === plan.id) && (

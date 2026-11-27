@@ -9,6 +9,7 @@ import type {
   Services,
   Target,
 } from "../contracts/workspace";
+import { HelpLink } from "./HelpLink";
 import { AlertList } from "../ui-kit/AlertList";
 import type { TimelineData } from "../ui-kit/ArchiveTimeline";
 import {
@@ -511,6 +512,10 @@ export function Monitor({
                   {point.recording_reason &&
                     `: ${t(recordingReasons[point.recording_reason])}`}
                 </span>
+                {(point.recording === "stopped" ||
+                  point.recording === "delayed") && (
+                  <HelpLink article="recording-missing" />
+                )}
                 {point.last_recorded_at && (
                   <time
                     className="ws-point-recorded"

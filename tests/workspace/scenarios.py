@@ -3,6 +3,7 @@
 import base64
 from contextlib import ExitStack
 import json
+from http.client import HTTPSConnection
 import os
 from pathlib import Path
 import sqlite3
@@ -17,7 +18,7 @@ from maps import admin_placements, link, offline_maps
 report = Path(os.environ["BACURI_WORKSPACE_RESULTS"])
 raw = report / "chrome"
 raw.mkdir(parents=True, exist_ok=True)
-buttons = "[...document.querySelectorAll('button')].find(b => b.textContent === arguments[0] || b.getAttribute('aria-label') === arguments[0])"
+buttons = "[...document.querySelectorAll('button')].find(b => b.getClientRects().length && (b.textContent === arguments[0] || b.getAttribute('aria-label') === arguments[0]))"
 
 
 def wait(call, condition, label, *args, timeout=45):
@@ -111,6 +112,8 @@ def installer(browser, admin, restart):
         )
         wait(call, "document.querySelector('fieldset')?.disabled===false", "installer reconnected")
         assert js(call, "return document.querySelector('input[name=name]').value") == camera_name
+        if not js(call, "return !!" + buttons, "Выйти"):
+            button(call, "installer")
         button(call, "Выйти")
         wait(call, "document.querySelector('input[name=username]')", "logged out")
         print(browser, "installer applied revision", cam["applied_revision"], "decoded", dims, flush=True)
@@ -382,6 +385,24 @@ def operator(browser, cam, viewer, restart, plan):
     )
 
 
+def check_public_help():
+    connection = HTTPSConnection("localhost", 8443, context=c.TLS, timeout=5)
+    try:
+        connection.request("GET", "/help")
+        response = connection.getresponse()
+        assert response.status == 200 and response.read() == Path("build/web-client/help.html").read_bytes()
+        assert response.getheader("Set-Cookie") is None
+        assert response.getheader("Referrer-Policy") == "no-referrer"
+        assert "connect-src 'none'" in response.getheader("Content-Security-Policy")
+        connection.request("POST", "/help")
+        response = connection.getresponse()
+        response.read()
+        assert response.status == 405
+        assert c.http("GET", "session")[0] == 401
+    finally:
+        connection.close()
+
+
 def run():
     for name, role in [("installer", "administrator"), ("viewer", "operator")]:
         subprocess.run([c.CORE, "create-user", name, role], input=c.PASSWORD + "\n", text=True, check=True)
@@ -421,6 +442,7 @@ def run():
             core = start([c.CORE, "serve"])
 
         c.wait_for(lambda: c.http("GET", "session")[0] == 401, "HTTPS workspace")
+        check_public_help()
         admin = c.login("installer")
         start([c.RECORDER], env={**os.environ, "BACURI_KEY_FILE": str(c.ROOT / "recorder.key")})
         start([playback.MEDIA])

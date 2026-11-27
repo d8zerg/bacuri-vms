@@ -42,6 +42,8 @@ sudo bacuri-vms admin revoke-point "$operator" "$point"
 
 The user creation command reads the password from standard input. The point identifier comes from the registry after the camera is connected. The service settings and the separate keys of the core and the recorder are in `/etc/bacuri-vms`. The signing key of the installation kit stays with the supplier.
 
+After setup, open `/help` at the site's HTTPS address in a browser without a session. Check that an article and its translation open and that search works with external internet access disabled. The help materials are part of the installed server kit. [Using the help portal](ui.md#help-portal)
+
 ## Maintenance of an installed node
 
 A full backup includes the configuration, the history, the catalog, TLS and the site keys. Use it for upgrades, rollbacks and the replacement of the system disk. [Maintenance and recovery commands](maintenance.md)

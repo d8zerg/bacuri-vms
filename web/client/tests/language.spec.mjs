@@ -5,9 +5,11 @@ const monitor = "/iframe.html?viewMode=story&id=workspace--monitor";
 test("story language follows the toolbar global", async ({ page }) => {
   await page.goto(monitor + "&globals=language:en");
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(
     page.getByRole("radiogroup", { name: "Interface language" }),
   ).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(
     page.getByRole("link", { name: "Monitoring", exact: true }),
   ).toBeVisible();
@@ -15,15 +17,19 @@ test("story language follows the toolbar global", async ({ page }) => {
 
 test("operator switches the interface language", async ({ page }) => {
   await page.goto(monitor);
+  await page.getByRole("button", { name: "Настройки", exact: true }).click();
   const switcher = page.getByRole("radiogroup", { name: "Язык интерфейса" });
   await switcher.getByRole("radio", { name: "English" }).check();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   const english = page.getByRole("radiogroup", { name: "Interface language" });
   await expect(english.getByRole("radio", { name: "English" })).toBeChecked();
+  await page.keyboard.press("Escape");
   await expect(
     page.getByRole("link", { name: "Monitoring", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await english.getByRole("radio", { name: "Русский" }).check();
+  await page.keyboard.press("Escape");
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   await expect(
     page.getByRole("link", { name: "Мониторинг", exact: true }),

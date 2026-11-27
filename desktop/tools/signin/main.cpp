@@ -1,7 +1,9 @@
 // Signs the desktop client in to a site through the system browser, reads the session with the
 // bearer token and signs out. Writes a JSON report without the token.
 
+#include "site/help.hpp"
 #include "site/sign_in.hpp"
+#include <QLocale>
 
 #include <QCommandLineParser>
 #include <QFile>
@@ -31,7 +33,14 @@ int main(int argc, char* argv[])
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addOptions({
+        {"language", "Workstation interface language (en or ru).", "language",
+         QLocale().language() == QLocale::Russian ? "ru" : "en"},
+        {"theme", "Workstation theme (system, light or dark).", "theme", "system"},
+    });
+    parser.addOptions({
         {"site", "Origin of the site.", "url"},
+        {"cause", "Sign-in failure to look up when opening help.", "cause"},
+        {"open-help", "Open sign-in help on the configured site and exit."},
         {"ca", "Certificates trusted for the site.", "file"},
         {"browser", "Command that opens the confirmation page instead of the default browser.", "command"},
         {"timeout", "Seconds to wait for the confirmation.", "seconds", "300"},
@@ -43,6 +52,14 @@ int main(int argc, char* argv[])
     if (!options.site.isValid() || options.site.scheme() != "https") {
         std::fputs("Expected --site with an https origin\n", stderr);
         return 2;
+    }
+
+    if (parser.isSet("open-help")) {
+        if (open_help(options.site, parser.value("language"), parser.value("theme"), HelpPage::sign_in,
+                      parser.value("cause")))
+            return 0;
+        std::fputs("Could not open the site help portal. Check the site address and default browser.\n", stderr);
+        return 1;
     }
 
     QNetworkAccessManager network;
@@ -62,6 +79,10 @@ int main(int argc, char* argv[])
     SignIn sign_in{options};
     QObject::connect(&sign_in, &SignIn::failed, &application, [&](const QString& cause) {
         report.insert("error", cause);
+        const auto help =
+            help_url(options.site, parser.value("language"), parser.value("theme"), HelpPage::sign_in, cause);
+        if (!help.isEmpty())
+            report.insert("help_url", help.toString(QUrl::FullyEncoded));
         finish(1);
     });
     QObject::connect(&sign_in, &SignIn::signed_in, &application, [&](const DesktopSession& session) {

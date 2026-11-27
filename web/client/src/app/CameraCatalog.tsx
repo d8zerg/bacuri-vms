@@ -1,3 +1,4 @@
+import "../i18n/camera";
 import { useEffect, useRef, useState } from "react";
 import { IconButton } from "../ui-kit/FormControls";
 import type {

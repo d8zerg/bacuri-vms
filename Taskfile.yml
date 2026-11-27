@@ -546,7 +546,8 @@ tasks:
         'mkdir -p build/contracts &&
         openapi-typescript contracts/v1/openapi.yaml --output build/contracts/api.d.ts &&
         tsc --noEmit --strict build/contracts/api.d.ts'
-      - '{{.BUILD_RUN}} python3 tools/errors.py json build/contracts/errors.json'
+      - '{{.BUILD_RUN}} python3 tools/errors.py json build/contracts/errors.json build/contracts/help-codes.json build/contracts/help-messages.json'
+      - '{{.BUILD_RUN}} python3 tools/product_version.py generate build/contracts'
 
   web:build:
     desc: Build the typed HTTPS workspace and isolated performance reference

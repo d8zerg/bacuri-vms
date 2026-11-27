@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="216" viewBox="0 0 480 216" fill="none">
+<defs><pattern id="hatch" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><path d="M0 0v9" stroke="#b1ab9c" stroke-width="3"/></pattern></defs>
+<rect x="1" y="1" width="478" height="214" rx="12" fill="#242425" stroke="#45443f" stroke-width="2" />
+<rect x="29" y="63" width="118" height="100" rx="6" fill="#191a19" stroke="#5b594f" stroke-width="2" />
+<path d="M41 133h95" fill="none" stroke="#5b594f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<rect x="48" y="129" width="28" height="8" rx="1" fill="#bed19f" stroke="none" stroke-width="2" />
+<rect x="81" y="129" width="49" height="8" rx="1" fill="#bed19f" stroke="none" stroke-width="2" />
+<g transform="translate(86 97) scale(0.9)"><path d="M-15 -20h19l11 11v28h-30z" fill="#302f2c" stroke="#efece1" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M4 -20v11h11M-9 -3h16m-16 7H4m-13 7H1" fill="none" stroke="#b1ab9c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></g>
+<path d="M58 143v6h56v-6" fill="none" stroke="#dacba7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M152 113L180 113M172.0 109.0L180 113L172.0 117.0" fill="none" stroke="#b1ab9c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+<rect x="185" y="63" width="102" height="100" rx="6" fill="#191a19" stroke="#5b594f" stroke-width="2" />
+<g transform="translate(235 103) scale(1.14)"><path d="M-22 -15h15l5 5h24v24h-44z" fill="#302f2c" stroke="#b1ab9c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></g>
+<rect x="215" y="130" width="4" height="14" rx="0" fill="#b1ab9c" stroke="none" stroke-width="0" />
+<rect x="221" y="130" width="2" height="14" rx="0" fill="#b1ab9c" stroke="none" stroke-width="0" />
+<rect x="227" y="130" width="2" height="14" rx="0" fill="#b1ab9c" stroke="none" stroke-width="0" />
+<rect x="233" y="130" width="4" height="14" rx="0" fill="#b1ab9c" stroke="none" stroke-width="0" />
+<rect x="239" y="130" width="2" height="14" rx="0" fill="#b1ab9c" stroke="none" stroke-width="0" />
+<rect x="245" y="130" width="2" height="14" rx="0" fill="#b1ab9c" stroke="none" stroke-width="0" />
+<rect x="251" y="130" width="4" height="14" rx="0" fill="#b1ab9c" stroke="none" stroke-width="0" />
+<path d="M290 113L317 113M309.0 109.0L317 113L309.0 117.0" fill="none" stroke="#b1ab9c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+<rect x="322" y="63" width="126" height="100" rx="6" fill="#191a19" stroke="#5b594f" stroke-width="2" />
+<g transform="translate(355 109) scale(0.9)"><path d="M-15 -20h19l11 11v28h-30z" fill="#302f2c" stroke="#efece1" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M4 -20v11h11M-9 -3h16m-16 7H4m-13 7H1" fill="none" stroke="#b1ab9c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></g>
+<g transform="translate(402 94) scale(1.1)"><circle cx="-10" cy="-3" r="6" fill="none" stroke="#dacba7" stroke-width="2.5"/>
+<path d="M-4 -3h18m-5 0v6m-4-6v4" fill="none" stroke="#dacba7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></g>
+<path d="M392 136l7.699999999999999 7.699999999999999l16.5 -16.5" fill="none" stroke="#bed19f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<g data-key="1"><path d="M61 59l7 13" fill="none" stroke="#dacba7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /><circle cx="57" cy="45" r="15" fill="#dacba7" stroke="#242425" stroke-width="2"/><text x="57" y="51" text-anchor="middle" fill="#26251f" font-family="sans-serif" font-weight="700" font-size="18">1</text></g>
+<g data-key="2"><path d="M218 61l8 16" fill="none" stroke="#dacba7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /><circle cx="214" cy="45" r="15" fill="#dacba7" stroke="#242425" stroke-width="2"/><text x="214" y="51" text-anchor="middle" fill="#26251f" font-family="sans-serif" font-weight="700" font-size="18">2</text></g>
+<g data-key="3"><path d="M386 58l11 25" fill="none" stroke="#dacba7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /><circle cx="378" cy="45" r="15" fill="#dacba7" stroke="#242425" stroke-width="2"/><text x="378" y="51" text-anchor="middle" fill="#26251f" font-family="sans-serif" font-weight="700" font-size="18">3</text></g>
+</svg>

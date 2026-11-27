@@ -6,6 +6,16 @@
 
 To reproduce individual states, run `task ui-kit:up` and open the "Workplace / Screens" section in Storybook. There the same components use fixed alarms, local video recordings and a simulated connection failure. `task ui-kit:down` stops the catalog. [Component catalog](http://127.0.0.1:6010)
 
+## Help portal
+
+Open **Help** on the sign-in screen or go directly to `/help` at the site's HTTPS address. Anyone who can reach the site can read the portal without signing in. On a wide workspace, Help is at the bottom of the left sidebar, below Settings. When the sections move to the top bar, Help is immediately before Settings. On a phone, open the user drawer and select Help. Each opens the article for the screen you are using.
+
+Choose the operator or administrator guide, or search by task, symptom or error code. The portal opens in the language and theme of the client you came from. The Settings gear opens two segmented controls for theme (system, light or dark) and language (English or Russian). Changing either keeps the article open. A direct visit uses the choices saved in this browser. On the first direct visit, Help uses a supported browser language and the system theme.
+
+Each of the 30 guides has a starting screen or procedure, the required permissions, instructions and a result you can verify. Use the numbered points in the illustration to identify what to check. The troubleshooting section links symptoms to actions and identifies what information to pass to an administrator. Related guides continue the task, for example from reviewing an archive gap to recovering a copy from the camera or from exporting a fragment to verifying it offline.
+
+The article opens in a separate tab. A Help link on an error message opens the article for that error. Return to the original tab to resume work with the same camera or alarm. The portal provides general instructions from the installed release. Search runs in the browser and works on an isolated site with no external internet connection.
+
 ## Catalog and camera connection
 
 The "Cameras" section opens the "Catalog of connected devices". Channels are grouped by device. Search finds a device by model or serial number, a channel by name and an observation point. Channels can be filtered by the camera connection and by the state of the configuration application by the recorder. Expand a channel to see its revision and the point binding.
@@ -42,8 +52,8 @@ The Bacuri Desktop application signs in through the browser of the same computer
 
 | Component | Rule |
 | --- | --- |
-| Workspace | In the top bar next to sign-out, three icons switch the theme. The monitor follows the system setting, the moon turns on the dark theme, the sun the light one. The system mode is selected initially, and the browser remembers the choice. The video frame and the opaque label backgrounds keep their colors in both themes. On a wide screen the video and the alarms are side by side, on a narrow one the feed follows the timeline |
-| Interface language | In the top bar next to the theme, the RU and EN switch changes the language of labels, messages, dates and numbers without a reload. Initially the browser language is selected when it is supported, otherwise English. The browser remembers the choice. Camera and point names, operator text and error codes are not translated |
+| Workspace | With the left sidebar open, Settings and Help appear as section items at the bottom, in that order, above the collapse button. With the sections in the top bar, Help precedes Settings and the username sits next to the Sign out icon. On a phone, the two header controls open the user drawer (username, Help, Sign out) and Settings. The Settings panel groups theme and language into two segmented controls. The system theme is selected initially, and the browser remembers the choice. The video frame and the opaque label backgrounds keep their colors in both themes. On a wide screen the video and the alarms are side by side, on a narrow one the feed follows the timeline |
+| Interface language | In Settings the EN/RU switch changes the language of labels, messages, dates and numbers without a reload. Initially the browser language is selected when it is supported, otherwise English. The browser remembers the choice. Camera and point names, operator text and error codes are not translated |
 | Section menu | At a width from 75 rem (1200 px at the default font size) the sections are on the left. The button at the bottom of the panel collapses it to icons and expands it back. The browser remembers the choice. At a smaller width the menu is at the top. On a phone the icons are aligned in one row with a one-line label under each. At a width up to 30 rem the "Activity journal" and "Maps and plans" sections are labeled "Journal" and "Maps". A screen reader reads the full names |
 | Screen name | The active menu items and the browser tab title mark the current place. The first-level heading is available to a screen reader. The work area shows the names of objects, field groups and operation results |
 | Subsections | In the side menu the items with icons are under the active section. In the collapsed menu the name is available in a tooltip. On smaller screens the buttons are placed on the page. In "Access" six buttons take one row, at a width up to 44 rem the grid has three columns, up to 24 rem two |

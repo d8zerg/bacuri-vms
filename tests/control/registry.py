@@ -87,6 +87,7 @@ def login(name):
     assert status == 201, (status, body)
     cookie = headers["Set-Cookie"]
     assert all(attr in cookie for attr in ("Secure", "HttpOnly", "SameSite=Strict", "Path=/"))
+    assert body["username"] == name
     return {"Cookie": cookie.split(";")[0], "X-CSRF-Token": body["csrf_token"]}
 
 

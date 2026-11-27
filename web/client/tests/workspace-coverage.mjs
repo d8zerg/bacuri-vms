@@ -10,9 +10,15 @@ await report.add(await speechCaptureCoverage());
 await report.add(await serviceAdapterCoverage());
 const runs = globSync("/results/chrome/*.json");
 assert.ok(runs.length, "Missing real Chrome executions");
+let measuredHelpPage = false;
 for (const file of runs) {
   const scripts = JSON.parse(readFileSync(file, "utf8"));
   assert.ok(scripts.length);
+  if (
+    scripts.some(({ url }) => new URL(url).pathname === "/assets/help-theme.js")
+  ) {
+    measuredHelpPage = true;
+  }
   await report.add(
     scripts.flatMap((script) => {
       const name = basename(new URL(script.url).pathname);
@@ -41,4 +47,5 @@ for (const file of runs) {
     }),
   );
 }
+assert.ok(measuredHelpPage, "Missing anonymous help page execution");
 await assertCoverage(report, true);

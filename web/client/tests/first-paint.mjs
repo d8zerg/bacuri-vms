@@ -36,7 +36,12 @@ async function checkStartup(
         await session.promise;
         if (signedIn)
           return route.fulfill({
-            json: { user_id: "viewer", csrf_token: "fixture", site_roles: [] },
+            json: {
+              username: "viewer",
+              user_id: "viewer",
+              csrf_token: "fixture",
+              site_roles: [],
+            },
           });
         return route.fulfill({ status: 401, json: { code: "unauthorized" } });
       }

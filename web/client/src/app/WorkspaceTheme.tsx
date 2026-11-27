@@ -1,13 +1,8 @@
-import { useEffect, useLayoutEffect, useState } from "react";
-import icons from "../../../../design/bacuri/icons/sprite.svg";
-import { languages, selectLanguage, useLanguage, useT } from "../i18n";
+import { useEffect, useLayoutEffect, useId, useState } from "react";
+import { selectLanguage, useLanguage, useT } from "../i18n";
+import { SettingsIcon } from "../ui-kit/ToolbarDrawer";
+import { DisplaySwitches, type Theme } from "../ui-kit/DisplaySwitches";
 
-const choices = [
-  { value: "system", label: "theme.system", icon: "monitor" },
-  { value: "dark", label: "theme.dark", icon: "moon" },
-  { value: "light", label: "theme.light", icon: "sun" },
-] as const;
-type Theme = (typeof choices)[number]["value"];
 const storageKey = "bacuri.vms.theme";
 
 function savedTheme(): Theme {
@@ -50,66 +45,63 @@ export function useWorkspaceTheme() {
   return { theme, selectTheme };
 }
 
-export function ThemeSwitch({
+export function WorkspacePreferences({
   theme,
   selectTheme,
 }: ReturnType<typeof useWorkspaceTheme>) {
-  const t = useT();
-  return (
-    <div
-      className="ws-theme-switch"
-      role="radiogroup"
-      aria-label={t("theme.label")}
-    >
-      {choices.map(({ value, label, icon }) => (
-        <label key={value} title={t(label)}>
-          <input
-            type="radio"
-            name="workspace-theme"
-            value={value}
-            aria-label={t(label)}
-            checked={value === theme}
-            onChange={() => selectTheme(value)}
-          />
-          <svg aria-hidden="true">
-            <use href={icons + "#i-" + icon} />
-          </svg>
-        </label>
-      ))}
-    </div>
-  );
-}
-
-// Switches the interface language. Each option is named in its own language.
-export function LanguageSwitch() {
   const t = useT();
   const language = useLanguage();
   const [pending, setPending] = useState<typeof language | null>(null);
   function choose(value: typeof language) {
     setPending(value);
     void selectLanguage(value).finally(() => {
-      setPending((requested) => (requested === value ? null : requested));
+      setPending((requested) => (value === requested ? null : requested));
     });
   }
   return (
-    <div
-      className="ws-theme-switch ws-language-switch"
-      role="radiogroup"
-      aria-label={t("language.label")}
-    >
-      {languages.map((value) => (
-        <label key={value} title={t(`language.${value}`)} lang={value}>
-          <input
-            type="radio"
-            name="workspace-language"
-            value={value}
-            aria-label={t(`language.${value}`)}
-            checked={value === (pending ?? language)}
-            onChange={() => choose(value)}
-          />
-          <span aria-hidden="true">{value.toUpperCase()}</span>
-        </label>
-      ))}
-    </div>
+    <DisplaySwitches
+      language={pending ?? language}
+      theme={theme}
+      setLanguage={choose}
+      setTheme={selectTheme}
+      labels={{
+        language: t("language.label"),
+        theme: t("theme.label"),
+        ru: t("language.ru"),
+        en: t("language.en"),
+        system: t("theme.system"),
+        dark: t("theme.dark"),
+        light: t("theme.light"),
+      }}
+    />
+  );
+}
+
+export function SidebarSettings(props: ReturnType<typeof useWorkspaceTheme>) {
+  const t = useT();
+  const id = useId();
+  return (
+    <>
+      <button
+        type="button"
+        className="ws-sidebar-action"
+        popoverTarget={id}
+        aria-haspopup="dialog"
+        aria-label={t("nav.settings")}
+        title={t("nav.settings")}
+      >
+        <SettingsIcon />
+        <span>{t("nav.settings")}</span>
+      </button>
+      <div
+        id={id}
+        className="ws-preferences-popover"
+        role="dialog"
+        aria-label={t("nav.settings")}
+        popover="auto"
+      >
+        <WorkspacePreferences {...props} />
+      </div>
+    </>
   );
 }

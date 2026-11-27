@@ -3,6 +3,9 @@ import { useSearchParams } from "react-router";
 import type { Services, Session } from "../contracts/workspace";
 import { describeError } from "../adapters/errors";
 import { useT } from "../i18n";
+import { HttpFailure } from "../adapters/api";
+import { ErrorHelpLink } from "./ErrorHelpLink";
+import { HelpLink } from "./HelpLink";
 import { Button } from "../ui-kit/FormControls";
 import {
   desktopRedirect,
@@ -23,17 +26,20 @@ export function DesktopSignIn({
   const [request] = useState(() => desktopSignInRequest(params));
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [helpCode, setHelpCode] = useState<string>();
   if (!request)
     return (
       <main className="ws-login ws-panel">
         <h1>{t("desktop.title")}</h1>
         <p role="alert">{t("desktop.invalid")}</p>
+        <HelpLink article="sign-in" />
       </main>
     );
   async function allow() {
     if (!request || busy) return;
     setBusy(true);
     setNotice("");
+    setHelpCode(undefined);
     try {
       const issued = await services.issueDesktopCode({
         code_challenge: request.challenge,
@@ -44,6 +50,7 @@ export function DesktopSignIn({
       location.assign(desktopRedirect(request, { code: issued.code }));
     } catch (error) {
       setNotice(describeError(error));
+      setHelpCode(error instanceof HttpFailure ? error.code : undefined);
       setBusy(false);
     }
   }
@@ -52,7 +59,7 @@ export function DesktopSignIn({
       <h1>{t("desktop.title")}</h1>
       <p>{t("desktop.explain")}</p>
       <p>
-        {t("desktop.account")} <strong>{identity.user_id}</strong>
+        {t("desktop.account")} <strong>{identity.username}</strong>
       </p>
       <p>{t("desktop.warning")}</p>
       <div className="ws-actions">
@@ -71,6 +78,7 @@ export function DesktopSignIn({
         </Button>
       </div>
       <p role="status">{notice}</p>
+      <ErrorHelpLink article="sign-in" code={helpCode} />
     </main>
   );
 }

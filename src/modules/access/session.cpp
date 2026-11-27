@@ -68,11 +68,14 @@ Json session_body(postgresql::Database& db, const Key& key, const Identity& iden
     const auto rows = db.exec(R"sql(
         SELECT to_char(expires_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
             (SELECT coalesce(jsonb_agg(jsonb_build_object('site_id',site_id,'role',role) ORDER BY site_id),'[]')
-             FROM bacuri_access.site_roles WHERE user_id=s.user_id AND enabled AND (s.oidc_site IS NULL OR site_id=s.oidc_site))
-        FROM bacuri_access.browser_sessions s WHERE token_hash=$1
+             FROM bacuri_access.site_roles WHERE user_id=s.user_id AND enabled AND (s.oidc_site IS NULL OR site_id=s.oidc_site)),
+            u.username
+        FROM bacuri_access.browser_sessions s JOIN bacuri_access.local_users u ON u.user_id=s.user_id
+        WHERE token_hash=$1
     )sql",
                               {fingerprint(key, "session", identity.cookie)});
     return {{"user_id", identity.user},
+            {"username", rows.get(0, 2)},
             {"expires_at", rows.get(0)},
             {"site_roles", Json::parse(rows.get(0, 1))},
             {"csrf_token", fingerprint(key, "csrf", identity.cookie)}};

@@ -1,5 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   NavLink,
   BrowserRouter,
@@ -13,17 +12,22 @@ import {
 } from "react-router";
 import type { Feed, Point, Services, Session } from "../contracts/workspace";
 import { HttpFailure } from "../adapters/api";
+import { takeDesktopSignIn } from "../workflows/desktopSignIn";
+import { ToolbarDrawer } from "../ui-kit/ToolbarDrawer";
+import { WorkspaceAccount } from "./WorkspaceAccount";
 import {
-  keepDesktopSignIn,
-  takeDesktopSignIn,
-} from "../workflows/desktopSignIn";
-import { describeError } from "../adapters/errors";
-import { SubsectionSlot } from "./SubsectionMenu";
-import { cameraSetup, Installer } from "./installer";
+  HelpLink,
+  HelpTheme,
+  ScreenHelp,
+  screenHelpTopic,
+  type HelpTopic,
+} from "./HelpLink";
+import { SubsectionSlot, useSidebarLayout } from "./SubsectionMenu";
+import { cameraSetup } from "./cameraSetup";
 import "../ui-kit/media-panels.css";
 import {
-  LanguageSwitch,
-  ThemeSwitch,
+  WorkspacePreferences,
+  SidebarSettings,
   useWorkspaceTheme,
 } from "./WorkspaceTheme";
 import { LanguageProvider, useT, type MessageKey } from "../i18n";
@@ -31,6 +35,10 @@ import { Button } from "../ui-kit/FormControls";
 import icons from "../../../../design/bacuri/icons/sprite.svg";
 import mark from "../../../../design/bacuri/brand/mark.svg";
 import "./workspace.css";
+const Login = lazy(() => import("./Login"));
+const Installer = lazy(() =>
+  import("./installer").then((m) => ({ default: m.Installer })),
+);
 const Audit = lazy(() =>
   import("./AlertWork").then((m) => ({ default: m.AlertAudit })),
 );
@@ -44,137 +52,6 @@ const Monitor = lazy(() =>
 const Investigations = lazy(() => import("./Investigations"));
 const Maps = lazy(() => import("./Maps"));
 const waiting: Feed = { items: [], status: "loading" };
-function Login({
-  services,
-  onLogin,
-  message,
-}: {
-  services: Services;
-  onLogin: (user: Session) => void;
-  message: string;
-}) {
-  const t = useT();
-  const route = useLocation();
-  // A failed corporate sign-in returns here with the cause of the error catalog.
-  const [notice, setNotice] = useState(() => {
-      const cause = new URLSearchParams(location.search).get("sign_in_error");
-      return cause ? describeError(new HttpFailure(0, cause)) : message;
-    }),
-    [busy, setBusy] = useState(false),
-    [enroll, setEnroll] = useState(false);
-  const [corporate, setCorporate] = useState(false);
-  useEffect(() => {
-    const controller = new AbortController();
-    void fetch("/api/v1/session/oidc/methods", {
-      signal: controller.signal,
-      cache: "no-store",
-    })
-      .then(
-        async (res) => res.ok && ((await res.json()) as { oidc: boolean }).oidc,
-      )
-      .then((enabled) => {
-        if (!controller.signal.aborted) setCorporate(enabled === true);
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, []);
-  const enrollmentInput = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (enroll) enrollmentInput.current?.focus();
-  }, [enroll]);
-  async function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (busy) return;
-    const fields = new FormData(e.currentTarget);
-    const username = fields.get("username"),
-      password = fields.get("password"),
-      enrollment = fields.get("enrollment");
-    if (typeof username !== "string" || typeof password !== "string") return;
-    setBusy(true);
-    try {
-      onLogin(
-        await services.login(
-          username,
-          password,
-          typeof enrollment === "string" ? enrollment : undefined,
-        ),
-      );
-    } catch (error) {
-      if (
-        error instanceof HttpFailure &&
-        error.code === "enrollment_required"
-      ) {
-        setEnroll(true);
-        setNotice(t("login.enrollmentRequired"));
-        return;
-      }
-      // The security key prompt refused by the person counts as a rejected factor.
-      if (error instanceof DOMException && error.name === "NotAllowedError")
-        setNotice(t("login.keyRejected"));
-      else
-        setNotice(
-          describeError(error, {
-            invalid_credentials: "login.invalid",
-            rate_limited: "login.rateLimited",
-            invalid_factor: "login.keyRejected",
-            internal_error: "login.failed",
-            invalid_request: "login.failed",
-          }),
-        );
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <main className="ws-login ws-panel ws-pad">
-      <img className="ws-login-mark" alt="" src={mark} />
-      <h1>{t("login.title")}</h1>
-      <form onSubmit={(e) => void submit(e)}>
-        <label>
-          {t("login.username")}
-          <input required name="username" autoComplete="username" />
-        </label>
-        <label>
-          {t("login.password")}
-          <input
-            required
-            type="password"
-            name="password"
-            autoComplete="current-password"
-          />
-        </label>
-        {enroll && (
-          <label>
-            {t("login.enrollment")}
-            <input
-              type="password"
-              ref={enrollmentInput}
-              name="enrollment"
-              autoComplete="off"
-              required
-            />
-          </label>
-        )}
-        <Button type="submit" variant="primary" disabled={busy}>
-          {busy ? t("login.submitting") : t("login.submit")}
-        </Button>
-      </form>
-      {corporate && (
-        <a
-          className="bk-button"
-          href="/api/v1/session/oidc/start"
-          onClick={() => {
-            if (route.pathname === "/desktop-sign-in")
-              keepDesktopSignIn(route.search);
-          }}
-        >
-          {t("login.keycloak")}
-        </a>
-      )}
-      <p role="status">{notice}</p>
-    </main>
-  );
-}
 function Site({
   services,
   site,
@@ -271,12 +148,14 @@ function Site({
   const notice = failed ? t("site.reconnecting") : t("site.loading");
   if (cameras && admin)
     return (
-      <Installer
-        services={services}
-        site={site}
-        points={points}
-        connectionNotice={notice}
-      />
+      <Suspense fallback={<p role="status">{t("loading.generic")}</p>}>
+        <Installer
+          services={services}
+          site={site}
+          points={points}
+          connectionNotice={notice}
+        />
+      </Suspense>
     );
   if (!points) return <p role="status">{notice}</p>;
   if (investigations)
@@ -357,9 +236,16 @@ const sections = [
   icon: string;
   admin?: boolean;
 }[];
-function Workspace({ services }: { services: Services }) {
+function Workspace({
+  services,
+  theme,
+}: {
+  services: Services;
+  theme: ReturnType<typeof useWorkspaceTheme>;
+}) {
   const t = useT();
-  const theme = useWorkspaceTheme();
+  const sidebar = useSidebarLayout();
+  const [subsectionHelp, setSubsectionHelp] = useState<HelpTopic>();
   const [submenuSlot, setSubmenuSlot] = useState<HTMLDivElement | null>(null);
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -449,7 +335,8 @@ function Workspace({ services }: { services: Services }) {
           }}
         >
           {t("site.retry")}
-        </Button>
+        </Button>{" "}
+        <HelpLink article="connection-lost" />
       </main>
     );
   if (identity === undefined)
@@ -460,14 +347,22 @@ function Workspace({ services }: { services: Services }) {
     );
   if (!identity)
     return (
-      <Login
-        services={services}
-        onLogin={(user) => {
-          setMessage("");
-          setIdentity(user);
-        }}
-        message={message}
-      />
+      <Suspense
+        fallback={
+          <main className="ws-startup" role="status">
+            {t("loading.session")}
+          </main>
+        }
+      >
+        <Login
+          services={services}
+          onLogin={(user) => {
+            setMessage("");
+            setIdentity(user);
+          }}
+          message={message}
+        />
+      </Suspense>
     );
   if (path === "/desktop-sign-in")
     return (
@@ -488,6 +383,9 @@ function Workspace({ services }: { services: Services }) {
   context.delete("setup");
   if (site) context.set("site", site.site_id);
   const query = context.size ? "?" + context.toString() : "";
+  const helpTopic = site
+    ? (subsectionHelp ?? screenHelpTopic(path, params))
+    : "access-privacy";
   const auditQuery = new URLSearchParams(context);
   auditQuery.delete("alert_id");
   return (
@@ -540,6 +438,12 @@ function Workspace({ services }: { services: Services }) {
                   </div>
                 );
               })}
+            {sidebar && (
+              <div className="ws-sidebar-actions">
+                <SidebarSettings {...theme} />
+                <HelpLink sidebar article={helpTopic} />
+              </div>
+            )}
           </nav>
           <button
             type="button"
@@ -567,13 +471,6 @@ function Workspace({ services }: { services: Services }) {
           </button>
         </div>
         <div className="ws-session">
-          {site && (
-            <span className="ws-role">
-              {site.role === "administrator"
-                ? t("role.administrator")
-                : t("role.operator")}
-            </span>
-          )}
           {identity.site_roles.length > 1 && (
             <label className="ws-site-select">
               {t("site.label")}{" "}
@@ -592,14 +489,12 @@ function Workspace({ services }: { services: Services }) {
               </select>
             </label>
           )}
+
           <div className="ws-session-actions">
-            <LanguageSwitch />
-            <ThemeSwitch {...theme} />
-            <Button
-              className="ws-logout"
-              title={t("session.logout")}
-              aria-label={t("session.logout")}
-              onClick={() => {
+            <WorkspaceAccount
+              username={identity.username}
+              helpTopic={helpTopic}
+              logout={() => {
                 void services
                   .logout()
                   .then(() => {
@@ -612,63 +507,75 @@ function Workspace({ services }: { services: Services }) {
                   .catch(() => setMessage(t("session.logoutFailed")));
               }}
             >
-              <svg aria-hidden="true">
-                <use href={icons + "#i-log-out"} />
-              </svg>
-            </Button>
+              {!sidebar && (
+                <>
+                  <div className="ws-header-help">
+                    <HelpLink article={helpTopic} iconOnly />
+                  </div>
+                  <ToolbarDrawer
+                    title={t("nav.settings")}
+                    closeLabel={t("nav.closeSettings")}
+                  >
+                    <WorkspacePreferences {...theme} />
+                  </ToolbarDrawer>
+                </>
+              )}
+            </WorkspaceAccount>
           </div>
         </div>
       </header>
-      <SubsectionSlot.Provider value={submenuSlot}>
-        <main id="workspace" tabIndex={-1}>
-          {site && <h1 className="ws-route-name">{section}</h1>}
-          {message && <p role="status">{message}</p>}
-          {site && path === "/access" ? (
-            site.role === "administrator" ? (
-              <Suspense fallback={<p role="status">{t("loading.access")}</p>}>
-                <Access
-                  key={site.site_id}
-                  site={site.site_id}
-                  session={identity}
-                  expire={expired}
-                />
-              </Suspense>
+      <ScreenHelp.Provider value={setSubsectionHelp}>
+        <SubsectionSlot.Provider value={submenuSlot}>
+          <main id="workspace" tabIndex={-1}>
+            {site && <h1 className="ws-route-name">{section}</h1>}
+            {message && <p role="status">{message}</p>}
+            {site && path === "/access" ? (
+              site.role === "administrator" ? (
+                <Suspense fallback={<p role="status">{t("loading.access")}</p>}>
+                  <Access
+                    key={site.site_id}
+                    site={site.site_id}
+                    session={identity}
+                    expire={expired}
+                  />
+                </Suspense>
+              ) : (
+                <p role="status">{t("access.denied")}</p>
+              )
+            ) : site ? (
+              <Site
+                key={site.site_id}
+                services={services}
+                site={site.site_id}
+                userId={identity.user_id}
+                admin={site.role === "administrator"}
+                cameras={cameras}
+                investigations={path === "/investigations"}
+                maps={path === "/maps"}
+                audit={path === "/audit"}
+                onExpired={expired}
+              />
             ) : (
-              <p role="status">{t("access.denied")}</p>
-            )
-          ) : site ? (
-            <Site
-              key={site.site_id}
-              services={services}
-              site={site.site_id}
-              userId={identity.user_id}
-              admin={site.role === "administrator"}
-              cameras={cameras}
-              investigations={path === "/investigations"}
-              maps={path === "/maps"}
-              audit={path === "/audit"}
-              onExpired={expired}
-            />
-          ) : (
-            <div className="ws-panel ws-pad">
-              <h1>
-                {identity.site_roles.length
-                  ? t("site.unavailable")
-                  : t("site.none")}
-              </h1>
-              {identity.site_roles[0] && (
-                <Button
-                  onClick={() =>
-                    void setParams({ site: identity.site_roles[0]!.site_id })
-                  }
-                >
-                  {t("site.openAvailable")}
-                </Button>
-              )}
-            </div>
-          )}
-        </main>
-      </SubsectionSlot.Provider>
+              <div className="ws-panel ws-pad">
+                <h1>
+                  {identity.site_roles.length
+                    ? t("site.unavailable")
+                    : t("site.none")}
+                </h1>
+                {identity.site_roles[0] && (
+                  <Button
+                    onClick={() =>
+                      void setParams({ site: identity.site_roles[0]!.site_id })
+                    }
+                  >
+                    {t("site.openAvailable")}
+                  </Button>
+                )}
+              </div>
+            )}
+          </main>
+        </SubsectionSlot.Provider>
+      </ScreenHelp.Provider>
     </div>
   );
 }
@@ -678,6 +585,7 @@ function MonitorRedirect() {
 }
 
 function WorkspaceRoutes({ services }: { services: Services }) {
+  const theme = useWorkspaceTheme();
   const routes: RouteObject[] = [
     { path: "/", element: <MonitorRedirect /> },
     ...[
@@ -690,10 +598,11 @@ function WorkspaceRoutes({ services }: { services: Services }) {
       "/desktop-sign-in",
     ].map((path) => ({
       path,
-      element: <Workspace services={services} />,
+      element: <Workspace services={services} theme={theme} />,
     })),
   ];
-  return useRoutes(routes);
+  const page = useRoutes(routes);
+  return <HelpTheme.Provider value={theme.theme}>{page}</HelpTheme.Provider>;
 }
 
 export function WorkspaceRouter({

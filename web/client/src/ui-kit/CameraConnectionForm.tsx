@@ -1,3 +1,4 @@
+import "../i18n/camera";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Button, StatusIndicator, TextField } from "./FormControls";
@@ -20,7 +21,12 @@ export type StreamCheck =
   | "incompatible"
   | "unknown";
 export type CameraCheckResult =
-  | { status: "error"; reason: "disconnected" | "unknown"; message?: string }
+  | {
+      status: "error";
+      reason: "disconnected" | "unknown";
+      message?: string;
+      code?: string | undefined;
+    }
   | { status: "profiles"; main: StreamCheck; secondary: StreamCheck };
 export type CameraCheckState =
   CameraCheckResult | { status: "idle" | "checking" };

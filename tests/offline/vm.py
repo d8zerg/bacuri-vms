@@ -74,6 +74,15 @@ def request(url, method="GET", data=None, headers=None, trust=None):
         return res.status, res.headers, json.loads(raw) if raw else None
 
 
+def check_installed_help(trust, manifest):
+    with urlopen(origin + "/help", context=trust, timeout=10) as response:
+        html = response.read()
+        assert response.status == 200 and response.headers.get("Set-Cookie") is None
+        assert "connect-src 'none'" in response.headers["Content-Security-Policy"]
+    assert hashlib.sha256(html).hexdigest() == manifest["web_assets"]["help.html"]
+    assert f'name="bacuri-version" content="{manifest["product_version"]}"'.encode() in html
+
+
 def until(fn, label, limit=30):
     stop = time.monotonic() + limit
     last = None
@@ -109,6 +118,8 @@ def exercise(line, send):
 
     print("Testing HTTPS at", socket.gethostbyname("bacuri.test"), flush=True)
     until(lambda: api("GET", "session")[0] == 401, "HTTPS after boot")
+    manifest = json.loads((report / "bundle/sbom.json").read_text())
+    check_installed_help(trust, manifest)
     password_only = {"username": "installer", "password": password}
     status, headers, _ = api("POST", "session", password_only)
     assert status == 403 and not headers.get("Set-Cookie")
@@ -154,7 +165,7 @@ def exercise(line, send):
         js("document.querySelector('form button[type=submit]').click()")
 
     def logged_in():
-        return js("""return !!document.querySelector('button[aria-label="Выйти"]')""")
+        return js("""return !!document.querySelector('button[aria-label="installer"]')""")
 
     try:
         call(
@@ -168,6 +179,9 @@ def exercise(line, send):
                 "isUserVerified": True,
             },
         )
+        call("/url", {"url": origin + "/help#lang=en&theme=dark&article=recording-missing"})
+        until(lambda: js("return document.documentElement.lang === 'en' && !!document.querySelector('article ol li')"),
+              "anonymous help on the installed site")
         call("/url", {"url": origin + "/cameras"})
         form("username", "installer")
         form("password", password)
@@ -186,7 +200,10 @@ def exercise(line, send):
             )
 
         assert authorized() == 200
-        js("""document.querySelector('button[aria-label="Выйти"]').click()""")
+        js("""const visible = label => [...document.querySelectorAll('button[aria-label]')]
+                .find(b => b.getClientRects().length && b.ariaLabel === label);
+              if (!visible('Выйти')) visible('installer').click();
+              visible('Выйти').click();""")
         form("username", "installer")
         form("password", password)
         submit()
@@ -265,15 +282,13 @@ def exercise(line, send):
     send("version")
     assert line() == "bacuri.vms " + sbom["product_version"]
     assert assets == sbom["web_assets"]
-    legacy = {path: sha for sha, path in (p.split(maxsplit=1) for p in rows("legacy"))}
-    assert legacy == sbom["legacy_web_assets"]
     packages = sbom["debian_packages"]
     missing = [p["name"] for p in packages if installed.get((p["name"], p["architecture"])) != p["version"]]
     if missing:
         raise AssertionError(("package inventory differs", missing))
     result.update(
         verified_packages=len(packages),
-        verified_assets=len(assets) + len(legacy),
+        verified_assets=len(assets),
         package_version=sbom["package_version"],
         debian_target=sbom["debian_target"],
         postgresql_version=sbom["postgresql_version"],

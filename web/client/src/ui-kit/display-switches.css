@@ -1,0 +1,50 @@
+.bk-display-switch {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--space-1);
+  background: var(--raised);
+}
+.bk-display-switch label {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 2.125rem;
+  height: 2.125rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  color: var(--muted);
+}
+.bk-display-switch span {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.bk-display-switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.bk-display-switch label:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+.bk-display-switch label:has(:checked) {
+  border-color: var(--action);
+  background: var(--action-fill);
+  color: var(--on-action);
+}
+.bk-display-switch label:has(:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+  z-index: 1;
+}
+.bk-display-switch svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}

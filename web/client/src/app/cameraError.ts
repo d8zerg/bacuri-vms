@@ -1,3 +1,4 @@
+import "../i18n/camera";
 import { HttpFailure } from "../adapters/api";
 import { describeError, errorCode } from "../adapters/errors";
 

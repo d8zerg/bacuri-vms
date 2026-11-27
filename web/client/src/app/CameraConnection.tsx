@@ -1,3 +1,6 @@
+import { HttpFailure } from "../adapters/api";
+import { ErrorHelpLink } from "./ErrorHelpLink";
+import { HelpLink } from "./HelpLink";
 import "../i18n/extended";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
@@ -55,7 +58,13 @@ export default function Connection({
         applied = await services.register(site, draft, signal, operation);
       } catch (error) {
         const message = cameraError(error);
-        if (message) return { status: "error", reason: "unknown", message };
+        if (message)
+          return {
+            status: "error",
+            reason: "unknown",
+            message,
+            code: error instanceof HttpFailure ? error.code : undefined,
+          };
         throw error;
       }
       signal.throwIfAborted();
@@ -188,6 +197,9 @@ export default function Connection({
               submitLabel={t("connect.submit")}
             />
           </fieldset>
+          {form.state.status === "error" && (
+            <ErrorHelpLink code={form.state.code} article="connect-camera" />
+          )}
           {online && camera && (
             <section className="ws-panel ws-pad">
               <h2>{t("connect.recordCheck")}</h2>
@@ -286,6 +298,12 @@ export default function Connection({
                       : target
                         ? t("connect.saved")
                         : t("connect.saveHint")}
+                  {phase === "error" && (
+                    <>
+                      {" "}
+                      <HelpLink article="recording-missing" />
+                    </>
+                  )}
                 </span>
               </li>
               <li aria-current={target ? "step" : undefined}>

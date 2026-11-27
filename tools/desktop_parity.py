@@ -75,7 +75,8 @@ def requirement_register() -> tuple[set[str], dict[str, dict[str, set[str]]]]:
 def web_routes() -> set[str]:
     text = ROUTES.read_text(encoding="utf-8")
     sections = text.split("const sections = [", 1)[1].split("] satisfies", 1)[0]
-    return set(re.findall(r'path: "(/[a-z-]+)"', sections))
+    pages = {"/" + p.stem for p in (ROOT / "web/client").glob("*.html") if p.stem != "index"}
+    return set(re.findall(r'path: "(/[a-z-]+)"', sections)) | pages
 
 
 def accept(register_text: str, contracts: dict[str, str]) -> str:

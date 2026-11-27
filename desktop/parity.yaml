@@ -5,9 +5,9 @@
 
 reference:
   # Revision of the public contracts the register was reconciled with.
-  api_version: 1.7.0
+  api_version: 1.8.0
   contracts:
-    contracts/v1/openapi.yaml: 3e7b3cb49833db0eea67a6d96f07c8b13bd763acb9fa166c8551d97d1e7d838e
+    contracts/v1/openapi.yaml: f626f5fd74592161197864b4f53e7a1d6082473ea7437df4b4ffc4a3df349fb3
     contracts/v1/alerts.schema.yaml: 02cfa6ca964a90f60bc6e4c282981010bf7dc09d07c3d009c641af83d82870b7
     contracts/v1/errors.yaml: d6f631f151d08a967a87bd61133db9499848e940a970b4617eee130c71f5b329
 
@@ -81,7 +81,7 @@ functions:
     criterion: Regions, plans, placement, georeference and calibration changed in one client are visible in the other, and the map works without external network
   help:
     owner: "2.3"
-    criterion: The same articles, identifiers and versions as the web portal of the delivery, available offline and in both languages
+    criterion: The system browser opens the public site help portal before or after sign-in with the client language and theme, including on an isolated LAN
   operations:
     owner: "6.1"
     criterion: Node procedures stay on the node, the workstation shows their effect, such as a required repeated sign-in after a restore
@@ -934,20 +934,21 @@ scenarios:
     material: Verdicts of the client and the console tool
 
   # Help and language
-  help-offline:
+  help-before-sign-in:
     function: help
     area: help
     role: operator
-    precondition: No connection to the site and no external network
-    action: Open help from the sign-in screen and search by symptom and by error code
-    result: The article and its illustrations open in the selected language
-    failure: An unknown code leads to the search
+    precondition: The configured HTTPS site is reachable on an isolated LAN and the workstation has no session
+    action: Open help in the system browser from the sign-in screen and search by symptom and by error code
+    result: The public article and illustrations from the installed server release open with the desktop language and theme even if the system browser has other preferences
+    failure: An unknown code opens search. If the site is unreachable the workstation explains how to retry
     steps: ["2.3"]
     platform: ["11.5"]
     operations: []
     install: [compact, site]
-    test: desktop/help/offline
-    material: Article identifiers and versions against the web portal
+    web: /help
+    test: desktop/help/before-sign-in
+    material: Public article identifier and server release, sign-in screen and unavailable-site message
   help-from-error:
     function: help
     area: help
@@ -955,7 +956,7 @@ scenarios:
     precondition: A busy PTZ camera
     action: Open the article from the error and return
     result: The same camera, layout and focus after the return
-    failure: The article in the other language is the same article identifier
+    failure: An unknown article or code opens search. The link excludes session, camera and alarm data
     steps: ["2.3"]
     platform: ["11.5"]
     operations: []
@@ -967,7 +968,7 @@ scenarios:
     role: operator
     precondition: Two windows, playback and an open form
     action: Switch Russian -> English -> Russian
-    result: Texts, accessible names and the help article change in all windows, the input, focus and archive position are kept
+    result: Texts and accessible names change in all client windows. Input, focus and the archive position are kept. Opening help passes the desktop language and theme. Both settings can be changed on the portal while keeping the article
     failure: The choice is kept after a restart and an update
     steps: ["2.1", "7.2"]
     platform: ["11.5"]

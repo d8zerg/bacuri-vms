@@ -10,6 +10,13 @@ function observeDesktop(notify: () => void) {
   media.addEventListener("change", notify);
   return () => media.removeEventListener("change", notify);
 }
+export function useSidebarLayout() {
+  return useSyncExternalStore(
+    observeDesktop,
+    () => window.matchMedia(desktop).matches,
+    () => false,
+  );
+}
 type Item = {
   label: string;
   short?: string;
@@ -31,11 +38,7 @@ export function SubsectionMenu({
   nested?: boolean;
 }) {
   const slot = useContext(SubsectionSlot);
-  const wide = useSyncExternalStore(
-    observeDesktop,
-    () => window.matchMedia(desktop).matches,
-    () => false,
-  );
+  const wide = useSidebarLayout();
   const menu = (
     <div
       className="ws-submenu"

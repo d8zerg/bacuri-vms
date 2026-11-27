@@ -1,3 +1,4 @@
+import { cameraSetup } from "./cameraSetup";
 import { lazy, Suspense, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import type { CameraDraft, Point, Services } from "../contracts/workspace";
@@ -10,15 +11,6 @@ const CameraSelection = lazy(() => import("./CameraSelection"));
 const RecordingPolicies = lazy(() => import("./RecordingPolicies"));
 const CameraBatch = lazy(() => import("./CameraBatch"));
 const empty = { name: "", main_url: "", secondary_url: "" };
-export function cameraSetup(requested: string | null) {
-  return requested === "manual" ||
-    requested === "onvif" ||
-    requested === "rules" ||
-    requested === "recording" ||
-    requested === "batch"
-    ? requested
-    : null;
-}
 export function Installer({
   services,
   site,

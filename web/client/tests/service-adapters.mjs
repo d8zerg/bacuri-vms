@@ -26,6 +26,7 @@ async function login(page) {
     user_id: user,
     site_roles: [],
     csrf_token: randomUUID(),
+    username: "viewer",
     expires_at: new Date(Date.now() + 3600000).toISOString(),
   };
   const challenges = [];

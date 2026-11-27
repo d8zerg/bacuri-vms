@@ -2,7 +2,7 @@
 
 Usage:
   errors.py cpp OUTPUT.hpp     C++ header with ErrorCode and its properties
-  errors.py json OUTPUT.json   retry behavior of each code for the web client
+  errors.py json OUTPUT.json [HELP.json [MESSAGES.json]]   retry behavior and optional list of user-facing help codes
   errors.py docs               writes the error reference in English and Russian
   errors.py check              the catalog against the OpenAPI contract, the server sources, the client messages and
                                the error reference
@@ -109,11 +109,18 @@ constexpr std::optional<ErrorCode> parse_error(std::string_view code)
     Path(output).write_text(text, encoding="utf-8")
 
 
-def client(output):
+def client(output, help_output=None, help_messages=None):
     _, errors = load()
     data = {code: entry["retry"] for code, entry in errors.items()}
     Path(output).parent.mkdir(parents=True, exist_ok=True)
     Path(output).write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
+    if help_output:
+        public_codes = [code for code, entry in errors.items() if entry["audience"] != "services"]
+        Path(help_output).write_text(json.dumps(public_codes, indent=1) + "\n", encoding="utf-8")
+        if help_messages:
+            editions = {lang: message_texts(ROOT / f"web/client/src/i18n/{lang}.ts") for lang in ("en", "ru")}
+            public = {code: {lang: texts[f"error.{code}"] for lang, texts in editions.items()} for code in public_codes}
+            Path(help_messages).write_text(json.dumps(public, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 
 
 LANGUAGE = {
@@ -247,8 +254,8 @@ if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else ""
     if command == "cpp" and len(sys.argv) == 3:
         cpp(sys.argv[2])
-    elif command == "json" and len(sys.argv) == 3:
-        client(sys.argv[2])
+    elif command == "json" and len(sys.argv) in (3, 4, 5):
+        client(*sys.argv[2:])
     elif command == "docs":
         docs()
     elif command == "check":

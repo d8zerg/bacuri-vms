@@ -189,7 +189,8 @@ def check_release_operations(register, requirements):
         same_set(key, set(re.findall(r'\baction\s*==\s*"([^"]+)"', source)), surfaces[kinds[key]])
     router = Path("web/client/src/app/Workspace.tsx").read_text()
     routes = re.findall(r'"(/[\w/-]*)"', router.partition("const routes: RouteObject[]")[2])
-    same_set("web workspace", set(routes) - {"/"}, surfaces[kinds["Web"]])
+    pages = {"/" + p.stem for p in Path("web/client").glob("*.html") if p.stem != "index"}
+    same_set("web workspace", (set(routes) - {"/"}) | pages, surfaces[kinds["Web"]])
     return len(operation_ids)
 
 

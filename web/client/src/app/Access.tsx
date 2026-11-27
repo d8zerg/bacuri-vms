@@ -1,3 +1,4 @@
+import { useScreenHelp, type HelpTopic } from "./HelpLink";
 import "../i18n/extended";
 import { FilterPanel, matchesQuery } from "../ui-kit/FilterPanel";
 import { useEffect, useState } from "react";
@@ -70,6 +71,14 @@ async function load(
     points,
   };
 }
+const accessHelp: Record<Tab, HelpTopic> = {
+  users: "users-and-groups",
+  groups: "users-and-groups",
+  grants: "access-privacy",
+  privacy: "privacy-masks",
+  login: "sign-in",
+  audit: "activity-journal",
+};
 export default function Access({
   site,
   session,
@@ -81,6 +90,7 @@ export default function Access({
 }) {
   const t = useT();
   const [tab, setTab] = useState<Tab>("users");
+  useScreenHelp(accessHelp[tab]);
   const access = useResource(session, "access:" + site, (signal) =>
     load(site, session.csrf_token, signal),
   );

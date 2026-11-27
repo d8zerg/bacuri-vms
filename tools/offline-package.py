@@ -95,6 +95,9 @@ def main():
         raise ValueError("The Git revision or working tree changed since compilation. Rebuild before packaging.")
     if output(binaries / "bacuri-vms", "--version") != "bacuri.vms " + identity["version"]:
         raise ValueError("The compiled product version differs from its build manifest")
+    portal = Path("build/web-client/help.html").read_text()
+    if f'name="bacuri-version" content="{identity["version"]}"' not in portal:
+        raise ValueError("Rebuild the help portal for the version of the server being packaged")
     if args.signer:
         product_version.check_release(identity)
     version = identity["debian"] + ("~qualification" if args.qualification else "")

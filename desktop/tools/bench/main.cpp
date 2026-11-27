@@ -8,7 +8,9 @@
 #include "media/graphics_probe.hpp"
 #include "media/stream_group.hpp"
 #include "media/video_stream.hpp"
+#include "site/help.hpp"
 #include "site/sign_in.hpp"
+#include <QLocale>
 #include "site/site_proxy.hpp"
 
 #include <QCommandLineParser>
@@ -25,6 +27,7 @@
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QQmlApplicationEngine>
+#include <QShortcut>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTimer>
@@ -204,6 +207,11 @@ int main(int argc, char* argv[])
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addOptions({
+        {"language", "Workstation interface language (en or ru).", "language",
+         QLocale().language() == QLocale::Russian ? "ru" : "en"},
+        {"theme", "Workstation theme (system, light or dark).", "theme", "system"},
+    });
+    parser.addOptions({
         {"source", "MP4 file or rtsp:// address.", "source"},
         {"codec", "h264 or h265.", "codec", "h264"},
         {"decoder", "auto, hardware or software.", "decoder", "auto"},
@@ -272,6 +280,15 @@ int main(int argc, char* argv[])
     if (engine.rootObjects().isEmpty())
         return 1;
     auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects().constFirst());
+
+    if (parser.isSet("site")) {
+        auto* help = new QShortcut(QKeySequence::HelpContents, window);
+        QObject::connect(help, &QShortcut::activated, window, [&parser] {
+            if (!open_help(QUrl{parser.value("site")}, parser.value("language"), parser.value("theme"),
+                           HelpPage::site_map))
+                qWarning("Could not open the site help portal");
+        });
+    }
 
     FrameTimes times;
     const auto started = Clock::now();

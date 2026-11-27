@@ -10,8 +10,8 @@
 
 | Layer | Modules | Responsibility |
 | --- | --- | --- |
-| Application | `app` | Windows per screen, navigation between workspaces, the command registry, saving and restoring the post, the language and the theme |
-| Features | `live`, `archive`, `alerts`, `maps`, `investigations`, `export`, `administration`, `help` | One module per work area of the parity register. C++ models with typed properties and QML views. A feature depends on core services and never on another feature: it opens another area through a navigation intent of the application |
+| Application | `app` | Windows per screen, navigation between workspaces, the command registry, saving and restoring the post, the language and the theme. The Help action opens the site's public HTTPS portal in the system browser with the client language and theme |
+| Features | `live`, `archive`, `alerts`, `maps`, `investigations`, `export`, `administration` | One module per work area of the parity register. C++ models with typed properties and QML views. A feature depends on core services and never on another feature: it opens another area through a navigation intent of the application |
 | Core services | `site`, `media`, `map`, `input`, `settings`, `diagnostics` | The API client, the session, the event feed and the error catalog of the site. Video streams, decoder choice, fallback, shared subscriptions and the frame cache. The map view and the gateway for resources of the site. Joysticks and key panels. Settings per user and site. Logs, metrics and frame timing |
 | Design system | `ui` | Tokens, components and scene graph items of the visual system as the QML module `Bacuri.Vms.Client.Ui` with its own catalog and screenshot tests |
 

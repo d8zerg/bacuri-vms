@@ -78,8 +78,7 @@ body:has(.ws-shell, .ws-login, .ws-startup) {
   min-width: 0;
   max-width: 100%;
 }
-.ws-session-actions,
-.ws-theme-switch {
+.ws-session-actions {
   display: inline-flex;
   align-items: center;
   flex: none;
@@ -91,58 +90,6 @@ body:has(.ws-shell, .ws-login, .ws-startup) {
   width: 1.125rem;
   height: 1.125rem;
 }
-.ws-theme-switch {
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: var(--space-1);
-  background: var(--raised);
-}
-.ws-theme-switch label,
-.ws-logout {
-  display: grid;
-  place-items: center;
-}
-.ws-theme-switch label {
-  position: relative;
-  width: 2.125rem;
-  height: 2.125rem;
-  border: 1px solid transparent;
-  border-radius: 0.25rem;
-  color: var(--muted);
-}
-.ws-language-switch span {
-  font-size: var(--text-caption);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-.ws-theme-switch input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-.ws-theme-switch label:hover {
-  background: var(--surface);
-  color: var(--ink);
-}
-.ws-theme-switch label:has(:checked) {
-  border-color: var(--action);
-  background: var(--action-fill);
-  color: var(--on-action);
-}
-.ws-theme-switch label:has(:focus-visible) {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-  z-index: 1;
-}
-.ws-session .ws-logout {
-  width: 2.5rem;
-  height: 2.5rem;
-  padding: 0;
-}
 .ws-bar nav {
   gap: var(--space-1);
   padding-inline-start: var(--space-4);
@@ -153,7 +100,8 @@ body:has(.ws-shell, .ws-login, .ws-startup) {
   height: 1.125rem;
   flex: none;
 }
-.ws-bar nav a {
+.ws-bar nav a,
+.ws-sidebar-action {
   padding: 0.62rem 0.8rem;
   min-width: 0;
   white-space: nowrap;
@@ -164,7 +112,8 @@ body:has(.ws-shell, .ws-login, .ws-startup) {
   text-decoration: none;
   border-radius: var(--space-1);
 }
-.ws-bar nav a:hover {
+.ws-bar nav a:hover,
+.ws-sidebar-action:hover {
   background: var(--raised);
   color: var(--ink);
 }
@@ -599,13 +548,14 @@ body:has(.ws-shell, .ws-login, .ws-startup) {
     min-height: 3.75rem;
   }
   .ws-bar nav {
+    flex: 1;
     flex-direction: column;
     align-items: stretch;
     padding: var(--space-3) 0;
     border: 0;
     border-top: 1px solid var(--line);
   }
-  .ws-bar nav a,
+  .ws-bar nav :is(a, .ws-sidebar-action),
   .ws-sidebar-toggle {
     gap: var(--space-3);
     min-height: 2.75rem;
@@ -613,10 +563,43 @@ body:has(.ws-shell, .ws-login, .ws-startup) {
   .ws-bar nav a[aria-current="page"] {
     box-shadow: inset 3px 0 var(--action);
   }
+  .ws-sidebar-actions {
+    display: grid;
+    gap: var(--space-1);
+    margin-top: auto;
+    padding-top: var(--space-3);
+  }
+  .ws-sidebar-action {
+    display: flex;
+    align-items: center;
+    border: 0;
+    font-family: inherit;
+    text-align: start;
+    background: transparent;
+    cursor: pointer;
+  }
+  .ws-preferences-popover {
+    position: fixed;
+    inset: auto auto 3.5rem calc(var(--sidebar-width) + 0.5rem);
+    margin: 0;
+    width: max-content;
+    min-width: 13rem;
+    max-height: calc(100dvh - 4rem);
+    overflow: auto;
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 4px 18px rgb(0 0 0 / 0.15);
+  }
+  .ws-preferences-popover:popover-open {
+    display: grid;
+    gap: var(--space-3);
+  }
   .ws-sidebar-toggle {
     display: flex;
     align-items: center;
-    margin-top: auto;
     padding: 0.6rem 0.8rem;
     border: 0;
     border-radius: var(--space-1);
@@ -726,4 +709,61 @@ body:has(.ws-shell, .ws-login, .ws-startup) {
 .ws-record-guide span {
   margin-top: 0.2rem;
   font-size: var(--text-control);
+}
+.ws-help-link {
+  color: var(--action);
+  font-size: var(--text-control);
+  text-underline-offset: 0.2rem;
+}
+.ws-account-compact {
+  display: contents;
+}
+.ws-account-compact > button {
+  display: none;
+}
+.ws-account-wide,
+.ws-account-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ws-account-name {
+  margin-inline-start: var(--space-2);
+}
+.ws-account-name svg {
+  flex: none;
+}
+.ws-account-name span {
+  max-width: clamp(5rem, 14vw, 18rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-account-actions {
+  display: grid;
+  justify-items: stretch;
+  gap: var(--space-3);
+}
+.ws-account-actions .bk-button {
+  justify-content: start;
+}
+.ws-account-actions .ws-help-link {
+  display: flex;
+  align-items: center;
+  min-height: 2.5rem;
+}
+.ws-session-actions .bk-toolbar-icon {
+  color: var(--ink);
+}
+@media (max-width: 47rem) {
+  .ws-header-help,
+  .ws-account-wide {
+    display: none;
+  }
+  .ws-account-compact > button {
+    display: inline-grid;
+  }
+  .ws-session-actions {
+    gap: 0.3rem;
+  }
 }

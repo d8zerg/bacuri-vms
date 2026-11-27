@@ -168,6 +168,7 @@ export function fixture(condition = "normal"): Services {
   let alerts = condition === "empty" ? [] : initialAlerts;
   const subscribers = new Set<(feed: Feed) => void>();
   const session: Session = {
+    username: "operator.demo",
     user_id: ids.user,
     // A CSRF token has the length of the server token.
     csrf_token: "fixture-csrf-token-000000000000000000000000000",

@@ -12,6 +12,8 @@ import type { ControlIcon } from "../ui-kit/FormControls";
 import { FilterPanel, matchesQuery } from "../ui-kit/FilterPanel";
 import { CameraAudio } from "./CameraAudio";
 import { DirectionKey } from "./DirectionKey";
+import { ErrorHelpLink } from "./ErrorHelpLink";
+import { HttpFailure } from "../adapters/api";
 import { cameraError } from "./cameraError";
 import { ptzLabel } from "./cameraCommands";
 import "./camera-console.css";
@@ -81,7 +83,11 @@ export function CameraConsole({
   const [pending, setPending] = useState(0);
   const [readError, setReadError] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState<{ text: string; error: boolean }>();
+  const [notice, setNotice] = useState<{
+    text: string;
+    error: boolean;
+    code?: string | undefined;
+  }>();
   const [filter, setFilter] = useState("");
   const [route, setRoute] = useState("");
   const next = useRef(0),
@@ -138,6 +144,7 @@ export function CameraConsole({
       if (token === next.current)
         setNotice({
           text: cameraError(e) ?? t("console.noAck"),
+          code: e instanceof HttpFailure ? e.code : undefined,
           error: true,
         });
       return false;
@@ -558,7 +565,10 @@ export function CameraConsole({
           <ControlGlyph
             icon={notice.error ? "triangle-alert" : "circle-check"}
           />
-          {notice.text}
+          {notice.text}{" "}
+          {notice.error && (
+            <ErrorHelpLink code={notice.code} article="ptz-control" />
+          )}
         </div>
       )}
     </div>
