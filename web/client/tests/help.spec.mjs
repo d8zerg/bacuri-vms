@@ -210,7 +210,14 @@ test("Public article links open directly, keep the theme and fit a narrow displa
 test("Role navigation narrows the catalog and browser Back restores it", async ({
   page,
 }) => {
-  await page.goto(origin + "/help#lang=en&theme=system");
+  await page.goto(origin + "/help");
+  await expect(
+    page.getByRole("button", { name: "Settings", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.locator("html")).not.toHaveAttribute(
+    "data-workspace-theme",
+  );
   await checkA11y(page);
   await page.locator('nav a[href*="section=operator"]').first().click();
   await expect(articleLink(page, "start-monitoring")).toBeVisible();
@@ -551,8 +558,24 @@ workspaceTest(
       "/iframe.html?viewMode=story&globals=language:en&id=workspace--";
     const login = await page.goto(story + "desktop-sign-in-login");
     expect(login.ok()).toBe(true);
-    const help = page.getByRole("link", { name: "Help", exact: true });
-    const loginLink = new URL(await help.getAttribute("href"), page.url());
+    const requests = [];
+    await page.context().route("**/help", (route) => {
+      requests.push(route.request().headers());
+      return route.fulfill({
+        contentType: "text/html",
+        body: "<title>Help</title>",
+      });
+    });
+    const help = page.getByRole("button", { name: "Help", exact: true });
+    await expect(help).toHaveText("");
+    const [loginHelp] = await Promise.all([
+      page.context().waitForEvent("page"),
+      help.click(),
+    ]);
+    await loginHelp.waitForLoadState();
+    const loginLink = new URL(loginHelp.url());
+    expect(await loginHelp.evaluate(() => window.opener === null)).toBe(true);
+    await loginHelp.close();
     expect(loginLink.pathname).toBe("/help");
     expect(loginLink.search).toBe("");
     expect(
@@ -580,14 +603,6 @@ workspaceTest(
         .getByRole("link", { name: "Help for this screen" }),
     ).toHaveCount(0);
     const source = page.url();
-    const requests = [];
-    await page.context().route("**/help", (route) => {
-      requests.push(route.request().headers());
-      return route.fulfill({
-        contentType: "text/html",
-        body: "<title>Help</title>",
-      });
-    });
     const [popup] = await Promise.all([
       page.waitForEvent("popup"),
       topic.click(),
@@ -604,8 +619,8 @@ workspaceTest(
       theme: "dark",
       article: "camera-on-map",
     });
-    expect(requests).toHaveLength(1);
-    expect(requests[0].referer).toBeUndefined();
+    expect(requests).toHaveLength(2);
+    for (const headers of requests) expect(headers.referer).toBeUndefined();
     expect(await popup.evaluate(() => window.opener === null)).toBe(true);
     await popup.close();
     await expect(page).toHaveURL(source);

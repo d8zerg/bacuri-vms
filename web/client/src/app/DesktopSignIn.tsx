@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import type { Services, Session } from "../contracts/workspace";
-import { describeError } from "../adapters/errors";
-import { useT } from "../i18n";
+import { errorMessageKey } from "../adapters/errors";
+import { useT, type MessageKey } from "../i18n";
 import { HttpFailure } from "../adapters/api";
-import { ErrorHelpLink } from "./ErrorHelpLink";
-import { HelpLink } from "./HelpLink";
+import { publicHelpCode } from "./ErrorHelpLink";
+import { SignInHeader } from "./SignInHeader";
 import { Button } from "../ui-kit/FormControls";
 import {
   desktopRedirect,
@@ -25,20 +25,20 @@ export function DesktopSignIn({
   const [params] = useSearchParams();
   const [request] = useState(() => desktopSignInRequest(params));
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<MessageKey | null>(null);
   const [helpCode, setHelpCode] = useState<string>();
   if (!request)
     return (
       <main className="ws-login ws-panel">
+        <SignInHeader />
         <h1>{t("desktop.title")}</h1>
         <p role="alert">{t("desktop.invalid")}</p>
-        <HelpLink article="sign-in" />
       </main>
     );
   async function allow() {
     if (!request || busy) return;
     setBusy(true);
-    setNotice("");
+    setNotice(null);
     setHelpCode(undefined);
     try {
       const issued = await services.issueDesktopCode({
@@ -46,16 +46,17 @@ export function DesktopSignIn({
         code_challenge_method: "S256",
         redirect_uri: request.redirect,
       });
-      setNotice(t("desktop.sent"));
+      setNotice("desktop.sent");
       location.assign(desktopRedirect(request, { code: issued.code }));
     } catch (error) {
-      setNotice(describeError(error));
+      setNotice(errorMessageKey(error));
       setHelpCode(error instanceof HttpFailure ? error.code : undefined);
       setBusy(false);
     }
   }
   return (
     <main className="ws-login ws-panel">
+      <SignInHeader code={publicHelpCode(helpCode)} />
       <h1>{t("desktop.title")}</h1>
       <p>{t("desktop.explain")}</p>
       <p>
@@ -77,8 +78,7 @@ export function DesktopSignIn({
           {t("desktop.cancel")}
         </Button>
       </div>
-      <p role="status">{notice}</p>
-      <ErrorHelpLink article="sign-in" code={helpCode} />
+      <p role="status">{notice && t(notice)}</p>
     </main>
   );
 }

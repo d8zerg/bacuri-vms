@@ -17,9 +17,9 @@ export const ru = {
   "theme.system": "Системная тема",
   "theme.dark": "Тёмная тема",
   "theme.light": "Светлая тема",
-  "desktop.title": "Вход в Bacuri Desktop",
+  "desktop.title": "Вход в Bacuri VMS",
   "desktop.explain":
-    "Приложение Bacuri Desktop на этом компьютере просит войти под вашей учётной записью. Приложение получит собственный сеанс с вашими правами.",
+    "Настольное приложение Bacuri VMS на этом компьютере просит войти под вашей учётной записью. Приложение получит собственный сеанс с вашими правами.",
   "desktop.account": "Учётная запись:",
   "desktop.warning":
     "Подтверждайте, только если вы сами только что начали вход в приложении.",
@@ -28,7 +28,10 @@ export const ru = {
   "desktop.sent": "Приложение выполняет вход. Можно вернуться к нему.",
   "desktop.invalid":
     "Запрос входа от приложения недействителен. Начните вход из приложения заново.",
-  "login.title": "Вход в Bacuri VMS",
+  "login.switchLanguage": "Переключить на английский (EN)",
+  "login.usernameRequired": "Введите имя пользователя.",
+  "login.passwordRequired": "Введите пароль.",
+  "login.enrollmentCodeRequired": "Введите код первичной привязки.",
   "login.username": "Имя пользователя",
   "login.password": "Пароль",
   "login.enrollment": "Код первичной привязки",

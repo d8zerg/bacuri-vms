@@ -9,9 +9,9 @@ export const en = {
   "theme.system": "System theme",
   "theme.dark": "Dark theme",
   "theme.light": "Light theme",
-  "desktop.title": "Sign in to Bacuri Desktop",
+  "desktop.title": "Sign in to Bacuri VMS",
   "desktop.explain":
-    "The Bacuri Desktop application on this computer asks to sign in with your account. The application gets its own session with your permissions.",
+    "The Bacuri VMS desktop application on this computer asks to sign in with your account. The application gets its own session with your permissions.",
   "desktop.account": "Account:",
   "desktop.warning":
     "Confirm only if you started the sign-in in the application just now.",
@@ -20,7 +20,10 @@ export const en = {
   "desktop.sent": "The application is signing in. You can return to it.",
   "desktop.invalid":
     "The sign-in request of the application is not valid. Start the sign-in from the application again.",
-  "login.title": "Sign in to Bacuri VMS",
+  "login.switchLanguage": "Switch to Russian (RU)",
+  "login.usernameRequired": "Enter your user name.",
+  "login.passwordRequired": "Enter your password.",
+  "login.enrollmentCodeRequired": "Enter your enrollment code.",
   "login.username": "User name",
   "login.password": "Password",
   "login.enrollment": "Enrollment code",

@@ -20,8 +20,9 @@ for (const [button, expected] of [
     });
     await page.goto(story + "desktop-sign-in");
     await expect(
-      page.getByRole("heading", { name: "Sign in to Bacuri Desktop" }),
+      page.getByRole("heading", { name: "Sign in to Bacuri VMS" }),
     ).toBeVisible();
+    await expect(page).toHaveTitle("Sign in | Bacuri VMS");
     await checkAccessibility(page, "main");
     await page.getByRole("button", { name: button }).click();
     await expect.poll(() => answers.length).toBe(1);
@@ -59,7 +60,27 @@ test("A corporate sign-in keeps the desktop request and returns to its confirmat
     }),
   );
   await page.goto(story + "desktop-sign-in-login");
-  await page.getByRole("link", { name: "Sign in with Keycloak" }).click();
+  const corporate = page.getByRole("link", { name: "Sign in with Keycloak" });
+  await expect(corporate).toBeVisible();
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const submit = await page
+      .getByRole("button", { name: "Sign in", exact: true })
+      .boundingBox();
+    const provider = await corporate.boundingBox();
+    expect(provider.x).toBe(submit.x);
+    expect(provider.width).toBe(submit.width);
+    const help = await page
+      .getByRole("button", { name: "Help", exact: true })
+      .boundingBox();
+    const language = await page
+      .getByRole("button", { name: "Switch to Russian (RU)" })
+      .boundingBox();
+    expect(help.y).toBe(language.y);
+    expect(help.x + help.width).toBeLessThan(language.x);
+    expect(language.x + language.width).toBeLessThanOrEqual(width);
+  }
+  await corporate.click();
   await page.waitForURL(/oidc\/start$/);
   const kept = await page.evaluate(() =>
     sessionStorage.getItem("bacuri.desktop.signIn"),
@@ -71,7 +92,7 @@ test("A corporate sign-in keeps the desktop request and returns to its confirmat
   // Back from the provider on the monitor, the workspace returns to the confirmation once.
   await page.goto(story + "monitor");
   await expect(
-    page.getByRole("heading", { name: "Sign in to Bacuri Desktop" }),
+    page.getByRole("heading", { name: "Sign in to Bacuri VMS" }),
   ).toBeVisible();
   expect(
     await page.evaluate(() => sessionStorage.getItem("bacuri.desktop.signIn")),

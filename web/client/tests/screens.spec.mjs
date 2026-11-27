@@ -78,7 +78,7 @@ test("Workspace theme follows the system, supports keyboard selection and surviv
   ).toContainText("operator.demo");
   await logout.click();
   await expect(
-    page.getByRole("heading", { name: "Вход в Bacuri VMS" }),
+    page.getByRole("heading", { name: "Вход", exact: true }),
   ).toBeVisible();
   await expect(canvas).toHaveCSS("background-color", lightColor);
 });

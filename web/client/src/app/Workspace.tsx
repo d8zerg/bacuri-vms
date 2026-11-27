@@ -24,6 +24,7 @@ import {
 } from "./HelpLink";
 import { SubsectionSlot, useSidebarLayout } from "./SubsectionMenu";
 import { cameraSetup } from "./cameraSetup";
+import { SignInHeader } from "./SignInHeader";
 import "../ui-kit/media-panels.css";
 import {
   WorkspacePreferences,
@@ -266,7 +267,7 @@ function Workspace({
   const [identity, setIdentity] = useState<Session | null | undefined>(
     undefined,
   );
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<MessageKey | null>(null);
   const [sessionFailed, setSessionFailed] = useState(false);
   const [sessionAttempt, setSessionAttempt] = useState(0);
   useEffect(() => {
@@ -295,7 +296,7 @@ function Workspace({
     return () => ctl.abort();
   }, [services, sessionAttempt]);
   const [expired] = useState(() => () => {
-    setMessage(t("session.expired"));
+    setMessage("session.expired");
     setIdentity(null);
   });
   // After a corporate sign-in started from a desktop sign-in, return to its confirmation.
@@ -306,6 +307,7 @@ function Workspace({
   }, [identity, navigate]);
   const section =
     {
+      "/desktop-sign-in": t("section.signIn"),
       "/maps": t("section.maps"),
       "/investigations": t("section.investigations"),
       "/audit": t("section.journal"),
@@ -325,6 +327,7 @@ function Workspace({
   if (sessionFailed)
     return (
       <main className="ws-login ws-panel">
+        <SignInHeader article="connection-lost" />
         <h1>{t("site.unavailable")}</h1>
         <p role="status">{t("site.sessionCheckFailed")}</p>
         <Button
@@ -335,8 +338,7 @@ function Workspace({
           }}
         >
           {t("site.retry")}
-        </Button>{" "}
-        <HelpLink article="connection-lost" />
+        </Button>
       </main>
     );
   if (identity === undefined)
@@ -357,7 +359,7 @@ function Workspace({
         <Login
           services={services}
           onLogin={(user) => {
-            setMessage("");
+            setMessage(null);
             setIdentity(user);
           }}
           message={message}
@@ -498,13 +500,13 @@ function Workspace({
                 void services
                   .logout()
                   .then(() => {
-                    setMessage("");
+                    setMessage(null);
                     setIdentity(null);
                     const channel = new BroadcastChannel("bacuri-session");
                     channel.postMessage("logout");
                     channel.close();
                   })
-                  .catch(() => setMessage(t("session.logoutFailed")));
+                  .catch(() => setMessage("session.logoutFailed"));
               }}
             >
               {!sidebar && (
@@ -528,7 +530,7 @@ function Workspace({
         <SubsectionSlot.Provider value={submenuSlot}>
           <main id="workspace" tabIndex={-1}>
             {site && <h1 className="ws-route-name">{section}</h1>}
-            {message && <p role="status">{message}</p>}
+            {message && <p role="status">{t(message)}</p>}
             {site && path === "/access" ? (
               site.role === "administrator" ? (
                 <Suspense fallback={<p role="status">{t("loading.access")}</p>}>

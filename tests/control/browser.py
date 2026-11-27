@@ -30,7 +30,7 @@ def browser_session(browser, credential, page, *, workspace_coverage=None, softw
     capabilities = {"browserName": browser, "acceptInsecureCerts": True}
     if downloads:
         capabilities["se:downloadsEnabled"] = True
-    # The scenarios check Russian interface text, so the browser reports Russian as its language.
+    # These scenarios exercise the Russian workspace and browser.
     if browser == "chrome":
         args = ["--lang=ru-RU"]
         if software_map:
@@ -54,9 +54,10 @@ def browser_session(browser, credential, page, *, workspace_coverage=None, softw
             profiler("enable")
             profiler("startPreciseCoverage", callCount=True, detailed=True)
         call("POST", path + "/timeouts", {"script": 50000})
+        # Set the workspace language on its origin before the scenario opens its first page.
+        call("POST", path + "/url", {"url": control.ORIGIN + "/assets/sprite.svg"})
+        call("POST", path + "/execute/sync", {"script": "localStorage.setItem('bacuri.vms.language','ru')", "args": []})
         if credential:
-            # A static asset of the client gives the browser the origin for the session cookie.
-            call("POST", path + "/url", {"url": control.ORIGIN + "/assets/sprite.svg"})
             name, value = credential["Cookie"].split("=", 1)
             call(
                 "POST",

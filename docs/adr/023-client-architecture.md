@@ -1,10 +1,10 @@
-# ADR-023. Architecture of Bacuri VMS Client
+# ADR-023. Desktop application architecture for Bacuri VMS
 
 [Русская версия](../ru/adr/023-client-architecture.md)
 
 **Status** - Accepted.
 
-**Context.** Bacuri VMS Client is the desktop workstation of Bacuri VMS for operators and administrators. It reaches parity with the web client and adds a multi-monitor post, a video wall, a synchronized archive of a whole layout, direct PTZ control, a physical console, spatial navigation between cameras and offline export verification. The measured video and map paths of [ADR-022](022-desktop-video-path.md) and the desktop session of [ADR-001](001-api-contracts.md#local-session-and-access-rules) are its first parts. The client runs for weeks without a restart, shows up to 16 and more video streams next to a map and must stay responsive under load, so its structure has to keep the threads, the state and the visual system under control from the start.
+**Context.** The Bacuri VMS desktop application provides a workstation for operators and administrators. It reaches parity with the web client and adds a multi-monitor post, a video wall, a synchronized archive of a whole layout, direct PTZ control, a physical console, spatial navigation between cameras and offline export verification. The measured video and map paths of [ADR-022](022-desktop-video-path.md) and the desktop session of [ADR-001](001-api-contracts.md#local-session-and-access-rules) are its first parts. The client runs for weeks without a restart, shows up to 16 and more video streams next to a map and must stay responsive under load, so its structure has to keep the threads, the state and the visual system under control from the start.
 
 **Decision.** The client is a C++23 application on Qt 6 Quick. C++ owns the state, the media, the network and the work. QML owns the presentation. The code is split into layers and modules with declared dependencies, like the Core modules of the site.
 
@@ -37,7 +37,7 @@ Each module is a library under `desktop/src/<module>` with its own tests. Tools 
 | Screens | The screens follow the [mockups of the operator workstation](../desktop-ui.md): the monitoring wall, the camera in focus, the synchronized archive, alarm handling, the command line, the plan, the cell anatomy and the three-monitor post |
 | Accessibility | Keyboard work for every scenario, roles and names for screen readers, text scaling, per-monitor DPI and a high contrast check of both themes |
 
-**Naming.** The product is Bacuri VMS Client, the executable `bacuri-vms-client`, the C++ namespace `bacuri::vms::client`, the QML modules `Bacuri.Vms.Client.*` and the libraries `bacuri-vms-client-<module>`.
+**Naming.** The desktop application's display name is `Bacuri VMS`. Its executable is `bacuri-vms-client`, its C++ namespace is `bacuri::vms::client`, its QML modules use `Bacuri.Vms.Client.*` and its libraries use `bacuri-vms-client-<module>`.
 
 **Rationale and consequences.** Separating features from core services keeps one owner for each object and one path for each kind of work, so two windows never show different versions of the same alarm and a slow camera never blocks the interface. A command registry gives the keyboard, the console and the menus one behavior and one place to check permissions. Generating API types and tokens removes hand-kept copies of the contract and of the palette. The structure costs explicit module boundaries and generated code, which pay off once the parity scenarios and the workstation functions grow. [Core module boundary](018-core-module-boundary.md) · [Error catalog](020-error-catalog.md) · [Video and map path](022-desktop-video-path.md)
 

@@ -488,7 +488,7 @@ tasks:
     cmd: python3 tools/desktop_passport.py
 
   desktop:build:
-    desc: Build Bacuri VMS Client, its bench and its tests in the desktop image
+    desc: Build the Bacuri VMS desktop application, its bench and its tests in the desktop image
     deps: [desktop:image]
     cmd: '{{.COMPOSE_RUN}} -T -w /workspace/desktop desktop sh -c "cmake --preset desktop && cmake --build --preset desktop"'
 

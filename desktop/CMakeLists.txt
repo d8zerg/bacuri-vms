@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 project(bacuri-vms-client LANGUAGES CXX)
 
-# Bacuri VMS Client: the desktop workstation of Bacuri VMS. Each module is a library with its own
+# Bacuri VMS desktop workstation. Each module is a library with its own
 # directory under src and depends only on the modules listed for it. See ADR-023.
 
 set(CMAKE_CXX_STANDARD 23)

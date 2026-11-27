@@ -23,28 +23,17 @@ async function loadLanguage(language: Language) {
 const locales: Record<Language, string> = { ru: "ru-RU", en: "en-GB" };
 const storageKey = "bacuri.vms.language";
 
-function saved(): Language | null {
+function savedLanguage(): Language {
   try {
     const value = localStorage.getItem(storageKey);
     if (value === "ru" || value === "en") return value;
   } catch {
     // Browser storage may be unavailable.
   }
-  return null;
-}
-
-// The saved choice, otherwise the first supported language of the browser, otherwise English.
-export function preferredLanguage(): Language {
-  const choice = saved();
-  if (choice) return choice;
-  for (const tag of navigator.languages ?? [navigator.language]) {
-    const primary = tag.toLowerCase().split("-")[0];
-    if (primary === "ru" || primary === "en") return primary;
-  }
   return "en";
 }
 
-let current: Language = preferredLanguage();
+let current: Language = savedLanguage();
 await loadLanguage(current);
 let requested = current;
 const listeners = new Set<() => void>();
@@ -58,18 +47,22 @@ export function currentLanguage(): Language {
   return current;
 }
 
-export async function selectLanguage(language: Language) {
+async function applyLanguage(language: Language) {
   requested = language;
   if (language === current) return;
   await loadLanguage(language);
   if (requested !== language) return;
   current = language;
+  listeners.forEach((listener) => listener());
+}
+
+export function selectLanguage(language: Language) {
   try {
     localStorage.setItem(storageKey, language);
   } catch {
     // The selected language still applies in this tab.
   }
-  listeners.forEach((listener) => listener());
+  return applyLanguage(language);
 }
 
 // BCP 47 locale of the current language for Intl formatters.
@@ -147,10 +140,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [language]);
   useEffect(() => {
     function sync(event: StorageEvent) {
-      if (event.key === storageKey || event.key === null) {
-        const choice = saved();
-        if (choice) void selectLanguage(choice);
-      }
+      if (event.key === storageKey || event.key === null)
+        void applyLanguage(savedLanguage());
     }
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);

@@ -1,5 +1,5 @@
-// Video and map bench of Bacuri VMS Client. Plays one source in a grid of cells on a common timeline
-// through the selected decoder into Qt Quick on OpenGL, seeks once and writes a JSON report with the
+// Video and map bench of the Bacuri VMS desktop application. Plays one source in a grid of cells on a common
+// timeline through the selected decoder into Qt Quick on OpenGL, seeks once and writes a JSON report with the
 // decoder output memory, the frames that reached the display, the first frame after the
 // start and after the seek, the frame time of the interface and the CPU time.
 
@@ -203,6 +203,7 @@ int main(int argc, char* argv[])
     gst_init(&argc, &argv);
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     QGuiApplication application(argc, argv);
+    QGuiApplication::setApplicationDisplayName(QStringLiteral("Bacuri VMS"));
 
     QCommandLineParser parser;
     parser.addHelpOption();

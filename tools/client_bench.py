@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the measurement series of the Bacuri VMS Client bench on the stand.
+"""Run the measurement series of the Bacuri VMS desktop bench on the stand.
 
 Each run starts the bench in the desktop-gpu Compose service on the stand display,
 samples the GPU and the NVDEC load on the host, checks the first frame and the frame after

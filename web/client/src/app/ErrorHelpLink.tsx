@@ -1,8 +1,10 @@
 import publicCodes from "../../../../build/contracts/help-codes.json";
 import { HelpLink, type HelpTopic, type PublicHelpCode } from "./HelpLink";
 
-function isPublicHelpCode(code?: string): code is PublicHelpCode {
-  return !!code && publicCodes.includes(code);
+export function publicHelpCode(code?: string): PublicHelpCode | undefined {
+  return code && publicCodes.includes(code)
+    ? (code as PublicHelpCode)
+    : undefined;
 }
 
 export function ErrorHelpLink({
@@ -12,10 +14,5 @@ export function ErrorHelpLink({
   code: string | undefined;
   article?: HelpTopic;
 }) {
-  return (
-    <HelpLink
-      code={isPublicHelpCode(code) ? code : undefined}
-      article={article}
-    />
-  );
+  return <HelpLink code={publicHelpCode(code)} article={article} />;
 }

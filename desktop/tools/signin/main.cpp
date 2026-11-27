@@ -30,6 +30,7 @@ QNetworkRequest authorized(const SignInOptions& options, const QString& path, co
 int main(int argc, char* argv[])
 {
     QGuiApplication application(argc, argv);
+    QGuiApplication::setApplicationDisplayName(QStringLiteral("Bacuri VMS"));
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addOptions({

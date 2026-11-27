@@ -46,10 +46,17 @@ export function retryOf(error: unknown): Retry {
 }
 
 // The text of a failure. A screen passes its own wording for causes it explains in its context.
+export function errorMessageKey(
+  error: unknown,
+  specific: Partial<Record<ErrorCode, MessageKey>> = {},
+): MessageKey {
+  const code = errorCode(error);
+  return specific[code] ?? `error.${code}`;
+}
+
 export function describeError(
   error: unknown,
   specific: Partial<Record<ErrorCode, MessageKey>> = {},
 ): string {
-  const code = errorCode(error);
-  return t(specific[code] ?? (`error.${code}` as MessageKey));
+  return t(errorMessageKey(error, specific));
 }

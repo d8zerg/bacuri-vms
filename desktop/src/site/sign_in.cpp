@@ -20,10 +20,9 @@ constexpr qsizetype request_limit = 8192;
 // The page the browser shows after it delivered the code to the application.
 QByteArray answer(int status, const QString& text)
 {
-    const auto body =
-        QStringLiteral("<!doctype html><meta charset=\"utf-8\"><title>Bacuri Desktop</title><p>%1</p>")
-            .arg(text.toHtmlEscaped())
-            .toUtf8();
+    const auto body = QStringLiteral("<!doctype html><meta charset=\"utf-8\"><title>Bacuri VMS</title><p>%1</p>")
+                          .arg(text.toHtmlEscaped())
+                          .toUtf8();
     return QByteArray("HTTP/1.1 ") + QByteArray::number(status) + (status == 200 ? " OK" : " Bad Request") +
            "\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nConnection: close\r\n"
            "Content-Length: " +
@@ -90,11 +89,11 @@ void SignIn::accept()
                 read_callback(socket->readLine(), QString::fromLatin1(callback_path), pkce_.state);
             if (!callback || done_) {
                 // A stray request does not end the sign-in.
-                socket->write(answer(400, tr("This address belongs to the sign-in of Bacuri Desktop.")));
+                socket->write(answer(400, tr("This address belongs to the sign-in of Bacuri VMS.")));
                 socket->disconnectFromHost();
                 return;
             }
-            socket->write(answer(200, tr("Bacuri Desktop received the sign-in. You can close this tab.")));
+            socket->write(answer(200, tr("Bacuri VMS received the sign-in. You can close this tab.")));
             // The browser gets the page before the sign-in may end the application.
             socket->waitForBytesWritten(2000);
             socket->disconnectFromHost();

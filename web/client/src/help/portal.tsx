@@ -50,9 +50,6 @@ function address() {
     locale(params.get("lang")) ??
     locale(saved(languageKey)) ??
     locale(saved("bacuri.vms.language")) ??
-    navigator.languages
-      .map((tag) => locale(tag.toLowerCase().split("-")[0] ?? null))
-      .find(Boolean) ??
     "en";
   const theme =
     [params.get("theme"), saved(themeKey), saved("bacuri.vms.theme")].find(

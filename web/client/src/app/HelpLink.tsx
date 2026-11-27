@@ -67,6 +67,30 @@ export function screenHelpTopic(
   }
 }
 
+export function useHelpHref(article?: HelpTopic, code?: PublicHelpCode) {
+  const language = useLanguage();
+  const theme = useContext(HelpTheme);
+  const params = new URLSearchParams({ lang: language, theme });
+  if (code) params.set("code", code);
+  else if (article) params.set("article", article);
+  return "/help#" + params.toString();
+}
+
+export function HelpIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.4 9a2.7 2.7 0 0 1 5.3.6c0 2-2.7 2.1-2.7 4.4M12 16v1" />
+    </svg>
+  );
+}
+
 export function HelpLink({
   article,
   code,
@@ -78,33 +102,18 @@ export function HelpLink({
   iconOnly?: boolean;
   sidebar?: boolean;
 }) {
-  const language = useLanguage(),
-    theme = useContext(HelpTheme),
-    t = useT();
-  const params = new URLSearchParams({ lang: language, theme });
-  if (code) params.set("code", code);
-  else if (article) params.set("article", article);
+  const href = useHelpHref(article, code);
+  const t = useT();
   return (
     <a
       className={iconOnly ? "ws-help-link bk-toolbar-icon" : "ws-help-link"}
-      href={"/help#" + params.toString()}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={t("nav.help")}
       title={t("nav.help")}
     >
-      {(iconOnly || sidebar) && (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          aria-hidden="true"
-        >
-          <circle cx="12" cy="12" r="9" />
-          <path d="M9.4 9a2.7 2.7 0 0 1 5.3.6c0 2-2.7 2.1-2.7 4.4M12 16v1" />
-        </svg>
-      )}
+      {(iconOnly || sidebar) && <HelpIcon />}
       {!iconOnly && <span>{t("nav.help")}</span>}
     </a>
   );

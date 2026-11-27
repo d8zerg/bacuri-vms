@@ -4,7 +4,7 @@
 
 **Status** - Accepted. Emergency live video directly from cameras is an option that is off by default.
 
-**Context.** The site is the single authority for Bacuri VMS Client: rights, sessions, recording, archive, events, alarms, layouts and audit live on the site, and the client holds no data of its own that counts as the truth ([ADR-023](023-client-architecture.md)). After a network break or a restart of the site the client restores the post and checks the rights again. During a longer outage the operator has no live video, which is the moment a security post needs it most. A post that keeps working on its own copy of rights or recordings would create a second truth and keep revoked access working.
+**Context.** The site is the single authority for the Bacuri VMS desktop application: rights, sessions, recording, archive, events, alarms, layouts and audit live on the site, and the client holds no data of its own that counts as the truth ([ADR-023](023-client-architecture.md)). After a network break or a restart of the site the client restores the post and checks the rights again. During a longer outage the operator has no live video, which is the moment a security post needs it most. A post that keeps working on its own copy of rights or recordings would create a second truth and keep revoked access working.
 
 **Options.**
 

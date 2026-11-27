@@ -202,8 +202,8 @@ def exercise(line, send):
         assert authorized() == 200
         js("""const visible = label => [...document.querySelectorAll('button[aria-label]')]
                 .find(b => b.getClientRects().length && b.ariaLabel === label);
-              if (!visible('Выйти')) visible('installer').click();
-              visible('Выйти').click();""")
+              if (!visible('Sign out')) visible('installer').click();
+              visible('Sign out').click();""")
         form("username", "installer")
         form("password", password)
         submit()

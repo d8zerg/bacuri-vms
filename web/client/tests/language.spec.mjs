@@ -36,6 +36,48 @@ test("operator switches the interface language", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("Display preferences survive sign-out and sign-in and reset when site storage is cleared", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto(monitor + "&globals=language:en");
+  const root = page.locator("html");
+  const canvas = page.locator("body");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("radio", { name: "Dark theme", exact: true }).check();
+  await page.getByRole("radio", { name: "Русский", exact: true }).check();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Выйти", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Вход", exact: true }),
+  ).toBeVisible();
+  await expect(canvas).toHaveCSS("background-color", "rgb(30, 30, 30)");
+
+  await page.getByLabel("Имя пользователя").fill("operator.demo");
+  await page.getByLabel("Пароль", { exact: true }).fill("example");
+  await page.getByRole("button", { name: "Войти", exact: true }).click();
+  await expect(
+    page.getByRole("navigation", { name: "Рабочее место" }),
+  ).toBeVisible();
+  await expect(canvas).toHaveCSS("background-color", "rgb(30, 30, 30)");
+
+  const otherTab = await page.context().newPage();
+  await otherTab.goto("/index.json");
+  await otherTab.evaluate(() => localStorage.clear());
+  await expect(root).toHaveAttribute("lang", "en");
+  await expect(canvas).toHaveCSS("background-color", "rgb(247, 244, 237)");
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Sign in", exact: true }),
+  ).toBeVisible();
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(canvas).toHaveCSS("background-color", "rgb(30, 30, 30)");
+  expect(
+    await otherTab.evaluate(() => localStorage.getItem("bacuri.vms.language")),
+  ).toBeNull();
+  await otherTab.close();
+});
+
 for (const story of ["installer", "plan"])
   test("English workspace screen " + story, async ({ page }) => {
     await page.goto(

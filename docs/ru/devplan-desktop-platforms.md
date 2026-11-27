@@ -1,4 +1,4 @@
-# План поддержки Windows и macOS в Bacuri VMS Client
+# План поддержки Windows и macOS в настольном приложении Bacuri VMS
 
 [English version](../devplan-desktop-platforms.md)
 

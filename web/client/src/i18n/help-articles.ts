@@ -978,7 +978,7 @@ export const articles: Article[] = [
         "desktop sign-in",
       ],
       steps: [
-        "Open the trusted site address. Use your local account or the corporate sign-in option shown by the site. If attempts have been limited, wait before trying again.",
+        "Open the trusted site address. The first sign-in opens in English. Select RU beside Bacuri VMS for Russian, or EN to return to English. Use your local account or the corporate sign-in option. If attempts have been limited, wait before trying again.",
         "For administrator sign-in follow the browser's security-key prompt. Initial enrollment also needs the one-time code issued by the node administrator. If the key is lost, contact the administrator responsible for account recovery.",
         "For desktop sign-in, start in the application, check the account in the system browser and approve the request you just started. If the request expired, start a new sign-in from the application.",
         "If the corporate provider is unavailable, tell the site administrator. An authorized local administrator can use the site's local sign-in and their registered security key.",
@@ -1009,7 +1009,7 @@ export const articles: Article[] = [
         "вход в приложение",
       ],
       steps: [
-        "Откройте доверенный адрес площадки. Используйте локальную учётную запись или доступную на странице кнопку корпоративного входа. При ограничении числа попыток подождите перед повтором.",
+        "Откройте доверенный адрес площадки. При первом посещении форма входа открывается на английском. Нажмите RU рядом с Bacuri VMS для перехода на русский или EN для возврата на английский. Войдите с локальной учётной записью или через корпоративный вход. При ограничении числа попыток подождите перед повтором.",
         "При входе администратора следуйте запросу браузера на подтверждение ключом безопасности. Для первичной регистрации нужен одноразовый код от администратора узла. При утрате ключа обратитесь к сотруднику, отвечающему за восстановление учётных записей.",
         "Для входа из настольного клиента начните операцию в приложении, проверьте учётную запись в системном браузере и подтвердите свой запрос. Если время запроса истекло, начните новый вход из приложения.",
         "При недоступности корпоративного провайдера сообщите администратору площадки. Уполномоченный локальный администратор может войти с локальной учётной записью и зарегистрированным ключом.",

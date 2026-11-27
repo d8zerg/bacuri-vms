@@ -36,8 +36,7 @@ export function useWorkspaceTheme() {
   function selectTheme(value: Theme) {
     setTheme(value);
     try {
-      if (value === "system") localStorage.removeItem(storageKey);
-      else localStorage.setItem(storageKey, value);
+      localStorage.setItem(storageKey, value);
     } catch {
       // The selected theme still applies in this tab.
     }
