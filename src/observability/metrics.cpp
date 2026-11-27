@@ -111,7 +111,7 @@ Counter& Registry::counter(const Metric& metric, const Labels& labels)
     std::scoped_lock guard{mutex_};
     auto& family = families_[name];
     if (family.type.empty())
-        family = {help, "counter", {}, {}};
+        family = {help, "counter", {}, {}, {}};
     if (family.type != "counter")
         throw std::logic_error("Metric " + name + " has another type");
     auto& counter = family.counters[labels];
@@ -120,13 +120,24 @@ Counter& Registry::counter(const Metric& metric, const Labels& labels)
     return *counter;
 }
 
+void Registry::set_gauges(const Metric& metric, std::map<Labels, double> values)
+{
+    std::scoped_lock guard{mutex_};
+    auto& family = families_[metric.name];
+    if (family.type.empty())
+        family = {metric.help, "gauge", {}, {}, {}};
+    if (family.type != "gauge")
+        throw std::logic_error("Metric " + metric.name + " has another type");
+    family.gauges = std::move(values);
+}
+
 Histogram& Registry::histogram(const Metric& metric, std::span<const double> bounds, const Labels& labels)
 {
     const auto& [name, help] = metric;
     std::scoped_lock guard{mutex_};
     auto& family = families_[name];
     if (family.type.empty())
-        family = {help, "histogram", {}, {}};
+        family = {help, "histogram", {}, {}, {}};
     if (family.type != "histogram")
         throw std::logic_error("Metric " + name + " has another type");
     auto& histogram = family.histograms[labels];
@@ -142,6 +153,8 @@ std::string Registry::exposition() const
     for (const auto& [name, family] : families_) {
         text.append("# HELP ").append(name).append(" ").append(family.help);
         text.append("\n# TYPE ").append(name).append(" ").append(family.type).append("\n");
+        for (const auto& [labels, gauge] : family.gauges)
+            text += series(name, labels) + ' ' + number(gauge) + '\n';
         for (const auto& [labels, counter] : family.counters)
             text += series(name, labels) + ' ' + number(counter->value()) + '\n';
         for (const auto& [labels, histogram] : family.histograms) {

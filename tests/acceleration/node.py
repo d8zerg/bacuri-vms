@@ -12,6 +12,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "control"))
 import registry as control
+from runtime import check_scheduler
 
 
 def completed(read):
@@ -191,6 +192,7 @@ def main():
         last = completed(read)
         assert first["fingerprint"] == last["fingerprint"]
         compare_budgets(first, last)
+        revision = check_scheduler(settings, admin, revision, expected, last, read)
         control.stop(core)
         core = subprocess.Popen([control.CORE, "serve"])
         cleanup.callback(control.stop, core)

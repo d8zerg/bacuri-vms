@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <fstream>
+#include <optional>
 
 namespace bacuri::vms::acceleration
 {
@@ -117,10 +118,9 @@ bool foreign_video(const Json& dev)
                                                                                               &period) &&
             util > 0);
 }
-Json sessions(const std::string& enc)
+Json sessions(const std::string& enc, unsigned ceiling)
 {
     // Hold each encoder at preroll with a real encoded buffer until the last attempt has finished.
-    constexpr unsigned ceiling = 16;
     std::vector<std::unique_ptr<Pipeline>> held;
     while (held.size() < ceiling) {
         auto p = std::make_unique<Pipeline>(
@@ -137,10 +137,10 @@ Json sessions(const std::string& enc)
             {"reached_ceiling", held.size() == ceiling}};
 }
 // Device-wide usage while a reference pipeline is resident also accounts for the driver and its context.
-class DeviceMemory
+class DeviceCounters
 {
   public:
-    explicit DeviceMemory(const Json& device)
+    explicit DeviceCounters(const Json& device)
     {
         if (device.at("backend") == "vaapi") {
             const auto name = device.at("id").get<std::string>().substr(6);
@@ -156,14 +156,14 @@ class DeviceMemory
             }
         }
     }
-    ~DeviceMemory()
+    ~DeviceCounters()
     {
         if (initialized_)
             nvml_->symbol<int()>("nvmlShutdown")();
     }
-    DeviceMemory(const DeviceMemory&) = delete;
-    DeviceMemory& operator=(const DeviceMemory&) = delete;
-    std::uint64_t read() const
+    DeviceCounters(const DeviceCounters&) = delete;
+    DeviceCounters& operator=(const DeviceCounters&) = delete;
+    std::optional<std::uint64_t> memory() const
     {
         if (handle_) {
             struct Memory {
@@ -178,7 +178,34 @@ class DeviceMemory
             if (input >> bytes)
                 return bytes;
         }
-        return 0;
+        return {};
+    }
+    Json sample() const
+    {
+        Json values = Json::object();
+        if (auto bytes = memory())
+            values["memory_bytes"] = *bytes;
+        if (handle_) {
+            unsigned sessions{}, fps{}, latency{}, percent{}, period{};
+            if (nvml_->symbol<int(void*, unsigned*, unsigned*, unsigned*)>("nvmlDeviceGetEncoderStats")(
+                    handle_, &sessions, &fps, &latency) == 0)
+                values["encoder_sessions"] = sessions;
+            for (const auto& [engine, symbol] : {std::pair{"encode", "nvmlDeviceGetEncoderUtilization"},
+                                                 std::pair{"decode", "nvmlDeviceGetDecoderUtilization"}})
+                if (nvml_->symbol<int(void*, unsigned*, unsigned*)>(symbol)(handle_, &percent, &period) == 0)
+                    values["busy"][engine] = percent;
+            struct Utilization {
+                unsigned gpu, memory;
+            } util{};
+            if (nvml_->symbol<int(void*, Utilization*)>("nvmlDeviceGetUtilizationRates")(handle_, &util) == 0)
+                values["busy"]["gpu"] = util.gpu;
+        } else if (!counter_.empty()) {
+            std::ifstream busy{counter_.parent_path() / "gpu_busy_percent"};
+            unsigned percent{};
+            if (busy >> percent)
+                values["busy"]["gpu"] = percent;
+        }
+        return values;
     }
 
   private:
@@ -200,7 +227,7 @@ Json video_sample(const Json& request)
         return {{"state", "unsupported"}};
     auto factory = factories.at(key).get<std::string>();
     if (op == "sessions")
-        return sessions(factory);
+        return sessions(factory, 16);
     std::string line;
     Reference ref;
     if (encoding)
@@ -224,7 +251,7 @@ Json video_sample(const Json& request)
     auto input = pipe.element("input");
     if (input)
         gst_app_src_set_caps(GST_APP_SRC(input.get()), ref.caps.get());
-    DeviceMemory memory{dev};
+    DeviceCounters memory{dev};
     std::uint64_t peak{};
     const auto started = Clock::now();
     pipe.play();
@@ -240,7 +267,7 @@ Json video_sample(const Json& request)
     std::array<unsigned char, 3072> previous{}, pixels{};
     const auto count = receive(pipe, [&](GstSample* sample, unsigned i) {
         if (i == 0 || i + 1 == frames)
-            peak = std::max(peak, memory.read());
+            peak = std::max(peak, memory.memory().value_or(0));
         if (op == "analysis") {
             if (gst_buffer_extract(gst_sample_get_buffer(sample), 0, pixels.data(), pixels.size()) !=
                 pixels.size())
@@ -265,7 +292,15 @@ Json video_sample(const Json& request)
 } // namespace
 Json measure_video(const Json& request)
 {
+    if (request.at("stage") == "telemetry")
+        return DeviceCounters{request.at("device")}.sample();
     gst_init(nullptr, nullptr);
+    if (request.at("stage") == "session_recovery") {
+        const auto& codecs = request.at("device").at("codecs");
+        if (!codecs.contains("h264_enc"))
+            return {{"state", "unsupported"}};
+        return sessions(codecs.at("h264_enc").get<std::string>(), request.at("occupied") == 0 ? 16u : 1u);
+    }
     if (foreign_video(request.at("device")))
         return {{"state", "busy"}};
     auto first = video_sample(request);

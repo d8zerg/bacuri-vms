@@ -11,6 +11,7 @@ class MediaAuthority final : public v1::MediaAuthorization::Service
     MediaAuthority(const MediaAuthority&) = delete;
     MediaAuthority& operator=(const MediaAuthority&) = delete;
     ~MediaAuthority() override;
+    grpc::Status GetNodePolicy(grpc::ServerContext*, const v1::NodeProbeRequest*, v1::NodePolicy*) override;
     grpc::Status CloseLive(grpc::ServerContext*, const v1::AuthorizeDeliveryRequest*,
                            google::protobuf::Empty*) override;
     grpc::Status AuthorizeDelivery(grpc::ServerContext*, const v1::AuthorizeDeliveryRequest*,

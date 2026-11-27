@@ -69,13 +69,14 @@ struct Metric {
     std::string help;
 };
 
-// Metrics of one process in the Prometheus text exposition format. Series are created on first use and
-// live as long as the process.
+// Metrics of one process in the Prometheus text exposition format. Counters and histograms are cumulative.
 class Registry
 {
   public:
     static Registry& process();
     Counter& counter(const Metric& metric, const Labels& labels = {});
+    // Replace every series in this gauge family, dropping labels absent from this snapshot.
+    void set_gauges(const Metric& metric, std::map<Labels, double> values);
     Histogram& histogram(const Metric& metric, std::span<const double> bounds, const Labels& labels = {});
     [[nodiscard]] std::string exposition() const;
 
@@ -84,6 +85,7 @@ class Registry
         std::string help, type;
         std::map<Labels, std::unique_ptr<Counter>> counters;
         std::map<Labels, std::unique_ptr<Histogram>> histograms;
+        std::map<Labels, double> gauges;
     };
     mutable std::mutex mutex_;
     std::map<std::string, Family> families_;

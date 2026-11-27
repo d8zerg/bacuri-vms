@@ -7,6 +7,8 @@ import "google/protobuf/timestamp.proto";
 
 // The media node owns the hardware and the last completed measurement.
 service NodeAcceleration {
+  // Renew one task reservation. Stop using the GPU by the lease deadline, even on RPC failure.
+  rpc ScheduleTask(TaskUpdate) returns (TaskAssignment);
   rpc ProbeStatus(NodeProbeRequest) returns (NodeProbeStatus);
   rpc StartProbe(NodeProbeRequest) returns (NodeProbeStatus);
   rpc CancelProbe(NodeProbeRequest) returns (NodeProbeStatus);
@@ -19,6 +21,39 @@ message NodeProbeRequest {
   bool refresh_identity = 4;
 }
 message NodeProbeStatus { string status_json = 1; }
+
+message TaskUpdate {
+  string node_id = 1;
+  // Unique per worker execution, including retries of the same execution.
+  string task_id = 2;
+  string task_kind = 3;
+  // Background work may wait when the worker has no CPU capacity.
+  bool wait_for_gpu = 4;
+  // A report attests that the previous GPU pipeline has already released this grant.
+  string released_grant = 5;
+  enum Report {
+    POLL = 0;
+    RELEASED = 1;
+    SESSION_LIMIT = 2;
+    DEVICE_LOST = 3;
+    DRIVER_RESET = 4;
+    ENCODER_ERROR = 5;
+    FINISHED = 6;
+  }
+  Report report = 6;
+}
+message TaskAssignment {
+  // Device ID, cpu or queue. A fallback reply may carry a grant still awaiting release.
+  string device_id = 1;
+  string grant = 2;
+  string reason = 3;
+  // Relative to the start of the worker's call.
+  uint32 valid_for_ms = 4;
+}
+message NodePolicy {
+  string mode = 1;
+  repeated string gpu_tasks = 2;
+}
 
 service RecorderControl {
   // Persist the accepted configuration before returning APPLIED.
@@ -203,6 +238,8 @@ service ObservationIngest {
 }
 
 service MediaAuthorization {
+  // Return the committed acceleration policy of this local media node.
+  rpc GetNodePolicy(NodeProbeRequest) returns (NodePolicy);
   // Check the current rights of the owning browser session and the entire selection.
   // UNAUTHENTICATED, PERMISSION_DENIED, NOT_FOUND and FAILED_PRECONDITION deny access.
   // UNAVAILABLE or DEADLINE_EXCEEDED never grants or renews a lease.

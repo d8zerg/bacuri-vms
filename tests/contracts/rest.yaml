@@ -387,11 +387,19 @@ draft_video_rule_preview:
 node_acceleration_status:
   operation: getNodeAccelerationProbe
   status: 200
-  response: &node_probe
-    node_id: 70000000-0000-4000-8000-000000000002
-    stale: false
-    result: null
-    job: {id: 40000000-0000-4000-8000-000000000002, reason: prepare_gpu, state: running, steps: [{name: inventory, state: running, completed: 0, total: 1}]}
+  response:
+    <<: &node_probe
+      node_id: 70000000-0000-4000-8000-000000000002
+      stale: false
+      result: null
+      job: {id: 40000000-0000-4000-8000-000000000002, reason: prepare_gpu, state: running, steps: [{name: inventory, state: running, completed: 0, total: 1}]}
+    scheduler:
+      mode: cpu_only
+      tasks: {gpu: 0, cpu: 1, queue: 0}
+      devices: []
+      warnings: []
+      journal:
+        - {time_ms: 1000, node_id: 70000000-0000-4000-8000-000000000002, task_id: 40000000-0000-4000-8000-000000000002, kind: live_mask, previous_path: '', next_path: cpu, reason: cpu_only, device_id: '', severity: info}
 node_acceleration_start:
   operation: startNodeAccelerationProbe
   request: {reason: prepare_gpu}

@@ -225,3 +225,11 @@ node_acceleration_cancelprobe:
   request: {node_id: 70000000-0000-4000-8000-000000000002, probe_id: 40000000-0000-4000-8000-000000000002}
   response:
     status_json: '{"node_id":"70000000-0000-4000-8000-000000000002","stale":false,"result":null,"job":{"id":"40000000-0000-4000-8000-000000000002","reason":"administrator","state":"cancelled","steps":[]}}'
+node_task_assignment:
+  rpc: NodeAcceleration.ScheduleTask
+  request: {node_id: 70000000-0000-4000-8000-000000000002, task_id: 40000000-0000-4000-8000-000000000002, task_kind: live_mask}
+  response: {device_id: cpu, reason: cpu_only, valid_for_ms: 4000}
+node_runtime_policy:
+  rpc: MediaAuthorization.GetNodePolicy
+  request: {node_id: 70000000-0000-4000-8000-000000000002}
+  response: {mode: manual, gpu_tasks: [live_mask]}

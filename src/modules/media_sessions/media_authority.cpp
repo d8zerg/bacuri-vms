@@ -6,6 +6,7 @@
 #include "modules/recordings/operations.hpp"
 #include "modules/media_sessions/media_authority.hpp"
 #include "application/control_api/playback_time.hpp"
+#include "modules/inventory/operations.hpp"
 #include <limits>
 #include <grpcpp/grpcpp.h>
 #include <sys/stat.h>
@@ -27,6 +28,22 @@ MediaAuthority::~MediaAuthority()
 {
     server_->Shutdown(std::chrono::system_clock::now() + std::chrono::seconds{2});
     server_->Wait();
+}
+grpc::Status MediaAuthority::GetNodePolicy(grpc::ServerContext*, const v1::NodeProbeRequest* query,
+                                           v1::NodePolicy* reply)
+{
+    try {
+        if (query->node_id() != setting("BACURI_NODE_ID"))
+            return platform::rpc_status(ErrorCode::not_found);
+        postgresql::Database db;
+        const auto saved = inventory::node_acceleration(db, setting("BACURI_SITE_ID"), query->node_id(), false);
+        reply->set_mode(saved.settings.mode);
+        for (const auto& task : saved.settings.gpu_tasks)
+            reply->add_gpu_tasks(task);
+        return grpc::Status::OK;
+    } catch (const std::exception&) {
+        return platform::rpc_status(ErrorCode::dependency_unavailable);
+    }
 }
 grpc::Status MediaAuthority::AuthorizeDelivery(grpc::ServerContext*, const v1::AuthorizeDeliveryRequest* q,
                                                v1::DeliveryLease* lease)

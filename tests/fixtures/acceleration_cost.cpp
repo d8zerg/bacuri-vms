@@ -28,7 +28,7 @@ void measure(const char* description, std::string_view workload)
     if (!output || !GST_IS_APP_SINK(output.get()))
         throw std::runtime_error("Missing output");
     media::PrivacyMask mask{domain::ImageRegions{{0.25, 0.25, 0.75, 0.75}}};
-    if (workload == "mask") {
+    if (workload == "mask" || workload == "paced-mask") {
         auto target = own(gst_bin_get_by_name(GST_BIN(pipe.get()), "mask"));
         mask.attach(target.get());
     }
@@ -43,6 +43,12 @@ void measure(const char* description, std::string_view workload)
         std::unique_ptr<GstSample, decltype(&gst_sample_unref)> sample{raw, gst_sample_unref};
         auto* buffer = gst_sample_get_buffer(sample.get());
         ++frames;
+        if (workload == "paced-mask") {
+            const auto pts = GST_BUFFER_PTS(buffer);
+            if (!GST_CLOCK_TIME_IS_VALID(pts) || (frames > 1 && pts != last_sample + GST_SECOND / 25))
+                throw std::runtime_error("Masked output lost its 25 fps cadence");
+            last_sample = pts;
+        }
         if (workload == "motion") {
             const auto pts = GST_BUFFER_PTS(buffer);
             if (!GST_CLOCK_TIME_IS_VALID(pts))

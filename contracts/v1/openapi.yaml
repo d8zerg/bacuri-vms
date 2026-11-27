@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Bacuri VMS API
-  version: 1.10.0
+  version: 1.11.0
 servers:
   - url: /api/v1
 security:
@@ -3199,6 +3199,50 @@ components:
       properties:
         node_id: {$ref: '#/components/schemas/Id'}
         stale: {type: boolean, description: The hardware or driver fingerprint differs from the saved result.}
+        scheduler:
+          type: object
+          description: Current runtime reservations, active warnings and the latest 64 node decisions. Returned by GET.
+          required: [mode, tasks, devices, warnings, journal]
+          properties:
+            mode: {type: string, enum: [cpu_only, manual, auto]}
+            tasks:
+              type: object
+              required: [gpu, cpu, queue]
+              additionalProperties: {type: integer, minimum: 0}
+            devices:
+              type: array
+              items:
+                type: object
+                required: [device_id, encoder_sessions_used, memory_bytes_used, time_ppm_used]
+                properties:
+                  device_id: {type: string}
+                  encoder_sessions_used: {type: integer, minimum: 0}
+                  memory_bytes_used: {type: integer, minimum: 0}
+                  time_ppm_used: {type: integer, minimum: 0}
+            warnings:
+              type: array
+              items:
+                type: object
+                required: [device_id, reason]
+                properties:
+                  device_id: {type: string}
+                  reason: {type: string}
+            journal:
+              type: array
+              maxItems: 64
+              items:
+                type: object
+                required: [time_ms, node_id, task_id, kind, previous_path, next_path, reason, device_id, severity]
+                properties:
+                  time_ms: {type: integer, description: Unix time in milliseconds.}
+                  node_id: {$ref: '#/components/schemas/Id'}
+                  task_id: {type: string}
+                  kind: {type: string}
+                  previous_path: {type: string}
+                  next_path: {type: string}
+                  device_id: {type: string}
+                  reason: {type: string}
+                  severity: {enum: [info, warning]}
         job:
           type: object
           required: [id, reason, state, steps]

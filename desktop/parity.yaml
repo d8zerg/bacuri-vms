@@ -5,9 +5,9 @@
 
 reference:
   # Revision of the public contracts the register was reconciled with.
-  api_version: 1.10.0
+  api_version: 1.11.0
   contracts:
-    contracts/v1/openapi.yaml: 0734bcbf8893dcfdd575a325a0b47f02c6293725a9d293bdfb7ffd673874e2e8
+    contracts/v1/openapi.yaml: 25df947870688e3984ebe21ab7cad4bdbf940ebd6d143fbddfa968746c7dc31b
     contracts/v1/alerts.schema.yaml: 02cfa6ca964a90f60bc6e4c282981010bf7dc09d07c3d009c641af83d82870b7
     contracts/v1/errors.yaml: 53c1575bb6d61d6c91e149c594f7eb0c70052fec3cfb918e61e93e83c25550a2
 

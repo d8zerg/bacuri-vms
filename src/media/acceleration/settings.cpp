@@ -1,4 +1,5 @@
 #include "media/acceleration/settings.hpp"
+#include "media/acceleration/budget.hpp"
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <array>
@@ -11,32 +12,7 @@ namespace bacuri::vms::acceleration
 namespace
 {
 using Json = nlohmann::json;
-struct Task {
-    const char* name;
-    const char* operation;
-    int rate;
-    bool encoder;
-};
-constexpr std::array tasks{Task{"live_mask", "mask", 25, true},
-                           Task{"live_profile", "profile", 25, true},
-                           Task{"live_analysis", "analysis", 25, false},
-                           Task{"export", "export", 25, true},
-                           Task{"archive_analysis", "analysis", 25, false},
-                           Task{"keyframe", "keyframe", 1, false},
-                           Task{"thumbnail", "thumbnail", 1, false}};
-
-struct Cost {
-    unsigned time{};
-    unsigned encoders{};
-    std::uint64_t memory{};
-    bool exclusive{};
-};
-struct Device {
-    std::string id;
-    unsigned sessions{};
-    std::uint64_t memory{};
-    Cost used;
-    std::array<std::optional<Cost>, tasks.size()> costs{};
+struct Samples {
     std::map<std::pair<std::string, std::string>, const Json*> measured;
 
     const Json* find(const char* operation, const char* codec) const
@@ -44,7 +20,7 @@ struct Device {
         auto it = measured.find({operation, codec});
         return it == measured.end() ? nullptr : it->second;
     }
-    std::optional<Cost> cost(const Task& task) const
+    std::optional<Cost> cost(const Task& task, std::uint64_t memory) const
     {
         Cost out{0, task.encoder ? 1u : 0u};
         for (const auto* codec : {"h264", "h265"}) {
@@ -65,13 +41,15 @@ struct Device {
         }
         return out;
     }
-    bool fits(const Cost& reserved, const Cost& cost) const
-    {
-        return cost.time <= 1'000'000 - reserved.time && cost.encoders <= sessions - reserved.encoders &&
-               !(reserved.time && (reserved.exclusive || cost.exclusive)) &&
-               (!memory || cost.memory <= memory - reserved.memory);
-    }
 };
+} // namespace
+bool Device::fits(const Cost& reserved, const Cost& cost) const
+{
+    return reserved.time <= 1'000'000 && reserved.encoders <= sessions && (!memory || reserved.memory <= memory) &&
+           cost.time <= 1'000'000 - reserved.time && cost.encoders <= sessions - reserved.encoders &&
+           !(reserved.time && (reserved.exclusive || cost.exclusive)) &&
+           (!memory || cost.memory <= memory - reserved.memory);
+}
 void reserve(Cost& used, const Cost& cost)
 {
     used.time += cost.time;
@@ -92,18 +70,22 @@ std::vector<Device> budgets(const Json& probe)
         device.id = value.at("id");
         if (!value.at("memory_bytes").is_null())
             device.memory = value.at("memory_bytes");
+        Samples samples;
         for (const auto& m : result.at("measurements"))
             if (m.at("device_id") == device.id && m.at("state") == "measured")
-                device.measured.emplace(
+                samples.measured.emplace(
                     std::make_pair(m.at("operation").get<std::string>(), m.at("codec").get<std::string>()), &m);
-        if (const auto* s = device.find("sessions", "h264"))
+        if (const auto* s = samples.find("sessions", "h264"))
             device.sessions = s->value("verified_sessions", 0u);
-        std::ranges::transform(tasks, device.costs.begin(), [&](const Task& task) { return device.cost(task); });
+        std::ranges::transform(tasks, device.costs.begin(),
+                               [&](const Task& task) { return samples.cost(task, device.memory); });
         devices.push_back(std::move(device));
     }
     std::ranges::sort(devices, {}, &Device::id);
     return devices;
 }
+namespace
+{
 // Higher bits are higher-priority tasks. Seven task kinds bound the search independently of the GPU count.
 constexpr unsigned combinations = 1u << tasks.size();
 constexpr unsigned bit(std::size_t task)
@@ -162,7 +144,26 @@ Placement place(const std::vector<Device>& devices, unsigned requested)
             return {mask, reachable[mask]->assignment};
     return {};
 }
+unsigned requested_tasks(const Settings& settings)
+{
+    unsigned requested{};
+    for (std::size_t t = 0; t < tasks.size(); ++t)
+        if (settings.mode == "auto" ||
+            std::ranges::find(settings.gpu_tasks, tasks[t].name) != settings.gpu_tasks.end())
+            requested |= bit(t);
+    return requested;
+}
 } // namespace
+std::array<std::string, tasks.size()> preferred_devices(const Settings& settings,
+                                                        const std::vector<Device>& devices)
+{
+    const auto placement = place(devices, requested_tasks(settings));
+    std::array<std::string, tasks.size()> preferred;
+    for (std::size_t t = 0; t < tasks.size(); ++t)
+        if (placement.mask & bit(t))
+            preferred[t] = devices[placement.assignment[t]].id;
+    return preferred;
+}
 bool normalize(Settings& settings)
 {
     if (settings.mode != "manual")
@@ -179,11 +180,7 @@ bool normalize(Settings& settings)
 nlohmann::json evaluate(const Settings& settings, const nlohmann::json& probe)
 {
     auto devices = budgets(probe);
-    unsigned requested{};
-    for (std::size_t t = 0; t < tasks.size(); ++t)
-        if (settings.mode == "auto" ||
-            std::ranges::find(settings.gpu_tasks, tasks[t].name) != settings.gpu_tasks.end())
-            requested |= bit(t);
+    const auto requested = requested_tasks(settings);
     const auto placement = place(devices, requested);
     Json decisions = Json::array(), rejected = Json::array();
     for (std::size_t t = 0; t < tasks.size(); ++t) {
