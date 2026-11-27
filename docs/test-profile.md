@@ -207,6 +207,7 @@ For each mandatory requirement, record the scenario, the revision, the ADR, the 
 | [ADR-022. Video and map path of the desktop client](adr/022-desktop-video-path.md) | `task desktop:video` checks the first frame, the frame after a seek and after the decoder fallback, the decoder output memory, the map next to 16 cells and a station without GPU access |
 | [ADR-023. Desktop application architecture for Bacuri VMS](adr/023-client-architecture.md) | The client builds every module only with its declared dependencies, `task desktop:test` runs the module tests and the bench and stand checks measure frame time, frame path and recovery |
 | [ADR-024. Desktop post when the site is unreachable](adr/024-post-without-site.md) | Stopping the active node moves the post to another node with the rights checked again. With the emergency mode on, only granted cameras show live video with masks, and the site accepts the view journal after it returns |
+| [ADR-025. Choice of acceleration for server tasks](adr/025-server-acceleration.md) | The node state shows the probed devices. An export job under a full load of live masks does not reduce the live frame rate. A GPU reset moves the tasks to the CPU without stopping live video and recording. Every observation names its backend |
 
 ## Single web client acceptance
 
