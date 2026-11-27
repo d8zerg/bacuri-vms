@@ -77,3 +77,21 @@ task acceleration:check BACKEND=nvidia
 BACURI_RENDER_DEVICE=/dev/dri/renderD128 BACURI_RENDER_GID=$(stat -c %g /dev/dri/renderD128) task acceleration:check BACKEND=vaapi
 task live:check
 ```
+
+## Node acceleration settings
+
+Each site node starts in `cpu_only` at revision 0. The site stores the selected mode and the manual task list in PostgreSQL. Site members can read the settings. The site administrator can preview a candidate and apply it. The following requests use the base path `/api/v1/sites/{siteId}/nodes/{nodeId}/acceleration`.
+
+| Request | Effect |
+| --- | --- |
+| `GET` | Read the saved mode, manual selection, revision and expected assignment and reason for each task. The `ETag` contains the quoted configuration revision. |
+| `POST /preview` | Evaluate a candidate. Returns the proposed assignments, device reservations and any `rejected_tasks`. The saved revision stays available for subsequent edits. |
+| `PUT` | Evaluate the candidate against the current hardware and save it if it fits. Send the `ETag` as `If-Match`. A concurrent edit returns HTTP 412. |
+
+For example, send `{"mode":"manual","gpu_tasks":["live_mask","export"]}` to preview those two task kinds. A manual selection that exceeds capacity or includes an unsupported task returns `applicable: false` in the preview. Applying it returns HTTP 409 with `acceleration_budget_exceeded` and the rejected task names. In `auto`, send only `{"mode":"auto"}`. Task assignments are computed by the node. A return to `cpu_only` is available even when the media service is offline. Each effective change and its audit entry commit together. The site journal records the node, initiator, revision and both mode and task lists before and after the change.
+
+GPU modes require a completed measurement matching the current device and driver. The server returns `acceleration_probe_required`, `acceleration_probe_stale` or `acceleration_device_unavailable` for an absent measurement, changed hardware or a CPU-only inventory, respectively. Leaving CPU-only queues a probe or joins the current one. A fresh completed measurement permits immediate application. A preview with a missing or stale result also requests a probe when preparing a GPU mode from CPU-only. Read its progress at `/probe` and repeat the preview after completion.
+
+The configuration budget uses one 1080p reference unit per task kind. Full-rate tasks reserve 25 frames per second. Keyframes and thumbnails reserve one image per second. The cost uses the slower of the two measured input codecs, including decoder throughput, H.264 encoder throughput where required, and the end-to-end task timing. One million time units per second is a full device budget. All H.264 outputs share the verified encoder session count. The sum of measured device memory reservations must fit dedicated memory. The sample includes device memory already in use while the reference pipeline runs. With shared memory, missing telemetry or an older sample without memory readings, only one measured workload is admitted on that device. The two analysis kinds reserve their own baseline video processing costs. Model-specific inference and 2K capacity require their own measurements.
+
+When several GPUs are available, the server checks placements across them and chooses the lowest total measured time for the same set of tasks. Live masks and profiles have first priority, followed by live analysis, export, archive analysis, keyframes and thumbnails. A task that cannot fit gets an expected CPU assignment with the reason `unsupported` or `budget_exceeded`. The assignments describe the configuration budget. Assignment to running streams and jobs is planned in the [scheduler step](devplan-acceleration.md#шаг-13-планировщик-и-переход-на-cpu).

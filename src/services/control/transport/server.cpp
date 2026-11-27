@@ -192,6 +192,10 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     // The paths below are relative to /api/v1/sites/{siteId}/. A handler receives the identifiers of its path.
     Routes routes;
     routes
+        .add("nodes/{id}/acceleration",
+             [&](const PathMatch& m) { node_settings(req, res, sessions, site, m, false); })
+        .add("nodes/{id}/acceleration/preview",
+             [&](const PathMatch& m) { node_settings(req, res, sessions, site, m, true); })
         .add("nodes/{id}/acceleration/probe", [&](const PathMatch& m) { node_probe(req, res, sessions, site, m); })
         .add("nodes/{id}/acceleration/probe/{id}",
              [&](const PathMatch& m) { node_probe(req, res, sessions, site, m); })

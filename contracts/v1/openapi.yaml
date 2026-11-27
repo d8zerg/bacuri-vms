@@ -1,13 +1,107 @@
 openapi: 3.1.0
 info:
   title: Bacuri VMS API
-  version: 1.9.0
+  version: 1.10.0
 servers:
   - url: /api/v1
 security:
   - browserSession: []
   - desktopSession: []
 paths:
+  /sites/{siteId}/nodes/{nodeId}/acceleration:
+    parameters:
+      - {$ref: '#/components/parameters/Site'}
+      - {name: nodeId, in: path, required: true, schema: {$ref: '#/components/schemas/Id'}}
+    get:
+      operationId: getNodeAccelerationSettings
+      description: Read the saved mode, revision and current reference assignments for the node as a member of the site.
+      responses:
+        '200':
+          description: Settings with their assessed task assignments.
+          headers:
+            ETag: {schema: {type: string}, description: Quoted revision of the persisted selection.}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NodeAccelerationSettings'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+        default: {$ref: '#/components/responses/RequestFailure'}
+    put:
+      operationId: setNodeAccelerationSettings
+      description: Recheck the device budget and atomically apply and audit a changed selection as a site administrator.
+      parameters:
+        - {$ref: '#/components/parameters/Csrf'}
+        - {name: If-Match, in: header, required: true, schema: {type: string}, description: Quoted revision of the saved settings.}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NodeAccelerationSelection'}
+      responses:
+        '200':
+          description: Settings with their assessed task assignments.
+          headers:
+            ETag: {schema: {type: string}, description: Quoted revision of the persisted selection.}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NodeAccelerationSettings'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409':
+          description: A current device measurement or sufficient GPU capacity is required.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/AccelerationProblem'}
+        '412':
+          description: The saved revision changed.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '428':
+          description: The expected revision is required.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+        default: {$ref: '#/components/responses/RequestFailure'}
+  /sites/{siteId}/nodes/{nodeId}/acceleration/preview:
+    parameters:
+      - {$ref: '#/components/parameters/Site'}
+      - {name: nodeId, in: path, required: true, schema: {$ref: '#/components/schemas/Id'}}
+    post:
+      operationId: previewNodeAccelerationSettings
+      description: Evaluate a candidate without changing settings. A site administrator can inspect rejected manual tasks and automatic assignments.
+      parameters:
+        - {$ref: '#/components/parameters/Csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NodeAccelerationSelection'}
+      responses:
+        '200':
+          description: Settings with their assessed task assignments.
+          headers:
+            ETag: {schema: {type: string}, description: Quoted revision of the persisted selection.}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NodeAccelerationSettings'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409':
+          description: A current device measurement or sufficient GPU capacity is required.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/AccelerationProblem'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+        default: {$ref: '#/components/responses/RequestFailure'}
   /sites/{siteId}/nodes/{nodeId}/acceleration/probe:
     parameters:
       - {$ref: '#/components/parameters/Site'}
@@ -3036,6 +3130,69 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
   schemas:
+    AccelerationTask:
+      type: string
+      enum: [live_mask, live_profile, live_analysis, export, archive_analysis, keyframe, thumbnail]
+    AccelerationTaskList:
+      type: array
+      maxItems: 7
+      uniqueItems: true
+      items: {$ref: '#/components/schemas/AccelerationTask'}
+    NodeAccelerationSelection:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [mode]
+          properties:
+            mode: {enum: [cpu_only, auto]}
+        - type: object
+          additionalProperties: false
+          required: [mode]
+          properties:
+            mode: {const: manual}
+            gpu_tasks: {$ref: '#/components/schemas/AccelerationTaskList'}
+    NodeAccelerationSettings:
+      type: object
+      required: [node_id, revision, mode, gpu_tasks, applicable, issue, decisions, devices, rejected_tasks]
+      properties:
+        node_id: {$ref: '#/components/schemas/Id'}
+        revision: {type: integer, minimum: 0}
+        mode: {enum: [cpu_only, manual, auto]}
+        gpu_tasks: {$ref: '#/components/schemas/AccelerationTaskList'}
+        applicable: {type: boolean}
+        issue: {enum: [null, acceleration_probe_required, acceleration_probe_stale, acceleration_device_unavailable, acceleration_budget_exceeded, media_service_unavailable]}
+        rejected_tasks: {$ref: '#/components/schemas/AccelerationTaskList'}
+        decisions:
+          type: array
+          items:
+            type: object
+            required: [task, device_id, reason]
+            properties:
+              task: {$ref: '#/components/schemas/AccelerationTask'}
+              device_id: {type: string}
+              reason: {enum: [cpu_only, not_selected, within_budget, unsupported, budget_exceeded, acceleration_probe_required, acceleration_probe_stale, acceleration_device_unavailable, media_service_unavailable]}
+              time_ppm: {type: integer, minimum: 0, maximum: 1000000}
+              encoder_sessions: {type: integer, minimum: 0}
+              memory_bytes: {type: integer, minimum: 0}
+              exclusive: {type: boolean, description: Only this verified workload can be assigned when memory telemetry is unavailable.}
+        devices:
+          type: array
+          items:
+            type: object
+            required: [device_id, time_ppm_used, encoder_sessions, encoder_sessions_used, memory_bytes, memory_bytes_used]
+            properties:
+              device_id: {type: string}
+              time_ppm_used: {type: integer, minimum: 0, maximum: 1000000}
+              encoder_sessions: {type: integer, minimum: 0}
+              encoder_sessions_used: {type: integer, minimum: 0}
+              memory_bytes: {type: integer, minimum: 0, description: Dedicated device memory in bytes or zero when unknown.}
+              memory_bytes_used: {type: integer, minimum: 0}
+    AccelerationProblem:
+      allOf:
+        - {$ref: '#/components/schemas/Problem'}
+        - type: object
+          properties:
+            rejected_tasks: {$ref: '#/components/schemas/AccelerationTaskList'}
     AccelerationProbeStatus:
       type: object
       required: [node_id, stale, job, result]
@@ -3096,6 +3253,7 @@ components:
                       width: {type: integer}
                       height: {type: integer}
                       elapsed_samples_us: {type: array, minItems: 3, maxItems: 3, items: {type: integer, minimum: 1}, description: Sorted cold pipeline times for repeated codec samples.}
+                      sampled_device_memory_bytes: {type: integer, minimum: 1, description: Highest observed device memory usage during the reference pipeline.}
                       verified_25fps_streams: {type: integer, enum: [0, 1]}
                       verified_sessions: {type: integer, minimum: 0}
                       probe_ceiling: {type: integer, minimum: 1}
@@ -3999,7 +4157,7 @@ components:
         service: { type: [string, 'null'] }
         delegated_action: { enum: [claim, record_result, close, null] }
         expires_at: { type: [string, 'null'], format: date-time }
-        action: { enum: [claim, record_result, close, delegate, revoke, export, camera_control, recording_policy, manual_recording, recording_storage] }
+        action: { enum: [claim, record_result, close, delegate, revoke, export, camera_control, recording_policy, manual_recording, recording_storage, node_acceleration] }
         outcome: { enum: [applied, denied, conflict, dispatched, unknown, rejected] }
         reason: { type: string }
         owner: { type: [string, 'null'] }
@@ -4009,7 +4167,7 @@ components:
         details:
           type: object
           description: Values of the change named by the reason code, such as a policy and its revision.
-          additionalProperties: {type: [string, number, boolean]}
+          additionalProperties: {oneOf: [{type: [string, number, boolean]}, {type: array, items: {type: string}}]}
         recorded_at: { $ref: '#/components/schemas/UtcTime' }
     AlertWork:
       type: object
@@ -5005,6 +5163,10 @@ components:
             - alert_result_required
             - not_found
             - idempotency_conflict
+            - acceleration_probe_required
+            - acceleration_probe_stale
+            - acceleration_device_unavailable
+            - acceleration_budget_exceeded
             - revision_conflict
             - recording_policy_managed
             - manual_recording_disabled

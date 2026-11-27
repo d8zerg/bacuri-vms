@@ -5,11 +5,11 @@
 
 reference:
   # Revision of the public contracts the register was reconciled with.
-  api_version: 1.9.0
+  api_version: 1.10.0
   contracts:
-    contracts/v1/openapi.yaml: a7b565ccb17dc58902e3a15b6f2e9e74717892d7b55c4b4a62225c28bfbf571c
+    contracts/v1/openapi.yaml: 0734bcbf8893dcfdd575a325a0b47f02c6293725a9d293bdfb7ffd673874e2e8
     contracts/v1/alerts.schema.yaml: 02cfa6ca964a90f60bc6e4c282981010bf7dc09d07c3d009c641af83d82870b7
-    contracts/v1/errors.yaml: d6f631f151d08a967a87bd61133db9499848e940a970b4617eee130c71f5b329
+    contracts/v1/errors.yaml: 53c1575bb6d61d6c91e149c594f7eb0c70052fec3cfb918e61e93e83c25550a2
 
 defaults:
   os: [linux]
@@ -257,6 +257,19 @@ scenarios:
     operations: [getNodeAccelerationProbe, startNodeAccelerationProbe, cancelNodeAccelerationProbe]
     test: desktop/administration/node-acceleration-probe
     material: Node probe status
+  node-acceleration-settings:
+    function: operations
+    area: administration
+    role: administrator
+    precondition: The node has a current device measurement for a GPU mode
+    action: Preview the manual or automatic selection and apply its revision
+    result: Task assignments, reasons and the saved mode are visible
+    failure: Stale measurements, concurrent edits and excess manual selections preserve the saved settings
+    steps: ["3.3"]
+    platform: ["6.1"]
+    operations: [getNodeAccelerationSettings, previewNodeAccelerationSettings, setNodeAccelerationSettings]
+    test: desktop/administration/node-acceleration-settings
+    material: Node acceleration selection
   # Identity and session
   identity-local-sign-in:
     function: identity

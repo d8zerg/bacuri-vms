@@ -354,6 +354,18 @@ export const en = {
   "alert.events.export": "Fragment export",
   "alert.events.recording_policy": "Recording policy",
   "alert.events.manual_recording": "Manual recording",
+  "acceleration.node": "Node",
+  "acceleration.cpu_only": "CPU only",
+  "acceleration.auto": "Automatic",
+  "acceleration.manual": "Manual",
+  "acceleration.live_mask": "Live masks",
+  "acceleration.live_profile": "Live profiles",
+  "acceleration.live_analysis": "Live analysis",
+  "acceleration.export": "Export",
+  "acceleration.archive_analysis": "Archive analysis",
+  "acceleration.keyframe": "Keyframes",
+  "acceleration.thumbnail": "Thumbnails",
+  "alert.events.node_acceleration": "Node acceleration",
   "alert.events.recording_storage": "Archive storage",
   "alert.events.camera_control": "Camera control",
   "alert.outcomes.applied": "Done",
@@ -568,6 +580,14 @@ export const en = {
     "The recording of the point follows a group policy.",
   "error.region_busy":
     "A map package of the region is being installed or removed.",
+  "error.acceleration_probe_required":
+    "Run the hardware probe before applying a GPU mode.",
+  "error.acceleration_probe_stale":
+    "The device or driver changed. Repeat the hardware probe.",
+  "error.acceleration_device_unavailable":
+    "The hardware probe found no available GPU.",
+  "error.acceleration_budget_exceeded":
+    "Review the GPU tasks that do not fit the measured budget.",
   "error.revision_conflict":
     "The data changed after it was read. Refresh it and repeat the change.",
   "error.source_unavailable": "The source of the map package is not reachable.",

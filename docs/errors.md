@@ -62,6 +62,10 @@ The current state of the object prevents the operation.
 
 | Code | HTTP status or source | Handling | Who | Meaning |
 | --- | --- | --- | --- | --- |
+| `acceleration_probe_required` | 409 | Read the current state and decide again | Administrator | The node requires a completed hardware probe before applying a GPU mode. |
+| `acceleration_probe_stale` | 409 | Read the current state and decide again | Administrator | The device or driver no longer matches the saved measurement. |
+| `acceleration_device_unavailable` | 409 | Read the current state and decide again | Administrator | The completed probe found no accessible GPU. |
+| `acceleration_budget_exceeded` | 409 | Read the current state and decide again | Administrator | The manual selection includes unsupported tasks or exceeds the measured device budget. |
 | `revision_conflict` | 409 | Read the current state and decide again | Administrator | The object changed since it was read. Read it again and repeat the change. |
 | `precondition_failed` | 412 | Read the current state and decide again | Administrator | The object changed since it was read, its version differs from the If-Match header. Read it again and repeat the change. |
 | `idempotency_conflict` | 409 | Change the request | Service | The idempotency key was already used for a different request. |

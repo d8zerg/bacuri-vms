@@ -40,6 +40,7 @@ const events = {
   recording_policy: "alert.events.recording_policy",
   manual_recording: "alert.events.manual_recording",
   recording_storage: "alert.events.recording_storage",
+  node_acceleration: "alert.events.node_acceleration",
   camera_control: "alert.events.camera_control",
 } as const satisfies Record<string, MessageKey>;
 const outcomes = {
@@ -77,7 +78,7 @@ const changes = {
 // recorded text.
 function changeText(
   code: string,
-  details: Record<string, string | number | boolean> = {},
+  details: Record<string, string | number | boolean | string[]> = {},
 ) {
   return Object.hasOwn(changes, code)
     ? translate(
@@ -85,11 +86,42 @@ function changeText(
         Object.fromEntries(
           Object.entries(details).map(([k, v]) => [
             k,
-            typeof v === "boolean" ? String(v) : v,
+            typeof v === "number" ? v : String(v),
           ]),
         ),
       )
     : code;
+}
+const accelerationLabels: Record<string, MessageKey> = {
+  cpu_only: "acceleration.cpu_only",
+  auto: "acceleration.auto",
+  manual: "acceleration.manual",
+  live_mask: "acceleration.live_mask",
+  live_profile: "acceleration.live_profile",
+  live_analysis: "acceleration.live_analysis",
+  export: "acceleration.export",
+  archive_analysis: "acceleration.archive_analysis",
+  keyframe: "acceleration.keyframe",
+  thumbnail: "acceleration.thumbnail",
+};
+function accelerationChange(details: AuditEntry["details"]) {
+  if (!details) return "";
+  function label(value: string) {
+    return accelerationLabels[value]
+      ? translate(accelerationLabels[value])
+      : value;
+  }
+  function selection(mode: unknown, tasks: unknown) {
+    const name = label(String(mode));
+    return Array.isArray(tasks) && tasks.length
+      ? name + " (" + tasks.map(label).join(", ") + ")"
+      : name;
+  }
+  return (
+    selection(details.previous_mode, details.previous_tasks) +
+    " -> " +
+    selection(details.mode, details.tasks)
+  );
 }
 type Context = { services: Services; site: string };
 
@@ -130,19 +162,23 @@ function Entries({
             : e.initiator;
         const [command = "", ...target] = e.reason.split(" / ");
         const result =
-          e.action === "camera_control"
-            ? [ptzLabel(command) ?? reasonText(command), ...target].join(" / ")
-            : e.outcome !== "applied"
-              ? reasonText(e.reason)
-              : e.action === "export" ||
-                  e.action === "delegate" ||
-                  e.action === "revoke"
-                ? ""
-                : e.action === "recording_policy" ||
-                    e.action === "manual_recording" ||
-                    e.action === "recording_storage"
-                  ? changeText(e.reason, e.details)
-                  : e.reason;
+          e.action === "node_acceleration"
+            ? accelerationChange(e.details)
+            : e.action === "camera_control"
+              ? [ptzLabel(command) ?? reasonText(command), ...target].join(
+                  " / ",
+                )
+              : e.outcome !== "applied"
+                ? reasonText(e.reason)
+                : e.action === "export" ||
+                    e.action === "delegate" ||
+                    e.action === "revoke"
+                  ? ""
+                  : e.action === "recording_policy" ||
+                      e.action === "manual_recording" ||
+                      e.action === "recording_storage"
+                    ? changeText(e.reason, e.details)
+                    : e.reason;
         return (
           <li key={e.id}>
             <details>
@@ -195,6 +231,13 @@ function Entries({
                     </dd>
                   </>
                 )}
+                {e.action === "node_acceleration" &&
+                  typeof e.details?.node_id === "string" && (
+                    <>
+                      <dt>{t("acceleration.node")}</dt>
+                      <dd>{e.details.node_id}</dd>
+                    </>
+                  )}
                 {e.point_id && (
                   <>
                     <dt>{t("batch.point")}</dt>

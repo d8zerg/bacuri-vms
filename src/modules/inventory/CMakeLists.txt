@@ -10,7 +10,7 @@ add_library(bacuri-vms-onvif STATIC
 target_link_libraries(bacuri-vms-onvif PUBLIC bacuri-vms-control-api
     PRIVATE LibXml2::LibXml2 PkgConfig::SODIUM bacuri-vms-rpc)
 
-add_library(bacuri-vms-inventory-operations STATIC operations.cpp)
+add_library(bacuri-vms-inventory-operations STATIC operations.cpp node_acceleration.cpp)
 target_link_libraries(bacuri-vms-inventory-operations PUBLIC bacuri-vms-control-storage)
 
 add_library(bacuri-vms-inventory STATIC

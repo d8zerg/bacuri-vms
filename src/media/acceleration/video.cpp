@@ -7,6 +7,7 @@
 #include <gst/app/gstappsink.h>
 #include <algorithm>
 #include <array>
+#include <fstream>
 
 namespace bacuri::vms::acceleration
 {
@@ -135,6 +136,57 @@ Json sessions(const std::string& enc)
             {"probe_ceiling", ceiling},
             {"reached_ceiling", held.size() == ceiling}};
 }
+// Device-wide usage while a reference pipeline is resident also accounts for the driver and its context.
+class DeviceMemory
+{
+  public:
+    explicit DeviceMemory(const Json& device)
+    {
+        if (device.at("backend") == "vaapi") {
+            const auto name = device.at("id").get<std::string>().substr(6);
+            counter_ = std::filesystem::path{"/sys/class/drm"} / name / "device/mem_info_vram_used";
+        } else if (device.at("backend") == "nvidia") {
+            nvml_ = std::make_unique<Library>("libnvidia-ml.so.1");
+            if (*nvml_ && nvml_->symbol<int()>("nvmlInit_v2")() == 0) {
+                initialized_ = true;
+                const auto pci = device.at("id").get<std::string>().substr(7);
+                if (nvml_->symbol<int(const char*, void**)>("nvmlDeviceGetHandleByPciBusId_v2")(pci.c_str(),
+                                                                                                &handle_))
+                    handle_ = nullptr;
+            }
+        }
+    }
+    ~DeviceMemory()
+    {
+        if (initialized_)
+            nvml_->symbol<int()>("nvmlShutdown")();
+    }
+    DeviceMemory(const DeviceMemory&) = delete;
+    DeviceMemory& operator=(const DeviceMemory&) = delete;
+    std::uint64_t read() const
+    {
+        if (handle_) {
+            struct Memory {
+                unsigned long long total, free, used;
+            } memory{};
+            if (nvml_->symbol<int(void*, Memory*)>("nvmlDeviceGetMemoryInfo")(handle_, &memory) == 0)
+                return memory.used;
+        }
+        if (!counter_.empty()) {
+            std::uint64_t bytes{};
+            std::ifstream input{counter_};
+            if (input >> bytes)
+                return bytes;
+        }
+        return 0;
+    }
+
+  private:
+    std::unique_ptr<Library> nvml_;
+    void* handle_{};
+    bool initialized_{};
+    std::filesystem::path counter_;
+};
 Json video_sample(const Json& request)
 {
     const auto& dev = request.at("device");
@@ -172,6 +224,8 @@ Json video_sample(const Json& request)
     auto input = pipe.element("input");
     if (input)
         gst_app_src_set_caps(GST_APP_SRC(input.get()), ref.caps.get());
+    DeviceMemory memory{dev};
+    std::uint64_t peak{};
     const auto started = Clock::now();
     pipe.play();
     if (input) {
@@ -185,6 +239,8 @@ Json video_sample(const Json& request)
     }
     std::array<unsigned char, 3072> previous{}, pixels{};
     const auto count = receive(pipe, [&](GstSample* sample, unsigned i) {
+        if (i == 0 || i + 1 == frames)
+            peak = std::max(peak, memory.read());
         if (op == "analysis") {
             if (gst_buffer_extract(gst_sample_get_buffer(sample), 0, pixels.data(), pixels.size()) !=
                 pixels.size())
@@ -198,9 +254,13 @@ Json video_sample(const Json& request)
         throw std::runtime_error("Unexpected frame count");
     auto us = std::max<std::int64_t>(
         1, std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - started).count());
-    return {{"state", "measured"}, {"frames", count},
-            {"elapsed_us", us},    {"width", 1920},
-            {"height", 1080},      {"fps", static_cast<double>(count) * 1000000. / static_cast<double>(us)}};
+    Json result = {
+        {"state", "measured"}, {"frames", count},
+        {"elapsed_us", us},    {"width", 1920},
+        {"height", 1080},      {"fps", static_cast<double>(count) * 1000000. / static_cast<double>(us)}};
+    if (peak)
+        result["sampled_device_memory_bytes"] = peak;
+    return result;
 }
 } // namespace
 Json measure_video(const Json& request)

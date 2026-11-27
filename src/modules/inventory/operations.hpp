@@ -1,4 +1,5 @@
 #pragma once
+#include "domain/acceleration.hpp"
 
 #include <optional>
 #include <vector>
@@ -23,6 +24,14 @@ bool has_binding(postgresql::Database&, const std::string& site, const std::stri
 bool lock_camera_revision(postgresql::Database&, const std::string& site, const std::string& point,
                           const std::string& device, const std::string& revision);
 
+struct NodeAcceleration {
+    domain::AccelerationSettings settings;
+    std::int64_t revision{};
+};
+NodeAcceleration node_acceleration(postgresql::QuerySession&, const std::string& site, const std::string& node,
+                                   bool writing);
+void save_node_acceleration(postgresql::QuerySession&, const std::string& site, const std::string& node,
+                            const domain::AccelerationSettings&);
 bool site_exists(postgresql::Database&, const std::string& site);
 
 bool point_exists(postgresql::Database&, const std::string& site, const std::string& point);

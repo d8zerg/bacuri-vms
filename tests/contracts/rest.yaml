@@ -403,3 +403,34 @@ node_acceleration_cancel:
   response:
     <<: *node_probe
     job: {id: 40000000-0000-4000-8000-000000000002, reason: prepare_gpu, state: cancelled, steps: [{name: inventory, state: cancelled, completed: 0, total: 1}]}
+
+node_acceleration_settings:
+  operation: getNodeAccelerationSettings
+  status: 200
+  response: &cpu_settings
+    node_id: 70000000-0000-4000-8000-000000000002
+    revision: 0
+    mode: cpu_only
+    gpu_tasks: []
+    applicable: true
+    issue: null
+    rejected_tasks: []
+    devices: []
+    decisions:
+      - {task: live_mask, device_id: cpu, reason: cpu_only}
+      - {task: live_profile, device_id: cpu, reason: cpu_only}
+      - {task: live_analysis, device_id: cpu, reason: cpu_only}
+      - {task: export, device_id: cpu, reason: cpu_only}
+      - {task: archive_analysis, device_id: cpu, reason: cpu_only}
+      - {task: keyframe, device_id: cpu, reason: cpu_only}
+      - {task: thumbnail, device_id: cpu, reason: cpu_only}
+node_acceleration_preview:
+  operation: previewNodeAccelerationSettings
+  request: {mode: cpu_only}
+  status: 200
+  response: *cpu_settings
+node_acceleration_apply:
+  operation: setNodeAccelerationSettings
+  request: {mode: cpu_only}
+  status: 200
+  response: *cpu_settings

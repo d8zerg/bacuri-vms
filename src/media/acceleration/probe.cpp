@@ -96,14 +96,25 @@ Json Probe::snapshot() const
             {"result", result_},
             {"stale", !result_.is_null() && result_.at("fingerprint") != identity_}};
 }
-Json Probe::status()
+void Probe::refresh_device()
+{
+    auto current = identify_();
+    if (current != identity_) {
+        identity_ = std::move(current);
+        schedule("device_changed");
+    }
+}
+Json Probe::status(bool refresh_identity)
 {
     std::scoped_lock lock{mutex_};
+    if (refresh_identity)
+        refresh_device();
     return snapshot();
 }
 Json Probe::start(bool prepare_gpu)
 {
     std::scoped_lock lock{mutex_};
+    refresh_device();
     const auto& state = job_.at("state");
     if (state != "running" && state != "queued" && state != "waiting")
         schedule(prepare_gpu ? "prepare_gpu" : "administrator");
@@ -128,7 +139,10 @@ bool Probe::cancel(const std::string& id, Json& reply)
 }
 void Probe::execute(const std::stop_token& stop, const std::string& id)
 {
-    const auto identity = identity_;
+    const auto identity = [&] {
+        std::scoped_lock lock{mutex_};
+        return identity_;
+    }();
     auto obsolete = [&] { return stop.stop_requested() || job_["id"] != id || job_["state"] == "cancelled"; };
     auto next_identity_check = std::chrono::steady_clock::now() + watch_;
     Json devices = Json::array(), measurements = Json::array();

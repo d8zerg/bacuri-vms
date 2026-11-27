@@ -48,11 +48,12 @@ class Probe
     ~Probe();
     Probe(const Probe&) = delete;
     Probe& operator=(const Probe&) = delete;
-    Json status();
+    Json status(bool refresh_identity = false);
     Json start(bool prepare_gpu);
     bool cancel(const std::string& id, Json& reply);
 
   private:
+    void refresh_device();
     void schedule(std::string_view reason);
     Json snapshot() const;
     void loop(const std::stop_token& stop);

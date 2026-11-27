@@ -154,6 +154,34 @@ errors:
     audience: operators
     description: The camera has no audio channel.
 
+  acceleration_probe_required:
+    category: conflict
+    http: 409
+    grpc: FAILED_PRECONDITION
+    retry: after_change
+    audience: administrators
+    description: The node requires a completed hardware probe before applying a GPU mode.
+  acceleration_probe_stale:
+    category: conflict
+    http: 409
+    grpc: FAILED_PRECONDITION
+    retry: after_change
+    audience: administrators
+    description: The device or driver no longer matches the saved measurement.
+  acceleration_device_unavailable:
+    category: conflict
+    http: 409
+    grpc: FAILED_PRECONDITION
+    retry: after_change
+    audience: administrators
+    description: The completed probe found no accessible GPU.
+  acceleration_budget_exceeded:
+    category: conflict
+    http: 409
+    grpc: FAILED_PRECONDITION
+    retry: after_change
+    audience: administrators
+    description: The manual selection includes unsupported tasks or exceeds the measured device budget.
   revision_conflict:
     category: conflict
     http: 409

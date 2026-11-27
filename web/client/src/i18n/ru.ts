@@ -363,6 +363,18 @@ export const ru = {
   "alert.events.export": "Экспорт фрагмента",
   "alert.events.recording_policy": "Политика записи",
   "alert.events.manual_recording": "Ручная запись",
+  "acceleration.node": "Узел",
+  "acceleration.cpu_only": "Только CPU",
+  "acceleration.auto": "Авто",
+  "acceleration.manual": "Вручную",
+  "acceleration.live_mask": "Маски эфира",
+  "acceleration.live_profile": "Профили эфира",
+  "acceleration.live_analysis": "Анализ эфира",
+  "acceleration.export": "Экспорт",
+  "acceleration.archive_analysis": "Анализ архива",
+  "acceleration.keyframe": "Опорные кадры",
+  "acceleration.thumbnail": "Миниатюры",
+  "alert.events.node_acceleration": "Ускорение узла",
   "alert.events.recording_storage": "Хранение архива",
   "alert.events.camera_control": "Управление камерой",
   "alert.outcomes.applied": "Выполнено",
@@ -564,6 +576,14 @@ export const ru = {
   "error.recording_policy_managed": "Запись точки задаёт групповая политика.",
   "error.region_busy":
     "Пакет карты региона сейчас устанавливается или удаляется.",
+  "error.acceleration_probe_required":
+    "Перед включением режима с GPU выполните проверку оборудования.",
+  "error.acceleration_probe_stale":
+    "Устройство или драйвер изменились. Повторите проверку оборудования.",
+  "error.acceleration_device_unavailable":
+    "Проверка не обнаружила доступный GPU.",
+  "error.acceleration_budget_exceeded":
+    "Проверьте задачи GPU, которые не укладываются в измеренный бюджет.",
   "error.revision_conflict":
     "Данные изменились после чтения. Обновите их и повторите изменение.",
   "error.source_unavailable": "Источник пакета карт недоступен.",

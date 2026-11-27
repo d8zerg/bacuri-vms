@@ -93,12 +93,12 @@ void restore_configuration(std::istream& input)
         unseal(encrypted, load_key(setting("BACURI_KEY_FILE")), context(site, setting("BACURI_NODE_ID"))));
     data.erase("webauthn_credentials");
     for (const auto* table :
-         {"video_rules",         "investigations",         "archive_holds",        "held_blocks",
-          "recording_policies",  "monitor_layouts",        "camera_templates",     "camera_batch_items",
-          "credential_audit",    "camera_transport_audit", "floor_plans",          "point_placements",
-          "archive_retention",   "export_grants",          "map_catalog_settings", "resource_groups",
-          "group_points",        "scoped_grants",          "privacy_policies",     "identity_providers",
-          "external_identities", "policy_versions",        "access_audit"}) {
+         {"node_acceleration",  "video_rules",         "investigations",         "archive_holds",
+          "held_blocks",        "recording_policies",  "monitor_layouts",        "camera_templates",
+          "camera_batch_items", "credential_audit",    "camera_transport_audit", "floor_plans",
+          "point_placements",   "archive_retention",   "export_grants",          "map_catalog_settings",
+          "resource_groups",    "group_points",        "scoped_grants",          "privacy_policies",
+          "identity_providers", "external_identities", "policy_versions",        "access_audit"}) {
         if (!data.contains(table))
             data[table] = Json::array();
     }

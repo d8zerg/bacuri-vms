@@ -17,7 +17,7 @@ class ProbeService final : public v1::NodeAcceleration::Service
     {
         if (request->node_id() != node_)
             return platform::rpc_status(ErrorCode::not_found);
-        reply->set_status_json(probe_.status().dump());
+        reply->set_status_json(probe_.status(request->refresh_identity()).dump());
         return grpc::Status::OK;
     }
     grpc::Status StartProbe(grpc::ServerContext*, const v1::NodeProbeRequest* request,

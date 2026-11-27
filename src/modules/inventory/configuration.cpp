@@ -5,6 +5,7 @@ namespace bacuri::vms::control::inventory
 void site_configuration(postgresql::ConfigurationSnapshot& snapshot)
 {
     snapshot.section("bacuri_inventory.sites");
+    snapshot.section("bacuri_inventory.node_acceleration");
 }
 void camera_configuration(postgresql::ConfigurationSnapshot& snapshot)
 {

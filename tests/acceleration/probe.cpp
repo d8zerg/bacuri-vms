@@ -102,6 +102,23 @@ TEST_F(NodeProbe, YieldsAndInvalidatesSavedResultOnDriverChange)
     EXPECT_EQ(current.at("stale"), false);
     EXPECT_EQ(current.at("result").at("fingerprint"), "b");
 }
+TEST_F(NodeProbe, ApplyingSettingsRefreshesIdentityBeforeTheNextScheduledCheck)
+{
+    std::atomic_uint driver{};
+    Probe probe{"node", directory, activity, sample, [&] {return std::to_string(driver.load()); }, 1h};
+    const auto original = complete(probe).at("result");
+    activity = 1;
+    ++driver;
+    EXPECT_EQ(probe.status().at("stale"), false);
+    const auto current = probe.status(true);
+    EXPECT_EQ(current.at("stale"), true);
+    EXPECT_EQ(current.at("result"), original);
+    EXPECT_EQ(current.at("job").at("reason"), "device_changed");
+    ++driver;
+    const auto preparing = probe.start(true);
+    EXPECT_NE(preparing.at("job").at("id"), current.at("job").at("id"));
+    EXPECT_EQ(preparing.at("job").at("reason"), "device_changed");
+}
 TEST_F(NodeProbe, ActiveDeliveryInterruptsAndRetriesTheRunningSample)
 {
     std::atomic_uint attempts{};

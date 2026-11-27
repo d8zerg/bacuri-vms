@@ -1,4 +1,5 @@
 #pragma once
+#include "domain/acceleration.hpp"
 
 #include <variant>
 
@@ -14,6 +15,13 @@ class QuerySession;
 
 namespace bacuri::vms::control::events
 {
+struct NodeAccelerationChange {
+    std::string node;
+    domain::AccelerationSettings previous, next;
+    std::int64_t revision{};
+};
+void record_acceleration_change(postgresql::QuerySession&, const std::string& site, const std::string& user,
+                                const NodeAccelerationChange&);
 struct ArchiveAnchor {
     std::string point, revision, basis;
     std::int64_t time;

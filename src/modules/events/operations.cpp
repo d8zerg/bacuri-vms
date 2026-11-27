@@ -60,6 +60,16 @@ std::optional<ArchiveAnchor> archive_anchor(postgresql::QuerySession& db, const 
         return {};
     return ArchiveAnchor{r.get(0), r.get(0, 1), r.get(0, 2), std::stoll(r.get(0, 3)), r.get(0, 4)};
 }
+void record_acceleration_change(postgresql::QuerySession& db, const std::string& site, const std::string& user,
+                                const NodeAccelerationChange& change)
+{
+    const Json details{{"node_id", change.node},         {"previous_mode", change.previous.mode},
+                       {"mode", change.next.mode},       {"previous_tasks", change.previous.gpu_tasks},
+                       {"tasks", change.next.gpu_tasks}, {"revision", change.revision}};
+    db.exec("INSERT INTO bacuri_events.alert_audit(site_id,initiator_id,actor_kind,action,outcome,reason,details) "
+            "VALUES($1,$2,'user','node_acceleration','applied','acceleration_changed',$3::jsonb)",
+            {site, user, details.dump()});
+}
 void record_camera_control(postgresql::Database& db, const std::string& site, const std::string& point,
                            const std::string& user, const std::string& outcome, const std::string& command,
                            const std::string& target)
