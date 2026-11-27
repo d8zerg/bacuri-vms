@@ -1,0 +1,11 @@
+# Select the render node and its host group when qualifying a VA-API installation.
+x-vaapi: &vaapi
+  image: ${COMPOSE_PROJECT_NAME}-vaapi
+  build: {context: ., target: acceleration-vaapi}
+  devices:
+    - ${BACURI_RENDER_DEVICE:-/dev/dri/renderD128}:${BACURI_RENDER_DEVICE:-/dev/dri/renderD128}
+  group_add:
+    - "${BACURI_RENDER_GID:-991}"
+services:
+  media: *vaapi
+  dev: *vaapi

@@ -269,6 +269,7 @@ services:
       - catalog-ipc:/catalog-ipc
       - media-auth:/auth-ipc
       - media-ipc:/media-ipc
+      - media-data:/var/lib/bacuri-media
       - control-ipc:/ipc
 
   core:
@@ -374,6 +375,7 @@ services:
       - preview-ipc:/preview-ipc:ro
       - media-auth:/auth-ipc:ro
       - media-ipc:/media-ipc
+      - media-data:/var/lib/bacuri-media
     command: ["/opt/bacuri/bacuri-vms-media"]
     healthcheck:
       test: ["CMD-SHELL", "test -S /media-ipc/media.sock"]
@@ -425,6 +427,7 @@ volumes:
   media-auth:
   observation-ipc:
   media-ipc:
+  media-data:
   preview-ipc:
 
 networks:

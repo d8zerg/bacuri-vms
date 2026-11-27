@@ -35,7 +35,7 @@ docker compose up -d --wait playback-chrome playback-firefox
 trap 'docker compose stop playback-chrome playback-firefox' EXIT
 "${run[@]}" builder ctest --preset gcc-coverage -LE core-modules
 "${run[@]}" dev python3 tests/ingest/relay.py build/gcc-coverage/bacuri-vms-rtsp-test rtsp-camera
-for scenario in control archive playback live alerts; do
+for scenario in control acceleration archive playback live alerts; do
     "${run[@]}" dev sh tests/check-control.sh gcc-coverage "$scenario"
 done
 "${run[@]}" dev sh tests/check-control.sh gcc-coverage monitoring

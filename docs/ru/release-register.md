@@ -56,6 +56,7 @@
 | recording | Core | set-retention |
 | maps | Core | import-map |
 | evidence | Core | export-public-key |
+| operations | REST | getNodeAccelerationProbe, startNodeAccelerationProbe, cancelNodeAccelerationProbe |
 | operations | Core | serve, migrate, backup-config, restore-config, recovery-status, rebuild-archive |
 | search | Веб | /investigations |
 | alerts | Веб | /monitor, /audit |

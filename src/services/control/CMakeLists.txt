@@ -5,6 +5,7 @@ add_executable(bacuri-vms-core
     main.cpp
     transport/alert_socket.cpp
     transport/https.cpp
+    transport/node_probe.cpp
     transport/server.cpp)
 target_link_libraries(bacuri-vms-core PRIVATE bacuri-vms-export bacuri-vms-configuration-recovery bacuri-vms-investigations
     bacuri-vms-access bacuri-vms-events bacuri-vms-inventory bacuri-vms-maps

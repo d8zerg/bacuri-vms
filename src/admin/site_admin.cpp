@@ -188,7 +188,8 @@ void setup(char** v)
                {"BACURI_CAMERA_NETWORKS", net},
                {"BACURI_SOCKET", base + "recorder/control.sock"},
                {"BACURI_CATALOG_SOCKET", base + "core/catalog.sock"}};
-    Env media{{"BACURI_ARCHIVE_DIR", "/srv/bacuri-archive/recorder"},
+    Env media{{"BACURI_NODE_ID", common.at("BACURI_NODE_ID")},
+              {"BACURI_ARCHIVE_DIR", "/srv/bacuri-archive/recorder"},
               {"BACURI_PREVIEW_SOCKET", base + "recorder/preview.sock"},
               {"BACURI_AUTH_SOCKET", base + "core/auth.sock"},
               {"BACURI_MEDIA_SOCKET", base + "media/media.sock"}};

@@ -5,6 +5,19 @@ package bacuri.vms.v1;
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
+// The media node owns the hardware and the last completed measurement.
+service NodeAcceleration {
+  rpc ProbeStatus(NodeProbeRequest) returns (NodeProbeStatus);
+  rpc StartProbe(NodeProbeRequest) returns (NodeProbeStatus);
+  rpc CancelProbe(NodeProbeRequest) returns (NodeProbeStatus);
+}
+message NodeProbeRequest {
+  string node_id = 1;
+  string probe_id = 2;
+  bool prepare_gpu = 3;
+}
+message NodeProbeStatus { string status_json = 1; }
+
 service RecorderControl {
   // Persist the accepted configuration before returning APPLIED.
   // A replay of the same site, node and revision returns the recorded decision.

@@ -11,6 +11,7 @@
 #include "platform/settings.hpp"
 #include "media/lease.hpp"
 #include "services/media/live.hpp"
+#include "services/media/probe_service.hpp"
 #include "observability/metrics.hpp"
 #include <gst/gst.h>
 #include <boost/asio/io_context.hpp>
@@ -49,6 +50,7 @@ class Descriptor
 class Delivery final : public v1::ArchiveDelivery::Service
 {
   public:
+    explicit Delivery(std::atomic_uint& activity) : activity_{activity} {}
     grpc::Status ReadPart(grpc::ServerContext* context, const v1::ReadPartRequest* request,
                           grpc::ServerWriter<v1::PartChunk>* stream) override
     {
@@ -58,6 +60,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
         try {
             Lease lease{request->scope()};
             lease.deadline();
+            acceleration::Activity foreground{activity_};
             Descriptor blocks{open(blocks_.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
             if (flock(blocks.fd, LOCK_SH | LOCK_NB) < 0) {
                 throw std::runtime_error("Archive verification in progress");
@@ -190,6 +193,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
         cache_.push_back({hash, regions, duration, out});
         return out;
     }
+    std::atomic_uint& activity_;
     const std::filesystem::path blocks_{std::filesystem::path{platform::setting("BACURI_ARCHIVE_DIR")} / "blocks"};
     // The second archive copy serves a block that the primary volume cannot.
     const std::optional<std::filesystem::path> replica_{platform::optional_setting("BACURI_ARCHIVE_REPLICA_DIR")};
@@ -198,19 +202,31 @@ class Delivery final : public v1::ArchiveDelivery::Service
 } // namespace
 } // namespace bacuri::vms::media
 
-int main()
+int main(int argc, char** argv)
 try {
     using namespace bacuri::vms;
+    if (argc == 3 && std::string_view{argv[1]} == "--acceleration-sample")
+        return acceleration::worker(argv[2]);
+    if (argc != 1)
+        return 2;
     umask(0007);
     const auto metrics = observability::export_process_metrics(std::getenv("BACURI_METRICS_DIRECTORY"), "media");
-    media::Delivery delivery;
+    std::atomic_uint activity{};
+    media::Delivery delivery{activity};
     gst_init(nullptr, nullptr);
-    media::LiveDelivery live;
+    media::LiveDelivery live{activity};
+    std::unique_ptr<media::ProbeService> probe;
     const auto path = platform::setting("BACURI_MEDIA_SOCKET");
     grpc::ServerBuilder builder;
     builder.AddListeningPort("unix:" + path, grpc::experimental::LocalServerCredentials(UDS));
     builder.RegisterService(&delivery);
     builder.RegisterService(&live);
+    if (auto node = platform::optional_setting("BACURI_NODE_ID"); node && platform::canonical_id(*node)) {
+        probe = std::make_unique<media::ProbeService>(
+            *node, platform::optional_setting("BACURI_PROBE_DIRECTORY").value_or("/var/lib/bacuri-media"),
+            activity);
+        builder.RegisterService(probe.get());
+    }
     auto server = builder.BuildAndStart();
     if (!server || chmod(path.c_str(), 0660)) {
         throw std::runtime_error("Cannot open archive delivery socket");

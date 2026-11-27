@@ -22,6 +22,7 @@
 #include "modules/media_sessions/media_authority.hpp"
 #include "modules/media_sessions/playback.hpp"
 #include "services/control/transport/routes.hpp"
+#include "services/control/transport/node_probe.hpp"
 #include <fstream>
 
 #include <charconv>
@@ -191,6 +192,9 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     // The paths below are relative to /api/v1/sites/{siteId}/. A handler receives the identifiers of its path.
     Routes routes;
     routes
+        .add("nodes/{id}/acceleration/probe", [&](const PathMatch& m) { node_probe(req, res, sessions, site, m); })
+        .add("nodes/{id}/acceleration/probe/{id}",
+             [&](const PathMatch& m) { node_probe(req, res, sessions, site, m); })
         .add("investigation-assignees",
              [&](const PathMatch&) { investigations::case_recipients(req, res, sessions, site); })
         .add("investigations",

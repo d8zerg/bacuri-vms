@@ -15,6 +15,8 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
+StateDirectory=bacuri-media
+StateDirectoryMode=0700
 ReadWritePaths=/run/bacuri-vms/media
 
 [Install]

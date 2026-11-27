@@ -116,6 +116,7 @@ tasks:
         vars: {PRESET: '{{.ITEM}}'}
       - task: investigations:check
       - task: recording-policies:check
+      - task: acceleration:check
       - task: retention:check
       - task: export:check
       - task: media:check:bookworm
@@ -476,6 +477,22 @@ tasks:
     desc: Record the reconciled contract revision in the desktop parity register
     deps: [dev:image]
     cmd: '{{.BUILD_RUN}} python3 tools/desktop_parity.py --accept'
+
+  acceleration:check:
+    desc: Verify the media node hardware probe and its HTTPS lifecycle on the selected backend
+    vars:
+      BACKEND: '{{default "cpu" .BACKEND}}'
+    requires:
+      vars:
+        - name: BACKEND
+          enum: [cpu, nvidia, vaapi]
+    deps: [dev:image, stand:up]
+    cmds:
+      - '{{.BUILD_RUN}} sh tools/build-preset gcc-debug --target bacuri-vms-core bacuri-vms-media'
+      - >-
+        docker compose -f compose.yaml {{if ne .BACKEND "cpu"}}-f compose.acceleration-{{.BACKEND}}.yaml{{end}}
+        run {{if eq .BACKEND "vaapi"}}--build{{end}} --rm --no-deps --user "$(id -u):$(id -g)" -T -e BACURI_PROBE_BACKEND={{.BACKEND}}
+        dev sh tests/check-control.sh gcc-debug acceleration
 
   acceleration:cost:
     desc: Measure server task costs on four video profiles using the CPU or NVIDIA backend

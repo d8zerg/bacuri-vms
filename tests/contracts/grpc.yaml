@@ -210,3 +210,18 @@ report_local_detector:
     binding: {point_id: *point, revision: '1'}
     attributes_json: eyJ0b3BpYyI6IkxvY2FsL01vdGlvbiJ9
   response: {state: REGISTRATION_STATE_COMMITTED}
+node_acceleration_probestatus:
+  rpc: NodeAcceleration.ProbeStatus
+  request: {node_id: 70000000-0000-4000-8000-000000000002}
+  response:
+    status_json: '{"node_id":"70000000-0000-4000-8000-000000000002","stale":false,"result":null,"job":{"id":"40000000-0000-4000-8000-000000000002","reason":"startup","state":"queued","steps":[]}}'
+node_acceleration_startprobe:
+  rpc: NodeAcceleration.StartProbe
+  request: {node_id: 70000000-0000-4000-8000-000000000002}
+  response:
+    status_json: '{"node_id":"70000000-0000-4000-8000-000000000002","stale":false,"result":null,"job":{"id":"40000000-0000-4000-8000-000000000002","reason":"administrator","state":"queued","steps":[]}}'
+node_acceleration_cancelprobe:
+  rpc: NodeAcceleration.CancelProbe
+  request: {node_id: 70000000-0000-4000-8000-000000000002, probe_id: 40000000-0000-4000-8000-000000000002}
+  response:
+    status_json: '{"node_id":"70000000-0000-4000-8000-000000000002","stale":false,"result":null,"job":{"id":"40000000-0000-4000-8000-000000000002","reason":"administrator","state":"cancelled","steps":[]}}'

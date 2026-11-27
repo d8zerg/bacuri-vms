@@ -67,6 +67,36 @@ def frame(call):
     return result
 
 
+def verify_live_probe(call, admin, point):
+    route = f"sites/{control.SITE}/nodes/{os.environ['BACURI_NODE_ID']}/acceleration/probe"
+
+    def counters():
+        stats = call("POST", "/execute/async", {"script": """
+            const done = arguments[arguments.length - 1];
+            window.probePeer.getStats().then(report => {
+                const stream = [...report.values()].find(s => s.type === 'inbound-rtp' && s.kind === 'video');
+                done([stream.framesDecoded, stream.framesDropped, stream.packetsLost]);
+            });
+        """, "args": []})
+        assert all(isinstance(n, int) for n in stats), stats
+        return stats
+
+    count = len(archive_blocks(point))
+    first = counters()
+    code, _, status = control.http("POST", route, headers=admin)
+    assert code == 202, status
+    job = status["job"]["id"]
+    control.wait_for(lambda: control.http("GET", route, headers=admin)[2]["job"]["state"] == "waiting",
+                     "probe yielding to the active live stream")
+    control.wait_for(lambda: len(archive_blocks(point)) >= count + 4, "recording during the probe")
+    last = counters()
+    assert last[0] > first[0] and last[1:] == first[1:], (first, last)
+    assert coverage(point, archive_blocks(point)[count - 1:]) == (0, 0, 0, 0)
+    code, _, status = control.http("DELETE", route + "/" + job, headers=admin)
+    assert code == 200 and status["job"]["state"] == "cancelled", status
+    print("probe during live recording: decoded, dropped, lost before/after", first, last, flush=True)
+
+
 def linked(call, link):
     call(
         "POST",
@@ -185,7 +215,16 @@ def run():
         assert reference == (0, 0, 0, 0), reference
         for browser in ["chrome", "firefox"]:
             with browser_session(browser, viewer, monitor) as (call, version):
+                if browser == "chrome":
+                    call("POST", "/execute/sync", {"script": """
+                        const Peer = window.RTCPeerConnection;
+                        window.RTCPeerConnection = class extends Peer {
+                            constructor(...args) { super(...args); window.probePeer = this; }
+                        };
+                    """, "args": []})
                 print(browser, version, frame(call), flush=True)
+                if browser == "chrome":
+                    verify_live_probe(call, admin, point)
         with browser_session("chrome", viewer, monitor) as (call, _):
             check_offer_problem(call)
         # The media service measures the same wait on the server and exports it for the site.

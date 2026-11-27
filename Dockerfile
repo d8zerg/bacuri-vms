@@ -215,6 +215,11 @@ RUN (dpkg-query -W && sha256sum /opt/bacuri/deps/*/graph.json /opt/bacuri/profil
     sha256sum /tmp/bacuri-build-inputs > /opt/bacuri/deps/toolchain.sha256 && \
     rm /tmp/bacuri-build-inputs
 
+FROM dev AS acceleration-vaapi
+RUN apt-get -o Acquire::Retries=2 update \
+    && apt-get install -y --no-install-recommends mesa-va-drivers intel-media-va-driver \
+    && rm -rf /var/lib/apt/lists/*
+
 FROM dev AS quality
 RUN apt-get -o Acquire::Retries=3 update \
     && apt-get -o Acquire::Retries=3 install -y --no-install-recommends clang-format-19 gcovr \

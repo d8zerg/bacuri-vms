@@ -52,3 +52,28 @@ task acceleration:cost BACKEND=nvidia
 Run sequentially on an otherwise idle node. The CPU command also works on a host without a GPU. The NVIDIA command uses device 0 with video, compute and per-process utilization reporting. Each command checks all four generated Main-profile fMP4 inputs (150 frames, GOP 25, no B-frames), runs each workload in a fresh process and writes a complete report to `build/acceleration/<backend>.csv`. Fixture generation is outside the measurement.
 
 The deterministic workload uses SMPTE test bars, a 6 Mbit/s encoder target for the input and a 2 Mbit/s H.264 encoder target for live output. The export encoder uses fixed quantizer 16. The privacy mask covers the central quarter of the image. Full-rate pipelines must return 150 frames. Keyframes and thumbnails must return six images. Motion must return 150 frames and 22 samples using the server's 250 ms sampling interval. The NVIDIA reference uses NVDEC and, for video outputs, NVENC. The native-size unmasked transcode passes CUDA surfaces directly. Masking, resizing and motion run on the CPU in this reference. Per-process NVIDIA counters are sampled at one-second intervals. Repeat with the intended transformations, driver and recordings before assigning a node budget.
+
+## Background node check
+
+A newly started media node queues a check. It samples one capability at a time in a low-priority subprocess with a 12-second deadline. A live delivery session or archive read interrupts the active sample. The check waits and retries that sample after foreground work releases the node. Recording continues in the recorder. NVIDIA video samples also wait when the driver reports active encoder sessions or decoder use. Progress can remain in `waiting` on a busy node.
+
+The site administrator uses the following operations under `/api/v1/sites/{siteId}/nodes/{nodeId}/acceleration/probe`. Writes use the session CSRF token.
+
+| Request | Result |
+| --- | --- |
+| `GET` | Current job ID, reason, state, completed/total samples per stage, last saved result and its `stale` flag. |
+| `POST` | Queue a check or return the existing active job. Use the optional body `{"reason":"prepare_gpu"}` when preparing to leave CPU-only mode. |
+| `DELETE /{probeId}` | Cancel that job. The previously saved measurements and current execution mode remain available. |
+
+The stages cover inventory, decoding, encoding, inference and representative workloads. Each supported video backend processes a synthetic H.264 Main or H.265 Main 1920x1080 reference at 25 fps. Sixteen input frames exercise masking, resizing to 720p, masked export and motion analysis for live or recorded video. Keyframe and thumbnail extraction use the random-access frame. The result identifies the actual codec elements, elapsed microseconds, frame count and observed throughput. A 25 fps single-stream budget is 0 or 1. Timing includes pipeline startup. Encode and decode use the median of three independent pipeline timings and return all three in `elapsed_samples_us`. Inference runs 32 passes on 256 FP32 values and checks every ReLU output on CPU, CUDA and each available OpenVINO target. Production model costs use the separate measurement procedure above.
+
+The encoder test holds simultaneous hardware sessions up to a ceiling of 16 per codec. `verified_sessions` is the number actually opened together. If `reached_ceiling` is true, this is a lower bound. On the reference RTX 4070 Ti, both runs held 12 H.264 sessions and 12 H.265 sessions when each codec was tested separately. A device with shared or unreported video memory returns `memory_bytes: null`. Failed, timed-out and unsupported capabilities have their own states. The check publishes the result atomically once all stages and the required CPU references finish. It stores the device model, driver, hardware fingerprint and UTC measurement time on the media node. It checks device and driver identity every 15 seconds and queues a replacement when they change. Clients can still read the prior result with `stale: true` during that check.
+
+Run the qualification on each otherwise idle installation. On two consecutive runs the verified hardware session counts and single-stream decode/encode budgets must match. Raw throughput may vary. The CPU-only configuration works without vendor libraries. For NVIDIA, use the NVIDIA Container Toolkit and the NVIDIA Compose overlay. For VA-API, grant the media service access to the render device and install the matching user-space driver in its runtime. The VA-API Compose overlay includes Mesa and Intel user-space drivers and accepts the device and its numeric host group. OpenVINO is optional. The media process loads `libopenvino_c.so` or the installed library named by `BACURI_OPENVINO_LIBRARY`.
+
+```sh
+task acceleration:check BACKEND=cpu
+task acceleration:check BACKEND=nvidia
+BACURI_RENDER_DEVICE=/dev/dri/renderD128 BACURI_RENDER_GID=$(stat -c %g /dev/dri/renderD128) task acceleration:check BACKEND=vaapi
+task live:check
+```

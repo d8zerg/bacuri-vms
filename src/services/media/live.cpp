@@ -1,3 +1,4 @@
+#include "media/acceleration/probe.hpp"
 #include "services/media/live.hpp"
 #include "platform/rpc_status.hpp"
 #include "media/lease.hpp"
@@ -133,8 +134,9 @@ grpc::Status LiveDelivery::Negotiate(grpc::ServerContext* context, const v1::Liv
         std::promise<void> finished;
         peer->browser = offer->scope().browser_session_id();
         peer->stopped = finished.get_future().share();
-        peer->worker = std::jthread{[request = *offer, result = std::move(ready),
+        peer->worker = std::jthread{[this, request = *offer, result = std::move(ready),
                                      done = std::move(finished)](const std::stop_token& stop) mutable {
+            acceleration::Activity foreground{activity_};
             run(stop, request, std::move(result));
             done.set_value();
         }};
