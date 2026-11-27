@@ -60,6 +60,10 @@ export const RecordingPolicies: Story = {
   name: "Запись и хранение",
   args: { initial: "/cameras?setup=recording", condition: "recording" },
 };
+export const Node: Story = {
+  name: "Узел",
+  args: { initial: "/cameras", condition: "node" },
+};
 export const Installer: Story = {
   name: "Подключение камеры",
   args: { initial: "/cameras?setup=manual", condition: "slow" },

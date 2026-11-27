@@ -54,7 +54,11 @@ void node_settings(const Request& req, Response& res, const Sessions& sessions, 
     if (candidate.mode != "cpu_only") {
         try {
             const bool leaving_cpu = saved.settings.mode == "cpu_only";
-            probe = current_node_probe(node, apply && leaving_cpu);
+            probe = current_node_probe(node, false);
+            if (apply && leaving_cpu &&
+                (probe.at("result").is_null() || probe.at("stale") == true ||
+                 probe.at("job").at("state") != "completed" || !probe.at("job").value("prepared_for_gpu", false)))
+                probe = current_node_probe(node, true);
             if (probe.at("result").is_null())
                 blocked = ErrorCode::acceleration_probe_required;
             else if (probe.at("stale") == true)

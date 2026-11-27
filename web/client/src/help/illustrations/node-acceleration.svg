@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="216" viewBox="0 0 480 216" fill="none">
+  <rect x="1" y="1" width="478" height="214" rx="12" fill="#242425" stroke="#45443f" stroke-width="2"/>
+  <g stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="42" y="80" width="90" height="60" rx="8" fill="#302f2c" stroke="#b1ab9c"/>
+    <path d="M58 123v-10m15 10V99m15 24v-15m15 15V92m14 31v-21" stroke="#eed493"/>
+    <path d="M140 110h38q8 0 8-8V72q0-8 8-8h54m-8-7 8 7-8 7" stroke="#dbc48e"/>
+    <path d="M176 110q10 0 10 10v27q0 8 8 8h54m-8-7 8 7-8 7" stroke="#a99c8b"/>
+    <rect x="260" y="37" width="170" height="54" rx="7" fill="#302f2c" stroke="#dfc581"/>
+    <path d="M336 54h73v20h-73z" stroke="#b1ab9c"/><path d="M340 58h45v12h-45z" fill="#dfc581"/>
+    <rect x="260" y="128" width="170" height="54" rx="7" fill="#302f2c" stroke="#b1ab9c"/>
+    <path d="M341 144h14v21h-14zm24 0h14v21h-14zm24 0h14v21h-14z" stroke="#b1ab9c"/>
+  </g>
+  <g fill="#efece1" font-family="sans-serif" font-size="16" font-weight="bold"><text x="276" y="70">GPU</text><text x="276" y="161">CPU</text></g>
+  <g font-family="sans-serif" font-size="13" text-anchor="middle" font-weight="bold" fill="#242425">
+    <g data-key="1"><circle cx="43" cy="76" r="12" fill="#ead59b"/><text x="43" y="81">1</text></g>
+    <g data-key="2"><circle cx="260" cy="33" r="12" fill="#ead59b"/><text x="260" y="38">2</text></g>
+    <g data-key="3"><circle cx="260" cy="124" r="12" fill="#ead59b"/><text x="260" y="129">3</text></g>
+  </g>
+</svg>

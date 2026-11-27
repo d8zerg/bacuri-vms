@@ -102,6 +102,9 @@ def continuity(codecs, read):
             assert camera.poll() in (0, None)
             # The previous segment's GPU pipeline is closed when the worker reports the error.
             path = task.update("DRIVER_RESET" if index == 2 else "POLL")
+            if index == 0 or path != last:
+                active = [row for row in read()["assignments"] if row["task"] == "live_mask"]
+                assert len(active) == 1 and (active[0]["device_id"], active[0]["count"]) == (path, 1), active
             if index == 2:
                 assert path == "cpu"
                 assert {"device_id": gpu, "reason": "driver_reset"} in read()["warnings"]

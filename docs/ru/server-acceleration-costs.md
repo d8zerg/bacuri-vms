@@ -96,6 +96,24 @@ task live:check
 
 При нескольких GPU сервер проверяет варианты размещения между ними и для одного и того же набора задач выбирает вариант с наименьшим суммарным временем. В порядке приоритета идут маски и профили эфира, анализ эфира, экспорт, анализ архива, опорные кадры и миниатюры. Если задача не помещается, сервер показывает ожидаемое назначение на CPU с причиной `unsupported` или `budget_exceeded`. Назначения описывают бюджет настройки.
 
+### Экран узла
+
+Откройте «Узел» в меню площадки под учётной записью администратора. При выходе из «Только CPU» форма запускает фоновую проверку или присоединяется к уже работающей. Можно переключаться между разделами и вернуться, чтобы узнать состояние. Отмена останавливает выбранную проверку и сохраняет предыдущий замер и действующий режим. При отключённой анимации ход текущего этапа отображается текстом.
+
+В режиме «Вручную» отметьте виды задач. Форма показывает измеренную стоимость, ожидаемое устройство, причины назначения и свободный бюджет каждого GPU. Снимите часть флажков, если набор не укладывается в бюджет. В режиме «Авто» назначения доступны для чтения. Столбец «Работающие задачи» показывает текущее число задач каждого вида по устройству и причине, в том числе пути через CPU и очередь. Если исполнитель ещё удерживает прежнее разрешение на GPU, строка показывает освобождаемое устройство. Для задач без активных назначений отображается «Нет активных задач». После устранения причины предупреждения нажмите «Проверить снова».
+
+Нажмите «Применить изменения» для сохранения режима. При конкурентном изменении форма загружает новую ревизию, сохраняя черновик для проверки и повторного применения. Перейти на «Только CPU» можно и при недоступном медиасервисе.
+
+Снимки показывают веб-приложение с воспроизводимыми тестовыми данными. Для Linux-десктопа сценарии проверки и выбора режима зафиксированы в [реестре паритета](../../desktop/parity.yaml).
+
+| Состояние | EN, светлая | EN, тёмная | RU, светлая | RU, тёмная |
+| --- | --- | --- | --- | --- |
+| Ручной выбор сверх бюджета | [PNG](../../tests/workspace/screens/chromium-light/node-en-manual.png) | [PNG](../../tests/workspace/screens/chromium-dark/node-en-manual.png) | [PNG](../../tests/workspace/screens/chromium-light/node-ru-manual.png) | [PNG](../../tests/workspace/screens/chromium-dark/node-ru-manual.png) |
+| Авто с переходом на CPU | [PNG](../../tests/workspace/screens/chromium-light/node-en-auto.png) | [PNG](../../tests/workspace/screens/chromium-dark/node-en-auto.png) | [PNG](../../tests/workspace/screens/chromium-light/node-ru-auto.png) | [PNG](../../tests/workspace/screens/chromium-dark/node-ru-auto.png) |
+| Ход проверки | [PNG](../../tests/workspace/screens/chromium-light/node-en-progress.png) | [PNG](../../tests/workspace/screens/chromium-dark/node-en-progress.png) | [PNG](../../tests/workspace/screens/chromium-light/node-ru-progress.png) | [PNG](../../tests/workspace/screens/chromium-dark/node-ru-progress.png) |
+| Отмена | [PNG](../../tests/workspace/screens/chromium-light/node-en-cancelled.png) | [PNG](../../tests/workspace/screens/chromium-dark/node-en-cancelled.png) | [PNG](../../tests/workspace/screens/chromium-light/node-ru-cancelled.png) | [PNG](../../tests/workspace/screens/chromium-dark/node-ru-cancelled.png) |
+| Ошибка проверки | [PNG](../../tests/workspace/screens/chromium-light/node-en-failed.png) | [PNG](../../tests/workspace/screens/chromium-dark/node-en-failed.png) | [PNG](../../tests/workspace/screens/chromium-light/node-ru-failed.png) | [PNG](../../tests/workspace/screens/chromium-dark/node-ru-failed.png) |
+
 ## Планирование работающих задач
 
 Медиасервис раз в секунду читает сохранённую политику через локальный сокет авторизации Core. Пока политика недоступна или стартовая проверка ещё не подтвердила оборудование, используется CPU. Каждый работающий экземпляр задачи занимает свою долю эталонного бюджета. При равном приоритете сохраняется порядок поступления. Задача остаётся на текущем GPU, пока укладывается в его бюджет. Для новой задачи планировщик предпочитает свободное устройство, затем размещение из предпросмотра в ручном режиме и далее устройство с меньшим измеренным временем обработки.

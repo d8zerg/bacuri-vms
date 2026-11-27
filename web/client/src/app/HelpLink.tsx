@@ -10,6 +10,7 @@ export type HelpTopic =
   | "ptz-control"
   | "review-alarm"
   | "camera-on-map"
+  | "node-acceleration"
   | "connect-camera"
   | "investigate-export"
   | "access-privacy"
@@ -51,6 +52,8 @@ export function screenHelpTopic(
         default:
           return "connect-camera";
       }
+    case "/node":
+      return "node-acceleration";
     case "/maps":
       return "camera-on-map";
     case "/audit":

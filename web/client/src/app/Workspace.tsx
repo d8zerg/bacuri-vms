@@ -43,6 +43,7 @@ const Installer = lazy(() =>
 const Audit = lazy(() =>
   import("./AlertWork").then((m) => ({ default: m.AlertAudit })),
 );
+const NodeAcceleration = lazy(() => import("./node/NodeAcceleration"));
 const Access = lazy(() => import("./Access"));
 const DesktopSignIn = lazy(() =>
   import("./DesktopSignIn").then((m) => ({ default: m.DesktopSignIn })),
@@ -229,6 +230,7 @@ const sections = [
   },
   { path: "/maps", label: "nav.maps", short: "nav.maps.short", icon: "map" },
   { path: "/access", label: "nav.access", icon: "shield-check", admin: true },
+  { path: "/node", label: "nav.node", icon: "hard-drive", admin: true },
   { path: "/cameras", label: "nav.cameras", icon: "cctv", admin: true },
 ] satisfies {
   path: string;
@@ -312,6 +314,7 @@ function Workspace({
       "/investigations": t("section.investigations"),
       "/audit": t("section.journal"),
       "/access": t("section.access"),
+      "/node": t("nav.node"),
       "/cameras": t(
         `section.cameras.${cameraSetup(params.get("setup")) ?? "catalog"}`,
       ),
@@ -396,81 +399,85 @@ function Workspace({
         {t("nav.skip")}
       </a>
       <header className="ws-bar">
-        <div className="ws-navigation">
-          <span className="ws-brand">
-            <img alt="Bacuri VMS" src={mark} />
-            <span aria-hidden="true">Bacuri VMS</span>
-          </span>
-          <nav id="workspace-navigation" aria-label={t("nav.workspace")}>
-            {sections
-              .filter(
-                (section) => !section.admin || site?.role === "administrator",
-              )
-              .map(({ path: sectionPath, label, short, icon }) => {
-                const name = t(label);
-                return (
-                  <div className="ws-nav-section" key={sectionPath}>
-                    <NavLink
-                      to={
-                        sectionPath +
-                        (sectionPath === "/audit"
-                          ? "?" + auditQuery.toString()
-                          : query)
-                      }
-                      aria-label={name}
-                      title={name}
-                    >
-                      <svg aria-hidden="true">
-                        <use href={icons + "#i-" + icon} />
-                      </svg>
-                      <span>
-                        {short ? (
-                          <>
-                            <span className="ws-nav-wide">{name}</span>
-                            <span className="ws-nav-short">{t(short)}</span>
-                          </>
-                        ) : (
-                          name
-                        )}
-                      </span>
-                    </NavLink>
-                    {sectionPath === path && (
-                      <div className="ws-submenu-slot" ref={setSubmenuSlot} />
-                    )}
-                  </div>
-                );
-              })}
-            {sidebar && (
-              <div className="ws-sidebar-actions">
-                <SidebarSettings {...theme} />
-                <HelpLink sidebar article={helpTopic} />
-              </div>
-            )}
-          </nav>
-          <button
-            type="button"
-            className="ws-sidebar-toggle"
-            onClick={toggleSidebar}
-            title={toggleLabel}
-            aria-label={toggleLabel}
-            aria-expanded={!collapsed}
-            aria-controls="workspace-navigation"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+        <div className="ws-sidebar-column">
+          <div className="ws-navigation">
+            <span className="ws-brand">
+              <img alt="Bacuri VMS" src={mark} />
+              <span aria-hidden="true">Bacuri VMS</span>
+            </span>
+            <nav id="workspace-navigation" aria-label={t("nav.workspace")}>
+              {sections
+                .filter(
+                  (section) =>
+                    (!section.admin || site?.role === "administrator") &&
+                    (section.path !== "/node" || !!site?.node_id),
+                )
+                .map(({ path: sectionPath, label, short, icon }) => {
+                  const name = t(label);
+                  return (
+                    <div className="ws-nav-section" key={sectionPath}>
+                      <NavLink
+                        to={
+                          sectionPath +
+                          (sectionPath === "/audit"
+                            ? "?" + auditQuery.toString()
+                            : query)
+                        }
+                        aria-label={name}
+                        title={name}
+                      >
+                        <svg aria-hidden="true">
+                          <use href={icons + "#i-" + icon} />
+                        </svg>
+                        <span>
+                          {short ? (
+                            <>
+                              <span className="ws-nav-wide">{name}</span>
+                              <span className="ws-nav-short">{t(short)}</span>
+                            </>
+                          ) : (
+                            name
+                          )}
+                        </span>
+                      </NavLink>
+                      {sectionPath === path && (
+                        <div className="ws-submenu-slot" ref={setSubmenuSlot} />
+                      )}
+                    </div>
+                  );
+                })}
+              {sidebar && (
+                <div className="ws-sidebar-actions">
+                  <SidebarSettings {...theme} />
+                  <HelpLink sidebar article={helpTopic} />
+                </div>
+              )}
+            </nav>
+            <button
+              type="button"
+              className="ws-sidebar-toggle"
+              onClick={toggleSidebar}
+              title={toggleLabel}
+              aria-label={toggleLabel}
+              aria-expanded={!collapsed}
+              aria-controls="workspace-navigation"
             >
-              <rect x="3" y="4" width="18" height="16" rx="2" />
-              <path d="M8 4v16" />
-              <path className="ws-sidebar-chevron" d="m16 9-3 3 3 3" />
-            </svg>
-            <span>{toggleLabel}</span>
-          </button>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M8 4v16" />
+                <path className="ws-sidebar-chevron" d="m16 9-3 3 3 3" />
+              </svg>
+              <span>{toggleLabel}</span>
+            </button>
+          </div>
         </div>
         <div className="ws-session">
           {identity.site_roles.length > 1 && (
@@ -531,7 +538,25 @@ function Workspace({
           <main id="workspace" tabIndex={-1}>
             {site && <h1 className="ws-route-name">{section}</h1>}
             {message && <p role="status">{t(message)}</p>}
-            {site && path === "/access" ? (
+            {site && path === "/node" ? (
+              site.role !== "administrator" ? (
+                <p role="status">{t("access.denied")}</p>
+              ) : site.node_id ? (
+                <Suspense
+                  fallback={<p role="status">{t("loading.generic")}</p>}
+                >
+                  <NodeAcceleration
+                    key={site.node_id}
+                    site={site.site_id}
+                    node={site.node_id}
+                    csrf={identity.csrf_token}
+                    expire={expired}
+                  />
+                </Suspense>
+              ) : (
+                <p role="status">{t("nav.nodeUnavailable")}</p>
+              )
+            ) : site && path === "/access" ? (
               site.role === "administrator" ? (
                 <Suspense fallback={<p role="status">{t("loading.access")}</p>}>
                   <Access
@@ -592,6 +617,7 @@ function WorkspaceRoutes({ services }: { services: Services }) {
     { path: "/", element: <MonitorRedirect /> },
     ...[
       "/monitor",
+      "/node",
       "/cameras",
       "/maps",
       "/audit",

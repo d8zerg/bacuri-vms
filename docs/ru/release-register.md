@@ -60,6 +60,7 @@
 | operations | Core | serve, migrate, backup-config, restore-config, recovery-status, rebuild-archive |
 | search | Веб | /investigations |
 | alerts | Веб | /monitor, /audit |
+| operations | Веб | /node |
 | inventory | Веб | /cameras |
 | maps | Веб | /maps |
 | access | Веб | /access |

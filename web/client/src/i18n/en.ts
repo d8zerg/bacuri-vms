@@ -2,6 +2,8 @@ import type { Message, ru } from "./ru";
 
 // English messages. The type requires every key of the Russian catalog and no other key.
 export const en = {
+  "nav.nodeUnavailable": "No local node is available for this site.",
+  "nav.node": "Node",
   "language.label": "Interface language",
   "language.ru": "Русский",
   "language.en": "English",

@@ -60,6 +60,7 @@ The table lists the current VMS interfaces, including local maps (`maps`) and ma
 | operations | Core | serve, migrate, backup-config, restore-config, recovery-status, rebuild-archive |
 | search | Web | /investigations |
 | alerts | Web | /monitor, /audit |
+| operations | Web | /node |
 | inventory | Web | /cameras |
 | maps | Web | /maps |
 | access | Web | /access |

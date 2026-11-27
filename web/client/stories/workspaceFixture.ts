@@ -173,7 +173,15 @@ export function fixture(condition = "normal"): Services {
     // A CSRF token has the length of the server token.
     csrf_token: "fixture-csrf-token-000000000000000000000000000",
     expires_at: utc(3600),
-    site_roles: [{ site_id: site, role: "administrator" }],
+    site_roles: [
+      {
+        site_id: site,
+        role: "administrator",
+        ...(condition === "node"
+          ? { node_id: "00000000-0000-4000-8000-000000000003" }
+          : {}),
+      },
+    ],
   };
   if (condition === "multiple-sites")
     session.site_roles.push({

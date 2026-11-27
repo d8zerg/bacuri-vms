@@ -1,0 +1,255 @@
+.na-page {
+  display: grid;
+  gap: var(--space-4);
+}
+.na-title,
+.na-heading,
+.na-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.ws-shell .na-title h1 {
+  margin: 0;
+}
+.na-applied,
+.na-meta,
+.na-panel small {
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+.na-applied {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 2rem;
+  background: var(--surface);
+}
+.na-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2.4fr) minmax(17rem, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.na-main,
+.na-side {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+.na-panel {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.na-panel h2 {
+  font-size: var(--text-panel-title);
+  margin: 0;
+}
+.na-panel p {
+  margin: 0.7rem 0 0;
+}
+.na-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: var(--raised);
+  border-radius: 0.625rem;
+  margin-top: 1rem;
+  width: fit-content;
+}
+.na-modes label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.7rem;
+  cursor: pointer;
+  border-radius: 0.45rem;
+}
+.na-modes label:has(:checked) {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--control);
+}
+.na-modes input,
+.na-assign input {
+  accent-color: var(--action);
+  margin: 0;
+}
+.na-actions {
+  justify-content: flex-start;
+  margin-top: 1rem;
+}
+.na-warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-inline-start: 3px solid var(--warning);
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.25rem;
+}
+.na-hardware,
+.na-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0.8rem 0 0;
+}
+.na-hardware li {
+  display: flex;
+  align-items: start;
+  gap: 0.7rem;
+  padding: 0.65rem 0;
+}
+.na-chip {
+  font: 600 var(--text-caption)/1.4 var(--numerals);
+  color: var(--muted);
+  background: var(--raised);
+  border-radius: 0.3rem;
+  padding: 0.2rem 0.4rem;
+}
+.na-panel small {
+  display: block;
+  font-size: var(--text-caption);
+}
+.na-state {
+  display: inline-block;
+  border-radius: 0.4rem;
+  padding: 0.15rem 0.55rem;
+  background: var(--raised);
+}
+.na-state[data-tone="completed"] {
+  color: var(--success);
+  background: var(--success-bg);
+}
+.na-state[data-tone="failed"] {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.na-steps li,
+.na-device-budget dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-meta);
+}
+.na-steps li span + span,
+.na-device-budget dt {
+  color: var(--muted);
+}
+.na-progress {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.na-progress progress {
+  width: 100%;
+  height: 0.5rem;
+}
+.na-progress span {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.na-device-budget {
+  margin-top: 0.85rem;
+}
+.na-device-budget dl {
+  margin: 0.3rem 0 0;
+}
+.na-device-budget dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.na-assign table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-meta);
+  margin-top: 0.85rem;
+}
+.na-assign td,
+.na-assign th {
+  text-align: start;
+  vertical-align: top;
+  padding: 0.7rem 0.45rem;
+  border-bottom: 1px solid var(--line);
+}
+.na-assign thead th {
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+.na-assign th label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.na-assign tr[data-rejected] {
+  background: var(--warning-bg);
+}
+.na-page :is(input, button):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+@media (max-width: 65rem) {
+  .na-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .na-side {
+    grid-template-columns: repeat(auto-fit, minmax(min(17rem, 100%), 1fr));
+  }
+}
+@media (max-width: 42rem) {
+  .na-layout,
+  .na-main,
+  .na-side {
+    display: contents;
+  }
+  .na-panel {
+    order: 1;
+  }
+  .na-assign {
+    order: 2;
+  }
+  .na-assign table,
+  .na-assign tbody,
+  .na-assign tr,
+  .na-assign td,
+  .na-assign th {
+    display: block;
+  }
+  .na-assign thead {
+    position: absolute;
+    clip-path: inset(50%);
+    height: 1px;
+    width: 1px;
+    overflow: hidden;
+  }
+  .na-assign tr {
+    border-top: 1px solid var(--line);
+    padding: 0.6rem 0;
+  }
+  .na-assign :is(td, th) {
+    padding: 0.15rem;
+    border: 0;
+  }
+  .na-assign td:before {
+    content: attr(data-label);
+    color: var(--muted);
+    margin-inline-end: 0.5rem;
+  }
+  .na-assign small {
+    display: inline;
+    margin-inline-start: 0.4rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .na-progress progress {
+    display: none;
+  }
+}

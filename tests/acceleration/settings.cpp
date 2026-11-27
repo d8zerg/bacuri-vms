@@ -50,6 +50,11 @@ TEST(AccelerationSettings, AccountsForSharedOutputEncoderAndPrioritizesLive)
     EXPECT_EQ(plan["devices"][0]["encoder_sessions_used"], 1);
     EXPECT_EQ(plan["decisions"][0]["device_id"], "gpu");
     EXPECT_EQ(plan["decisions"][1]["reason"], "budget_exceeded");
+    const auto& costs = plan.at("devices").at(0).at("costs");
+    ASSERT_EQ(costs.size(), 3u);
+    EXPECT_EQ(costs.at(1).at("task"), "live_profile");
+    EXPECT_EQ(costs.at(1).at("encoder_sessions"), 1);
+    EXPECT_EQ(evaluate({"manual", {}}, p).at("devices").at(0).at("costs"), costs);
     EXPECT_EQ(plan["decisions"][2]["reason"], "not_selected");
     EXPECT_EQ(evaluate({"auto", {}}, p)["decisions"][2]["reason"], "unsupported");
 }

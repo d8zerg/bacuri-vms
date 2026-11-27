@@ -118,6 +118,8 @@ Json Probe::start(bool prepare_gpu)
     const auto& state = job_.at("state");
     if (state != "running" && state != "queued" && state != "waiting")
         schedule(prepare_gpu ? "prepare_gpu" : "administrator");
+    if (prepare_gpu)
+        job_["prepared_for_gpu"] = true;
     return snapshot();
 }
 bool Probe::cancel(const std::string& id, Json& reply)

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Bacuri VMS API
-  version: 1.11.0
+  version: 1.12.0
 servers:
   - url: /api/v1
 security:
@@ -3187,6 +3187,18 @@ components:
               encoder_sessions_used: {type: integer, minimum: 0}
               memory_bytes: {type: integer, minimum: 0, description: Dedicated device memory in bytes or zero when unknown.}
               memory_bytes_used: {type: integer, minimum: 0}
+              costs:
+                type: array
+                description: Measured reference costs on this device, including unselected tasks.
+                items:
+                  type: object
+                  required: [task, time_ppm, encoder_sessions, memory_bytes, exclusive]
+                  properties:
+                    task: {$ref: '#/components/schemas/AccelerationTask'}
+                    time_ppm: {type: integer, minimum: 0, description: Values above one million exceed one device.}
+                    encoder_sessions: {type: integer, minimum: 0}
+                    memory_bytes: {type: integer, minimum: 0}
+                    exclusive: {type: boolean}
     AccelerationProblem:
       allOf:
         - {$ref: '#/components/schemas/Problem'}
@@ -3219,6 +3231,18 @@ components:
                   encoder_sessions_used: {type: integer, minimum: 0}
                   memory_bytes_used: {type: integer, minimum: 0}
                   time_ppm_used: {type: integer, minimum: 0}
+            assignments:
+              type: array
+              description: Current scheduler paths grouped by task kind, assigned device and reason.
+              items:
+                type: object
+                required: [task, device_id, reason, count]
+                properties:
+                  task: {$ref: '#/components/schemas/AccelerationTask'}
+                  device_id: {type: string, description: Device ID, cpu or queue.}
+                  releasing_device_id: {type: string, description: Previous GPU grant still held pending release or expiry.}
+                  reason: {type: string}
+                  count: {type: integer, minimum: 1}
             warnings:
               type: array
               items:
@@ -3249,6 +3273,7 @@ components:
           properties:
             id: {$ref: '#/components/schemas/Id'}
             reason: {type: string, enum: [startup, administrator, prepare_gpu, device_changed]}
+            prepared_for_gpu: {type: boolean, description: A request to prepare a GPU mode started or joined this job.}
             state: {type: string, enum: [queued, running, waiting, completed, cancelled, failed]}
             steps:
               type: array
@@ -4623,6 +4648,7 @@ components:
             required: [site_id, role]
             properties:
               site_id: { $ref: '#/components/schemas/Id' }
+              node_id: {type: string, format: uuid, description: Local media node for this site administrator.}
               role: { type: string, enum: [administrator, operator] }
         expires_at: { $ref: '#/components/schemas/UtcTime' }
         csrf_token: { $ref: '#/components/schemas/CsrfToken' }
@@ -4666,6 +4692,7 @@ components:
             required: [site_id, role]
             properties:
               site_id: { $ref: '#/components/schemas/Id' }
+              node_id: {type: string, format: uuid, description: Local media node for this site administrator.}
               role: { type: string, enum: [administrator, operator] }
         expires_at: { $ref: '#/components/schemas/UtcTime' }
     CameraConfiguration:

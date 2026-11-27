@@ -396,6 +396,7 @@ node_acceleration_status:
     scheduler:
       mode: cpu_only
       tasks: {gpu: 0, cpu: 1, queue: 0}
+      assignments: [{task: live_mask, device_id: cpu, reason: cpu_only, count: 1}]
       devices: []
       warnings: []
       journal:
@@ -434,9 +435,27 @@ node_acceleration_settings:
       - {task: thumbnail, device_id: cpu, reason: cpu_only}
 node_acceleration_preview:
   operation: previewNodeAccelerationSettings
-  request: {mode: cpu_only}
+  request: {mode: manual, gpu_tasks: []}
   status: 200
-  response: *cpu_settings
+  response:
+    <<: *cpu_settings
+    mode: manual
+    devices:
+      - device_id: gpu
+        time_ppm_used: 0
+        encoder_sessions: 1
+        encoder_sessions_used: 0
+        memory_bytes: 1000000000
+        memory_bytes_used: 0
+        costs: [{task: live_mask, time_ppm: 250000, encoder_sessions: 1, memory_bytes: 100000000, exclusive: false}]
+    decisions:
+      - {task: live_mask, device_id: cpu, reason: not_selected}
+      - {task: live_profile, device_id: cpu, reason: not_selected}
+      - {task: live_analysis, device_id: cpu, reason: not_selected}
+      - {task: export, device_id: cpu, reason: not_selected}
+      - {task: archive_analysis, device_id: cpu, reason: not_selected}
+      - {task: keyframe, device_id: cpu, reason: not_selected}
+      - {task: thumbnail, device_id: cpu, reason: not_selected}
 node_acceleration_apply:
   operation: setNodeAccelerationSettings
   request: {mode: cpu_only}

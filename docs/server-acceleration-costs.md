@@ -96,6 +96,24 @@ The configuration budget uses one 1080p reference unit per task kind. Full-rate 
 
 When several GPUs are available, the server checks placements across them and chooses the lowest total measured time for the same set of tasks. Live masks and profiles have first priority, followed by live analysis, export, archive analysis, keyframes and thumbnails. A task that cannot fit gets an expected CPU assignment with the reason `unsupported` or `budget_exceeded`. The assignments describe the configuration budget.
 
+### Node screen
+
+Open Node in the site menu as a site administrator. Leaving CPU only starts or joins a background hardware check. You can navigate away and return to inspect it. Cancelling stops the selected check and preserves the previous measurement and applied mode. With reduced motion, progress is available as text.
+
+In Manual, select task kinds. The form shows their measured cost, expected device, assignment reason and remaining capacity per GPU. Clear a selection if the tasks exceed the budget. In Automatic, assignments are read-only. Running tasks shows the current job count by task kind, device and reason, including CPU and queued jobs. If a worker still holds its previous GPU grant, the row identifies the device being released. An idle row has no active assignment. After resolving a fallback warning, select Check again.
+
+Select Apply changes to save the mode. If another administrator changes the revision, the form reloads it and preserves your draft for review and reapplication. CPU only can still be applied when the media service is unavailable.
+
+The screenshots show the web application with reproducible test data. The Linux desktop check and mode-selection scenarios are recorded in the [parity register](../desktop/parity.yaml).
+
+| State | EN light | EN dark | RU light | RU dark |
+| --- | --- | --- | --- | --- |
+| Manual selection above budget | [PNG](../tests/workspace/screens/chromium-light/node-en-manual.png) | [PNG](../tests/workspace/screens/chromium-dark/node-en-manual.png) | [PNG](../tests/workspace/screens/chromium-light/node-ru-manual.png) | [PNG](../tests/workspace/screens/chromium-dark/node-ru-manual.png) |
+| Automatic with CPU fallback | [PNG](../tests/workspace/screens/chromium-light/node-en-auto.png) | [PNG](../tests/workspace/screens/chromium-dark/node-en-auto.png) | [PNG](../tests/workspace/screens/chromium-light/node-ru-auto.png) | [PNG](../tests/workspace/screens/chromium-dark/node-ru-auto.png) |
+| Check in progress | [PNG](../tests/workspace/screens/chromium-light/node-en-progress.png) | [PNG](../tests/workspace/screens/chromium-dark/node-en-progress.png) | [PNG](../tests/workspace/screens/chromium-light/node-ru-progress.png) | [PNG](../tests/workspace/screens/chromium-dark/node-ru-progress.png) |
+| Cancelled check | [PNG](../tests/workspace/screens/chromium-light/node-en-cancelled.png) | [PNG](../tests/workspace/screens/chromium-dark/node-en-cancelled.png) | [PNG](../tests/workspace/screens/chromium-light/node-ru-cancelled.png) | [PNG](../tests/workspace/screens/chromium-dark/node-ru-cancelled.png) |
+| Failed check | [PNG](../tests/workspace/screens/chromium-light/node-en-failed.png) | [PNG](../tests/workspace/screens/chromium-dark/node-en-failed.png) | [PNG](../tests/workspace/screens/chromium-light/node-ru-failed.png) | [PNG](../tests/workspace/screens/chromium-dark/node-ru-failed.png) |
+
 ## Runtime scheduling
 
 The media service reads the committed policy from Core over the local authorization socket once per second. It uses CPU while the policy is unavailable or until its startup probe confirms the hardware. The scheduler uses the reference budget above for each active worker instance. Independent pipelines of the same kind consume independent shares. Equal-priority tasks keep their arrival order. An eligible running task keeps its GPU. For a new task the scheduler prefers capacity already free, then the previewed placement in manual mode, then lower measured GPU time.

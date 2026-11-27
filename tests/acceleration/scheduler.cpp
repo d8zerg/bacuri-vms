@@ -31,6 +31,11 @@ TEST_F(NodeScheduler, GrantsLiveOnlyAfterTheExportReleasesItsEncoder)
     auto revoke = update("export", 3);
     EXPECT_EQ(revoke.device, "queue");
     EXPECT_EQ(revoke.grant, exp.grant);
+    const auto paths = scheduler.status().at("assignments");
+    const auto& retiring = paths.back();
+    EXPECT_EQ(retiring.at("task"), "export");
+    EXPECT_EQ(retiring.at("device_id"), "queue");
+    EXPECT_EQ(retiring.at("releasing_device_id"), "gpu");
     EXPECT_EQ(scheduler.status()["devices"][0]["encoder_sessions_used"], 1);
     update("export", 3, Report::released, exp.grant);
     auto live = update("live", 0);
@@ -171,6 +176,12 @@ TEST_F(NodeScheduler, ManualSelectionCpuModeStaleProbeAndBudgetsApplyToEveryInst
     EXPECT_EQ(update("a", 0).device, "gpu");
     EXPECT_EQ(update("b", 0).device, "gpu");
     EXPECT_EQ(update("c", 0).reason, "budget_exceeded");
+    const auto assignments = scheduler.status().at("assignments");
+    EXPECT_EQ(
+        assignments,
+        Json::array({{{"task", "live_mask"}, {"device_id", "cpu"}, {"reason", "budget_exceeded"}, {"count", 1}},
+                     {{"task", "live_mask"}, {"device_id", "gpu"}, {"reason", "within_budget"}, {"count", 2}},
+                     {{"task", "export"}, {"device_id", "queue"}, {"reason", "not_selected"}, {"count", 1}}}));
     scheduler.configure({"auto", {}}, {}, true);
     EXPECT_EQ(update("a", 0).reason, "device_changed");
     scheduler.configure({}, {gpu}, false);

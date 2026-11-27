@@ -1914,6 +1914,86 @@ export const articles: Article[] = [
     },
   },
   {
+    id: "node-acceleration",
+    section: "administrator",
+    codes: [
+      "acceleration_probe_required",
+      "acceleration_probe_stale",
+      "acceleration_device_unavailable",
+      "acceleration_budget_exceeded",
+    ],
+    en: {
+      title: "Configure node acceleration",
+      summary:
+        "Choose which video tasks may use a GPU and see where running tasks are assigned.",
+      before:
+        "Sign in as the site administrator and open Node. The applied mode stays visible while you edit.",
+      keywords: [
+        "GPU",
+        "CPU",
+        "driver",
+        "hardware check",
+        "encoder sessions",
+        "budget",
+        "fallback",
+      ],
+      steps: [
+        "Select Manual or Automatic. Leaving CPU only starts a background hardware check. Follow the current stage or cancel the check and continue working.",
+        "In Manual, select the tasks to run on a GPU. Compare their measured cost with the available GPU time, encoder sessions and video memory. Clear a selection if the form reports that it exceeds the budget.",
+        "In Automatic, read the expected path and its reason for each task. Apply changes. The Running tasks column shows the device, reason and number of active jobs. Multiple jobs of one kind can use different paths.",
+      ],
+      result:
+        "The applied mode confirms the saved policy. A task with no active jobs has no current assignment.",
+      diagnosis: [
+        {
+          symptom: "A running task moved to CPU.",
+          action:
+            "Read the warning and the reason beside the task. After the device or driver recovers, choose Check again. The scheduler can move work back to the GPU when capacity is available.",
+        },
+        {
+          symptom: "The check stopped or failed.",
+          action:
+            "The previous settings remain active. Check the media service and retry the hardware check. Choose CPU only to keep processing without an available GPU.",
+        },
+      ],
+    },
+    ru: {
+      title: "Настроить ускорение узла",
+      summary:
+        "Выберите задачи для GPU и проверьте, где выполняются работающие задачи.",
+      before:
+        "Войдите как администратор площадки и откройте «Узел». Во время редактирования действующий режим указан вверху.",
+      keywords: [
+        "GPU",
+        "CPU",
+        "драйвер",
+        "проверка оборудования",
+        "сессии кодера",
+        "бюджет",
+        "переход на CPU",
+      ],
+      steps: [
+        "Выберите «Вручную» или «Авто». При выходе из режима «Только CPU» запустится фоновая проверка оборудования. Следите за этапами или отмените проверку и продолжайте работу.",
+        "В режиме «Вручную» отметьте задачи для GPU. Сопоставьте стоимость задач со свободным временем GPU, сессиями кодера и видеопамятью. Если выбор превышает бюджет, снимите часть флажков.",
+        "В режиме «Авто» посмотрите ожидаемый путь каждой задачи и причину выбора. Нажмите «Применить изменения». В столбце «Работающие задачи» показаны устройство, причина и число активных задач. Задачи одного вида могут одновременно выполняться на разных устройствах.",
+      ],
+      result:
+        "Действующий режим подтверждает сохранение настроек. Фактическое устройство появляется, когда запускается работа этого вида.",
+      diagnosis: [
+        {
+          symptom: "Работающая задача перешла на CPU.",
+          action:
+            "Прочитайте предупреждение и причину в строке задачи. После восстановления устройства или драйвера нажмите «Проверить снова». Планировщик сможет вернуть задачи на GPU при наличии свободного бюджета.",
+        },
+        {
+          symptom: "Проверка отменена или завершилась ошибкой.",
+          action:
+            "Прежние настройки продолжают действовать. Проверьте доступность медиасервиса и повторите проверку. Если GPU недоступен, для продолжения работы можно применить «Только CPU».",
+        },
+      ],
+    },
+  },
+  {
     id: "site-diagnostics",
     section: "administrator",
     codes: [],

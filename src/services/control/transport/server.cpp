@@ -36,7 +36,8 @@ namespace
 bool workspace_page(std::string_view path)
 {
     return path == "/access" || path == "/audit" || path == "/" || path == "/help" || path == "/maps" ||
-           path == "/monitor" || path == "/cameras" || path == "/investigations" || path == "/desktop-sign-in";
+           path == "/node" || path == "/monitor" || path == "/cameras" || path == "/investigations" ||
+           path == "/desktop-sign-in";
 }
 
 void workspace_file(const Request& req, Response& res, std::string_view path)

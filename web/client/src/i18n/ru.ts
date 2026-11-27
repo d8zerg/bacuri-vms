@@ -1,3 +1,4 @@
+import type { nodeRu } from "./node.ru";
 import type { cameraRu } from "./camera.ru";
 import type { extendedRu } from "./extended.ru";
 // Russian messages. The English catalog must define exactly the same keys.
@@ -10,6 +11,8 @@ export type Plural = {
 export type Message = string | Plural;
 
 export const ru = {
+  "nav.nodeUnavailable": "Локальный узел этой площадки недоступен.",
+  "nav.node": "Узел",
   "language.label": "Язык интерфейса",
   "language.ru": "Русский",
   "language.en": "English",
@@ -600,4 +603,7 @@ export const ru = {
 } as const satisfies Record<string, Message>;
 
 export type MessageKey =
-  keyof typeof ru | keyof typeof extendedRu | keyof typeof cameraRu;
+  | keyof typeof nodeRu
+  | keyof typeof ru
+  | keyof typeof extendedRu
+  | keyof typeof cameraRu;

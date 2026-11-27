@@ -5,9 +5,9 @@
 
 reference:
   # Revision of the public contracts the register was reconciled with.
-  api_version: 1.11.0
+  api_version: 1.12.0
   contracts:
-    contracts/v1/openapi.yaml: 25df947870688e3984ebe21ab7cad4bdbf940ebd6d143fbddfa968746c7dc31b
+    contracts/v1/openapi.yaml: 68f1494041d1108ee401fcd922ce21661e8477632794ee8ed319133536ed26dd
     contracts/v1/alerts.schema.yaml: 02cfa6ca964a90f60bc6e4c282981010bf7dc09d07c3d009c641af83d82870b7
     contracts/v1/errors.yaml: 53c1575bb6d61d6c91e149c594f7eb0c70052fec3cfb918e61e93e83c25550a2
 
@@ -249,27 +249,29 @@ scenarios:
     area: administration
     role: administrator
     precondition: The media node is reachable
-    action: Start a hardware probe, inspect stage progress and cancel the selected job
+    action: Leave CPU-only mode, inspect stage progress, cancel or retry with the keyboard
     result: The last completed device budget and its freshness are visible
     failure: Cancelling preserves the last measurement and the applied mode
     steps: ["3.3"]
-    platform: ["6.1"]
+    platform: ["6.1", "9.1"]
+    web: /node
     operations: [getNodeAccelerationProbe, startNodeAccelerationProbe, cancelNodeAccelerationProbe]
     test: desktop/administration/node-acceleration-probe
-    material: Node probe status
+    material: Light and dark EN and RU views of running, cancelled and failed checks including reduced motion
   node-acceleration-settings:
     function: operations
     area: administration
     role: administrator
     precondition: The node has a current device measurement for a GPU mode
-    action: Preview the manual or automatic selection and apply its revision
-    result: Task assignments, reasons and the saved mode are visible
+    action: Select tasks with checkboxes, inspect remaining capacity or review automatic assignments, then apply the revision
+    result: Measured costs, expected paths and actual running assignments show the device and reason including CPU fallback
     failure: Stale measurements, concurrent edits and excess manual selections preserve the saved settings
     steps: ["3.3"]
-    platform: ["6.1"]
+    platform: ["6.1", "9.1"]
+    web: /node
     operations: [getNodeAccelerationSettings, previewNodeAccelerationSettings, setNodeAccelerationSettings]
     test: desktop/administration/node-acceleration-settings
-    material: Node acceleration selection
+    material: Light and dark EN and RU manual and read-only automatic views
   # Identity and session
   identity-local-sign-in:
     function: identity

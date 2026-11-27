@@ -210,13 +210,23 @@ nlohmann::json evaluate(const Settings& settings, const nlohmann::json& probe)
         decisions.push_back(std::move(row));
     }
     Json limits = Json::array();
-    for (const auto& device : devices)
+    for (const auto& device : devices) {
+        Json costs = Json::array();
+        for (std::size_t t = 0; t < tasks.size(); ++t)
+            if (const auto& cost = device.costs[t])
+                costs.push_back({{"task", tasks[t].name},
+                                 {"time_ppm", cost->time},
+                                 {"encoder_sessions", cost->encoders},
+                                 {"memory_bytes", cost->memory},
+                                 {"exclusive", cost->exclusive}});
         limits.push_back({{"device_id", device.id},
                           {"time_ppm_used", device.used.time},
                           {"encoder_sessions", device.sessions},
                           {"encoder_sessions_used", device.used.encoders},
                           {"memory_bytes", device.memory},
-                          {"memory_bytes_used", device.used.memory}});
+                          {"memory_bytes_used", device.used.memory},
+                          {"costs", std::move(costs)}});
+    }
     return {{"decisions", std::move(decisions)},
             {"devices", std::move(limits)},
             {"rejected_tasks", std::move(rejected)}};

@@ -155,6 +155,11 @@ def main():
         media = launch()
         control.wait_for(lambda: control.http("GET", "session")[0] == 401, "core HTTPS")
         admin, viewer = control.login("admin"), control.login("viewer")
+        for headers, is_admin in ((admin, True), (viewer, False)):
+            session = control.http("GET", "session", headers=headers)[2]
+            membership = next(row for row in session["site_roles"] if row["site_id"] == control.SITE)
+            assert membership.get("node_id") == (node if is_admin else None)
+
 
         def read():
             code, _, status = control.http("GET", route, headers=admin)

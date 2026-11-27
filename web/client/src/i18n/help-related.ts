@@ -71,7 +71,13 @@ export const relatedTopics: Record<string, string[]> = {
   ],
   "users-and-groups": ["access-privacy", "privacy-masks", "activity-journal"],
   "privacy-masks": ["access-privacy", "verify-export", "users-and-groups"],
+  "node-acceleration": [
+    "site-diagnostics",
+    "privacy-masks",
+    "investigate-export",
+  ],
   "site-diagnostics": [
+    "node-acceleration",
     "connection-lost",
     "recording-missing",
     "update-restore",

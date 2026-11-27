@@ -68,9 +68,10 @@ TEST_F(NodeProbe, CancellationAtEveryStageKeepsCompletedResult)
     for (int i = 0; i < 5; ++i) {
         target = i;
         entered = false;
-        auto job = probe.start(true).at("job");
+        auto job = probe.start(i != 0).at("job");
         auto id = job.at("id").get<std::string>();
-        ASSERT_EQ(job.at("reason"), "prepare_gpu");
+        ASSERT_EQ(job.at("reason"), i == 0 ? "administrator" : "prepare_gpu");
+        ASSERT_TRUE(probe.start(true).at("job").at("prepared_for_gpu"));
         wait(probe, [&](const Json&) { return entered.load(); });
         ASSERT_EQ(probe.start(false).at("job").at("id"), id);
         Json reply;

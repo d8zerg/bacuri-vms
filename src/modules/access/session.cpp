@@ -3,6 +3,7 @@
 #include "modules/access/desktop.hpp"
 #include "modules/access/webauthn.hpp"
 
+#include "platform/settings.hpp"
 #include <algorithm>
 
 namespace bacuri::vms::control
@@ -74,10 +75,17 @@ Json session_body(postgresql::Database& db, const Key& key, const Identity& iden
         WHERE token_hash=$1
     )sql",
                               {fingerprint(key, "session", identity.cookie)});
+    auto roles = Json::parse(rows.get(0, 1));
+    const auto site = platform::optional_setting("BACURI_SITE_ID");
+    const auto node = platform::optional_setting("BACURI_NODE_ID");
+    if (site && node)
+        for (auto& role : roles)
+            if (role.at("site_id") == *site && role.at("role") == "administrator")
+                role["node_id"] = *node;
     return {{"user_id", identity.user},
             {"username", rows.get(0, 2)},
             {"expires_at", rows.get(0)},
-            {"site_roles", Json::parse(rows.get(0, 1))},
+            {"site_roles", std::move(roles)},
             {"csrf_token", fingerprint(key, "csrf", identity.cookie)}};
 }
 } // namespace

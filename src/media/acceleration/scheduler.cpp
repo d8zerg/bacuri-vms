@@ -1,6 +1,7 @@
 #include "media/acceleration/scheduler.hpp"
 #include <nlohmann/json.hpp>
 #include <algorithm>
+#include <tuple>
 #include <glib.h>
 
 namespace bacuri::vms::acceleration
@@ -309,10 +310,12 @@ nlohmann::json Scheduler::status() const
     using Json = nlohmann::json;
     Json warnings = Json::array(), devices = Json::array();
     std::map<std::string, unsigned> counts{{"gpu", 0}, {"cpu", 0}, {"queue", 0}};
+    std::map<std::tuple<std::size_t, std::string, std::string, std::string>, unsigned> assignments;
     std::map<std::string, Cost> used;
     for (const auto& [id, job] : jobs_) {
         if (!job.held.empty())
             reserve(used[job.held], job.charge);
+        ++assignments[{job.kind, job.assignment.device, job.assignment.reason, job.held}];
         ++counts[job.assignment.device == "cpu" || job.assignment.device == "queue" ? job.assignment.device
                                                                                     : "gpu"];
     }
@@ -328,6 +331,18 @@ nlohmann::json Scheduler::status() const
                            {"memory_bytes_used", cost.memory},
                            {"time_ppm_used", cost.time}});
     }
-    return {{"mode", policy_.mode}, {"tasks", counts}, {"devices", devices}, {"warnings", warnings}};
+    Json paths = Json::array();
+    for (const auto& [key, count] : assignments) {
+        const auto& [kind, device, reason, held] = key;
+        Json path{{"task", tasks[kind].name}, {"device_id", device}, {"reason", reason}, {"count", count}};
+        if (!held.empty() && held != device)
+            path["releasing_device_id"] = held;
+        paths.push_back(std::move(path));
+    }
+    return {{"mode", policy_.mode},
+            {"tasks", counts},
+            {"devices", devices},
+            {"warnings", warnings},
+            {"assignments", paths}};
 }
 } // namespace bacuri::vms::acceleration

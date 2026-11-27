@@ -1,3 +1,4 @@
+import nodeAcceleration from "../help/illustrations/node-acceleration.svg";
 import alarmTimeline from "../help/illustrations/alarm-timeline.svg";
 import archiveBackfill from "../help/illustrations/archive-backfill.svg";
 import archiveInterval from "../help/illustrations/archive-interval.svg";
@@ -29,6 +30,25 @@ export const helpVisuals: Record<
   string,
   { src: string; en: FigureText; ru: FigureText }
 > = {
+  "node-acceleration": {
+    src: nodeAcceleration,
+    en: {
+      caption: "Measured capacity and running jobs",
+      keys: [
+        "A hardware check measures capacity for each supported task.",
+        "Jobs that fit can run on the GPU and consume part of its budget.",
+        "When capacity is exhausted, additional jobs use CPU or wait in the queue.",
+      ],
+    },
+    ru: {
+      caption: "Измеренный бюджет и работающие задачи",
+      keys: [
+        "Проверка оборудования измеряет стоимость каждой поддерживаемой задачи.",
+        "Задачи, которые укладываются в бюджет, могут занять часть ресурсов GPU.",
+        "Когда бюджет исчерпан, дополнительные задачи переходят на CPU или ждут в очереди.",
+      ],
+    },
+  },
   "access-privacy": {
     src: privacyScope,
     en: {
