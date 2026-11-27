@@ -1,4 +1,4 @@
-#include "prototype/map_item.hpp"
+#include "map/map_view.hpp"
 
 #include <QGuiApplication>
 #include <QMapLibre/Map>
@@ -10,14 +10,20 @@
 
 #include <chrono>
 
-namespace bacuri::desktop
+namespace bacuri::vms::client
 {
 namespace
 {
+std::function<std::string(const std::string&)>& resource_transform()
+{
+    static std::function<std::string(const std::string&)> transform;
+    return transform;
+}
+
 class MapRenderer : public QQuickFramebufferObject::Renderer
 {
   public:
-    explicit MapRenderer(MapItem* item) : item_{item}
+    explicit MapRenderer(MapView* item) : item_{item}
     {
         item_->map()->createRenderer();
     }
@@ -52,14 +58,16 @@ class MapRenderer : public QQuickFramebufferObject::Renderer
     }
 
   private:
-    MapItem* item_;
+    MapView* item_;
     QSize size_;
 };
 } // namespace
 
-MapItem::MapItem(QQuickItem* parent) : QQuickFramebufferObject{parent}
+MapView::MapView(QQuickItem* parent) : QQuickFramebufferObject{parent}
 {
     QMapLibre::Settings settings;
+    if (resource_transform())
+        settings.setResourceTransform(resource_transform());
     settings.setCacheDatabasePath(QStandardPaths::writableLocation(QStandardPaths::TempLocation) +
                                   QStringLiteral("/bacuri-map-cache.db"));
     const auto ratio =
@@ -69,14 +77,19 @@ MapItem::MapItem(QQuickItem* parent) : QQuickFramebufferObject{parent}
     setMirrorVertically(true);
 }
 
-MapItem::~MapItem() = default;
+MapView::~MapView() = default;
 
-QQuickFramebufferObject::Renderer* MapItem::createRenderer() const
+void MapView::set_resource_transform(std::function<std::string(const std::string&)> transform)
 {
-    return new MapRenderer(const_cast<MapItem*>(this));
+    resource_transform() = std::move(transform);
 }
 
-void MapItem::setStyleUrl(const QString& url)
+QQuickFramebufferObject::Renderer* MapView::createRenderer() const
+{
+    return new MapRenderer(const_cast<MapView*>(this));
+}
+
+void MapView::setStyleUrl(const QString& url)
 {
     if (url == style_url_)
         return;
@@ -86,44 +99,44 @@ void MapItem::setStyleUrl(const QString& url)
     emit styleUrlChanged();
 }
 
-void MapItem::setLatitude(double value)
+void MapView::setLatitude(double value)
 {
     latitude_ = value;
     apply_camera();
 }
 
-void MapItem::setLongitude(double value)
+void MapView::setLongitude(double value)
 {
     longitude_ = value;
     apply_camera();
 }
 
-void MapItem::setZoom(double value)
+void MapView::setZoom(double value)
 {
     zoom_ = value;
     apply_camera();
 }
 
-void MapItem::setBearing(double value)
+void MapView::setBearing(double value)
 {
     bearing_ = value;
     map_->setBearing(value);
     update();
 }
 
-void MapItem::apply_camera()
+void MapView::apply_camera()
 {
     map_->setCoordinateZoom(QMapLibre::Coordinate{latitude_, longitude_}, zoom_);
     update();
 }
 
-void MapItem::record_render(double milliseconds)
+void MapView::record_render(double milliseconds)
 {
     std::scoped_lock lock{mutex_};
     renders_.push_back(milliseconds);
 }
 
-QVariantMap MapItem::statistics() const
+QVariantMap MapView::statistics() const
 {
     std::scoped_lock lock{mutex_};
     QVariantList values;
@@ -131,4 +144,4 @@ QVariantMap MapItem::statistics() const
         values.append(value);
     return {{"renders", static_cast<qlonglong>(renders_.size())}, {"render_ms", values}};
 }
-} // namespace bacuri::desktop
+} // namespace bacuri::vms::client

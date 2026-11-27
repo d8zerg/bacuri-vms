@@ -1,8 +1,6 @@
-# Bacuri VMS
+# ![Знак Bacuri](design/bacuri/brand/icon-48.png) Bacuri VMS
 
 [English version](README.md)
-
-![Знак Bacuri](design/bacuri/brand/icon-48.png)
 
 **Открытая система видеонаблюдения для автономной работы на объекте.**
 

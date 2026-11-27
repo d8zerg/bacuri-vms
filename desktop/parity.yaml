@@ -5,11 +5,11 @@
 
 reference:
   # Revision of the public contracts the register was reconciled with.
-  api_version: 1.6.0
+  api_version: 1.7.0
   contracts:
-    contracts/v1/openapi.yaml: 842ddcf0ed9bc1517bc53f9bc603a0e21d0a511f308e54e4c1cdc5733f7b4146
+    contracts/v1/openapi.yaml: 3e7b3cb49833db0eea67a6d96f07c8b13bd763acb9fa166c8551d97d1e7d838e
     contracts/v1/alerts.schema.yaml: 02cfa6ca964a90f60bc6e4c282981010bf7dc09d07c3d009c641af83d82870b7
-    contracts/v1/errors.yaml: a9a2a366b53cc6471ab4d928a56a4582afe02720279daf40c0064d0861f50a91
+    contracts/v1/errors.yaml: d6f631f151d08a967a87bd61133db9499848e940a970b4617eee130c71f5b329
 
 defaults:
   os: [windows, linux, macos]
@@ -91,6 +91,7 @@ contract_requests:
   desktop-session:
     need: Sign-in through the system browser with a one-time short-lived code bound to the application instance and exchanged with PKCE S256 for a client session that is not a browser cookie
     platform: ["8.3", "9.1"]
+    provided: API 1.7.0, issueDesktopCode and createDesktopSession
   site-capabilities:
     need: The site API version and the list of optional capabilities in the session response, so that the client hides an unavailable function and keeps the rest working
     platform: ["8.3"]
@@ -121,6 +122,12 @@ contract_requests:
   federation:
     need: Site registry, delegation and shared policies of Bacuri Manager
     platform: ["manager 1.1", "manager 1.2"]
+  site-endpoints:
+    need: The client addresses of every node of the installation in the session response and a session that is valid on each node
+    platform: ["manager 1.1"]
+  emergency-live-grant:
+    need: A grant signed by the site and bound to the post key with the cameras, live profiles, privacy masks and sound right of the user, the credentials of a view-only camera account encrypted to the post key, and the acceptance of the hash-chained view journal into the site audit
+    platform: ["9.1", "9.2", "9.4"]
 
 # Functions that the web client does not have. Each one names the contract it needs, how the client
 # detects that the site provides it and what the client does with an older server.
@@ -128,8 +135,8 @@ extensions:
   desktop-sign-in:
     scenarios: [identity-corporate-sign-in, identity-admin-webauthn]
     requires: [desktop-session]
-    capability: The site lists the desktop sign-in method among its sign-in methods
-    older_server: The client offers no sign-in and names the minimum server version
+    capability: The site API version is 1.7.0 or later
+    older_server: The client offers no sign-in and names the minimum server version 1.7.0
   direct-ptz:
     scenarios: [ptz-direct-manipulation, ptz-joystick]
     requires: [ptz-continuous, site-capabilities]
@@ -175,6 +182,16 @@ extensions:
     requires: [video-synopsis, site-capabilities]
     capability: The site capability list contains the synopsis
     older_server: The synopsis is hidden, the interval summary and normal scrubbing stay
+  site-failover:
+    scenarios: [workstation-site-failover]
+    requires: [site-endpoints, site-capabilities]
+    capability: The session response lists the addresses of the installation nodes
+    older_server: The post reconnects to the same address and is restored after the site returns
+  emergency-live:
+    scenarios: [workstation-emergency-live]
+    requires: [emergency-live-grant, site-capabilities]
+    capability: The site capability list contains the emergency live grant and the site enabled it for the post
+    older_server: The emergency mode is not offered, the post shows the outage and waits for the site
   next-camera:
     scenarios: [workstation-next-camera]
     requires: [path-prediction, site-capabilities]
@@ -233,12 +250,12 @@ scenarios:
     area: session
     role: operator
     precondition: A local operator account with a grant on one point
-    action: Sign in with a name and a password, open the permitted point in two windows
+    action: Sign in through the system browser with a name and a password, confirm the desktop sign-in, open the permitted point in two windows
     result: Both windows share one session, the point list contains only the permitted point
     failure: A wrong password, an expired session and an untrusted certificate show the cause from the error catalog without opening the workspace
     steps: ["1.2", "2.2"]
     platform: ["1.2"]
-    operations: [createSession, getSession, listPoints]
+    operations: [createSession, getSession, listPoints, issueDesktopCode, createDesktopSession]
     web: /monitor
     install: [compact, site]
     test: desktop/session/local-sign-in
@@ -268,7 +285,7 @@ scenarios:
     failure: A wrong PKCE verifier, a return to another instance and an unavailable provider keep the local administrator sign-in available
     steps: ["1.2", "2.2", "7.2"]
     platform: ["8.3", "9.1"]
-    operations: [getLoginMethods, beginCorporateLogin, completeCorporateLogin]
+    operations: [getLoginMethods, beginCorporateLogin, completeCorporateLogin, issueDesktopCode, createDesktopSession]
     web: /monitor
     test: desktop/session/corporate-sign-in
     material: Sign-in log with the provider, both clients open with one corporate account
@@ -1067,6 +1084,32 @@ scenarios:
     operations: []
     test: desktop/cluster/federation
     material: Policy versions per site, frames before and after the switch
+  workstation-site-failover:
+    function: media
+    area: workstation
+    role: operator
+    precondition: An installation of two nodes, a post with a layout of live cameras, an open alarm and an archive position
+    action: Stop the active node, then return it
+    result: The post moves to the other node, restores the layout, the alarm and the archive position with the rights checked again and names the node in use
+    failure: Objects the user may no longer access after the move are neither restored nor shown
+    steps: ["5.14"]
+    platform: ["manager 1.1"]
+    operations: [getSession, createMediaSession]
+    test: desktop/workstation/site-failover
+    material: Time from the stop to the restored post, node names, rights check log
+  workstation-emergency-live:
+    function: media
+    area: workstation
+    role: operator
+    precondition: A single-node site with the emergency mode enabled for the post and a camera group, one camera with a privacy mask and one without a view-only account
+    action: Stop the site, confirm the emergency mode after 30 s, watch the cameras, then return the site
+    result: Granted cameras show live video with masks under a banner stating that the site is unreachable and nothing is recorded, the site accepts the view journal after it returns and the post returns to the site path
+    failure: An expired grant, a revoked post, a camera without a view-only account and a mask the client cannot apply leave the camera hidden, archive, PTZ, export and alarms stay unavailable
+    steps: ["5.14"]
+    platform: ["9.1", "9.2", "9.4"]
+    operations: [getSession, searchAccessAudit]
+    test: desktop/workstation/emergency-live
+    material: Frames with masks, the view journal and its record in the site audit
   workstation-shift-handover:
     function: alerts
     area: workstation

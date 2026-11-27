@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stands in for the system browser of the desktop client in the sign-in check: it hands the
+# confirmation URL over to the browser that the check drives in another container.
+printf '%s' "$1" > "$BACURI_SIGNIN_URL_FILE"

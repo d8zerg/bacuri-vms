@@ -15,7 +15,15 @@
 | Analysis in the camera only | The capabilities depend on the model and firmware. The results do not have a common schema and cannot be repeated on the archive |
 | Separate server analytics service | Events and metadata exist without clients and are the same for all consumers. Recording is isolated from analysis. Analysis scales by nodes and repeats on the archive |
 
-**Decision.** Video analytics is a separate server service `bacuri-analytics` in C++23 with OpenCV 5. It runs on the recording node or on a separate analysis node of the same site.
+**Decision.** Video analytics is a separate server service `bacuri-analytics` in C++23 with OpenCV 5. It runs on the recording node or on a separate analysis node of the same site. The service is split by the mode of work, not by function, into three processes with one metadata contract:
+
+| Process | Content | Reason for the separation |
+| --- | --- | --- |
+| Live analysis, one per node | Motion, tracks, lines and zones, camera tampering, flow, codes, next camera prediction | Continuous work with a latency budget. One decoding of each stream feeds all analyzers, one scheduler shares the CPU and GPU budget of the node |
+| Model executor | DNN models: object classes, faces for masking, text and license plates | Heavy GPU memory and long inference. A failed model does not stop live analysis, the executor can run on a separate GPU node, functions with personal data are enabled separately |
+| Job queue | Repeated analysis of the archive, rule tests on a recording, export anonymization, synopsis and interval summary | Work on request that can load the node for a long time. Jobs run with priorities and limits and never delay live analysis |
+
+Inside each process an analyzer is a separate C++ library behind a common interface, with its own version, configuration schema, resource cost, tests on the labeled set and coverage threshold, like the Core modules. A function is added or disabled without changing the others. Live analysis asks the model executor for an inference on selected frames of a track, not on every frame.
 
 | Part | Rule |
 | --- | --- |
@@ -28,6 +36,6 @@
 | Privacy | Faces are detected only to mask them. Identification of people by biometric features is not part of the product. Metadata follows the rights, masks and retention of the video of the same point |
 | Failure | A stopped or overloaded service does not stop recording or live video. The point shows that analysis is unavailable, the archive keeps a gap in the analysis index, and a repeated analysis can fill it |
 
-**Rationale and consequences.** The server placement keeps one result for alarms, search, export and audit and lets analysis run around the clock without operators. The recorder loses the detector and keeps only writing. A new analyzer is added to the service without changing the clients, which read the common metadata schema. The service needs its own resource budget per node, and the qualification states the supported number of streams for each analyzer and node profile. The delivery carries the models with their licenses and hashes and works without network access. OpenCV follows the technology lifecycle rules: a pinned supported branch and controlled promotion of fixes. [Technology lifecycle](015-technology-lifecycle.md) · [Offline delivery](011-offline-delivery.md) · [Time model](004-time.md)
+**Rationale and consequences.** The server placement keeps one result for alarms, search, export and audit and lets analysis run around the clock without operators. The recorder loses the detector and keeps only writing. A new analyzer is added to the service without changing the clients, which read the common metadata schema. The split into three processes costs an internal interface between live analysis and the model executor and a job queue with priorities, and gives isolation of failures and resources where the functions differ most. The service needs its own resource budget per node, and the qualification states the supported number of streams for each analyzer and node profile. The delivery carries the models with their licenses and hashes and works without network access. OpenCV follows the technology lifecycle rules: a pinned supported branch and controlled promotion of fixes. [Technology lifecycle](015-technology-lifecycle.md) · [Offline delivery](011-offline-delivery.md) · [Time model](004-time.md)
 
 **Verification.** A labeled video set with day, night, infrared and weather scenes gives precision and recall per analyzer and the false alarm rate per camera-hour. The same archive analyzed twice gives the same observations and metadata. The time from a frame to an observation and to an alarm on a workstation is measured at p95 under the node load profile. Stopping the service keeps recording and live video, and the point state shows the unavailable analysis.

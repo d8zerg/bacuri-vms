@@ -93,6 +93,15 @@ errors:
     retry: user_action
     audience: operators
     description: The user name or the password is not correct.
+  desktop_code_invalid:
+    category: authentication
+    http: 400
+    grpc: UNAUTHENTICATED
+    retry: user_action
+    audience: operators
+    description: >-
+      The one-time sign-in code of the desktop client is unknown, expired, already used or issued for another
+      verifier or address, or the browser session that issued it ended. Start the sign-in from the desktop client again.
   invalid_identity:
     category: authentication
     http: 401

@@ -205,6 +205,9 @@ export interface Services {
     enrollment?: string,
   ): Promise<Session>;
   logout(): Promise<void>;
+  issueDesktopCode(
+    body: Schema["DesktopCodeRequest"],
+  ): Promise<Schema["DesktopCode"]>;
   points(site: string, signal: AbortSignal): Promise<Point[]>;
   audio(
     site: string,

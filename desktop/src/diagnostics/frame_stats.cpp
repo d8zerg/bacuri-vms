@@ -1,9 +1,9 @@
-#include "prototype/measure.hpp"
+#include "diagnostics/frame_stats.hpp"
 
 #include <algorithm>
 #include <cmath>
 
-namespace bacuri::desktop
+namespace bacuri::vms::client
 {
 namespace
 {
@@ -44,4 +44,4 @@ int system_memory_copies(MemoryPath decoder_output)
 {
     return decoder_output == MemoryPath::gpu ? 0 : 1;
 }
-} // namespace bacuri::desktop
+} // namespace bacuri::vms::client

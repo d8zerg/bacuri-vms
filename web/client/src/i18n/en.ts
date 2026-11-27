@@ -9,6 +9,17 @@ export const en = {
   "theme.system": "System theme",
   "theme.dark": "Dark theme",
   "theme.light": "Light theme",
+  "desktop.title": "Sign in to Bacuri Desktop",
+  "desktop.explain":
+    "The Bacuri Desktop application on this computer asks to sign in with your account. The application gets its own session with your permissions.",
+  "desktop.account": "Account:",
+  "desktop.warning":
+    "Confirm only if you started the sign-in in the application just now.",
+  "desktop.allow": "Sign in to the application",
+  "desktop.cancel": "Cancel",
+  "desktop.sent": "The application is signing in. You can return to it.",
+  "desktop.invalid":
+    "The sign-in request of the application is not valid. Start the sign-in from the application again.",
   "login.title": "Sign in to Bacuri VMS",
   "login.username": "User name",
   "login.password": "Password",
@@ -573,6 +584,8 @@ export const en = {
     "The corporate identity provider is unavailable.",
   "error.internal_error":
     "The service failed. Give the request code to the administrator.",
+  "error.desktop_code_invalid":
+    "The sign-in of the desktop application expired or was already used. Start the sign-in from the application again.",
   "error.invalid_credentials": "The user name or the password is not correct.",
   "error.invalid_factor": "The security key did not confirm the sign-in.",
   "error.invalid_georeference":

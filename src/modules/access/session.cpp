@@ -1,5 +1,6 @@
 #include "modules/access/session.hpp"
 #include "application/control_api/http_json.hpp"
+#include "modules/access/desktop.hpp"
 #include "modules/access/webauthn.hpp"
 
 #include <algorithm>
@@ -54,6 +55,14 @@ std::string cookie(const Request& request)
     return {};
 }
 
+// The token of a desktop session presented in the Authorization header.
+std::optional<std::string> desktop_bearer(const Request& request)
+{
+    if (request.count(http::field::authorization) != 1)
+        return std::nullopt;
+    return desktop::session_token(request[http::field::authorization]);
+}
+
 Json session_body(postgresql::Database& db, const Key& key, const Identity& identity)
 {
     const auto rows = db.exec(R"sql(
@@ -77,6 +86,11 @@ void check_origin(const Request& request, const std::string& origin)
     }
 }
 
+bool Sessions::desktop_request(const Request& request)
+{
+    return desktop_bearer(request).has_value();
+}
+
 Sessions::Sessions(Key key, std::string origin)
     : key_{key}, origin_{std::move(origin)}, dummy_hash_{password_hash(token())}
 {
@@ -85,20 +99,29 @@ Sessions::Sessions(Key key, std::string origin)
 Identity Sessions::authenticate(postgresql::QuerySession& db, const Request& request, bool mutation,
                                 bool activity) const
 {
+    // A browser presents a cookie, a desktop client a bearer token. A request with both is refused.
+    const auto desktop_token = desktop_bearer(request);
     auto value = cookie(request);
+    if (desktop_token && !value.empty()) {
+        throw Failure{ErrorCode::unauthenticated};
+    }
+    const bool desktop_client = desktop_token.has_value();
+    if (desktop_client) {
+        value = *desktop_token;
+    }
     if (value.empty()) {
         throw Failure{ErrorCode::unauthenticated};
     }
     const auto rows =
         db.exec(activity ? "UPDATE bacuri_access.browser_sessions SET last_active=now() WHERE token_hash=$1 AND "
-                           "expires_at>now() "
+                           "client=$2 AND expires_at>now() "
                            "AND (oidc_until IS NULL OR oidc_until>clock_timestamp()) AND "
                            "last_active>now()-interval '30 minutes' RETURNING user_id,oidc_site"
                          : "SELECT user_id,oidc_site FROM bacuri_access.browser_sessions WHERE token_hash=$1 AND "
-                           "expires_at>now() "
+                           "client=$2 AND expires_at>now() "
                            "AND (oidc_until IS NULL OR oidc_until>clock_timestamp()) AND "
                            "last_active>now()-interval '30 minutes'",
-                {fingerprint(key_, "session", value)});
+                {fingerprint(key_, "session", value), desktop_client ? "desktop" : "browser"});
     if (!rows.size()) {
         throw Failure{ErrorCode::unauthenticated};
     }
@@ -106,7 +129,8 @@ Identity Sessions::authenticate(postgresql::QuerySession& db, const Request& req
     constexpr std::string_view sites = "/api/v1/sites/";
     if (!rows.get(0, 1).empty() && target.starts_with(sites) && target.substr(sites.size(), 36) != rows.get(0, 1))
         throw Failure{ErrorCode::forbidden};
-    if (mutation) {
+    // The bearer token is not an ambient credential of a browser, so it needs no origin or CSRF check.
+    if (mutation && !desktop_client) {
         check_origin(request, origin_);
         if (request.count("X-CSRF-Token") != 1 || request["X-CSRF-Token"] != fingerprint(key_, "csrf", value)) {
             throw Failure{ErrorCode::forbidden};
@@ -226,11 +250,13 @@ void Sessions::handle(const Request& request, Response& response, const std::str
 }
 void Sessions::logout(const Request& request, Response& response) const
 {
-    check_origin(request, origin_);
+    const bool desktop_client = desktop_bearer(request).has_value();
+    if (!desktop_client) {
+        check_origin(request, origin_);
+    }
     postgresql::Database db;
     db.exec("BEGIN");
-    auto value = cookie(request);
-    if (!value.empty()) {
+    if (desktop_client || !cookie(request).empty()) {
         try {
             auto identity = authenticate(db, request, true);
             db.exec("INSERT INTO bacuri_access.access_audit(site_id,actor,method,action,resource) "
@@ -247,7 +273,100 @@ void Sessions::logout(const Request& request, Response& response) const
         }
     }
     db.exec("COMMIT");
-    response.set("Set-Cookie", std::string{cookie_name} + "; Max-Age=0" + std::string{attributes});
+    if (!desktop_client) {
+        response.set("Set-Cookie", std::string{cookie_name} + "; Max-Age=0" + std::string{attributes});
+    }
     response.result(http::status::no_content);
+}
+
+void Sessions::desktop_code(const Request& request, Response& response) const
+{
+    if (request.method() != http::verb::post) {
+        response.set(http::field::allow, "POST");
+        throw Failure{ErrorCode::method_not_allowed};
+    }
+    // Only a browser session issues codes, a desktop session cannot extend itself.
+    if (request.count(http::field::authorization)) {
+        throw Failure{ErrorCode::forbidden};
+    }
+    const auto body = object_body(request, {"code_challenge", "code_challenge_method", "redirect_uri"});
+    const auto challenge = string_field(body, "code_challenge", 43);
+    const auto redirect = string_field(body, "redirect_uri", 128);
+    if (string_field(body, "code_challenge_method", 8) != "S256" || !desktop::valid_challenge(challenge) ||
+        !desktop::loopback_redirect(redirect)) {
+        throw Failure{ErrorCode::invalid_request};
+    }
+    postgresql::Database db;
+    db.exec("BEGIN");
+    const auto identity = authenticate(db, request, true);
+    const auto code = token();
+    db.exec("DELETE FROM bacuri_access.desktop_codes WHERE expires_at<=now()");
+    const auto rows =
+        db.exec("INSERT INTO bacuri_access.desktop_codes VALUES($1,$2,$3,$4,now()+interval '60 seconds') "
+                "RETURNING to_char(expires_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"')",
+                {fingerprint(key_, "desktop-code", code), fingerprint(key_, "session", identity.cookie), challenge,
+                 redirect});
+    db.exec("COMMIT");
+    response.set(http::field::cache_control, "no-store");
+    respond(response, {{"code", code}, {"expires_at", rows.get(0)}}, 201);
+}
+
+void Sessions::desktop_session(const Request& request, Response& response) const
+{
+    if (request.method() != http::verb::post) {
+        response.set(http::field::allow, "POST");
+        throw Failure{ErrorCode::method_not_allowed};
+    }
+    // The exchange carries no credentials. A page of another origin may not perform it.
+    if (request.count(http::field::cookie) || request.count(http::field::authorization) ||
+        (request.count(http::field::origin) && request[http::field::origin] != origin_)) {
+        throw Failure{ErrorCode::forbidden};
+    }
+    const auto body = object_body(request, {"code", "code_verifier", "redirect_uri"});
+    const auto code = string_field(body, "code", 64);
+    const auto verifier = string_field(body, "code_verifier", 128);
+    const auto redirect = string_field(body, "redirect_uri", 128);
+    // A code is 256 random bits, valid once for 60 seconds, so the exchange needs no attempt limit of its own
+    // and does not use up the password sign-in attempts of the address.
+    postgresql::Database db;
+    db.exec("BEGIN");
+    // A code is consumed by the first exchange, whether it succeeds or not.
+    const auto issued = db.exec("DELETE FROM bacuri_access.desktop_codes WHERE code_hash=$1 "
+                                "RETURNING browser_hash,challenge,redirect_uri,expires_at>now()",
+                                {fingerprint(key_, "desktop-code", code)});
+    if (!issued.size() || issued.get(0, 3) != "t" || issued.get(0, 2) != redirect ||
+        !desktop::verifier_matches(verifier, issued.get(0, 1))) {
+        db.exec("COMMIT");
+        throw Failure{ErrorCode::desktop_code_invalid};
+    }
+    // The browser session that issued the code must still be valid.
+    const auto parent = db.exec("SELECT user_id,login_method,coalesce(oidc_site::text,''),"
+                                "least(expires_at,now()+interval '8 hours') "
+                                "FROM bacuri_access.browser_sessions WHERE token_hash=$1 AND "
+                                "client='browser' AND expires_at>now() AND "
+                                "(oidc_until IS NULL OR oidc_until>clock_timestamp()) AND "
+                                "last_active>now()-interval '30 minutes'",
+                                {issued.get(0)});
+    if (!parent.size()) {
+        db.exec("COMMIT");
+        throw Failure{ErrorCode::desktop_code_invalid};
+    }
+    const Identity identity{parent.get(0), token()};
+    db.exec(
+        "INSERT INTO bacuri_access.browser_sessions(token_hash,user_id,expires_at,login_method,oidc_site,client) "
+        "VALUES($1,$2,$3,$4,nullif($5,'')::uuid,'desktop')",
+        {fingerprint(key_, "session", identity.cookie), identity.user, parent.get(0, 3), parent.get(0, 1),
+         parent.get(0, 2)});
+    db.exec("INSERT INTO bacuri_access.access_audit(site_id,actor,method,action,resource) SELECT "
+            "site_id,$1::uuid::text,'desktop','session.login',$1::uuid::text "
+            "FROM bacuri_access.site_roles WHERE user_id=$1::uuid AND enabled AND ($2='' OR "
+            "site_id=nullif($2,'')::uuid)",
+            {identity.user, parent.get(0, 2)});
+    auto result = session_body(db, key_, identity);
+    result.erase("csrf_token");
+    result["token"] = std::string{desktop::token_prefix} + identity.cookie;
+    db.exec("COMMIT");
+    response.set(http::field::cache_control, "no-store");
+    respond(response, result, 201);
 }
 } // namespace bacuri::vms::control

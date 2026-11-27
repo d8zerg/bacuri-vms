@@ -113,3 +113,22 @@ export const SessionOffline: Story = {
   name: "Площадка недоступна при входе",
   args: { condition: "session-offline" },
 };
+const desktopRequest =
+  "code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256" +
+  "&redirect_uri=http%3A%2F%2F127.0.0.1%3A49152%2Fcallback&state=story-state-0000000001";
+export const DesktopSignIn: Story = {
+  name: "Вход в настольное приложение",
+  args: { initial: "/desktop-sign-in?" + desktopRequest, condition: "normal" },
+};
+export const DesktopSignInInvalid: Story = {
+  name: "Недействительный вход в приложение",
+  args: {
+    initial:
+      "/desktop-sign-in?code_challenge=short&code_challenge_method=plain",
+    condition: "normal",
+  },
+};
+export const DesktopSignInLogin: Story = {
+  name: "Вход в приложение до входа на площадку",
+  args: { initial: "/desktop-sign-in?" + desktopRequest, condition: "login" },
+};

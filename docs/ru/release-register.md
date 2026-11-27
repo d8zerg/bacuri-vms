@@ -36,7 +36,7 @@
 
 | ID | Интерфейс | Операции |
 | --- | --- | --- |
-| identity | REST | createSession, verifyAdminFactor, getSession, revokeSession, getIdentityProvider, setIdentityProvider, bindExternalIdentity, unbindExternalIdentity, getLoginMethods, beginCorporateLogin, completeCorporateLogin |
+| identity | REST | createSession, verifyAdminFactor, getSession, revokeSession, issueDesktopCode, createDesktopSession, getIdentityProvider, setIdentityProvider, bindExternalIdentity, unbindExternalIdentity, getLoginMethods, beginCorporateLogin, completeCorporateLogin |
 | access | REST | listPoints, listSiteUsers, createSiteUser, updateSiteUser, listResourceGroups, createResourceGroup, updateResourceGroup, listGrants, setGrant, deleteGrant, listPrivacyPolicies, setPrivacyPolicy, searchAccessAudit |
 | inventory | REST | discoverCameras, inspectCamera, listCameras, getCamera, registerCamera, updateCamera, getCameraStreamIssues, previousRecording, listCameraBatches, getCameraBatch, previewCameraBatchItem, changeCameraBatchItem, listCameraTemplates, saveCameraTemplate |
 | audio | REST | exchangeCameraAudio |
@@ -62,6 +62,7 @@
 | inventory | Веб | /cameras |
 | maps | Веб | /maps |
 | access | Веб | /access |
+| identity | Веб | /desktop-sign-in |
 | operations | Обслуживание | backup, upgrade, rollback, restore, diagnose, reconcile, scrape, sample |
 
 ## Административные операции полного выпуска

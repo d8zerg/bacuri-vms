@@ -448,6 +448,11 @@ export function fixture(condition = "normal"): Services {
       signedIn = false;
       return Promise.resolve();
     },
+    issueDesktopCode: () =>
+      Promise.resolve({
+        code: "0".repeat(64),
+        expires_at: "2024-01-01T00:01:00.000000Z",
+      }),
     refreshOnvif: (_site, camera) => Promise.resolve(camera),
     audio: (_site, _point, request) =>
       request.mode === "archive"

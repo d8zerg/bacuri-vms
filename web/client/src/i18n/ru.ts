@@ -16,6 +16,17 @@ export const ru = {
   "theme.system": "Системная тема",
   "theme.dark": "Тёмная тема",
   "theme.light": "Светлая тема",
+  "desktop.title": "Вход в Bacuri Desktop",
+  "desktop.explain":
+    "Приложение Bacuri Desktop на этом компьютере просит войти под вашей учётной записью. Приложение получит собственный сеанс с вашими правами.",
+  "desktop.account": "Учётная запись:",
+  "desktop.warning":
+    "Подтверждайте, только если вы сами только что начали вход в приложении.",
+  "desktop.allow": "Войти в приложение",
+  "desktop.cancel": "Отмена",
+  "desktop.sent": "Приложение выполняет вход. Можно вернуться к нему.",
+  "desktop.invalid":
+    "Запрос входа от приложения недействителен. Начните вход из приложения заново.",
   "login.title": "Вход в Bacuri VMS",
   "login.username": "Имя пользователя",
   "login.password": "Пароль",
@@ -569,6 +580,8 @@ export const ru = {
   "error.identity_conflict": "Эта внешняя учётная запись уже привязана.",
   "error.identity_unavailable": "Корпоративный провайдер входа недоступен.",
   "error.internal_error": "Сбой службы. Сообщите администратору код запроса.",
+  "error.desktop_code_invalid":
+    "Вход в настольное приложение устарел или уже использован. Начните вход из приложения заново.",
   "error.invalid_credentials": "Неверное имя пользователя или пароль.",
   "error.invalid_factor": "Ключ безопасности не подтвердил вход.",
   "error.invalid_georeference":

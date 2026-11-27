@@ -34,6 +34,10 @@ For corporate sign-in, register a confidential OIDC client in Keycloak with Auth
 
 After the provider is enabled, the sign-in screen shows "Sign in with Keycloak". The local administrator can sign in with the password and the WebAuthn key even with the provider disconnected. The "Audit" tab shows the action, the time, the actor and the available resource names. Expand an event to see the identifiers, the access method and the original action code. Access audit search through the API accepts actor and resource filters. [REST contract](../contracts/v1/openapi.yaml)
 
+### Desktop application sign-in
+
+The Bacuri Desktop application signs in through the browser of the same computer. The application opens the "Sign in to Bacuri Desktop" page of the site. Sign in there with the usual method of the site, check the account and press "Sign in to the application" only if you started the sign-in in the application just now. The browser hands the sign-in over to the application and shows that the tab can be closed. "Cancel" ends the sign-in in the application. An expired or already used sign-in shows its cause, start the sign-in from the application again. The application gets its own session with the permissions of the account, and signing out of the browser does not end it. [Desktop session](adr/001-api-contracts.md#local-session-and-access-rules)
+
 ## Visual system
 
 | Component | Rule |

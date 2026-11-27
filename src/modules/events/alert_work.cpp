@@ -88,7 +88,7 @@ Json audit_items(postgresql::Database& db, const postgresql::Rows& rows, int lim
 Actor command_actor(postgresql::Database& db, const Sessions& sessions, const Key& key, const Request& req,
                     const std::string& site)
 {
-    if (!req.count(http::field::authorization))
+    if (!req.count(http::field::authorization) || Sessions::desktop_request(req))
         return {sessions.authenticate(db, req, true).user, {}, {}, {}};
     const std::string_view auth = req[http::field::authorization];
     if (req.count(http::field::authorization) != 1 || req.count(http::field::cookie) ||
@@ -330,7 +330,7 @@ void alert_work(const Request& req, Response& res, const Sessions& sessions, con
                 const std::string& site, std::string_view path)
 {
     require(std::string_view{req.target()}.find('?') == std::string_view::npos);
-    if (req.count(http::field::authorization) &&
+    if (req.count(http::field::authorization) && !Sessions::desktop_request(req) &&
         !(path.starts_with("alerts/") && path.ends_with("/work") && req.method() == http::verb::post))
         throw Failure{ErrorCode::unauthenticated};
     postgresql::Database db;

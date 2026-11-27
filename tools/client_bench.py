@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Run the measurement series of the desktop video prototype on the stand.
+"""Run the measurement series of the Bacuri VMS Client bench on the stand.
 
-Each run starts the prototype in the desktop-gpu Compose service on the stand display,
+Each run starts the bench in the desktop-gpu Compose service on the stand display,
 samples the GPU and the NVDEC load on the host, checks the first frame and the frame after
 a seek against the reference recording and writes the reports to build/desktop/reports/video.
 
@@ -25,9 +25,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "build/desktop/reports/video"
-PROTOTYPE = "build/desktop/gcc/bacuri-desktop-prototype"
+BENCH = "build/desktop/gcc/bacuri-vms-client-bench"
 REFERENCE = "build/desktop/reference"
-MAP = "build/desktop/map/monaco/style.json"
 SEEK_FRAME = 537  # Not a keyframe: the decoder starts from frame 500.
 
 
@@ -48,7 +47,7 @@ def run(name: str, arguments: list[str], seconds: int, environment: dict[str, st
     command = ["docker", "compose", "run", "--rm", "--no-deps", "-T", "--user", f"{os.getuid()}:{os.getgid()}"]
     for key in environment:
         command += ["-e", key]
-    command += [service, PROTOTYPE, *arguments, "--seconds", str(seconds),
+    command += [service, BENCH, *arguments, "--seconds", str(seconds),
                 "--report", str(report.relative_to(ROOT))]
     samples: list[dict] = []
     stop = threading.Event()
@@ -77,6 +76,8 @@ def verdict(result: dict, reference: bool, seek: bool) -> list[str]:
     problems = []
     if result.get("failed"):
         return [f"did not finish: {result.get('error')}"]
+    if result.get("graphics", "").startswith("NVIDIA") and not result.get("presentation_devices"):
+        problems.append("no DRI devices: the window is not presented to the screen")
     for cell in result["cells_report"]:
         if cell.get("error"):
             problems.append(f"cell {cell['cell']}: {cell['error']}")
@@ -97,20 +98,28 @@ def verdict(result: dict, reference: bool, seek: bool) -> list[str]:
                             f"{fallback['last_frame_before']}")
         if result["decoder"] == "hardware" and cell.get("system_memory_copies_per_frame") != 0:
             problems.append(f"cell {cell['cell']}: decoder output in {cell.get('decoder_output')}")
+    # The cells of a grid show the same frame of a recorded source. The cells are read one after another,
+    # so a sample may fall on a frame change: p95 of the spread stays within one shown frame, which is
+    # two source frames when a station without a GPU limits the cells to 15 frames per second.
+    spread = result.get("grid", {}).get("sync_spread_frames", {})
+    shown_frame = 2 if result.get("software_limits") else 1
+    if reference and spread.get("count") and spread["p95"] > shown_frame:
+        problems.append(f"cells {spread['p95']:.0f} frames apart at p95")
     return problems
 
 
 def summary_row(result: dict, problems: list[str]) -> str:
     if result.get("failed"):
-        return f"| {result['name']} | - | - | - | - | - | - | - | - | {'; '.join(problems)} |"
+        return f"| {result['name']} | - | - | - | - | - | - | - | - | - | {'; '.join(problems)} |"
     cells = result["cells_report"]
     shown = sum(cell["frames"] for cell in cells) / result["seconds"]
-    seek = [cell["seek_ms"] for cell in cells if "seek_ms" in cell]
-    first = [cell["first_frame_ms"] for cell in cells if "first_frame_ms" in cell]
+    grid = result.get("grid", {})
+    spread = grid.get("sync_spread_frames", {})
+    spread_text = f"{spread['p95']:.0f} / {spread['max']:.0f}" if spread.get("count") else "-"
     ui = result["ui_frame_interval_ms"]
     return (f"| {result['name']} | {cells[0]['decoder']} | {cells[0]['system_memory_copies_per_frame']} | "
-            f"{shown:.0f} | {max(first, default=0):.0f} | {max(seek, default=0):.0f} | "
-            f"{ui['p50']:.1f} / {ui['p99']:.1f} | {result['cpu_percent_of_one_core']:.0f} | "
+            f"{shown:.0f} | {grid.get('grid_start_ms', 0):.0f} | {grid.get('grid_seek_ms', 0):.0f} | {spread_text} | "
+            f"{ui['p50']:.1f} / {ui['p99']:.1f} / {ui['max']:.0f} | {result['cpu_percent_of_one_core']:.0f} | "
             f"{result['gpu_percent']} / {result['nvdec_percent']} | {map_cost(result)}{fallback_note(cells)}"
             f"{'ok' if not problems else '; '.join(problems)} |")
 
@@ -147,15 +156,16 @@ def main() -> int:
                 runs.append((f"reference-{codec}-{decoder}-{cells}",
                              ["--source", f"{REFERENCE}/{codec}-1080p25.mp4", "--codec", codec, "--decoder", decoder,
                               "--cells", str(cells), "--seek-frame", str(SEEK_FRAME)], {}, True, True))
-    # The map next to the grid, and the work without a GPU: a decoder failure during playback and a
-    # workstation without GPU access at all.
+    # The work without a GPU: a decoder failure during playback and a workstation without GPU access.
+    # The map comes from the site and is measured by task desktop:site-map.
     h264 = ["--source", f"{REFERENCE}/h264-1080p25.mp4", "--codec", "h264"]
-    if (ROOT / MAP).exists():
-        runs.append(("map-h264-hardware-16", [*h264, "--decoder", "hardware", "--cells", "16", "--map", MAP], {}, True, False))
     runs.append(("fallback-h264-auto-4", [*h264, "--decoder", "auto", "--cells", "4", "--fault-decoder-at", "6"], {}, True,
                  False))
-    runs.append(("cpu-h264-auto-4", [*h264, "--decoder", "auto", "--cells", "4", "--seek-frame", str(SEEK_FRAME)], {},
-                 True, True, "desktop-cpu"))
+    # Without a GPU the client decodes in software and limits each cell to 640x360 at 15 frames/s.
+    for cells in (4, 9, 16):
+        runs.append((f"cpu-h264-auto-{cells}",
+                     [*h264, "--decoder", "auto", "--cells", str(cells), "--seek-frame", str(SEEK_FRAME)], {},
+                     True, True, "desktop-cpu"))
     if arguments.live:
         stand = subprocess.run(["docker", "compose", "ps", "--status", "running", "-q", "rtsp-camera"], cwd=ROOT,
                                capture_output=True, text=True).stdout.strip()
@@ -182,15 +192,16 @@ def main() -> int:
         runs = [entry for entry in runs if arguments.only in entry[0]]
     runs = [(f"{name}-{attempt}" if arguments.repeat > 1 else name, *rest)
             for name, *rest in runs for attempt in range(1, arguments.repeat + 1)]
-    for name, prototype_arguments, environment, reference, seek, *service in runs:
-        result = run(name, prototype_arguments, arguments.seconds, environment, *service)
+    for name, bench_arguments, environment, reference, seek, *service in runs:
+        result = run(name, bench_arguments, arguments.seconds, environment, *service)
         problems = verdict(result, reference, seek)
         failed |= bool(problems)
         rows.append(summary_row(result, problems))
         print(rows[-1], flush=True)
 
-    header = ("| Run | Decoder | Copies via RAM | Frames/s shown | First frame, ms | Seek, ms | UI frame p50 / p99, ms "
-              "| CPU, % of a core | GPU / NVDEC, % | Result |\n|" + " --- |" * 10)
+    header = ("| Run | Decoder | Copies via RAM | Frames/s shown | Grid start, ms | Grid seek, ms "
+              "| Cell spread p95 / max, frames | UI frame p50 / p99 / max, ms "
+              "| CPU, % of a core | GPU / NVDEC, % | Result |\n|" + " --- |" * 11)
     (OUTPUT / "summary.md").write_text(header + "\n" + "\n".join(rows) + "\n")
     print(f"Reports: {OUTPUT.relative_to(ROOT)}")
     return 1 if failed else 0

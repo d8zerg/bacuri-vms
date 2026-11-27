@@ -5,7 +5,7 @@
 #include <string_view>
 #include <vector>
 
-namespace bacuri::desktop
+namespace bacuri::vms::client
 {
 // Distribution of measured values, such as frame intervals in milliseconds.
 struct Distribution {
@@ -31,4 +31,4 @@ MemoryPath memory_path(std::string_view caps_features);
 // Copies of every frame through system memory between the decoder and the display.
 // GPU memory needs none, system memory needs one upload to the GPU.
 int system_memory_copies(MemoryPath decoder_output);
-} // namespace bacuri::desktop
+} // namespace bacuri::vms::client

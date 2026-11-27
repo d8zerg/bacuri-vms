@@ -4,7 +4,9 @@
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
+#include <functional>
 #include <memory>
+#include <string>
 #include <mutex>
 #include <vector>
 
@@ -13,11 +15,11 @@ namespace QMapLibre
 class Map;
 }
 
-namespace bacuri::desktop
+namespace bacuri::vms::client
 {
 // A MapLibre map drawn into an OpenGL framebuffer of the Qt Quick scene graph. The map object
 // lives on the GUI thread, its renderer on the render thread of the window.
-class MapItem : public QQuickFramebufferObject
+class MapView : public QQuickFramebufferObject
 {
     Q_OBJECT
     QML_ELEMENT
@@ -28,8 +30,10 @@ class MapItem : public QQuickFramebufferObject
     Q_PROPERTY(double bearing MEMBER bearing_ WRITE setBearing)
 
   public:
-    explicit MapItem(QQuickItem* parent = nullptr);
-    ~MapItem() override;
+    explicit MapView(QQuickItem* parent = nullptr);
+    // Rewrites the resource URLs of maps created afterwards, such as site URLs to the local gateway.
+    static void set_resource_transform(std::function<std::string(const std::string&)> transform);
+    ~MapView() override;
 
     Renderer* createRenderer() const override;
 
@@ -67,4 +71,4 @@ class MapItem : public QQuickFramebufferObject
     mutable std::mutex mutex_;
     std::vector<double> renders_;
 };
-} // namespace bacuri::desktop
+} // namespace bacuri::vms::client

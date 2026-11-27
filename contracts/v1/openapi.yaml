@@ -1,11 +1,12 @@
 openapi: 3.1.0
 info:
   title: Bacuri VMS API
-  version: 1.6.0
+  version: 1.7.0
 servers:
   - url: /api/v1
 security:
   - browserSession: []
+  - desktopSession: []
 paths:
   /sites/{siteId}/points/{pointId}/holds:
     parameters:
@@ -1896,6 +1897,62 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /session/desktop/codes:
+    post:
+      operationId: issueDesktopCode
+      security:
+        - browserSession: []
+      description: >-
+        Issue a one-time sign-in code for the desktop client on the same computer. The signed-in browser calls it
+        after the person confirms the sign-in, then sends the code to the loopback address of the client. The code is
+        valid for 60 seconds, bound to the browser session, the PKCE S256 challenge and the loopback address. Requires
+        the exact browser origin and the CSRF token. A desktop session cannot issue codes.
+      parameters:
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DesktopCodeRequest' }
+      responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
+        '201':
+          description: Code issued.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DesktopCode' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /session/desktop:
+    post:
+      operationId: createDesktopSession
+      security: []
+      description: >-
+        Exchange a one-time code for a desktop session. The client proves the PKCE verifier and repeats the loopback
+        address. The first exchange consumes the code, whether it succeeds or not. The request carries no cookie and no
+        Authorization header, and a browser origin other than the site is refused. The session inherits the user, the
+        sign-in method and the site restriction of the browser session and ends no later than it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DesktopSessionRequest' }
+      responses:
+        default: { $ref: '#/components/responses/RequestFailure' }
+        '201':
+          description: 'Desktop session created. Present the token as "Authorization: Bearer <token>".'
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DesktopSession' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
   /session/webauthn:
     post:
       operationId: verifyAdminFactor
@@ -2811,6 +2868,10 @@ paths:
 components:
   securitySchemes:
     alertDelegation: { type: http, scheme: bearer }
+    desktopSession:
+      type: http
+      scheme: bearer
+      description: Token of a desktop session in the form "d1.<64 hexadecimal digits>". Needs no origin or CSRF check.
     browserSession:
       type: apiKey
       in: cookie
@@ -4228,6 +4289,47 @@ components:
               role: { type: string, enum: [administrator, operator] }
         expires_at: { $ref: '#/components/schemas/UtcTime' }
         csrf_token: { $ref: '#/components/schemas/CsrfToken' }
+    DesktopCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [code_challenge, code_challenge_method, redirect_uri]
+      properties:
+        code_challenge: { type: string, pattern: '^[A-Za-z0-9_-]{43}$', description: Unpadded base64url SHA-256 of the verifier. }
+        code_challenge_method: { type: string, const: S256 }
+        redirect_uri:
+          type: string
+          maxLength: 128
+          pattern: '^http://(127\.0\.0\.1|\[::1\]):[1-9][0-9]{3,4}/[A-Za-z0-9_/-]*$'
+          description: Loopback address of the desktop client with a port from 1024 to 65535.
+    DesktopCode:
+      type: object
+      required: [code, expires_at]
+      properties:
+        code: { type: string, pattern: '^[0-9a-f]{64}$' }
+        expires_at: { $ref: '#/components/schemas/UtcTime' }
+    DesktopSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [code, code_verifier, redirect_uri]
+      properties:
+        code: { type: string, pattern: '^[0-9a-f]{64}$' }
+        code_verifier: { type: string, pattern: '^[A-Za-z0-9._~-]{43,128}$' }
+        redirect_uri: { type: string, maxLength: 128 }
+    DesktopSession:
+      type: object
+      required: [token, user_id, site_roles, expires_at]
+      properties:
+        token: { type: string, pattern: '^d1\.[0-9a-f]{64}$' }
+        user_id: { $ref: '#/components/schemas/Id' }
+        site_roles:
+          type: array
+          items:
+            type: object
+            required: [site_id, role]
+            properties:
+              site_id: { $ref: '#/components/schemas/Id' }
+              role: { type: string, enum: [administrator, operator] }
+        expires_at: { $ref: '#/components/schemas/UtcTime' }
     CameraConfiguration:
       type: object
       additionalProperties: false
@@ -4760,6 +4862,7 @@ components:
             - invalid_factor
             - enrollment_required
             - invalid_credentials
+            - desktop_code_invalid
             - unauthenticated
             - forbidden
             - alert_state_conflict

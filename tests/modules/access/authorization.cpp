@@ -27,7 +27,7 @@ class BrowserAuthentication : public testing::Test
     }
     void active(const std::string& scope)
     {
-        db.expect("UPDATE bacuri_access.browser_sessions", {fingerprint(key, "session", cookie)},
+        db.expect("UPDATE bacuri_access.browser_sessions", {fingerprint(key, "session", cookie), "browser"},
                   {{"operator", scope}});
     }
 };
@@ -40,7 +40,8 @@ TEST_F(BrowserAuthentication, UpdatesActivityAndReturnsIdentityForSiteMutation)
 }
 TEST_F(BrowserAuthentication, PassiveLookupUsesTheReadOnlySessionQuery)
 {
-    db.expect("SELECT user_id,oidc_site", {fingerprint(key, "session", cookie)}, {{"operator", std::nullopt}});
+    db.expect("SELECT user_id,oidc_site", {fingerprint(key, "session", cookie), "browser"},
+              {{"operator", std::nullopt}});
     request.erase(http::field::origin);
     request.erase("X-CSRF-Token");
     EXPECT_EQ(sessions.authenticate(db, request, false, false).user, "operator");
@@ -53,7 +54,7 @@ TEST_F(BrowserAuthentication, RefusesMalformedCookieBeforeReadingTheSession)
 }
 TEST_F(BrowserAuthentication, RefusesAnExpiredOrUnknownSession)
 {
-    db.expect("UPDATE bacuri_access.browser_sessions", {fingerprint(key, "session", cookie)});
+    db.expect("UPDATE bacuri_access.browser_sessions", {fingerprint(key, "session", cookie), "browser"});
     EXPECT_THAT([&] { authenticate(); },
                 testing::Throws<Failure>(testing::Field(&Failure::error, ErrorCode::unauthenticated)));
 }
@@ -73,6 +74,30 @@ TEST_F(BrowserAuthentication, RefusesDuplicateOrMismatchedCsrfTokens)
     active(site);
     EXPECT_THAT([&] { authenticate(); },
                 testing::Throws<Failure>(testing::Field(&Failure::error, ErrorCode::forbidden)));
+}
+TEST_F(BrowserAuthentication, AcceptsADesktopTokenWithoutOriginOrCsrf)
+{
+    request.erase(http::field::cookie);
+    request.erase(http::field::origin);
+    request.erase("X-CSRF-Token");
+    request.set(http::field::authorization, "Bearer d1." + cookie);
+    db.expect("UPDATE bacuri_access.browser_sessions", {fingerprint(key, "session", cookie), "desktop"},
+              {{"operator", site}});
+    EXPECT_TRUE(Sessions::desktop_request(request));
+    EXPECT_EQ(authenticate().user, "operator");
+}
+TEST_F(BrowserAuthentication, RefusesACookieTogetherWithADesktopToken)
+{
+    request.set(http::field::authorization, "Bearer d1." + cookie);
+    EXPECT_THAT([&] { authenticate(); },
+                testing::Throws<Failure>(testing::Field(&Failure::error, ErrorCode::unauthenticated)));
+}
+TEST_F(BrowserAuthentication, TreatsAnotherBearerTokenAsNoDesktopSession)
+{
+    request.set(http::field::authorization, "Bearer " + cookie);
+    EXPECT_FALSE(Sessions::desktop_request(request));
+    active(site);
+    EXPECT_EQ(authenticate().user, "operator");
 }
 class ExportPermission : public testing::Test
 {

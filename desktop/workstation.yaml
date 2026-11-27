@@ -30,7 +30,7 @@ build:
   compilers: [GCC 14, Clang 19]
   gpu_runtime: NVIDIA Container Toolkit with graphics, video, compute and utility capabilities
   services:
-    desktop-gpu: The stand display and the GPU, hardware OpenGL and NVDEC
+    desktop-gpu: The stand display, the GPU and the DRI devices of the host, hardware OpenGL and NVDEC. Without the DRI devices the window stays black
     desktop-cpu: The stand display without the GPU, Mesa llvmpipe and software decoding
 
 stations:
@@ -86,10 +86,11 @@ media:
       h265-1080p25.mp4: H.265 Main 8-bit, 1920x1080, 25 fps, keyframe every 50 frames, 60 s, fragmented MP4
     marks: Every frame shows its number from zero at the top left and its buffer time at the bottom right
   test_map:
-    tool: tools/desktop_map_fixture.py
-    location: build/desktop/map/monaco
-    source: Monaco extract of OpenStreetMap from Geofabrik, SHA-256 and replication time in metadata.json
-    tiles: Raster PNG tiles of zoom 12 to 17 in the dark palette of the operator workspace with a MapLibre style
+    tool: tools/map_fixture.py
+    location: build/maps/monaco.mbtiles
+    source: Monaco extract of OpenStreetMap from Geofabrik, SHA-256 and replication time in monaco.json
+    package: Raster MBTiles of zoom 12 to 17 in the dark palette of the operator workspace in the import format of the site
+    delivery: The server imports the package and serves the style and the tiles, the client gets them through the site API
     license: Data (c) OpenStreetMap contributors, Open Database License
   stand_camera:
     source: Synthetic RTSP camera of the Compose stand
@@ -124,7 +125,7 @@ configurations:
   minimum:
     state: open
     decided_after: "1.1"
-    note: Chosen from the measurements of the prototype on integrated graphics and on software decoding
+    note: Chosen from the measurements of the client bench on integrated graphics and on software decoding. Without a GPU the client limits each cell to 640x360 at 15 fps, and on the stand CPU 4, 9 and 16 such cells take 11, 12 and 14 cores
   recommended:
     state: candidate
     station: stand

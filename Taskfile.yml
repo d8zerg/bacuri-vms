@@ -488,7 +488,7 @@ tasks:
     cmd: python3 tools/desktop_passport.py
 
   desktop:build:
-    desc: Build the desktop client prototype and its tests in the desktop image
+    desc: Build Bacuri VMS Client, its bench and its tests in the desktop image
     deps: [desktop:image]
     cmd: '{{.COMPOSE_RUN}} -T -w /workspace/desktop desktop sh -c "cmake --preset desktop && cmake --build --preset desktop"'
 
@@ -498,14 +498,38 @@ tasks:
     cmd: '{{.COMPOSE_RUN}} -T -w /workspace/desktop desktop ctest --preset desktop'
 
   desktop:video:
-    desc: Measure the video prototype on the stand display with hardware and software decoding, 1 to 16 cells
+    desc: Measure the client bench on the stand display with hardware and software decoding, 1 to 16 cells
     deps: [desktop:build]
-    cmd: python3 tools/desktop_prototype.py {{.CLI_ARGS}}
+    cmd: python3 tools/client_bench.py {{.CLI_ARGS}}
 
-  desktop:map:
-    desc: Download the Monaco OpenStreetMap extract and render the raster test map of the desktop client
+  maps:fixture:
+    desc: Download the Monaco OpenStreetMap extract and build the raster MBTiles package for the server tests
     deps: [desktop:image]
-    cmd: '{{.COMPOSE_RUN}} -T desktop python3 tools/desktop_map_fixture.py'
+    cmd: '{{.COMPOSE_RUN}} -T desktop python3 tools/map_fixture.py'
+
+  maps:package:check:
+    desc: Import the Monaco package into the running stand and check the served scene, style and tiles
+    deps: [desktop:image, control:up]
+    cmds:
+      - test -f build/maps/monaco.mbtiles || task maps:fixture
+      - sh tests/maps/package.sh
+
+  desktop:sign-in:
+    desc: Sign the desktop client in through Chromium on the running stand, read the session and sign out
+    deps: [desktop:build, control:up]
+    cmds:
+      - docker compose build ui-kit-check
+      # The running core picks up a rebuilt executable only after a restart.
+      - docker compose restart core
+      - docker compose up --wait core
+      - sh tests/desktop/sign-in.sh
+
+  desktop:site-map:
+    desc: Show the map of the running stand in the client bench after a sign-in through Chromium
+    deps: [desktop:build]
+    cmds:
+      - task: maps:package:check
+      - sh tests/desktop/site-map.sh
 
   desktop:reference:
     desc: Write the H.264 and H.265 reference recordings with frame numbers to build/desktop/reference

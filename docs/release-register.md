@@ -36,7 +36,7 @@ The table lists the current VMS interfaces, including local maps (`maps`) and ma
 
 | ID | Interface | Operations |
 | --- | --- | --- |
-| identity | REST | createSession, verifyAdminFactor, getSession, revokeSession, getIdentityProvider, setIdentityProvider, bindExternalIdentity, unbindExternalIdentity, getLoginMethods, beginCorporateLogin, completeCorporateLogin |
+| identity | REST | createSession, verifyAdminFactor, getSession, revokeSession, issueDesktopCode, createDesktopSession, getIdentityProvider, setIdentityProvider, bindExternalIdentity, unbindExternalIdentity, getLoginMethods, beginCorporateLogin, completeCorporateLogin |
 | access | REST | listPoints, listSiteUsers, createSiteUser, updateSiteUser, listResourceGroups, createResourceGroup, updateResourceGroup, listGrants, setGrant, deleteGrant, listPrivacyPolicies, setPrivacyPolicy, searchAccessAudit |
 | inventory | REST | discoverCameras, inspectCamera, listCameras, getCamera, registerCamera, updateCamera, getCameraStreamIssues, previousRecording, listCameraBatches, getCameraBatch, previewCameraBatchItem, changeCameraBatchItem, listCameraTemplates, saveCameraTemplate |
 | audio | REST | exchangeCameraAudio |
@@ -62,6 +62,7 @@ The table lists the current VMS interfaces, including local maps (`maps`) and ma
 | inventory | Web | /cameras |
 | maps | Web | /maps |
 | access | Web | /access |
+| identity | Web | /desktop-sign-in |
 | operations | Maintenance | backup, upgrade, rollback, restore, diagnose, reconcile, scrape, sample |
 
 ## Administrative operations of the full release

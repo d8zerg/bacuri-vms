@@ -7,11 +7,16 @@ import {
   Navigate,
   useRoutes,
   useLocation,
+  useNavigate,
   useSearchParams,
   type RouteObject,
 } from "react-router";
 import type { Feed, Point, Services, Session } from "../contracts/workspace";
 import { HttpFailure } from "../adapters/api";
+import {
+  keepDesktopSignIn,
+  takeDesktopSignIn,
+} from "../workflows/desktopSignIn";
 import { describeError } from "../adapters/errors";
 import { SubsectionSlot } from "./SubsectionMenu";
 import { cameraSetup, Installer } from "./installer";
@@ -30,6 +35,9 @@ const Audit = lazy(() =>
   import("./AlertWork").then((m) => ({ default: m.AlertAudit })),
 );
 const Access = lazy(() => import("./Access"));
+const DesktopSignIn = lazy(() =>
+  import("./DesktopSignIn").then((m) => ({ default: m.DesktopSignIn })),
+);
 const Monitor = lazy(() =>
   import("./monitor").then((m) => ({ default: m.Monitor })),
 );
@@ -46,6 +54,7 @@ function Login({
   message: string;
 }) {
   const t = useT();
+  const route = useLocation();
   // A failed corporate sign-in returns here with the cause of the error catalog.
   const [notice, setNotice] = useState(() => {
       const cause = new URLSearchParams(location.search).get("sign_in_error");
@@ -151,7 +160,14 @@ function Login({
         </Button>
       </form>
       {corporate && (
-        <a className="bk-button" href="/api/v1/session/oidc/start">
+        <a
+          className="bk-button"
+          href="/api/v1/session/oidc/start"
+          onClick={() => {
+            if (route.pathname === "/desktop-sign-in")
+              keepDesktopSignIn(route.search);
+          }}
+        >
           {t("login.keycloak")}
         </a>
       )}
@@ -374,6 +390,7 @@ function Workspace({ services }: { services: Services }) {
   }, []);
   const [params, setParams] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const path = location.pathname.replace(/\/$/, "");
   const cameras = path === "/cameras";
   useEffect(() => {
@@ -395,6 +412,12 @@ function Workspace({ services }: { services: Services }) {
     setMessage(t("session.expired"));
     setIdentity(null);
   });
+  // After a corporate sign-in started from a desktop sign-in, return to its confirmation.
+  useEffect(() => {
+    if (!identity) return;
+    const pending = takeDesktopSignIn();
+    if (pending) void navigate("/desktop-sign-in" + pending, { replace: true });
+  }, [identity, navigate]);
   const section =
     {
       "/maps": t("section.maps"),
@@ -445,6 +468,18 @@ function Workspace({ services }: { services: Services }) {
         }}
         message={message}
       />
+    );
+  if (path === "/desktop-sign-in")
+    return (
+      <Suspense
+        fallback={
+          <main className="ws-startup" role="status">
+            {t("loading.generic")}
+          </main>
+        }
+      >
+        <DesktopSignIn services={services} identity={identity} />
+      </Suspense>
     );
   const site = params.has("site")
     ? identity.site_roles.find((s) => s.site_id === params.get("site"))
@@ -652,6 +687,7 @@ function WorkspaceRoutes({ services }: { services: Services }) {
       "/audit",
       "/access",
       "/investigations",
+      "/desktop-sign-in",
     ].map((path) => ({
       path,
       element: <Workspace services={services} />,

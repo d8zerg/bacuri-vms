@@ -35,7 +35,7 @@ namespace
 bool workspace_page(std::string_view path)
 {
     return path == "/access" || path == "/audit" || path == "/" || path == "/maps" || path == "/monitor" ||
-           path == "/cameras" || path == "/investigations";
+           path == "/cameras" || path == "/investigations" || path == "/desktop-sign-in";
 }
 
 void workspace_file(const Request& req, Response& res, std::string_view path)
@@ -104,7 +104,10 @@ void alert_feed(const Request& req, Response& res, const Sessions& sessions, con
     auto feed = std::make_shared<AlertFeed>(sessions, key, req, site);
     if (!stream)
         return respond(res, feed->snapshot());
-    if (req.count(http::field::origin) != 1 || req[http::field::origin] != origin) {
+    // A browser carries its cookie to any page, so the feed accepts only the site origin. A desktop client
+    // presents its token explicitly and sends no origin.
+    if (!Sessions::desktop_request(req) &&
+        (req.count(http::field::origin) != 1 || req[http::field::origin] != origin)) {
         throw Failure{ErrorCode::forbidden};
     }
     if (!boost::beast::websocket::is_upgrade(req) || req.count(http::field::sec_websocket_protocol) != 1 ||
@@ -153,6 +156,12 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
     if (path == "/api/v1/session/webauthn") {
         allow(req, res, {http::verb::post});
         return sessions.factor(req, res);
+    }
+    if (path == "/api/v1/session/desktop/codes") {
+        return sessions.desktop_code(req, res);
+    }
+    if (path == "/api/v1/session/desktop") {
+        return sessions.desktop_session(req, res);
     }
     if (path == "/api/v1/session") {
         return sessions.handle(req, res, peer);

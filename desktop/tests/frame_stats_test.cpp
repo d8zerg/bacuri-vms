@@ -1,8 +1,8 @@
-#include "prototype/measure.hpp"
+#include "diagnostics/frame_stats.hpp"
 
 #include <gtest/gtest.h>
 
-namespace bacuri::desktop
+namespace bacuri::vms::client
 {
 namespace
 {
@@ -64,4 +64,4 @@ TEST(MemoryPath, SystemMemoryNeedsOneUpload)
     EXPECT_EQ(system_memory_copies(MemoryPath::system), 1);
 }
 } // namespace
-} // namespace bacuri::desktop
+} // namespace bacuri::vms::client

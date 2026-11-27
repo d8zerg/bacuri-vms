@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Build the test map of the desktop client from an OpenStreetMap extract.
+"""Build the Monaco map package for the server tests from an OpenStreetMap extract.
 
-Downloads the Monaco extract from Geofabrik unless a PBF file is given, renders raster tiles
-of zoom levels 12 to 17 in the dark palette of the operator workspace and writes a MapLibre
-style that reads the tiles from the local directory. The map is small, works without
-network access and is used by the screens and tests of the desktop client.
+Downloads the Monaco extract from Geofabrik unless a PBF file is given, renders raster tiles of
+zoom levels 12 to 17 in the dark palette of the operator workspace and writes a raster MBTiles
+package in the import format of the site: PNG tiles with TMS rows and the name, bounds, format,
+region_id and osm_base_timestamp metadata. The server imports the package and serves the style
+and the tiles to the web and desktop clients.
 
 Data (c) OpenStreetMap contributors, available under the Open Database License.
 """
@@ -13,8 +14,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import math
+import sqlite3
 import subprocess
 import sys
 import urllib.request
@@ -112,53 +115,49 @@ def render(features: Features, zoom: int, column: int, row: int) -> Image.Image:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pbf", type=Path, help="use this extract instead of downloading it")
-    parser.add_argument("--output", type=Path, default=Path("build/desktop/map/monaco"))
+    parser.add_argument("--output", type=Path, default=Path("build/maps"))
     arguments = parser.parse_args()
-    output = arguments.output.resolve()
+    output = arguments.output
     output.mkdir(parents=True, exist_ok=True)
     pbf = arguments.pbf or output / "monaco.osm.pbf"
     if arguments.pbf is None:
         urllib.request.urlretrieve(SOURCE, pbf)
+    replication = subprocess.run(
+        ["osmium", "fileinfo", "-g", "header.option.osmosis_replication_timestamp", str(pbf)],
+        capture_output=True, text=True, check=True).stdout.strip()
 
     features = Features()
     features.apply_file(str(pbf), locations=True)
+    package = output / "monaco.mbtiles"
+    package.unlink(missing_ok=True)
     tiles = 0
-    for zoom in ZOOMS:
-        west, north = world(BOUNDS[0], BOUNDS[3], zoom)
-        east, south = world(BOUNDS[2], BOUNDS[1], zoom)
-        for column in range(int(west // TILE), int(east // TILE) + 1):
-            for row in range(int(north // TILE), int(south // TILE) + 1):
-                path = output / "tiles" / str(zoom) / str(column) / f"{row}.png"
-                path.parent.mkdir(parents=True, exist_ok=True)
-                render(features, zoom, column, row).save(path, optimize=True)
-                tiles += 1
-
-    attribution = "© OpenStreetMap contributors, ODbL"
-    style = {
-        "version": 8,
-        "name": "Bacuri test map, Monaco",
-        "sources": {
-            "monaco": {
-                "type": "raster",
-                "tiles": [f"file://{output}/tiles/{{z}}/{{x}}/{{y}}.png"],
-                "tileSize": TILE,
-                "minzoom": ZOOMS.start,
-                "maxzoom": ZOOMS.stop - 1,
-                "bounds": list(BOUNDS),
-                "attribution": attribution,
-            }
-        },
-        "layers": [
-            {"id": "background", "type": "background", "paint": {"background-color": PALETTE["background"]}},
-            {"id": "monaco", "type": "raster", "source": "monaco"},
-        ],
-    }
-    (output / "style.json").write_text(json.dumps(style, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    replication = subprocess.run(
-        ["osmium", "fileinfo", "-g", "header.option.osmosis_replication_timestamp", str(pbf)],
-        capture_output=True, text=True).stdout.strip()
+    with sqlite3.connect(package) as db:
+        db.execute("CREATE TABLE metadata (name text, value text)")
+        db.execute("CREATE TABLE tiles (zoom_level integer, tile_column integer, tile_row integer, tile_data blob)")
+        db.execute("CREATE UNIQUE INDEX tile_index ON tiles (zoom_level, tile_column, tile_row)")
+        for zoom in ZOOMS:
+            west, north = world(BOUNDS[0], BOUNDS[3], zoom)
+            east, south = world(BOUNDS[2], BOUNDS[1], zoom)
+            for column in range(int(west // TILE), int(east // TILE) + 1):
+                for row in range(int(north // TILE), int(south // TILE) + 1):
+                    png = io.BytesIO()
+                    render(features, zoom, column, row).save(png, "PNG", optimize=True)
+                    # MBTiles counts rows from the south.
+                    db.execute("INSERT INTO tiles VALUES (?,?,?,?)", (zoom, column, 2**zoom - 1 - row, png.getvalue()))
+                    tiles += 1
+        db.executemany("INSERT INTO metadata VALUES (?,?)", [
+            ("name", "Monaco"),
+            ("region_id", "bacuri-test-monaco"),
+            ("format", "png"),
+            ("bounds", ",".join(str(value) for value in BOUNDS)),
+            ("minzoom", str(ZOOMS.start)),
+            ("maxzoom", str(ZOOMS.stop - 1)),
+            ("osm_base_timestamp", replication),
+            ("attribution", "© OpenStreetMap contributors, ODbL"),
+        ])
     metadata = {
-        "name": "Monaco",
+        "package": package.name,
+        "package_sha256": hashlib.file_digest(package.open("rb"), "sha256").hexdigest(),
         "source": SOURCE if arguments.pbf is None else pbf.name,
         "source_sha256": hashlib.file_digest(pbf.open("rb"), "sha256").hexdigest(),
         "osm_base_timestamp": replication,
@@ -166,11 +165,10 @@ def main() -> int:
         "zooms": [ZOOMS.start, ZOOMS.stop - 1],
         "tiles": tiles,
         "license": "Open Database License 1.0",
-        "attribution": attribution,
+        "attribution": "© OpenStreetMap contributors, ODbL",
     }
-    (output / "metadata.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"Monaco test map: {tiles} tiles of zoom {ZOOMS.start}-{ZOOMS.stop - 1}, extract {replication}, "
-          f"{output.relative_to(Path.cwd()) if output.is_relative_to(Path.cwd()) else output}")
+    (output / "monaco.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"Monaco map package: {tiles} tiles of zoom {ZOOMS.start}-{ZOOMS.stop - 1}, extract {replication}, {package}")
     return 0
 
 

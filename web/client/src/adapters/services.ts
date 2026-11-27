@@ -220,6 +220,14 @@ export function createServices(): Services {
       }
       throw new HttpFailure(403, "invalid_factor");
     },
+    async issueDesktopCode(body) {
+      return data(
+        await api.POST("/session/desktop/codes", {
+          params: { header: auth() },
+          body,
+        }),
+      );
+    },
     async logout() {
       const { response, error } = await api.DELETE("/session", {
         params: { header: auth() },

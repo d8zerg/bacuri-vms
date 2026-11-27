@@ -16,7 +16,7 @@ OBJECTS = {
         camera_templates camera_batch_items camera_configuration_state camera_state camera_transport_audit record_camera_transport_policy ptz_commands ptz_telemetry digital_input_states camera_talk_sessions""",
     "access": """local_users site_roles point_grants browser_sessions login_attempts export_grants webauthn_credentials
         webauthn_enrollment webauthn_challenges credential_audit resource_groups group_points scoped_grants effective_grants privacy_policies identity_providers
-        external_identities oidc_requests policy_versions access_audit can_use audit_policy_change invalidate_role_sessions audit_credential_binding""",
+        external_identities oidc_requests desktop_codes policy_versions access_audit can_use audit_policy_change invalidate_role_sessions audit_credential_binding""",
     "recordings": """blocks motion_indexes enqueue_index archive_holds held_blocks protect_new_block hold_until gaps retired_through catalog_intervals timeline_intervals retained_blocks archive_retention archive_recovery
         retention_now_us retention_cutoff advance_cutoff playback_parts recording_policies recording_windows point_retention point_cutoff reap_expired""",
     "investigations": "investigations",

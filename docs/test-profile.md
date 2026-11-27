@@ -203,6 +203,8 @@ For each mandatory requirement, record the scenario, the revision, the ADR, the 
 | [ADR-020. Error catalog and localized failure messages](adr/020-error-catalog.md) | `task api:check` compares the catalog with the Problem codes, the server sources, the client messages and the error reference. The client type check rejects a code without a message |
 | [ADR-021. Placement of video analytics](adr/021-video-analytics.md) | The labeled video set gives precision, recall and false alarms per camera-hour for each analyzer. A repeated analysis of the same archive gives the same observations. Stopping the service keeps recording and live video |
 | [ADR-022. Video and map path of the desktop client](adr/022-desktop-video-path.md) | `task desktop:video` checks the first frame, the frame after a seek and after the decoder fallback, the decoder output memory, the map next to 16 cells and a station without GPU access |
+| [ADR-023. Architecture of Bacuri VMS Client](adr/023-client-architecture.md) | The client builds every module only with its declared dependencies, `task desktop:test` runs the module tests and the bench and stand checks measure frame time, frame path and recovery |
+| [ADR-024. Desktop post when the site is unreachable](adr/024-post-without-site.md) | Stopping the active node moves the post to another node with the rights checked again. With the emergency mode on, only granted cameras show live video with masks, and the site accepts the view journal after it returns |
 
 ## Single web client acceptance
 

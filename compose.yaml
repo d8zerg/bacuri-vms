@@ -115,6 +115,12 @@ services:
     image: ${COMPOSE_PROJECT_NAME}-desktop
     pull_policy: never
     gpus: all
+    # The NVIDIA driver presents frames to XWayland through the DRI devices of the host.
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "${BACURI_VIDEO_GID:-44}"
+      - "${BACURI_RENDER_GID:-991}"
     environment: &desktop-display
       TMPDIR: /tmp/bacuri-tests
       XDG_RUNTIME_DIR: /tmp/bacuri-tests

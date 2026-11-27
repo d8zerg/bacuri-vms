@@ -29,6 +29,7 @@ The caller is not signed in or the presented identity is not valid.
 | --- | --- | --- | --- | --- |
 | `unauthenticated` | 401 | Complete the named step | Operator | The browser session is missing or ended. Sign in again. |
 | `invalid_credentials` | 401 | Complete the named step | Operator | The user name or the password is not correct. |
+| `desktop_code_invalid` | 400 | Complete the named step | Operator | The one-time sign-in code of the desktop client is unknown, expired, already used or issued for another verifier or address, or the browser session that issued it ended. Start the sign-in from the desktop client again. |
 | `invalid_identity` | 401 | Complete the named step | Operator | The corporate identity provider did not confirm the identity or the required authentication level. |
 | `invalid_factor` | 403 | Complete the named step | Operator | The security key did not confirm the sign-in. |
 | `enrollment_required` | 403 | Complete the named step | Operator | The account needs a security key before the first sign-in. Use the enrollment code from the administrator. |

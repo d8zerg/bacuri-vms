@@ -1,8 +1,6 @@
-# Bacuri VMS
+# ![Bacuri mark](design/bacuri/brand/icon-48.png) Bacuri VMS
 
 [Русская версия](README.ru.md)
-
-![Bacuri mark](design/bacuri/brand/icon-48.png)
 
 **An open video management system that runs autonomously on site.**
 

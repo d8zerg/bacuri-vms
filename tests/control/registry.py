@@ -30,11 +30,13 @@ def query(sql):
     return subprocess.check_output(["psql", "-XAtq", "-v", "ON_ERROR_STOP=1", "-c", sql], text=True).strip()
 
 
-def http(method, path, body=None, headers=None, timeout=8):
+def http(method, path, body=None, headers=None, timeout=8, origin=True):
     connection = HTTPSConnection("localhost", 8443, context=TLS, timeout=timeout)
     try:
+        # A desktop client sends no browser origin.
+        base = {"Content-Type": "application/json", **({"Origin": ORIGIN} if origin else {})}
         connection.request(method, "/api/v1/" + path, body=json.dumps(body) if body is not None else None,
-                           headers={"Content-Type": "application/json", "Origin": ORIGIN, **(headers or {})})
+                           headers={**base, **(headers or {})})
         response = connection.getresponse()
         raw = response.read()
         result = json.loads(raw) if raw else None
@@ -136,6 +138,8 @@ def main():
         admin = login("admin")
         viewer = login("viewer")
         assert http("GET", "session", headers=viewer)[2]["site_roles"][0]["role"] == "operator"
+        import desktop_session
+        desktop_session.check(http, query, login, "viewer")
         config = {"name": "Gate", "main_url": "rtsp://rtsp-camera:8554/main", "secondary_url": "rtsp://rtsp-camera:8554/sub",
                   "credentials": {"username": "camera", "password": secrets.token_hex(16)}}
         key = str(uuid.uuid4())

@@ -1,9 +1,9 @@
 import QtQuick
 import QtQuick.Window
 import org.freedesktop.gstreamer.Qt6GLVideoItem
-import Bacuri.Prototype
+import Bacuri.Vms.Client.Map
 
-// Measurement window of the video prototype: a grid of video cells and a bar that moves
+// Measurement window of the video and map bench of Bacuri VMS Client: a grid of video cells and a bar that moves
 // continuously, so the scene graph renders at the display rate and the frame time of the
 // interface is measured independently of the video frame rate. With a map style the map is
 // shown next to the grid and turns slowly, so it renders continuously beside the video.
@@ -20,7 +20,7 @@ Window {
     height: 900
     visible: true
     color: "#12110f"
-    title: "Bacuri desktop prototype"
+    title: "Bacuri VMS Client bench"
 
     Grid {
         id: grid
@@ -62,7 +62,7 @@ Window {
         anchors.topMargin: 8
         anchors.bottom: grid.bottom
 
-        sourceComponent: MapItem {
+        sourceComponent: MapView {
             objectName: "map"
             styleUrl: root.mapStyle
             latitude: 43.7375
