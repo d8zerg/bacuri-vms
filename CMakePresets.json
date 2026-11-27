@@ -31,6 +31,7 @@
       "environment": { "BACURI_CONAN_GENERATORS": "/opt/bacuri/deps/gcc-release" },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "BACURI_VMS_BUILD_ACCELERATION_QUALIFICATION": true,
         "BUILD_TESTING": false,
         "BACURI_VMS_BUILD_RTSP_FIXTURE": false
       }

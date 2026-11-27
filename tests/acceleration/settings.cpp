@@ -1,4 +1,5 @@
 #include "media/acceleration/settings.hpp"
+#include "media/acceleration/budget.hpp"
 #include <nlohmann/json.hpp>
 #include <gtest/gtest.h>
 namespace
@@ -31,6 +32,19 @@ void gpu(Json& status, const char* id, unsigned sessions, std::initializer_list<
                                {"fps", 100.},
                                {"sampled_device_memory_bytes", 200}});
     }
+}
+TEST(AccelerationSettings, DistinguishesObservedEncoderExhaustionFromTheProbeCeiling)
+{
+    auto p = probe();
+    gpu(p, "gpu", 12, {"mask"});
+    auto& sessions = p["result"]["measurements"][0];
+    EXPECT_FALSE(budgets(p).at(0).session_limit_observed);
+    sessions["reached_ceiling"] = true;
+    EXPECT_FALSE(budgets(p).at(0).session_limit_observed);
+    sessions["reached_ceiling"] = false;
+    const auto device = budgets(p).at(0);
+    EXPECT_TRUE(device.session_limit_observed);
+    EXPECT_EQ(device.sessions, 12u);
 }
 TEST(AccelerationSettings, NormalizesManualTasksAndRejectsOverrides)
 {

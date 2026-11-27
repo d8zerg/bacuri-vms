@@ -156,6 +156,7 @@ grpc::Status Scheduling::update(const v1::TaskUpdate& request, v1::TaskAssignmen
         reply.set_grant(assignment.grant);
         if (const auto it = factories_.find(assignment.device); it != factories_.end()) {
             reply.set_backend(it->second.at("backend").get<std::string>());
+            reply.set_verified_encoder_sessions(assignment.encoder_sessions);
             for (const auto& [codec, factory] : it->second.at("codecs").items())
                 (*reply.mutable_codecs())[codec] = factory.get<std::string>();
         }

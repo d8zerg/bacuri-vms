@@ -13,6 +13,7 @@ add_compile_options(
     "$<$<CONFIG:Release>:-ffile-prefix-map=${CMAKE_BINARY_DIR}=./build>"
 )
 
+option(BACURI_VMS_BUILD_ACCELERATION_QUALIFICATION "Enable release qualification workers" OFF)
 option(BACURI_VMS_BUILD_RTSP_FIXTURE "Build the test RTSP camera" OFF)
 include(CTest)
 

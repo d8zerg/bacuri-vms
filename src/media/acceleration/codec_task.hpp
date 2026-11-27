@@ -10,6 +10,7 @@ namespace bacuri::vms::acceleration
 struct CodecPath {
     std::string device{"cpu"}, backend{"cpu"}, grant;
     std::map<std::string, std::string> factories;
+    unsigned encoder_sessions{};
     std::string decoder(const std::string& codec) const;
     std::string encoder(bool live) const;
 };

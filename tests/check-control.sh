@@ -9,6 +9,7 @@ if [ "${1:-}" = clang-asan-ubsan ]; then
     export ASAN_OPTIONS="${ASAN_OPTIONS:+$ASAN_OPTIONS:}log_path=$test_dir/asan"
     export UBSAN_OPTIONS="${UBSAN_OPTIONS:+$UBSAN_OPTIONS:}log_path=$test_dir/ubsan"
 fi
+qualification_bin=
 cleanup() {
     result=$?
     # A daemon can emit a sanitizer diagnostic during shutdown after the last assertion.
@@ -20,12 +21,20 @@ cleanup() {
     done
     dropdb --if-exists -- "$database" || result=1
     rm -r -- "$test_dir" || result=1
+    if [ -n "${qualification_bin:-}" ]; then rm -r -- "$qualification_bin" || result=1; fi
     exit "$result"
 }
 createdb --template=template0 -- "$database"
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+if [ "${2:-}" = acceleration-qualification ]; then
+    qualification_bin=$(mktemp -d /tmp/bacuri-qualification-bin.XXXXXXXX)
+    for program in bacuri-vms-core bacuri-vms-media bacuri-vms-recorder bacuri-pipeline-check bacuri-scheduler-worker; do
+        cp "$BACURI_TEST_BIN/$program" "$qualification_bin/"
+    done
+    export BACURI_TEST_BIN="$qualification_bin"
+fi
 export PGDATABASE="$database"
 export BACURI_SITE_ID=10000000-0000-4000-8000-000000000001
 export BACURI_NODE_ID=70000000-0000-4000-8000-000000000001
@@ -68,6 +77,7 @@ case "${2:-control}" in
         openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -noenc -days 1 -subj /CN=workspace.test \
             -addext 'subjectAltName=DNS:localhost,DNS:workspace.test' -keyout "$BACURI_TLS_KEY" -out "$BACURI_TLS_CERT" 2>/dev/null
         PYTHONDONTWRITEBYTECODE=1 python3 tests/access/scenario.py "$test_dir" ;;
+    acceleration-qualification) timeout --kill-after=2s 600s python3 -B tests/acceleration/qualification.py "$test_dir" ;;
     acceleration) PYTHONDONTWRITEBYTECODE=1 python3 tests/acceleration/node.py "$test_dir" ;;
     control)
         ctest --test-dir "$BACURI_TEST_BIN" -R DatabasePool --no-tests=error --output-on-failure

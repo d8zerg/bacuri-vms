@@ -1,5 +1,5 @@
 #include "media/acceleration/probe.hpp"
-#include "media/acceleration/library.hpp"
+#include "media/acceleration/encoder_sessions.hpp"
 #include "media/privacy.hpp"
 #include "archive/analysis.hpp"
 #include "platform/scope_exit.hpp"
@@ -110,10 +110,8 @@ bool foreign_video(const Json& dev)
     const auto pci = dev.at("id").get<std::string>().substr(7);
     if (nvml.symbol<int(const char*, void**)>("nvmlDeviceGetHandleByPciBusId_v2")(pci.c_str(), &handle))
         return false;
-    unsigned sessions{}, fps{}, latency{}, util{}, period{};
-    return (!nvml.symbol<int(void*, unsigned*, unsigned*, unsigned*)>("nvmlDeviceGetEncoderStats")(
-                handle, &sessions, &fps, &latency) &&
-            sessions > 0) ||
+    unsigned util{}, period{};
+    return encoder_sessions(nvml, handle).value_or(0) > 0 ||
            (!nvml.symbol<int(void*, unsigned*, unsigned*)>("nvmlDeviceGetDecoderUtilization")(handle, &util,
                                                                                               &period) &&
             util > 0);
@@ -186,10 +184,9 @@ class DeviceCounters
         if (auto bytes = memory())
             values["memory_bytes"] = *bytes;
         if (handle_) {
-            unsigned sessions{}, fps{}, latency{}, percent{}, period{};
-            if (nvml_->symbol<int(void*, unsigned*, unsigned*, unsigned*)>("nvmlDeviceGetEncoderStats")(
-                    handle_, &sessions, &fps, &latency) == 0)
-                values["encoder_sessions"] = sessions;
+            unsigned percent{}, period{};
+            if (const auto sessions = encoder_sessions(*nvml_, handle_))
+                values["encoder_sessions"] = *sessions;
             for (const auto& [engine, symbol] : {std::pair{"encode", "nvmlDeviceGetEncoderUtilization"},
                                                  std::pair{"decode", "nvmlDeviceGetDecoderUtilization"}})
                 if (nvml_->symbol<int(void*, unsigned*, unsigned*)>(symbol)(handle_, &percent, &period) == 0)

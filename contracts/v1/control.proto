@@ -57,6 +57,8 @@ message TaskAssignment {
   // GStreamer factories qualified for this physical device.
   map<string, string> codecs = 5;
   string backend = 6;
+  // Observed H.264 encoder limit. Zero when the probe stopped before an encoder was refused.
+  uint32 verified_encoder_sessions = 7;
 }
 message NodePolicy {
   string mode = 1;

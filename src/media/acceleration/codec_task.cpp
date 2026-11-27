@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <array>
 #include "platform/settings.hpp"
+#include "platform/scope_exit.hpp"
+#include "media/acceleration/encoder_sessions.hpp"
 #include <glib.h>
 #include <cstdio>
 #include <nlohmann/json.hpp>
@@ -15,10 +17,34 @@ namespace
 using namespace std::chrono_literals;
 using Clock = std::chrono::steady_clock;
 using Report = v1::TaskUpdate;
-auto verified_factory(const std::string& name, const CodecPath& path)
+bool encoders_occupied(const CodecPath& path)
+{
+    if (path.backend != "nvidia" || !path.device.starts_with("nvidia:") || !path.encoder_sessions)
+        return false;
+    try {
+        Library nvml{"libnvidia-ml.so.1"};
+        if (!nvml)
+            return false;
+        const auto shutdown = nvml.symbol<int()>("nvmlShutdown");
+        if (nvml.symbol<int()>("nvmlInit_v2")() != 0)
+            return false;
+        platform::ScopeExit close{[&] { shutdown(); }};
+        void* handle{};
+        if (nvml.symbol<int(const char*, void**)>("nvmlDeviceGetHandleByPciBusId_v2")(path.device.c_str() + 7,
+                                                                                      &handle))
+            return false;
+        return encoder_sessions(nvml, handle).value_or(0) >= path.encoder_sessions;
+    } catch (const std::runtime_error&) {
+        return false;
+    }
+}
+auto verified_factory(const std::string& name, const CodecPath& path, bool encoder = false)
 {
     auto element = std::unique_ptr<GstElement, decltype(&gst_object_unref)>{
         gst_element_factory_make(name.c_str(), nullptr), gst_object_unref};
+    // The nvcodec plugin can omit the encoder factory when its registration-time session open fails.
+    if (!element && encoder && encoders_occupied(path))
+        throw CodecFailure{"Encoder session unavailable", CodecFault::sessions};
     if (element && path.backend == "nvidia" &&
         g_object_class_find_property(G_OBJECT_GET_CLASS(element.get()), "cuda-device-id")) {
         guint ordinal{};
@@ -88,7 +114,7 @@ std::string CodecPath::encoder(bool live) const
     const auto factory = factories.find("h264_enc");
     if (factory == factories.end())
         throw CodecFailure("Assigned encoder unavailable");
-    verified_factory(factory->second, *this);
+    verified_factory(factory->second, *this, true);
     if (backend == "nvidia")
         return factory->second + " zerolatency=true bframes=0 " +
                (live ? "bitrate=2000 gop-size=25" : "rc-mode=constqp qp-const-i=16 qp-const-p=16");
@@ -118,7 +144,7 @@ struct CodecTask::State {
         held = reply.grant();
         if (!held.empty() && (reply.backend() == "nvidia" || reply.backend() == "vaapi") &&
             Clock::now() < start + std::chrono::milliseconds{reply.valid_for_ms()}) {
-            choice = {reply.device_id(), reply.backend(), held, {}};
+            choice = {reply.device_id(), reply.backend(), held, {}, reply.verified_encoder_sessions()};
             for (const auto& [key, name] : reply.codecs())
                 if (!name.empty() && name.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789_") == name.npos)
                     choice.factories.emplace(key, name);

@@ -35,6 +35,7 @@ struct Device {
     std::uint64_t memory{};
     Cost used;
     std::array<std::optional<Cost>, tasks.size()> costs{};
+    bool session_limit_observed{};
     bool operator==(const Device&) const = default;
     bool fits(const Cost& reserved, const Cost& cost) const;
 };

@@ -1,0 +1,7 @@
+services:
+  rtsp-camera:
+    image: ${BACURI_QUALIFICATION_CAMERA_IMAGE:?missing camera image}
+    ports: !reset []
+networks:
+  default:
+    internal: true

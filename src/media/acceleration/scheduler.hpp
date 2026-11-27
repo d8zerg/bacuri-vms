@@ -22,6 +22,7 @@ struct TaskUpdate {
 };
 struct Assignment {
     std::string device, grant, reason;
+    unsigned encoder_sessions{};
 };
 struct Transition {
     std::string task, kind, from, to, reason, device;

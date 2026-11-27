@@ -14,11 +14,14 @@ add_library(bacuri-node-probe STATIC acceleration/probe.cpp acceleration/health.
 target_compile_definitions(bacuri-node-probe PRIVATE BACURI_VA_DRIVER_DIRECTORY="/usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/dri")
 target_link_libraries(bacuri-node-probe PUBLIC bacuri-acceleration-settings bacuri-video-transform bacuri-vms-analysis ${CMAKE_DL_LIBS})
 
-if(BUILD_TESTING)
+if(BUILD_TESTING OR BACURI_VMS_BUILD_ACCELERATION_QUALIFICATION)
     add_executable(bacuri-pipeline-check EXCLUDE_FROM_ALL "${PROJECT_SOURCE_DIR}/tests/acceleration/pipelines.cpp")
     target_link_libraries(bacuri-pipeline-check PRIVATE bacuri-video-transform bacuri-vms-analysis)
     add_executable(bacuri-scheduler-worker EXCLUDE_FROM_ALL "${PROJECT_SOURCE_DIR}/tests/acceleration/worker.cpp")
     target_link_libraries(bacuri-scheduler-worker PRIVATE bacuri-vms-media-auth PkgConfig::GST nlohmann_json::nlohmann_json)
+endif()
+
+if(BUILD_TESTING)
     add_executable(bacuri-node-probe-test "${PROJECT_SOURCE_DIR}/tests/acceleration/probe.cpp"
         "${PROJECT_SOURCE_DIR}/tests/acceleration/settings.cpp" "${PROJECT_SOURCE_DIR}/tests/acceleration/scheduler.cpp")
     target_link_libraries(bacuri-node-probe-test PRIVATE bacuri-node-probe bacuri-acceleration-settings GTest::gtest_main)

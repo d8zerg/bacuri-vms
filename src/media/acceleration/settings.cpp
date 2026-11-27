@@ -75,8 +75,10 @@ std::vector<Device> budgets(const Json& probe)
             if (m.at("device_id") == device.id && m.at("state") == "measured")
                 samples.measured.emplace(
                     std::make_pair(m.at("operation").get<std::string>(), m.at("codec").get<std::string>()), &m);
-        if (const auto* s = samples.find("sessions", "h264"))
+        if (const auto* s = samples.find("sessions", "h264")) {
             device.sessions = s->value("verified_sessions", 0u);
+            device.session_limit_observed = !s->value("reached_ceiling", true);
+        }
         std::ranges::transform(tasks, device.costs.begin(),
                                [&](const Task& task) { return samples.cost(task, device.memory); });
         devices.push_back(std::move(device));

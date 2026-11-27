@@ -494,6 +494,20 @@ tasks:
         run {{if eq .BACKEND "vaapi"}}--build{{end}} --rm --no-deps --user "$(id -u):$(id -g)" -T -e BACURI_PROBE_BACKEND={{.BACKEND}}
         dev sh tests/check-control.sh gcc-debug acceleration
 
+  acceleration:qualify:
+    desc: Measure node capacity, fault continuity or a time-limited Auto load test on the selected hardware
+    vars:
+      BACKEND: '{{default "cpu" .BACKEND}}'
+      PHASE: '{{default "capacity" .PHASE}}'
+    requires:
+      vars:
+        - name: BACKEND
+          enum: [cpu, nvidia, vaapi]
+        - name: PHASE
+          enum: [capacity, faults, soak]
+    deps: [dev:image]
+    cmd: 'bash tests/acceleration/qualify.sh {{.BACKEND | shellQuote}} {{.PHASE | shellQuote}}'
+
   acceleration:cost:
     desc: Measure server task costs on four video profiles using the CPU or NVIDIA backend
     vars:

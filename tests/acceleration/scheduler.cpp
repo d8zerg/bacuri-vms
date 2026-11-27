@@ -78,10 +78,12 @@ TEST_F(NodeScheduler, ReclaimsExpiredGrantsAndKeepsEqualPriorityInArrivalOrder)
 TEST_F(NodeScheduler, ExternalSessionLimitPreemptsExportAndKeepsTheNewLiveStream)
 {
     gpu.sessions = 2;
+    gpu.session_limit_observed = true;
     scheduler.configure({"auto", {}}, {gpu}, false);
     auto exp = update("export", 3);
     auto live = update("live", 0);
     ASSERT_EQ(live.device, "gpu");
+    EXPECT_EQ(live.encoder_sessions, 2u);
     auto retry = update("live", 0, Report::session_limit, live.grant);
     EXPECT_EQ(retry.device, "cpu");
     EXPECT_EQ(update("export", 3).device, "queue");

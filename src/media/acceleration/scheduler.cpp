@@ -250,6 +250,7 @@ void Scheduler::plan(Instant now, const Job* polling)
                 job.held = best->id;
                 job.charge = cost;
                 job.grant_until = job.expires;
+                job.assignment.encoder_sessions = best->session_limit_observed ? best->sessions : 0u;
                 job.assignment.grant = token();
                 move(id, job, best->id, "within_budget");
                 continue;
