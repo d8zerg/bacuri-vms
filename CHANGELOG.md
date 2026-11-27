@@ -4,6 +4,8 @@
 
 ### Added
 
+- The server acceleration cost registry includes reproducible CPU and NVIDIA measurements for live video, export, archive previews and motion analysis at 1080p and 2K. [Server task costs](docs/server-acceleration-costs.md)
+
 - ADR-025 defines the acceleration of server tasks per node in the CPU only, manual and automatic modes. A node computes on the CPU only after deployment, and leaving this mode starts a background check of the decoders, encoders and inference backends with a measured budget. In the manual mode the administrator selects the tasks that use the GPU, in the automatic mode the node selects them with live video and masks ahead of live analysis and background jobs and shows its choice read only. A failed device or an exceeded budget moves the tasks to the CPU with a warning. Observations record the backend, and models are stated per measured backend. [ADR-025](docs/adr/025-server-acceleration.md)
 
 - ADR-024 defines the desktop post when the site is unreachable: the client reconnects to another node of the installation and restores the post with the rights checked again, and an optional emergency mode, off by default, shows live video of granted cameras directly with masks, no recording and a view journal for the site audit. The desktop plan adds step 5.14 and the parity register adds the site failover and emergency live scenarios. [ADR-024](docs/adr/024-post-without-site.md)

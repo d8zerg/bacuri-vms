@@ -137,3 +137,6 @@ endif()
 if(BACURI_VMS_BUILD_RTSP_FIXTURE)
     add_subdirectory(tests/fixtures)
 endif()
+
+add_executable(bacuri-acceleration-cost EXCLUDE_FROM_ALL tests/fixtures/acceleration_cost.cpp)
+target_link_libraries(bacuri-acceleration-cost PRIVATE bacuri-video-transform bacuri-vms-analysis PkgConfig::GST)

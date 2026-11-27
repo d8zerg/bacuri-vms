@@ -477,6 +477,19 @@ tasks:
     deps: [dev:image]
     cmd: '{{.BUILD_RUN}} python3 tools/desktop_parity.py --accept'
 
+  acceleration:cost:
+    desc: Measure server task costs on four video profiles using the CPU or NVIDIA backend
+    vars:
+      BACKEND: '{{default "cpu" .BACKEND}}'
+    requires:
+      vars:
+        - name: BACKEND
+          enum: [cpu, nvidia]
+    deps: [dev:image]
+    cmds:
+      - '{{.BUILD_RUN}} sh tools/build-preset gcc-release --target bacuri-acceleration-cost'
+      - '{{.COMPOSE_RUN}} -T {{if eq .BACKEND "nvidia"}}acceleration-nvidia{{else}}builder{{end}} python3 -B tools/server_acceleration_cost.py --backend {{.BACKEND | shellQuote}}'
+
   desktop:image:
     internal: true
     run: once

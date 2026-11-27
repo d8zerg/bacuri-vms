@@ -1,7 +1,9 @@
 """Validate the local Markdown links, scenario matrix and decision registry."""
 
 from functools import cache
+import csv
 import json
+import math
 from pathlib import Path
 import os
 import re
@@ -211,6 +213,38 @@ def check_translations(sources):
             raise ValueError(f"{russian}: missing English version")
 
 
+def check_acceleration_costs():
+    profiles = {f"{codec}-{size}" for codec in ("h264", "h265") for size in ("1920x1080", "2560x1440")}
+    encoded = {"mask", "scale720", "transcode", "export-mask", "export-transcode"}
+    workloads = encoded | {"keyframe", "thumbnail", "motion"}
+    expected = {(profile, workload) for profile in profiles for workload in workloads}
+    for backend in ("cpu", "nvidia"):
+        path = Path("tests/acceleration") / f"{backend}.csv"
+        with path.open(newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        if len(rows) != len(expected) or {(r["input"], r["workload"]) for r in rows} != expected:
+            raise ValueError(f"{path}: incomplete or duplicate acceleration measurements")
+        for row in rows:
+            workload = row["workload"]
+            gpu = backend == "nvidia"
+            counts = {"input_frames": 150, "output_frames": 6 if workload in ("keyframe", "thumbnail") else 150,
+                      "motion_samples": 22 if workload == "motion" else 0, "dec_sessions": int(gpu),
+                      "enc_sessions": int(gpu and workload in encoded)}
+            if row["path"] != backend or any(int(row[key]) != count for key, count in counts.items()):
+                raise ValueError(f"{path}: invalid workload counts for {row['input']}/{workload}")
+            usage = [float(row[key]) for key in ("cpu_cores_at_25fps", "peak_rss_mib", "wall_s")]
+            vram, samples = int(row["sampled_vram_mib"]), int(row["gpu_samples"])
+            if not (all(math.isfinite(x) and x > 0 for x in usage)
+                    and (vram > 0 and samples >= 2 if gpu else vram == samples == 0)):
+                raise ValueError(f"{path}: missing resource measurements for {row['input']}/{workload}")
+            for engine in ("sm", "enc", "dec"):
+                value = row[f"{engine}_ms_per_input_frame"]
+                if gpu and engine == "sm" and value == "":
+                    continue
+                if not 0 <= float(value) <= (40 if gpu else 0):
+                    raise ValueError(f"{path}: invalid {engine} time for {row['input']}/{workload}")
+
+
 def check():
     docs = Path("docs")
     # The concept and the development plans are working notes of the author outside the published documentation.
@@ -220,6 +254,7 @@ def check():
     # Every document with a Russian version under docs/ru/ is checked as a pair.
     check_translations([Path("README.md"),
                         *(docs / russian.relative_to(docs / "ru") for russian in sorted((docs / "ru").rglob("*.md")))])
+    check_acceleration_costs()
     count = 0
     for path in files:
         for number, line in lines(path):

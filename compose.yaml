@@ -97,6 +97,12 @@ services:
     volumes:
       - .:/workspace
 
+  acceleration-nvidia:
+    extends: {service: builder}
+    gpus: all
+    environment:
+      NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
+
   desktop:
     profiles: ["tools"]
     build:

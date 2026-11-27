@@ -4,6 +4,8 @@
 
 **Status** - Accepted.
 
+[Server task costs and measurement procedure](../server-acceleration-costs.md)
+
 **Context.** A node of the site may have no GPU, an NVIDIA GPU with NVDEC and NVENC, an Intel or AMD GPU with VA-API, or an accelerator for neural network inference through CUDA or OpenVINO. Recording writes the camera stream without re-encoding and needs no decoding. Other tasks decode, draw or encode video: privacy masks in live video, live profiles for the web, mobile and wall clients, export, keyframes and thumbnails, and the analysis of [ADR-021](021-video-analytics.md). Consumer GPUs limit the number of encoder sessions, and video memory is shared by every task of the node. A fixed choice of the accelerator either leaves the GPU idle or lets a background task take the encoder from live viewing.
 
 **Options.**
