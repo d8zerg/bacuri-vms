@@ -10,5 +10,5 @@ struct ClipFrames {
 };
 ClipFrames select_frames(const std::filesystem::path& input, const std::filesystem::path& output,
                          std::int64_t from_us, std::int64_t until_us, bool fragmented = false,
-                         const domain::ImageRegions& regions = {});
+                         const domain::ImageRegions& regions = {}, const std::string& codec = "h264");
 } // namespace bacuri::vms::archive

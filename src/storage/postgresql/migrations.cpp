@@ -50,7 +50,8 @@ void migrate()
                                     "0030_audit_details.sql",
                                     "0031_investigation_owner.sql",
                                     "0032_desktop_sessions.sql",
-                                    "0033_node_acceleration.sql"};
+                                    "0033_node_acceleration.sql",
+                                    "0034_audit_actions.sql"};
     if (version > static_cast<int>(migrations.size())) {
         throw std::runtime_error("Unsupported database schema");
     }

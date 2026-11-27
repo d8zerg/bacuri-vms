@@ -3240,6 +3240,7 @@ components:
                 properties:
                   task: {$ref: '#/components/schemas/AccelerationTask'}
                   device_id: {type: string, description: Device ID, cpu or queue.}
+                  running_device_id: {type: string, description: Last device confirmed by the worker after producing a picture.}
                   releasing_device_id: {type: string, description: Previous GPU grant still held pending release or expiry.}
                   reason: {type: string}
                   count: {type: integer, minimum: 1}

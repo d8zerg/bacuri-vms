@@ -396,6 +396,7 @@ services:
       BACURI_CAMERA_NETWORKS: *networks
       BACURI_SOCKET: /ipc/recorder.sock
       BACURI_KEY_FILE: /identity/configuration.key
+      BACURI_MEDIA_SOCKET: /media-ipc/media.sock
       BACURI_RECORDER_DB: /recorder-data/configuration.db
       BACURI_PREVIEW_SOCKET: /preview-ipc/preview.sock
       BACURI_CATALOG_SOCKET: /catalog-ipc/catalog.sock
@@ -407,6 +408,7 @@ services:
       - archive-data:/archive
       - catalog-ipc:/catalog-ipc:ro
       - recorder-data:/recorder-data
+      - media-ipc:/media-ipc:ro
       - control-ipc:/ipc
     command: ["/opt/bacuri/bacuri-vms-recorder"]
     healthcheck:

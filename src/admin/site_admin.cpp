@@ -202,6 +202,7 @@ void setup(char** v)
     Env recorder = with_metrics(common, "recorder");
     recorder.insert(*media.find("BACURI_ARCHIVE_DIR"));
     recorder.insert(*media.find("BACURI_PREVIEW_SOCKET"));
+    recorder.insert(*media.find("BACURI_MEDIA_SOCKET"));
     recorder["BACURI_KEY_FILE"] = (config / "recorder/configuration.key").string();
     recorder["BACURI_RECORDER_DB"] = "/var/lib/bacuri-recorder/configuration.db";
     envfile("recorder", recorder);

@@ -1,7 +1,9 @@
 add_library(bacuri-vms-media-auth STATIC lease.cpp)
 target_link_libraries(bacuri-vms-media-auth PUBLIC bacuri-vms-platform bacuri-vms-rpc bacuri-vms-metrics)
-add_library(bacuri-video-transform STATIC clip.cpp privacy.cpp)
-target_link_libraries(bacuri-video-transform PUBLIC PkgConfig::GST bacuri-vms-evidence)
+add_library(bacuri-codec-task STATIC acceleration/codec_task.cpp)
+target_link_libraries(bacuri-codec-task PUBLIC bacuri-vms-media-auth PkgConfig::GST PRIVATE nlohmann_json::nlohmann_json ${CMAKE_DL_LIBS})
+add_library(bacuri-video-transform STATIC clip.cpp privacy.cpp live_codec.cpp)
+target_link_libraries(bacuri-video-transform PUBLIC PkgConfig::GST bacuri-vms-evidence bacuri-codec-task)
 
 add_library(bacuri-acceleration-settings STATIC acceleration/settings.cpp)
 target_link_libraries(bacuri-acceleration-settings PUBLIC nlohmann_json::nlohmann_json)
@@ -13,6 +15,8 @@ target_compile_definitions(bacuri-node-probe PRIVATE BACURI_VA_DRIVER_DIRECTORY=
 target_link_libraries(bacuri-node-probe PUBLIC bacuri-acceleration-settings bacuri-video-transform bacuri-vms-analysis ${CMAKE_DL_LIBS})
 
 if(BUILD_TESTING)
+    add_executable(bacuri-pipeline-check EXCLUDE_FROM_ALL "${PROJECT_SOURCE_DIR}/tests/acceleration/pipelines.cpp")
+    target_link_libraries(bacuri-pipeline-check PRIVATE bacuri-video-transform bacuri-vms-analysis)
     add_executable(bacuri-scheduler-worker EXCLUDE_FROM_ALL "${PROJECT_SOURCE_DIR}/tests/acceleration/worker.cpp")
     target_link_libraries(bacuri-scheduler-worker PRIVATE bacuri-vms-media-auth PkgConfig::GST nlohmann_json::nlohmann_json)
     add_executable(bacuri-node-probe-test "${PROJECT_SOURCE_DIR}/tests/acceleration/probe.cpp"

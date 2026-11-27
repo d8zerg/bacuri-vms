@@ -6,13 +6,13 @@ namespace bacuri::vms::archive
 {
 inline void from_json(const nlohmann::json& j, MotionSample& sample)
 {
-    if (j.size() != 3 || !j.at("at").is_number_integer())
+    if (j.size() != (j.contains("backend") ? 4u : 3u) || !j.at("at").is_number_integer())
         throw std::invalid_argument("Invalid motion sample");
-    sample = {j.at("at"), j.at("cells"), j.at("image")};
+    sample = {j.at("at"), j.at("cells"), j.at("image"), j.value("backend", std::string{"cpu"})};
 }
 inline void to_json(nlohmann::json& j, const MotionSample& sample)
 {
-    j = {{"at", sample.offset}, {"cells", sample.cells}, {"image", sample.image}};
+    j = {{"at", sample.offset}, {"cells", sample.cells}, {"image", sample.image}, {"backend", sample.backend}};
 }
 inline void from_json(const nlohmann::json& j, MotionIndex& index)
 {

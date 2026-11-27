@@ -95,6 +95,11 @@ Assignment Scheduler::update(const TaskUpdate& request, Instant now)
         it = jobs_.emplace(request.id, std::move(pending)).first;
     }
     auto& job = it->second;
+    if (request.report == Report::poll || request.released == job.assignment.grant)
+        job.cpu_until_checkpoint = request.cpu_until_checkpoint;
+    if (request.running == "cpu" ||
+        (!job.held.empty() && request.running == job.held && request.running_grant == job.assignment.grant))
+        job.running = request.running;
     if (request.report != Report::poll) {
         if (request.report == Report::finished && request.released == job.assignment.grant) {
             move(it->first, job, "finished", "finished");
@@ -117,6 +122,7 @@ Assignment Scheduler::update(const TaskUpdate& request, Instant now)
                 job.promote = now + cooldown;
             }
             job.held.clear();
+            job.running.clear();
             job.assignment.grant.clear();
             job.charge = {};
         }
@@ -139,6 +145,8 @@ void Scheduler::expire(Instant now)
     });
     for (auto& [id, job] : jobs_)
         if (!job.held.empty() && job.assignment.device != job.held && now >= job.grant_until) {
+            if (job.running == job.held)
+                job.running.clear();
             job.held.clear();
             job.assignment.grant.clear();
             job.charge = {};
@@ -189,6 +197,8 @@ void Scheduler::plan(Instant now, const Job* polling)
             std::ranges::find(policy_.gpu_tasks, tasks[job.kind].name) != policy_.gpu_tasks.end();
         if (policy_.mode == "cpu_only")
             reason = "cpu_only";
+        else if (job.cpu_until_checkpoint)
+            reason = "cpu_checkpoint";
         else if (!selected)
             reason = "not_selected";
         else if (stale_)
@@ -310,12 +320,12 @@ nlohmann::json Scheduler::status() const
     using Json = nlohmann::json;
     Json warnings = Json::array(), devices = Json::array();
     std::map<std::string, unsigned> counts{{"gpu", 0}, {"cpu", 0}, {"queue", 0}};
-    std::map<std::tuple<std::size_t, std::string, std::string, std::string>, unsigned> assignments;
+    std::map<std::tuple<std::size_t, std::string, std::string, std::string, std::string>, unsigned> assignments;
     std::map<std::string, Cost> used;
     for (const auto& [id, job] : jobs_) {
         if (!job.held.empty())
             reserve(used[job.held], job.charge);
-        ++assignments[{job.kind, job.assignment.device, job.assignment.reason, job.held}];
+        ++assignments[{job.kind, job.assignment.device, job.assignment.reason, job.held, job.running}];
         ++counts[job.assignment.device == "cpu" || job.assignment.device == "queue" ? job.assignment.device
                                                                                     : "gpu"];
     }
@@ -333,8 +343,10 @@ nlohmann::json Scheduler::status() const
     }
     Json paths = Json::array();
     for (const auto& [key, count] : assignments) {
-        const auto& [kind, device, reason, held] = key;
+        const auto& [kind, device, reason, held, running] = key;
         Json path{{"task", tasks[kind].name}, {"device_id", device}, {"reason", reason}, {"count", count}};
+        if (!running.empty())
+            path["running_device_id"] = running;
         if (!held.empty() && held != device)
             path["releasing_device_id"] = held;
         paths.push_back(std::move(path));

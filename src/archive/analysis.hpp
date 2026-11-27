@@ -12,6 +12,7 @@ constexpr int preview_width = 64, preview_height = 48, grid_width = 16, grid_hei
 struct MotionSample {
     std::int64_t offset{};
     std::string cells, image;
+    std::string backend{"cpu"};
 };
 struct MotionIndex {
     std::vector<std::int64_t> frames;
@@ -19,7 +20,8 @@ struct MotionIndex {
 };
 MotionSample motion_sample(std::span<const unsigned char> previous, std::span<const unsigned char> image,
                            std::int64_t offset);
-MotionIndex analyze_recording(const std::filesystem::path&, std::int64_t duration);
+MotionIndex analyze_recording(const std::filesystem::path&, std::int64_t duration,
+                              const std::string& codec = "h264");
 void validate_analysis(const MotionIndex&, std::int64_t duration);
 } // namespace bacuri::vms::archive
 

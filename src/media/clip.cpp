@@ -1,9 +1,11 @@
 #include "media/clip.hpp"
+#include "media/acceleration/codec_task.hpp"
 #include "archive/evidence.hpp"
 #include "media/privacy.hpp"
 #include <gst/app/gstappsink.h>
 #include <gst/app/gstappsrc.h>
 #include <chrono>
+#include <atomic>
 #include <deque>
 #include <mutex>
 #include <stdexcept>
@@ -24,6 +26,7 @@ struct FrameTiming {
     std::deque<std::pair<GstClockTime, GstClockTime>> samples;
     GstClockTime base = GST_CLOCK_TIME_NONE;
     bool invalid{};
+    std::atomic_bool emitted{};
     static GstPadProbeReturn restore(GstPad*, GstPadProbeInfo* info, gpointer data)
     {
         auto& timing = *static_cast<FrameTiming*>(data);
@@ -37,6 +40,7 @@ struct FrameTiming {
             timing.base = GST_BUFFER_PTS(buffer);
         const auto [pts, duration] = timing.samples.front();
         timing.samples.pop_front();
+        timing.emitted.store(true, std::memory_order_relaxed);
         buffer = gst_buffer_make_writable(buffer);
         GST_PAD_PROBE_INFO_DATA(info) = buffer;
         GST_BUFFER_PTS(buffer) = GST_BUFFER_DTS(buffer) = timing.base + pts;
@@ -46,10 +50,13 @@ struct FrameTiming {
 };
 struct Pipeline {
     decltype(own(static_cast<GstElement*>(nullptr))) pipeline;
-    explicit Pipeline(const char* spec) : pipeline{own(gst_parse_launch(spec, nullptr))}
+    explicit Pipeline(const std::string& spec) : pipeline{own(static_cast<GstElement*>(nullptr))}
     {
-        if (!pipeline)
-            throw std::runtime_error("Cannot create export pipeline");
+        GError* raw{};
+        pipeline.reset(gst_parse_launch(spec.c_str(), &raw));
+        std::unique_ptr<GError, decltype(&g_error_free)> error{raw, g_error_free};
+        if (!pipeline || error)
+            throw acceleration::CodecFailure("Cannot create export pipeline");
     }
     Pipeline(const Pipeline&) = delete;
     Pipeline& operator=(const Pipeline&) = delete;
@@ -67,7 +74,7 @@ struct Pipeline {
     void start()
     {
         if (gst_element_set_state(pipeline.get(), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE)
-            throw std::runtime_error("Cannot start export pipeline");
+            throw acceleration::CodecFailure("Cannot start export pipeline");
     }
     bool finished(GstClockTime timeout)
     {
@@ -79,32 +86,33 @@ struct Pipeline {
                                        static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR)),
             gst_message_unref};
         if (msg && GST_MESSAGE_TYPE(msg.get()) == GST_MESSAGE_ERROR)
-            throw std::runtime_error("Export codec failed");
+            acceleration::pipeline_error(msg.get());
         return bool(msg);
     }
 };
-} // namespace
-ClipFrames select_frames(const std::filesystem::path& input, const std::filesystem::path& output,
-                         std::int64_t from_us, std::int64_t until_us, bool fragmented,
-                         const domain::ImageRegions& regions)
+ClipFrames encode_block(const std::filesystem::path& input, const std::filesystem::path& output,
+                        std::int64_t from_us, std::int64_t until_us, bool fragmented,
+                        const domain::ImageRegions& regions, const std::string& codec,
+                        acceleration::CodecTask& task, const acceleration::CodecPath& path)
 {
     if (from_us < 0 || until_us <= from_us)
         throw std::invalid_argument("Invalid export interval");
     gst_init(nullptr, nullptr);
-    Pipeline decoder{"filesrc name=file ! qtdemux ! decodebin ! videoconvert ! "
+    Pipeline decoder{"filesrc name=file ! qtdemux name=demux demux.video_0 ! " + codec + "parse ! " +
+                     path.decoder(codec) +
+                     " ! videoconvert ! "
                      "video/x-raw,format=I420 ! appsink name=frames max-buffers=2 sync=false"};
     FrameTiming timing;
     media::PrivacyMask mask{regions};
     std::string encoding =
-        "appsrc name=frames format=time ! x264enc name=encoder threads=2 tune=zerolatency speed-preset=ultrafast "
-        "pass=quant quantizer=16 "
-        "! video/x-h264,profile=baseline ! h264parse name=parser ! mp4mux trak-timescale=1000000 "
+        "appsrc name=frames format=time ! identity name=mask ! videoconvert ! " + path.encoder(false) +
+        " ! video/x-h264,profile=constrained-baseline ! h264parse name=parser ! mp4mux trak-timescale=1000000 "
         "movie-timescale=1000000 ";
     if (fragmented)
         encoding += "fragment-duration=500 ";
     encoding += "! filesink name=file";
     Pipeline encoder{encoding.c_str()};
-    mask.attach(encoder.element("encoder").get());
+    mask.attach(encoder.element("mask").get());
     auto decoded = decoder.element("frames"), raw = encoder.element("frames");
     g_object_set(decoder.element("file").get(), "location", input.c_str(), nullptr);
     g_object_set(encoder.element("file").get(), "location", output.c_str(), nullptr);
@@ -115,8 +123,11 @@ ClipFrames select_frames(const std::filesystem::path& input, const std::filesyst
     GstClockTime first = GST_CLOCK_TIME_NONE, previous = GST_CLOCK_TIME_NONE;
     const auto deadline = Clock::now() + 30s;
     for (;;) {
+        if (timing.emitted.load(std::memory_order_relaxed))
+            task.used(path);
+        task.check(path);
         if (Clock::now() >= deadline)
-            throw std::runtime_error("Export decoding timed out");
+            throw acceleration::CodecFailure("Export decoding timed out");
         std::unique_ptr<GstSample, decltype(&gst_sample_unref)> sample{
             gst_app_sink_try_pull_sample(GST_APP_SINK(decoded.get()), GST_SECOND / 4), gst_sample_unref};
         if (!sample) {
@@ -155,23 +166,41 @@ ClipFrames select_frames(const std::filesystem::path& input, const std::filesyst
             timing.samples.emplace_back(GST_BUFFER_PTS(frame), duration);
         }
         if (gst_app_src_push_buffer(GST_APP_SRC(raw.get()), frame) != GST_FLOW_OK)
-            throw std::runtime_error("Cannot encode export frame");
+            throw acceleration::CodecFailure("Cannot encode export frame");
         result.end_us = pos + std::max<std::int64_t>(1, static_cast<std::int64_t>(duration / GST_USECOND));
         ++result.count;
         if (result.count % 25 == 0 && std::filesystem::file_size(output) > evidence_limit)
             throw std::runtime_error("Export media exceeds size limit");
         // Bound queued raw frames even if the encoder stalls.
         while (gst_app_src_get_current_level_buffers(GST_APP_SRC(raw.get())) > 2) {
+            task.check(path);
             if (encoder.finished(GST_SECOND / 100) || Clock::now() >= deadline)
-                throw std::runtime_error("Export encoder stalled");
+                throw acceleration::CodecFailure("Export encoder stalled");
         }
     }
-    if (result.count &&
-        (gst_app_src_end_of_stream(GST_APP_SRC(raw.get())) != GST_FLOW_OK || !encoder.finished(10 * GST_SECOND)))
-        throw std::runtime_error("Cannot finalize export clip");
+    if (result.count) {
+        if (gst_app_src_end_of_stream(GST_APP_SRC(raw.get())) != GST_FLOW_OK)
+            throw acceleration::CodecFailure("Cannot finalize export clip");
+        while (!encoder.finished(GST_SECOND / 10)) {
+            task.check(path);
+            if (Clock::now() >= deadline)
+                throw acceleration::CodecFailure("Cannot finalize export clip");
+        }
+    }
     std::lock_guard lock{timing.mutex};
     if (timing.invalid || !timing.samples.empty())
-        throw std::runtime_error("Export frame timing mismatch");
+        throw acceleration::CodecFailure("Export frame timing mismatch");
+    task.used(path);
     return result;
+}
+} // namespace
+ClipFrames select_frames(const std::filesystem::path& input, const std::filesystem::path& output,
+                         std::int64_t from_us, std::int64_t until_us, bool fragmented,
+                         const domain::ImageRegions& regions, const std::string& codec)
+{
+    acceleration::CodecTask task{"export"};
+    return acceleration::process_block(task, [&](const acceleration::CodecPath& path) {
+        return encode_block(input, output, from_us, until_us, fragmented, regions, codec, task, path);
+    });
 }
 } // namespace bacuri::vms::archive

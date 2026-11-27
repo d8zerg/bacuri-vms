@@ -488,7 +488,7 @@ tasks:
           enum: [cpu, nvidia, vaapi]
     deps: [dev:image, stand:up]
     cmds:
-      - '{{.BUILD_RUN}} sh tools/build-preset gcc-debug --target bacuri-vms-core bacuri-vms-media bacuri-scheduler-worker bacuri-acceleration-cost'
+      - '{{.BUILD_RUN}} sh tools/build-preset gcc-debug --target bacuri-vms-core bacuri-vms-media bacuri-scheduler-worker bacuri-pipeline-check bacuri-acceleration-cost'
       - >-
         docker compose -f compose.yaml {{if ne .BACKEND "cpu"}}-f compose.acceleration-{{.BACKEND}}.yaml{{end}}
         run {{if eq .BACKEND "vaapi"}}--build{{end}} --rm --no-deps --user "$(id -u):$(id -g)" -T -e BACURI_PROBE_BACKEND={{.BACKEND}}

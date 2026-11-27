@@ -7,5 +7,7 @@ x-vaapi: &vaapi
   group_add:
     - "${BACURI_RENDER_GID:-991}"
 services:
+  core: *vaapi
+  recorder: *vaapi
   media: *vaapi
   dev: *vaapi

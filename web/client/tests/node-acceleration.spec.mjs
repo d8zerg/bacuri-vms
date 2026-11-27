@@ -172,12 +172,14 @@ async function nodeApi(page, mode = "cpu_only") {
                 {
                   task: "live_mask",
                   device_id: gpu,
+                  running_device_id: gpu,
                   reason: "within_budget",
                   count: 2,
                 },
                 {
                   task: "live_mask",
                   device_id: "cpu",
+                  running_device_id: state.releasing ? gpu : "cpu",
                   reason: "session_limit",
                   ...(state.releasing ? { releasing_device_id: gpu } : {}),
                   count: 1,
@@ -324,6 +326,7 @@ for (const lang of ["en", "ru"])
       await expect(live).toContainText(
         (lang === "en" ? "Releasing " : "Освобождение ") + device.model,
       );
+      await expect(live).toContainText(device.model + " × 1");
       await page.setViewportSize({ width: 320, height: 760 });
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth),

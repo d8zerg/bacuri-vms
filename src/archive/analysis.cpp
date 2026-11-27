@@ -1,4 +1,6 @@
 #include "archive/analysis.hpp"
+#include "archive/index_anchor.hpp"
+#include "media/acceleration/codec_task.hpp"
 #include "platform/scope_exit.hpp"
 #include <gst/app/gstappsink.h>
 #include <gst/video/video.h>
@@ -59,6 +61,8 @@ void validate_analysis(const MotionIndex& index, std::int64_t duration)
     }
     last = -1;
     for (const auto& sample : index.samples) {
+        if (sample.backend != "cpu" && sample.backend != "nvidia" && sample.backend != "vaapi")
+            throw std::invalid_argument("Invalid analysis backend");
         if (sample.offset <= last || sample.offset >= duration ||
             !std::ranges::binary_search(index.frames, sample.offset))
             throw std::invalid_argument("Invalid motion sample");
@@ -73,39 +77,45 @@ void validate_analysis(const MotionIndex& index, std::int64_t duration)
         pixels(sample.image, 4096);
     }
 }
-MotionIndex analyze_recording(const std::filesystem::path& path, std::int64_t duration)
+namespace
+{
+MotionIndex index_block(const std::filesystem::path& path, std::int64_t duration, const std::string& codec,
+                        const IndexAnchor& anchor, acceleration::CodecTask& task,
+                        const acceleration::CodecPath& device)
 {
     using namespace std::chrono_literals;
     gst_init(nullptr, nullptr);
     GError* raw{};
-    auto pipe =
-        release_gst(gst_parse_launch("filesrc name=file ! qtdemux ! decodebin ! videoconvert ! videoscale ! "
-                                     "video/x-raw,format=GRAY8,width=64,height=48,pixel-aspect-ratio=1/1 ! "
-                                     "appsink name=frames max-buffers=2 sync=false",
-                                     &raw));
+    const auto spec = "filesrc name=file ! qtdemux name=demux demux.video_0 ! " + codec + "parse ! " +
+                      device.decoder(codec) +
+                      " ! videoconvert ! videoscale ! "
+                      "video/x-raw,format=GRAY8,width=64,height=48,pixel-aspect-ratio=1/1 ! "
+                      "appsink name=frames max-buffers=2 sync=false";
+    auto pipe = release_gst(gst_parse_launch(spec.c_str(), &raw));
     std::unique_ptr<GError, decltype(&g_error_free)> error{raw, g_error_free};
     if (error || !pipe)
-        throw std::runtime_error("Index decoder unavailable");
+        throw acceleration::CodecFailure("Index decoder unavailable");
     platform::ScopeExit stop{[&pipe] { gst_element_set_state(pipe.get(), GST_STATE_NULL); }};
     auto input = release_gst(gst_bin_get_by_name(GST_BIN(pipe.get()), "file"));
     auto sink = release_gst(gst_bin_get_by_name(GST_BIN(pipe.get()), "frames"));
     auto bus = release_gst(gst_element_get_bus(pipe.get()));
     g_object_set(input.get(), "location", path.c_str(), nullptr);
     if (gst_element_set_state(pipe.get(), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE)
-        throw std::runtime_error("Index decoder failed");
+        throw acceleration::CodecFailure("Index decoder failed");
     MotionIndex result;
     const auto deadline = std::chrono::steady_clock::now() + 30s;
-    std::int64_t base = -1, last_sample = -250000;
+    std::int64_t last_sample = -250000;
     Image previous{};
     for (;;) {
+        task.check(device);
         if (std::chrono::steady_clock::now() > deadline)
-            throw std::runtime_error("Index decoder timeout");
+            throw acceleration::CodecFailure("Index decoder timeout");
         std::unique_ptr<GstSample, decltype(&gst_sample_unref)> sample{
             gst_app_sink_try_pull_sample(GST_APP_SINK(sink.get()), GST_SECOND / 10), gst_sample_unref};
         if (!sample) {
             if (auto* message = gst_bus_pop_filtered(bus.get(), GST_MESSAGE_ERROR)) {
-                gst_message_unref(message);
-                throw std::runtime_error("Incomplete indexed stream");
+                platform::ScopeExit release{[&] { gst_message_unref(message); }};
+                acceleration::pipeline_error(message);
             }
             if (gst_app_sink_is_eos(GST_APP_SINK(sink.get())))
                 break;
@@ -115,13 +125,15 @@ MotionIndex analyze_recording(const std::filesystem::path& path, std::int64_t du
         if (!buffer || !GST_BUFFER_PTS_IS_VALID(buffer))
             throw std::runtime_error("Missing presentation time");
         const auto pts = static_cast<std::int64_t>(GST_BUFFER_PTS(buffer) / GST_USECOND);
-        if (base < 0)
-            base = pts;
-        const auto offset = pts - base;
+        const auto offset = pts - anchor.pts_us;
+        if (result.frames.empty() && offset != 0)
+            throw std::runtime_error("Archive analysis does not start at its keyframe");
         if (offset >= duration)
             continue;
         if (result.frames.size() >= 4096)
             throw std::runtime_error("Index frame limit");
+        if (result.frames.empty())
+            task.used(device);
         result.frames.push_back(offset);
         if (offset - last_sample < 250000)
             continue;
@@ -131,11 +143,24 @@ MotionIndex analyze_recording(const std::filesystem::path& path, std::int64_t du
         result.samples.push_back(motion_sample(last_sample < 0 ? std::span<const unsigned char>{}
                                                                : std::span<const unsigned char>{previous},
                                                current, offset));
+        if (!offset)
+            result.samples.back().image = anchor.preview;
+        result.samples.back().backend = device.backend;
         previous = current;
         last_sample = offset;
     }
     validate_analysis(result, duration);
+    task.used(device);
     return result;
+}
+} // namespace
+MotionIndex analyze_recording(const std::filesystem::path& path, std::int64_t duration, const std::string& codec)
+{
+    const auto anchor = index_anchor(path, codec);
+    acceleration::CodecTask task{"archive_analysis"};
+    return acceleration::process_block(task, [&](const acceleration::CodecPath& device) {
+        return index_block(path, duration, codec, anchor, task, device);
+    });
 }
 } // namespace bacuri::vms::archive
 namespace bacuri::vms::archive

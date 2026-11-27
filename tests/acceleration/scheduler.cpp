@@ -23,6 +23,21 @@ class NodeScheduler : public testing::Test
         return scheduler.update({std::move(id), kind, true, report, std::move(grant)}, now);
     }
 };
+TEST_F(NodeScheduler, ConfirmsTheRunningDeviceAndFencesACheckpointRelease)
+{
+    const auto first = update("export", 3);
+    TaskUpdate message{"export", 3, false, Report::poll, {}, "gpu", first.grant};
+    scheduler.update(message, now);
+    EXPECT_EQ(scheduler.status().at("assignments").at(0).at("running_device_id"), "gpu");
+    message = {"export", 3, false, Report::released, first.grant, {}, {}, true};
+    EXPECT_EQ(scheduler.update(message, now).reason, "cpu_checkpoint");
+    now += 31s;
+    const auto next = update("export", 3);
+    ASSERT_FALSE(next.grant.empty());
+    EXPECT_NE(next.grant, first.grant);
+    EXPECT_EQ(scheduler.update(message, now).grant, next.grant);
+    EXPECT_EQ(scheduler.update(message, now).device, "gpu");
+}
 TEST_F(NodeScheduler, GrantsLiveOnlyAfterTheExportReleasesItsEncoder)
 {
     auto exp = update("export", 3);

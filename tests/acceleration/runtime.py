@@ -8,6 +8,7 @@ import uuid
 from contextlib import ExitStack, contextmanager
 
 import registry as control
+from pipelines import product_pipelines
 
 
 class Task:
@@ -184,6 +185,7 @@ def check_scheduler(route, admin, revision, expected, result, read_probe):
         assert cpu_task.update() == "cpu" and read()["tasks"]["cpu"] == 1
         cpu_task.update("FINISHED")
         assert read()["tasks"]["cpu"] == 0
+        product_pipelines(expected, lambda _: None)
         return revision
     original = control.http("GET", route, headers=admin)[2]
     manual = {"mode": original["mode"]}
@@ -197,6 +199,11 @@ def check_scheduler(route, admin, revision, expected, result, read_probe):
     revision = apply({"mode": "auto"}, revision)
     codecs = {dev["id"]: dev["codecs"] for dev in result["devices"]}
     codecs["cpu"] = {"h264_dec": "avdec_h264 max-threads=2", "h264_enc": "x264enc threads=2 tune=zerolatency speed-preset=ultrafast"}
+    def set_mode(mode):
+        nonlocal revision
+        revision = apply({"mode": mode}, revision)
+    product_pipelines(expected, set_mode)
+    set_mode("auto")
     loaded_node(codecs, read)
     continuity(codecs, read)
     if expected == "nvidia":

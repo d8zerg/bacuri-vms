@@ -24,6 +24,7 @@ class Scheduling
     std::atomic_uint& activity_;
     std::mutex mutex_;
     std::deque<acceleration::Json> journal_;
+    std::map<std::string, acceleration::Json> factories_;
     acceleration::Scheduler scheduler_;
     std::optional<acceleration::Activity> gpu_activity_;
     bool checking_{};

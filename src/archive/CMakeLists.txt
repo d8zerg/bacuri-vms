@@ -5,8 +5,8 @@ target_link_libraries(bacuri-vms-mp4 PUBLIC bacuri-vms-manifest PRIVATE PkgConfi
 # Export and case verification with libsodium and JSON only.
 add_library(bacuri-vms-verify STATIC verify.cpp)
 target_link_libraries(bacuri-vms-verify PUBLIC bacuri-vms-manifest PRIVATE bacuri-vms-mp4 PkgConfig::SODIUM)
-add_library(bacuri-vms-analysis STATIC analysis.cpp)
-target_link_libraries(bacuri-vms-analysis PUBLIC bacuri-vms-manifest PRIVATE PkgConfig::GST)
+add_library(bacuri-vms-analysis STATIC analysis.cpp index_anchor.cpp)
+target_link_libraries(bacuri-vms-analysis PUBLIC bacuri-vms-manifest PRIVATE PkgConfig::GST bacuri-codec-task)
 add_library(bacuri-vms-volume STATIC volume.cpp volume_io.cpp block_journal.cpp retention.cpp block_verification.cpp replica.cpp)
 target_include_directories(bacuri-vms-volume PRIVATE "${generated_dir}")
 target_link_libraries(bacuri-vms-volume PUBLIC bacuri-vms-manifest bacuri-vms-mp4 bacuri-vms-platform bacuri-vms-metrics bacuri-vms-sqlite PkgConfig::GIO

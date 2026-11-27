@@ -1,5 +1,6 @@
 #pragma once
-#include "media/privacy.hpp"
+#include "media/live_codec.hpp"
+#include <mutex>
 #include <gst/app/gstappsrc.h>
 #include <gst/webrtc/webrtc.h>
 #include <chrono>
@@ -32,7 +33,7 @@ class WebRtcPeer
     WebRtcPeer& operator=(const WebRtcPeer&) = delete;
     void stop() noexcept;
     std::string answer(std::chrono::steady_clock::time_point deadline);
-    GstWebRTCPeerConnectionState state() const;
+    GstWebRTCPeerConnectionState state();
     void push(std::string_view access_unit, bool keyframe);
     // Waits until the connection or ICE gathering state changes, the pipeline reports an error, notify() is
     // called, the deadline passes or a stop is requested.
@@ -42,7 +43,12 @@ class WebRtcPeer
 
   private:
     std::unique_ptr<PeerEvents> events_;
-    PrivacyMask mask_;
+    std::mutex codec_mutex_;
+    std::unique_ptr<LiveCodec> codec_;
+    bool stopped_{};
+    void deliver(std::string_view bytes, bool keyframe, GstClockTime pts);
+    const LiveCodec::Output send_{[this](std::string_view bytes, bool keyframe, GstClockTime pts,
+                                         const std::string&) { deliver(bytes, keyframe, pts); }};
     GstHandle<GstWebRTCSessionDescription, gst_webrtc_session_description_free> offer_;
     GstHandle<GstElement, gst_object_unref> pipeline_, rtc_, input_;
     bool need_keyframe_{true};

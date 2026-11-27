@@ -4,5 +4,7 @@ x-nvidia: &nvidia
   environment:
     NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
 services:
+  core: *nvidia
+  recorder: *nvidia
   media: *nvidia
   dev: *nvidia

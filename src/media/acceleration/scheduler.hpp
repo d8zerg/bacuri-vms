@@ -17,6 +17,8 @@ struct TaskUpdate {
     bool wait;
     Report report;
     std::string released;
+    std::string running{}, running_grant{};
+    bool cpu_until_checkpoint{};
 };
 struct Assignment {
     std::string device, grant, reason;
@@ -52,7 +54,8 @@ class Scheduler
         std::uint64_t order;
         Instant expires, promote, grant_until;
         Assignment assignment;
-        std::string held;
+        std::string held, running;
+        bool cpu_until_checkpoint{};
         Cost charge;
     };
     struct Fault {

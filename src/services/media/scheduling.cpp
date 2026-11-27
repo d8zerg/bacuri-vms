@@ -147,13 +147,18 @@ grpc::Status Scheduling::update(const v1::TaskUpdate& request, v1::TaskAssignmen
         return platform::rpc_status(ErrorCode::invalid_request);
     try {
         std::scoped_lock lock{mutex_};
-        const auto assignment =
-            scheduler_.update({request.task_id(), static_cast<std::size_t>(kind - acceleration::tasks.begin()),
-                               request.wait_for_gpu(), static_cast<acceleration::Report>(request.report()),
-                               request.released_grant()},
-                              Clock::now());
+        const auto assignment = scheduler_.update(
+            {request.task_id(), static_cast<std::size_t>(kind - acceleration::tasks.begin()),
+             request.wait_for_gpu(), static_cast<acceleration::Report>(request.report()), request.released_grant(),
+             request.running_device_id(), request.running_grant(), request.cpu_until_checkpoint()},
+            Clock::now());
         reply.set_device_id(assignment.device);
         reply.set_grant(assignment.grant);
+        if (const auto it = factories_.find(assignment.device); it != factories_.end()) {
+            reply.set_backend(it->second.at("backend").get<std::string>());
+            for (const auto& [codec, factory] : it->second.at("codecs").items())
+                (*reply.mutable_codecs())[codec] = factory.get<std::string>();
+        }
         reply.set_reason(assignment.reason);
         reply.set_valid_for_ms(
             std::chrono::duration_cast<std::chrono::milliseconds>(acceleration::Scheduler::lease).count());
@@ -245,6 +250,11 @@ void Scheduling::monitor(const std::stop_token& stop)
                     }
                     identity = fingerprint;
                 }
+                factories_.clear();
+                if (!result.is_null() && !stale)
+                    for (const auto& dev : result.at("devices"))
+                        if (dev.at("backend") != "cpu")
+                            factories_.emplace(dev.at("id").get<std::string>(), dev);
                 scheduler_.configure(std::move(policy), devices, stale);
                 scheduler_.tick(Clock::now());
                 publish();

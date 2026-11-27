@@ -115,7 +115,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
                     copy = compatible_block(request->sha256(), media.fd,
                                             Time::TimestampToMicroseconds(scope.archive().end()) -
                                                 Time::TimestampToMicroseconds(scope.archive().start()),
-                                            scope.privacy_regions());
+                                            scope.privacy_regions(), block.tracks.front().codec);
                     if (fstat(copy->fd, &info))
                         throw std::runtime_error("Cannot read converted block");
                     if (info.st_size <= 0)
@@ -175,7 +175,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
     std::mutex conversion_;
     std::deque<CachedBlock> cache_;
     std::shared_ptr<Descriptor> compatible_block(const std::string& hash, int source, std::int64_t duration,
-                                                 const std::string& regions)
+                                                 const std::string& regions, const std::string& codec)
     {
         std::scoped_lock guard{conversion_};
         for (const auto& entry : cache_)
@@ -184,7 +184,7 @@ class Delivery final : public v1::ArchiveDelivery::Service
         auto out = std::make_shared<Descriptor>(memfd_create("bacuri-playback", MFD_CLOEXEC));
         const auto file = [](int fd) { return std::filesystem::path{"/proc/self/fd"} / std::to_string(fd); };
         const auto result = archive::select_frames(file(source), file(out->fd), 0, duration, true,
-                                                   domain::decode_regions(regions));
+                                                   domain::decode_regions(regions), codec);
         struct stat size{};
         if (!result.count || fstat(out->fd, &size) || size.st_size <= 0 || size.st_size > 32L * 1024 * 1024)
             throw std::runtime_error("Compatible block unavailable");

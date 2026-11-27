@@ -212,8 +212,8 @@ std::shared_ptr<ExportBody> prepare_fragment(const Request& req, Response& res, 
                 if (mode == "original" && (from != a || until != b))
                     clip.transform = "original_with_decode_context";
             } else {
-                auto frames =
-                    archive::select_frames(input, dir / file, from - a, until - a, false, stream->regions);
+                auto frames = archive::select_frames(input, dir / file, from - a, until - a, false,
+                                                     stream->regions, m.tracks.front().codec);
                 fs::remove(input);
                 if (!frames.count) {
                     add_gap(periods, from, until, "no_frame");

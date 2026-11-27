@@ -41,6 +41,11 @@ message TaskUpdate {
     FINISHED = 6;
   }
   Report report = 6;
+  // Path that produced a picture, with its fencing token on GPU.
+  string running_device_id = 7;
+  string running_grant = 8;
+  // Complete this block on CPU after releasing an interrupted hardware pipeline.
+  bool cpu_until_checkpoint = 9;
 }
 message TaskAssignment {
   // Device ID, cpu or queue. A fallback reply may carry a grant still awaiting release.
@@ -49,6 +54,9 @@ message TaskAssignment {
   string reason = 3;
   // Relative to the start of the worker's call.
   uint32 valid_for_ms = 4;
+  // GStreamer factories qualified for this physical device.
+  map<string, string> codecs = 5;
+  string backend = 6;
 }
 message NodePolicy {
   string mode = 1;

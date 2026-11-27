@@ -127,22 +127,20 @@ struct PeerEvents {
 };
 
 WebRtcPeer::WebRtcPeer(const std::string& offer, LiveFormat format, std::string_view regions)
-    : events_{std::make_unique<PeerEvents>()}, mask_{regions}, offer_{parse(offer)}
+    : events_{std::make_unique<PeerEvents>()}, offer_{parse(offer)}
 {
     const auto [source, output] = format;
     const bool hevc = output == "h265";
     auto pt = std::to_string(video_payload(gst_sdp_message_get_media(offer_->sdp, 0), hevc));
     std::string launch = "appsrc name=input is-live=true do-timestamp=true format=time caps=";
-    launch += source == "h265" ? "video/x-h265,stream-format=byte-stream,alignment=au ! h265parse "
-                               : "video/x-h264,stream-format=byte-stream,alignment=au ! h264parse ";
-    if (source != output || !mask_.empty()) {
+    PrivacyMask mask{regions};
+    if (source != output || !mask.empty()) {
         if (output != "h264")
             throw std::invalid_argument("Unsupported video transform");
-        launch += source == "h265" ? "! avdec_h265 " : "! avdec_h264 ";
-        launch +=
-            "max-threads=2 ! videoconvert ! video/x-raw,format=I420 ! x264enc name=encoder bitrate=2000 threads=2 "
-            "tune=zerolatency speed-preset=ultrafast key-int-max=25 ! video/x-h264,profile=baseline ! h264parse ";
+        codec_ = std::make_unique<LiveCodec>(std::string{source}, std::move(mask));
     }
+    launch += hevc ? "video/x-h265,stream-format=byte-stream,alignment=au ! h265parse "
+                   : "video/x-h264,stream-format=byte-stream,alignment=au ! h264parse ";
     launch += hevc ? "! rtph265pay " : "! rtph264pay ";
     launch += "config-interval=-1 aggregate-mode=zero-latency pt=" + pt +
               " ! application/x-rtp,media=video,clock-rate=90000,";
@@ -153,10 +151,6 @@ WebRtcPeer::WebRtcPeer(const std::string& offer, LiveFormat format, std::string_
     GstHandle<GError, g_error_free> error{raw_error};
     if (!pipeline_ || error) {
         throw std::runtime_error("WebRTC pipeline unavailable");
-    }
-    if (!mask_.empty()) {
-        GstHandle<GstElement, gst_object_unref> encoder{gst_bin_get_by_name(GST_BIN(pipeline_.get()), "encoder")};
-        mask_.attach(encoder.get());
     }
     rtc_.reset(gst_bin_get_by_name(GST_BIN(pipeline_.get()), "peer"));
     input_.reset(gst_bin_get_by_name(GST_BIN(pipeline_.get()), "input"));
@@ -219,6 +213,9 @@ void WebRtcPeer::notify() noexcept
 }
 void WebRtcPeer::stop() noexcept
 {
+    std::scoped_lock lock{codec_mutex_};
+    stopped_ = true;
+    codec_.reset();
     gst_element_set_state(pipeline_.get(), GST_STATE_NULL);
 }
 
@@ -267,8 +264,11 @@ std::string WebRtcPeer::answer(Clock::time_point deadline)
     throw std::runtime_error("ICE gathering unavailable");
 }
 
-GstWebRTCPeerConnectionState WebRtcPeer::state() const
+GstWebRTCPeerConnectionState WebRtcPeer::state()
 {
+    std::scoped_lock lock{codec_mutex_};
+    if (codec_ && !stopped_)
+        codec_->poll(send_);
     GstHandle<GstBus, gst_object_unref> bus{gst_element_get_bus(pipeline_.get())};
     GstHandle<GstMessage, gst_message_unref> failure{gst_bus_pop_filtered(bus.get(), GST_MESSAGE_ERROR)};
     if (failure)
@@ -279,6 +279,19 @@ GstWebRTCPeerConnectionState WebRtcPeer::state() const
 }
 
 void WebRtcPeer::push(std::string_view bytes, bool keyframe)
+{
+    std::scoped_lock lock{codec_mutex_};
+    if (stopped_)
+        return;
+    if (!codec_) {
+        deliver(bytes, keyframe, GST_CLOCK_TIME_NONE);
+        return;
+    }
+    GstHandle<GstClock, gst_object_unref> clock{gst_element_get_clock(pipeline_.get())};
+    const auto pts = clock ? gst_clock_get_time(clock.get()) - gst_element_get_base_time(pipeline_.get()) : 0;
+    codec_->push(bytes, keyframe, pts, send_);
+}
+void WebRtcPeer::deliver(std::string_view bytes, bool keyframe, GstClockTime pts)
 {
     auto* input = GST_APP_SRC(input_.get());
     const auto limit = ingest::limits(ingest::Profile::main);
@@ -296,6 +309,7 @@ void WebRtcPeer::push(std::string_view bytes, bool keyframe)
         throw std::bad_alloc{};
     }
     gst_buffer_fill(buffer, 0, bytes.data(), bytes.size());
+    GST_BUFFER_PTS(buffer) = pts;
     if (!keyframe) {
         GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT);
     }

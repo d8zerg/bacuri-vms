@@ -50,7 +50,7 @@ void index_blocks(const std::stop_token& stop, Volume& volume, const std::filesy
                 if (fd < 0 || archive::digest_hex(m.sha256) != digest_media(fd).sha256)
                     throw std::runtime_error("Archive integrity failure");
                 auto index = analyze_recording(std::filesystem::path{"/proc/self/fd"} / std::to_string(fd),
-                                               m.end_us() - m.begin_us());
+                                               m.end_us() - m.begin_us(), m.tracks.front().codec);
                 v1::IndexResult data;
                 data.set_manifest(job.manifest());
                 data.set_analysis(nlohmann::json(index).dump());

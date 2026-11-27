@@ -310,10 +310,16 @@ function Assignments({
                             p.device_id,
                             p.reason,
                             p.releasing_device_id,
+                            p.running_device_id,
                           ])}
                         >
                           <strong>
-                            {name(p.device_id)} × {p.count}
+                            {p.running_device_id || p.device_id === "queue"
+                              ? name(p.running_device_id ?? p.device_id)
+                              : t("node.awaitingFrame", {
+                                  device: name(p.device_id),
+                                })}{" "}
+                            × {p.count}
                           </strong>
                           <small>{fmt.reason(p.reason)}</small>
                           {p.releasing_device_id && (
