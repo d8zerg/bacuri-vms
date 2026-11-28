@@ -37,7 +37,7 @@
 | ID | Интерфейс | Операции |
 | --- | --- | --- |
 | identity | REST | createSession, verifyAdminFactor, getSession, revokeSession, issueDesktopCode, createDesktopSession, getIdentityProvider, setIdentityProvider, bindExternalIdentity, unbindExternalIdentity, getLoginMethods, beginCorporateLogin, completeCorporateLogin |
-| access | REST | listPoints, listSiteUsers, createSiteUser, updateSiteUser, listResourceGroups, createResourceGroup, updateResourceGroup, listGrants, setGrant, deleteGrant, listPrivacyPolicies, setPrivacyPolicy, searchAccessAudit |
+| access | REST | listPoints, listSiteUsers, createSiteUser, updateSiteUser, listResourceGroups, createResourceGroup, updateResourceGroup, listGrants, setGrant, deleteGrant, listPrivacyPolicies, setPrivacyPolicy, searchAccessAudit, publishKeyboardProfile |
 | inventory | REST | discoverCameras, inspectCamera, listCameras, getCamera, registerCamera, updateCamera, getCameraStreamIssues, previousRecording, listCameraBatches, getCameraBatch, previewCameraBatchItem, changeCameraBatchItem, listCameraTemplates, saveCameraTemplate |
 | audio | REST | exchangeCameraAudio |
 | ptz | REST | controlPointPtz, getCameraControls |
@@ -47,7 +47,7 @@
 | search | REST | searchArchive, searchArchiveFrames |
 | holds | REST | listArchiveHolds, createArchiveHold |
 | rules | REST | getVideoRule, setVideoRule, simulateVideoRule |
-| evidence | REST | exportFragment, exportInvestigation, listInvestigations, getInvestigation, saveInvestigation, listCaseRecipients |
+| evidence | REST | recordSnapshotCapture, exportFragment, exportInvestigation, listInvestigations, getInvestigation, saveInvestigation, listCaseRecipients |
 | alerts | REST | getAlertSnapshot, openAlertStream, resolveAlertArchive, getAlertWork, applyAlertCommand, searchAlertAudit, issueAlertDelegation, revokeAlertDelegation |
 | maps | REST | getMapScene, getMapManagement, createMapSource, getMapSource, uploadMapChunk, queueMapRegions, setMapDownloadPaused, addFloorPlan, placePoint, previewPlanGeoreference, setPlanGeoreference, calibrateCameraView, getFloorPlan, getRegionStyle, getRegionTile |
 | identity | Core | initial-admin, enroll-admin, recover-admin |

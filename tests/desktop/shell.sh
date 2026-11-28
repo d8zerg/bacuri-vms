@@ -64,13 +64,16 @@ if [ "$scale" = 1 ]; then
     export BACURI_TEST_CA="$temp/site.crt"
     openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -noenc -subj /CN=localhost \
         -addext subjectAltName=IP:127.0.0.1 -keyout "$temp/site.key" -out "$BACURI_TEST_CA" 2>/dev/null
+    export BACURI_TEST_PEER="$(dirname "$binary")/bacuri-preview-test-peer"
+    export BACURI_COMMAND_FILES="$temp/files" BACURI_EXPORT_DIRECTORY="$temp/files" BACURI_CAPTURE_DIRECTORY="$temp/files"
+    mkdir -p "$BACURI_COMMAND_FILES"
     python3 "$(dirname "$0")/workspace_site.py" "$BACURI_TEST_CA" "$temp/site.key" > "$temp/origin" &
     server=$!
     trap 'publish; kill "$portal_pid" "$server" 2>/dev/null || :; wait "$server" 2>/dev/null || :; rm -rf "$temp"' EXIT
     for iteration in $(seq 100); do [ -s "$temp/origin" ] && break; sleep 0.05; done
     BACURI_TEST_SITE=$(cat "$temp/origin")
     export BACURI_TEST_SITE
-    run siteSession
+    run commandTimes commandProfiles siteSession commandWorkflow largePalette
     xvfb-run -a python3 "$(dirname "$0")/atspi.py" "$(dirname "$binary")/bacuri-vms-client-catalog" "$BACURI_SHELL_REPORT/atspi.json"
 fi
 if [ "$scale" != workstation ]; then

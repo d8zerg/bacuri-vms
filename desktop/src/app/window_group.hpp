@@ -31,5 +31,6 @@ class WindowGroup final : public QObject
     QQmlApplicationEngine engine_;
     QQmlComponent shell_;
     bool show_catalog_;
+    bool waitingForExports_{};
 };
 } // namespace bacuri::vms::client

@@ -64,7 +64,7 @@ VideoStream& StreamGroup::add(std::unique_ptr<VideoStream> stream)
     return added;
 }
 
-void StreamGroup::start()
+void StreamGroup::start(std::function<void()> liveStarted)
 {
     if (started_ || !window_)
         return;
@@ -72,10 +72,19 @@ void StreamGroup::start()
     operation_ = Clock::now();
     // The sinks need the graphics context of the window, which exists after its first frame.
     auto connection = std::make_shared<QMetaObject::Connection>();
-    *connection = connect(window_, &QQuickWindow::frameSwapped, this, [this, connection] {
-        disconnect(*connection);
-        QThreadPool::globalInstance()->start([this] { prepare(0, false, 0); });
-    });
+    *connection = connect(
+        window_, &QQuickWindow::frameSwapped, this, [this, connection, liveStarted = std::move(liveStarted)] {
+            disconnect(*connection);
+            if (std::ranges::all_of(streams_, [](const auto& stream) { return stream->webRtc(); })) {
+                // Signaling supplies the first buffers, so WebRTC cannot preroll.
+                for (const auto& stream : streams_)
+                    stream->play_at(clock_, 0);
+                if (liveStarted)
+                    liveStarted();
+                return;
+            }
+            QThreadPool::globalInstance()->start([this] { prepare(0, false, 0); });
+        });
     window_->update();
 }
 

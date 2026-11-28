@@ -14,6 +14,7 @@ KitButton {
     checked: ListView.isCurrentItem
     focusIndicator: visualFocus || (checked && ListView.view.activeFocus)
     activeFocusOnTab: false
+    Accessible.onPressAction: row.clicked()
     Accessible.role: Accessible.ListItem
     Accessible.description: connection.text + ", " + recording.text
     contentItem: RowLayout {

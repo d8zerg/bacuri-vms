@@ -139,6 +139,17 @@ def main():
         admin = login("admin")
         viewer = login("viewer")
         assert http("GET", "session", headers=viewer)[2]["site_roles"][0]["role"] == "operator"
+        membership = http("GET", "session", headers=admin)[2]["site_roles"][0]
+        assert membership["time_zone"] == "UTC"
+        profile_path = f"sites/{SITE}/keyboard-profile"
+        profile = {"revision": membership["keymap_revision"], "bindings": {"palette": "Ctrl+Alt+P"}}
+        assert http("PUT", profile_path, profile, viewer)[0] == 403
+        assert http("PUT", profile_path, {**profile, "bindings": {"archive": "Ctrl+Alt+T"}}, admin)[0] == 400
+        assert http("PUT", profile_path, profile, admin)[0] == 200
+        stale_profile = http("PUT", profile_path, profile, admin)
+        assert stale_profile[0] == 409 and stale_profile[2]["code"] == "revision_conflict"
+        assert http("GET", "session", headers=viewer)[2]["site_roles"][0]["keymap"] == profile["bindings"]
+        assert query("SELECT count(*) FROM bacuri_access.access_audit WHERE action='keyboard_profile.publish'") == "1"
         import desktop_session
         desktop_session.check(http, query, login, "viewer")
         config = {"name": "Gate", "main_url": "rtsp://rtsp-camera:8554/main", "secondary_url": "rtsp://rtsp-camera:8554/sub",
@@ -165,8 +176,34 @@ def main():
         assert http("POST", cameras, {**config, "name": "Other"}, write)[0] == 409
         assert len(http("GET", cameras, headers=admin)[2]) == 1
         assert http("GET", points, headers=viewer)[2] == []
-        subprocess.run([CORE, "grant-point", "viewer", first["point_id"]], check=True)
-        assert http("GET", points, headers=viewer)[2][0]["id"] == first["point_id"]
+        point = first["point_id"]
+        receipt_path = points + "/" + point + "/snapshot-receipts"
+        capture_headers = {**viewer, "Idempotency-Key": str(uuid.uuid4())}
+        capture = {"access_revision": "0", "pts_ns": "10000000", "width": 320, "height": 180, "sha256_rgba8": "a" * 64}
+        assert http("POST", receipt_path, capture, capture_headers)[0] == 404
+        user_id = http("GET", "session", headers=viewer)[2]["user_id"]
+        grant = {"user_id": user_id, "point_id": point, "action": "export"}
+        grant_path = f"sites/{SITE}/grants/{uuid.uuid4()}"
+        def grant_headers():
+            tag = http("GET", f"sites/{SITE}/grants", headers=admin)[1]["ETag"]
+            return {**admin, "If-Match": tag}
+        assert http("PUT", grant_path, grant, grant_headers())[0] in (200, 201)
+        assert http("GET", points, headers=viewer)[2] == []
+        assert http("POST", receipt_path, capture, capture_headers)[0] == 404
+        subprocess.run([CORE, "grant-point", "viewer", point], check=True)
+        details = http("GET", points, headers=viewer)[2][0]
+        assert details["can_snapshot"]
+        capture["access_revision"] = details["access_revision"]
+        with concurrent.futures.ThreadPoolExecutor(2) as pool:
+            captures = list(pool.map(lambda _: http("POST", receipt_path, capture, capture_headers), range(2)))
+        receipt = captures[0][2]["receipt"]
+        assert uuid.UUID(receipt) and receipt != capture_headers["Idempotency-Key"]
+        assert all(status == 200 and result["receipt"] == receipt for status, _, result in captures)
+        assert query("SELECT id::text FROM bacuri_access.access_audit WHERE action='snapshot.capture'") == receipt
+        assert http("POST", receipt_path, {**capture, "width": 640}, capture_headers)[0] == 409
+        assert query("SELECT count(*) FROM bacuri_access.access_audit WHERE action='snapshot.capture'") == "1"
+        assert http("DELETE", grant_path, headers=grant_headers())[0] in (200, 204)
+        assert http("POST", receipt_path, capture, capture_headers)[0] == 403
         assert http("PUT", path, config, admin)[0] == 428
         stale = http("PUT", path, config, {**admin, "If-Match": '"stale"'})
         assert stale[0] == 412 and stale[2]["current"] == first

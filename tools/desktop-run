@@ -11,6 +11,14 @@ if command -v nvidia-smi >/dev/null && nvidia-smi -L >/dev/null 2>&1; then
     service=desktop-workstation
 fi
 set -- "$service" "build/desktop/gcc/$client" --browser tools/desktop-browser "$@"
+pictures=$(xdg-user-dir PICTURES 2>/dev/null || true)
+downloads=$(xdg-user-dir DOWNLOAD 2>/dev/null || true)
+captures=${pictures:-$HOME/Pictures}/Bacuri
+exports=${downloads:-$HOME/Downloads}/Bacuri
+mkdir -p "$captures" "$exports"
+set -- -v "$captures:$captures" -e "BACURI_CAPTURE_DIRECTORY=$captures" "$@"
+if [ "$captures" != "$exports" ]; then set -- -v "$exports:$exports" "$@"; fi
+set -- -e "BACURI_EXPORT_DIRECTORY=$exports" "$@"
 if [ -d "$runtime/at-spi" ]; then
     set -- -v "$runtime/at-spi:$runtime/at-spi:ro" "$@"
 fi

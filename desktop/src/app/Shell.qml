@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Bacuri.Vms.Client.Ui
+import org.freedesktop.gstreamer.Qt6GLVideoItem
 
 ApplicationWindow {
     id: win
@@ -18,11 +19,82 @@ ApplicationWindow {
         id: pointProxy
         sourceModel: win.workspace.points
     }
-    CommandRegistry {
+    readonly property AppearancePage appearance: settingsPage.item as AppearancePage
+    property Item mediaFrame
+    property Item mediaHost
+    property LivePreview displayedStream
+    readonly property LivePreview previewStream: displayedStream === firstStream ? secondStream : firstStream
+    Item { id: parking; visible: false }
+    component StreamSlot: LivePreview {
+        id: slot
+        parent: win.displayedStream === slot && win.mediaHost ? win.mediaHost
+              : win.previewStream === slot && panel.visible && panel.searching ? panel.previewHost : parking
+        anchors.fill: parent
+        visible: !!point && parent !== parking
+        surface: GstGLQt6VideoItem {
+            parent: slot
+            width: Math.max(1, slot.width)
+            height: Math.max(1, slot.height)
+        }
+        Rectangle { anchors.fill: parent; color: Tokens.canvas; visible: !slot.ready }
+    }
+    StreamSlot { id: firstStream }
+    StreamSlot { id: secondStream }
+    function closeDisplayedStream() {
+        if (displayedStream) {
+            displayedStream.close();
+            displayedStream = null;
+        }
+    }
+    CommandPanel {
+        id: panel
+        objectName: "commandPanel"
+        registry: commands
+        workspace: win.workspace
+        showPreview: !!win.previewStream.point
+        onInspectPoint: id => win.previewStream.open(win.workspace, id)
+        onClosed: Qt.callLater(() => { if (!panel.visible) win.previewStream.close(); })
+    }
+    CameraMenu { id: radial; parent: win.contentItem; objectName: "cameraMenu"; registry: commands }
+    WindowCommands {
         id: commands
+        objectName: "commandRegistry"
+        modal: panel.visible || radial.visible || !!win.appearance?.capturing
+        frame: win.mediaFrame
+        onPointChosen: (id, live) => win.openPoint(id, live)
+        onSubmitted: panel.close()
+        onLayoutApplied: key => {
+            panel.close();
+            nav.push(Navigation.Layout, key, win.currentFocusTarget());
+            backButton.forceActiveFocus();
+        }
+        onTool: (kind, data) => {
+            if (radial.visible || radial.tracking) radial.hideMenu();
+            if (kind === "intervals") win.closeDisplayedStream();
+            panel.show(kind, data);
+        }
+        onResultsChanged: if (panel.visible && panel.searching) panel.refresh(true)
+        onFeedback: message => {
+            if (panel.visible) panel.notify(message);
+            else { toast.text = message; toast.open(); scroll.announceStatus(message); }
+        }
+        onArchiveLoaded: (id, at, intervals) => {
+            if (panel.visible && panel.mode === "intervals" && panel.data.id === id && panel.data.at === at) {
+                panel.intervals = intervals;
+                panel.notify(intervals.length ? qsTr("Archive intervals: %1").arg(intervals.length) : qsTr("No recording at this time."));
+            }
+        }
         Component.onCompleted: attach(win, nav, win.workspace)
         onTriggered: id => {
             switch (id) {
+            case "bindings":
+                win.settings();
+                Qt.callLater(() => win.appearance?.openShortcuts());
+                break;
+            case "context":
+                radial.begin(Qt.point(radial.width / 2, radial.height / 2), win.activeFocusItem);
+                radial.finish(0, 0);
+                break;
             case "new":
                 win.newWindow();
                 break;
@@ -44,6 +116,34 @@ ApplicationWindow {
             }
         }
     }
+    KitPanel {
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        visible: commands.hints
+        width: Math.min(parent.width - 2 * Tokens.space3, Tokens.scaled(500))
+        height: Math.min(parent.height - 2 * Tokens.space3, implicitHeight)
+        z: 2
+        contentItem: ScrollView {
+            clip: true
+            contentWidth: availableWidth
+            implicitHeight: hintsColumn.implicitHeight
+            ColumnLayout {
+                id: hintsColumn
+                width: parent.width
+                KitLabel { text: qsTr("Keyboard shortcuts"); font.bold: true }
+                Repeater {
+                    model: commands.hints ? commands.commandIds.filter(id => commands.entries[id].available && commands.entries[id].bindings.length) : []
+                    RowLayout {
+                        required property string modelData
+                        Layout.fillWidth: true
+                        KitLabel { Layout.fillWidth: true; text: commands.entries[parent.modelData].name }
+                        KitLabel { text: commands.entries[parent.modelData].bindings.join(" · ") }
+                    }
+                }
+            }
+        }
+    }
+    ToolTip { id: toast; parent: Overlay.overlay; timeout: 4500; x: (parent.width - width) / 2; y: parent.height - height - Tokens.space3; width: Math.min(implicitWidth, parent.width - 2 * Tokens.space3) }
     onActiveFocusItemChanged: {
         const target = activeFocusItem;
         if (!target || !viewport)
@@ -66,7 +166,7 @@ ApplicationWindow {
         return workspace.points.lookup(nav.pointId);
     }
     readonly property bool overview: nav.page === Navigation.Overview
-    readonly property string section: nav.page === Navigation.Settings ? qsTr("Settings") : nav.page === Navigation.Point ? qsTr("Observation point") : overviewTitle
+    readonly property string section: nav.page === Navigation.Settings ? qsTr("Settings") : nav.page === Navigation.Point ? qsTr("Observation point") : nav.page === Navigation.Layout ? commands.layout.name || qsTr("Layout") : overviewTitle
 
     width: 1000
     height: 720
@@ -78,6 +178,8 @@ ApplicationWindow {
 
     Navigation {
         id: nav
+        onChanged: if (win.displayedStream && (page !== Navigation.Point || pointId !== win.displayedStream.point))
+            win.closeDisplayedStream()
     }
     function back() {
         if (overview)
@@ -112,11 +214,17 @@ ApplicationWindow {
         backButton.forceActiveFocus(Qt.TabFocusReason);
         viewport.contentY = 0;
     }
-    function openPoint(id) {
+    function openPoint(id, live = true) {
+        const target = previewStream.point === id ? previewStream : displayedStream?.point === id ? displayedStream : previewStream;
         nav.push(Navigation.Point, id, {
             id: id,
             role: "point"
         });
+        if (live) {
+            if (displayedStream && displayedStream !== target) closeDisplayedStream();
+            target.open(workspace, id);
+            if (target.point === id) displayedStream = target;
+        } else closeDisplayedStream();
         backButton.forceActiveFocus(Qt.TabFocusReason);
         viewport.contentY = 0;
     }
@@ -126,7 +234,7 @@ ApplicationWindow {
         function onChanged() {
             if (!win.workspace.signedIn) {
                 win.overviewContent?.filterPanel.reset();
-                if (nav.containsPoint)
+                if (nav.containsPoint || nav.page === Navigation.Layout)
                     nav.reset();
             }
         }
@@ -176,16 +284,25 @@ ApplicationWindow {
                 }
             }
             KitButton {
+                objectName: "palette"
+                text: (commands.entries.palette?.name || "")
+                symbol: (commands.entries.palette?.icon || "")
+                shortcutHint: (commands.entries.palette?.bindings || []).join(" · ")
+                onClicked: commands.invoke("palette")
+            }
+            KitButton {
                 objectName: "newWindow"
-                text: commands.entries["new"].name
-                symbol: commands.entries["new"].icon
+                text: (commands.entries["new"]?.name || "")
+                symbol: (commands.entries["new"]?.icon || "")
+                shortcutHint: (commands.entries["new"]?.bindings || []).join(" · ")
                 onClicked: commands.invoke("new")
             }
             KitButton {
                 id: settingsButton
                 objectName: "settings"
-                text: commands.entries["settings"].name
-                symbol: commands.entries["settings"].icon
+                text: (commands.entries["settings"]?.name || "")
+                symbol: (commands.entries["settings"]?.icon || "")
+                shortcutHint: (commands.entries["settings"]?.bindings || []).join(" · ")
                 checked: nav.page === Navigation.Settings
                 onClicked: commands.invoke("settings")
             }
@@ -218,8 +335,9 @@ ApplicationWindow {
                 id: backButton
                 objectName: "back"
                 visible: !win.overview
-                text: commands.entries["back"].name
-                symbol: commands.entries["back"].icon
+                text: (commands.entries["back"]?.name || "")
+                symbol: (commands.entries["back"]?.icon || "")
+                shortcutHint: (commands.entries["back"]?.bindings || []).join(" · ")
                 onClicked: commands.invoke("back")
             }
             KitLabel {
@@ -229,10 +347,64 @@ ApplicationWindow {
                 font.weight: Font.DemiBold
             }
             Loader {
+                id: settingsPage
                 Layout.fillWidth: true
                 active: nav.page === Navigation.Settings
                 visible: active
-                sourceComponent: AppearancePage {}
+                sourceComponent: AppearancePage { registry: commands }
+            }
+            GridLayout {
+                id: layoutGrid
+                readonly property bool temporary: commands.layout.temporary === true
+                visible: nav.page === Navigation.Layout
+                Layout.fillWidth: true
+                columns: temporary || win.width >= Tokens.scaled(650) ? 2 : 1
+                Repeater {
+                    model: layoutGrid.temporary ? 4 : (commands.layout.data?.points?.length || 0)
+                    ColumnLayout {
+                        id: cell
+                        required property int index
+                        readonly property string pointId: commands.layout.data?.points?.[index] || ""
+                        readonly property var point: {
+                            win.workspace.points.version;
+                            return pointId ? win.workspace.points.lookup(pointId) : {};
+                        }
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        Loader {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: active ? width * 9 / 16 : 0
+                            active: layoutGrid.temporary
+                            visible: active
+                            sourceComponent: Rectangle {
+                                color: Tokens.canvas
+                                border.color: Tokens.line
+                                LivePreview {
+                                    id: tile
+                                    objectName: "layoutVideo-" + cell.index
+                                    anchors.fill: parent
+                                    preferMain: false
+                                    surface: GstGLQt6VideoItem {
+                                        parent: tile
+                                        width: Math.max(1, tile.width)
+                                        height: Math.max(1, tile.height)
+                                    }
+                                    Rectangle { anchors.fill: parent; color: Tokens.canvas; visible: !tile.ready }
+                                    readonly property string camera: win.workspace.state === Workspace.Ready && cell.point.can_preview && cell.point.connection === "online" ? cell.pointId : ""
+                                    onCameraChanged: open(win.workspace, camera)
+                                    Component.onCompleted: open(win.workspace, camera)
+                                }
+                            }
+                        }
+                        KitButton {
+                            Layout.fillWidth: true
+                            visible: !!cell.pointId || !layoutGrid.temporary
+                            text: cell.point.name || qsTr("This observation point is unavailable.")
+                            enabled: !!cell.point.id
+                            onClicked: win.openPoint(cell.pointId)
+                        }
+                    }
+                }
             }
             Loader {
                 id: overviewPage
@@ -246,15 +418,55 @@ ApplicationWindow {
                 visible: nav.page === Navigation.Point
                 sourceComponent: ColumnLayout {
                     KitPanel {
+                        id: cameraCard
+                        objectName: "cameraCard"
+                        property string commandScope: "video"
+                        Item {
+                            id: cameraInput
+                            parent: cameraCard
+                            objectName: "cameraInput"
+                            activeFocusOnTab: true
+                        }
+                        TapHandler {
+                            acceptedButtons: Qt.LeftButton
+                            onTapped: cameraInput.forceActiveFocus(Qt.MouseFocusReason)
+                        }
                         Layout.fillWidth: true
+                        MouseArea {
+                            objectName: "cameraContextArea"
+                            parent: cameraCard
+                            anchors.fill: parent
+                            z: 1
+                            acceptedButtons: Qt.RightButton
+                            preventStealing: true
+                            property point start
+                            onPressed: mouse => {
+                                start = Qt.point(mouse.x, mouse.y);
+                                radial.begin(mapToItem(radial, mouse.x, mouse.y), win.activeFocusItem);
+                            }
+                            onPositionChanged: mouse => radial.hoverAt(mouse.x - start.x, mouse.y - start.y)
+                            onReleased: mouse => radial.finish(mouse.x - start.x, mouse.y - start.y)
+                            onCanceled: if (radial.tracking) radial.hideMenu()
+                        }
                         visible: !!win.selected.id
                         contentItem: ColumnLayout {
                             spacing: Tokens.space3
-                            KitLabel {
+                            RowLayout {
                                 Layout.fillWidth: true
-                                text: win.selected.name ?? ""
-                                font.bold: true
-                                typeSize: Tokens.textPanelTitle
+                                KitLabel {
+                                    Layout.fillWidth: true
+                                    text: win.selected.name ?? ""
+                                    font.bold: true
+                                    typeSize: Tokens.textPanelTitle
+                                }
+                                KitButton {
+                                    objectName: "cameraActions"
+                                    text: (commands.entries.context?.name || "")
+                                    symbol: (commands.entries.context?.icon || "")
+                                    shortcutHint: (commands.entries.context?.bindings || []).join(" · ")
+                                    enabled: !!commands.entries.context?.available
+                                    onClicked: commands.invoke("context")
+                                }
                             }
                             Flow {
                                 Layout.fillWidth: true
@@ -274,8 +486,19 @@ ApplicationWindow {
                                     symbol: "bell-ring"
                                 }
                             }
+                            KitButton {
+                                objectName: "timelinePosition"
+                                property string commandScope: "timeline"
+                                onClicked: commands.invoke("archive")
+                                visible: !!commands.archiveTime
+                                text: commands.archiveTime ? (commands.entries.archive?.name || "") + " · " + commands.archiveTime : ""
+                                Layout.fillWidth: true
+                            }
                             Item {
                                 objectName: "mediaSurface"
+                                onChildrenChanged: win.mediaFrame = children.length ? children[0] : null
+                                Component.onCompleted: win.mediaHost = this
+                                Component.onDestruction: { win.mediaHost = null; win.mediaFrame = null; }
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: visible ? width * 9 / 16 : 0
                                 visible: children.length > 0
@@ -436,15 +659,17 @@ ApplicationWindow {
             Layout.fillWidth: true
             spacing: Tokens.space2
             KitButton {
-                text: commands.entries["refresh"].name
-                symbol: commands.entries["refresh"].icon
-                enabled: commands.entries["refresh"].available
+                text: (commands.entries["refresh"]?.name || "")
+                symbol: (commands.entries["refresh"]?.icon || "")
+                shortcutHint: (commands.entries["refresh"]?.bindings || []).join(" · ")
+                enabled: !!commands.entries["refresh"]?.available
                 onClicked: commands.invoke("refresh")
             }
             KitButton {
-                text: commands.entries["sign-out"].name
-                symbol: commands.entries["sign-out"].icon
-                enabled: commands.entries["sign-out"].available
+                text: (commands.entries["sign-out"]?.name || "")
+                symbol: (commands.entries["sign-out"]?.icon || "")
+                shortcutHint: (commands.entries["sign-out"]?.bindings || []).join(" · ")
+                enabled: !!commands.entries["sign-out"]?.available
                 onClicked: commands.invoke("sign-out")
             }
         }

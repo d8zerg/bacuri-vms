@@ -4,6 +4,8 @@
 #include "modules/access/oidc.hpp"
 #include "modules/inventory/operations.hpp"
 #include "application/control_api/playback_time.hpp"
+#include <algorithm>
+#include <cctype>
 #include <set>
 
 namespace bacuri::vms::control::access
@@ -222,6 +224,42 @@ Json privacy(postgresql::Database& db, const Request& req, const std::string& si
 bool administration(const Request& req, Response& res, const Sessions& sessions, const Key& key,
                     const std::string& site, std::string_view path)
 {
+    if (path == "keyboard-profile") {
+        allow(req, res, {http::verb::put});
+        postgresql::Database db;
+        db.exec("BEGIN");
+        const auto user = sessions.authenticate(db, req, true).user;
+        if (site_role(db, site, user, RoleLock::shared) != "administrator")
+            throw Failure{ErrorCode::forbidden};
+        const auto body = object_body(req, {"revision", "bindings"});
+        const auto revision = string_field(body, "revision", 19);
+        require(body.contains("bindings") && body["bindings"].is_object() && body["bindings"].size() <= 128);
+        require(revision.find_first_not_of("0123456789") == revision.npos);
+        for (const auto& [id, binding] : body["bindings"].items()) {
+            require(!id.empty() && id.size() <= 64 &&
+                    id.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789-") == id.npos &&
+                    binding.is_string());
+            auto value = binding.get<std::string>();
+            require(!value.empty() && value.size() <= 64 &&
+                    std::ranges::all_of(value, [](unsigned char ch) { return ch >= 32 && ch <= 126; }));
+            std::ranges::transform(value, value.begin(),
+                                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+            require(value.find("meta+") == value.npos && value.find("super+") == value.npos &&
+                    value != "alt+tab" && value != "alt+shift+tab" && value != "ctrl+alt+t");
+        }
+        auto updated =
+            db.exec("UPDATE bacuri_inventory.sites SET keymap=$2::jsonb,keymap_revision=keymap_revision+1 WHERE "
+                    "site_id=$1 AND keymap_revision::text=$3 RETURNING keymap_revision",
+                    {site, body["bindings"].dump(), revision});
+        if (!updated.size())
+            throw Failure{ErrorCode::revision_conflict};
+        db.exec("INSERT INTO bacuri_access.access_audit(site_id,actor,method,action,resource) "
+                "VALUES($1,$2,$3,'keyboard_profile.publish',$4)",
+                {site, user, Sessions::desktop_request(req) ? "desktop" : "browser", updated.get(0)});
+        db.exec("COMMIT");
+        respond(res, {{"revision", updated.get(0)}});
+        return true;
+    }
     auto slash = path.find('/');
     auto resource = path.substr(0, slash);
     if (resource != "users" && resource != "resource-groups" && resource != "grants" &&

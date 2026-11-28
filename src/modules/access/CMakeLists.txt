@@ -1,5 +1,6 @@
 add_library(bacuri-vms-access STATIC
     admin.cpp
+    snapshot.cpp
     configuration.cpp
     desktop.cpp
     oidc.cpp

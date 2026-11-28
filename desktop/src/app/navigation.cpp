@@ -26,11 +26,11 @@ QQuickItem* Navigation::findTarget(QQuickItem* parent, const QString& id) const
 Navigation::Page Navigation::page() const
 {
     const auto p = stack_.last().toMap().value("page").toString();
-    return p == "settings" ? Settings : p == "point" ? Point : Overview;
+    return p == "settings" ? Settings : p == "point" ? Point : p == "layout" ? Layout : Overview;
 }
 QVariantMap Navigation::intent(Page page, const QString& id)
 {
-    static const QStringList pages{"overview", "point", "settings"};
+    static const QStringList pages{"overview", "point", "settings", "layout"};
     QVariantMap target{{"role", "control"}, {"id", page == Overview ? "settings" : "back"}};
     return {{"page", pages.at(page)}, {"id", id}, {"focus", target}};
 }
@@ -60,7 +60,8 @@ bool Navigation::restore(const QVariantList& intents)
                 (focus.value("role") != "point" && focus.value("role") != "control"))
                 return false;
         }
-        if (p != "overview" && p != "settings" && !(p == "point" && !map.value("id").toString().isEmpty()))
+        if (p != "overview" && p != "settings" &&
+            !((p == "point" || p == "layout") && !map.value("id").toString().isEmpty()))
             return false;
     }
     stack_ = intents;
@@ -69,8 +70,9 @@ bool Navigation::restore(const QVariantList& intents)
 }
 void Navigation::push(Page next, const QString& id, const QVariantMap& focus)
 {
-    if ((next != Settings && next != Point) || (next == Point && id.isEmpty()) ||
-        (next == page() && (next != Point || id == pointId())))
+    if ((next != Settings && next != Point && next != Layout) ||
+        ((next == Point || next == Layout) && id.isEmpty()) ||
+        (next == page() && (next == Settings || id == currentId())))
         return;
     auto current = stack_.last().toMap();
     current["focus"] = focus;

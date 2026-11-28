@@ -5,8 +5,6 @@
 
 namespace bacuri::vms::client
 {
-namespace
-{
 QString otherLayout(const QString& word)
 {
     static const QString en = "`qwertyuiop[]asdfghjkl;'zxcvbnm,.";
@@ -40,7 +38,6 @@ bool oneEdit(QStringView a, QStringView b)
         return true;
     return i + 1 < a.size() && a[i] == b[i + 1] && a[i + 1] == b[i] && a.sliced(i + 2) == b.sliced(i + 2);
 }
-} // namespace
 SearchMatcher::SearchMatcher(const QString& query)
 {
     for (const auto& term : query.simplified().toCaseFolded().split(' ', Qt::SkipEmptyParts))

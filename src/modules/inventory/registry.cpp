@@ -145,6 +145,9 @@ void CameraRegistry::points(const Request& req, Response& res, const std::string
         R"sql(
             SELECT coalesce(jsonb_agg(jsonb_build_object('id',p.point_id,'name',p.name,
               'connection','unknown','recording','unknown') ||
+              jsonb_build_object('can_snapshot',bacuri_access.can_use(p.site_id,$10,p.point_id,'export',NULL,NULL,'export')
+                  AND bacuri_access.can_use(p.site_id,$10,p.point_id,'view',NULL,NULL,''),
+                  'can_preview',bacuri_access.can_use(p.site_id,$10,p.point_id,'view',NULL,NULL,'thumbnail')) ||
               CASE WHEN p.point_id=ANY($9::uuid[]) THEN jsonb_build_object('can_record',true) ELSE '{}'::jsonb END ||
               CASE WHEN p.point_id=ANY($3::uuid[])
               THEN jsonb_build_object('can_export',true) ELSE '{}'::jsonb END ||
@@ -172,7 +175,7 @@ void CameraRegistry::points(const Request& req, Response& res, const std::string
          postgresql::array_parameter(access::granted_point_ids(db, site, identity.user, "audio")),
          postgresql::array_parameter(access::granted_point_ids(db, site, identity.user, "audio_record")),
          postgresql::array_parameter(access::granted_point_ids(db, site, identity.user, "audio_talk")),
-         postgresql::array_parameter(manual)});
+         postgresql::array_parameter(manual), identity.user});
     const auto policy_revision = access::scope_revision(db, site);
     auto points = Json::parse(rows.get(0));
     std::vector<std::string> ids;

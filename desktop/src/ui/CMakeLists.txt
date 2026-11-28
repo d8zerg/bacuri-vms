@@ -18,10 +18,10 @@ qt_add_qml_module(bacuri-vms-client-ui
 )
 target_link_libraries(bacuri-vms-client-ui PUBLIC Qt6::QuickControls2 bacuri-vms-client-settingsplugin)
 set(assets brand/mark.svg assets/inter-latin.woff2 assets/inter-cyrillic.woff2 assets/Inter-LICENSE.txt icons/LICENSE.txt)
-foreach(icon archive-x bell-ring cctv circle-x hard-drive layers link-2 list-filter log-in log-out monitor moon rotate-cw search settings-2 sun unplug)
+foreach(icon archive expand move scan-line file-down map-pin clipboard-list archive-x bell-ring cctv circle-x hard-drive layers link-2 list-filter log-in log-out monitor moon rotate-cw search settings-2 sun unplug)
     list(APPEND assets icons/${icon}.svg)
 endforeach()
 list(TRANSFORM assets PREPEND "${design_dir}/")
 qt_add_resources(bacuri-vms-client-ui design PREFIX /design BASE ${design_dir} FILES ${assets})
 qt_add_resources(bacuri-vms-client-ui desktop_icons PREFIX /design BASE ${CMAKE_CURRENT_SOURCE_DIR}
-    FILES icons/arrow-left.svg icons/new-window.svg)
+    FILES icons/chevron-down.svg icons/ellipsis.svg icons/arrow-left.svg icons/new-window.svg)

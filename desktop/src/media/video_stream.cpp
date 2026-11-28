@@ -106,6 +106,11 @@ QString hardware_decoder(const QString& codec)
 }
 
 struct VideoStream::Probe {
+    static GstPadProbeReturn decoded(GstPad* pad, GstPadProbeInfo* info, gpointer data)
+    {
+        static_cast<VideoStream*>(data)->native_.receive(pad, gst_pad_probe_info_get_buffer(info));
+        return GST_PAD_PROBE_OK;
+    }
     static GstPadProbeReturn caps(GstPad*, GstPadProbeInfo* info, gpointer data)
     {
         auto* event = gst_pad_probe_info_get_event(info);
@@ -145,7 +150,7 @@ VideoStream::~VideoStream()
 
 bool VideoStream::live() const
 {
-    return options_.source.startsWith(QStringLiteral("rtsp://"));
+    return webRtc() || options_.source.startsWith(QStringLiteral("rtsp://"));
 }
 
 QString VideoStream::decoder_name(bool hardware) const
@@ -161,6 +166,7 @@ void VideoStream::release()
     }
     if (pipeline_ != nullptr) {
         gst_element_set_state(pipeline_, GST_STATE_NULL);
+        native_.clear();
         gst_object_unref(pipeline_);
         pipeline_ = nullptr;
     }
@@ -168,6 +174,27 @@ void VideoStream::release()
         gst_object_unref(sink_);
         sink_ = nullptr;
     }
+}
+
+bool VideoStream::registerVideoItem()
+{
+    gst_init(nullptr, nullptr);
+    auto* sink = gst_element_factory_make("qml6glsink", nullptr);
+    if (!sink)
+        return false;
+    gst_object_unref(sink);
+    return true;
+}
+
+GstElement* VideoStream::webRtcPeer() const
+{
+    return webRtc() && pipeline_ ? gst_bin_get_by_name(GST_BIN(pipeline_), "peer") : nullptr;
+}
+
+void VideoStream::onFirstFrame(std::function<void()> handler)
+{
+    std::scoped_lock lock{mutex_};
+    firstFrame_ = std::move(handler);
 }
 
 void VideoStream::create()
@@ -188,7 +215,11 @@ void VideoStream::build(bool hardware)
 {
     hardware_ = hardware;
     QString source;
-    if (live()) {
+    if (webRtc()) {
+        source =
+            QStringLiteral("webrtcbin name=peer bundle-policy=max-bundle peer. ! queue ! rtp%1depay ! %1parse")
+                .arg(options_.codec);
+    } else if (live()) {
         source = QStringLiteral("rtspsrc location=\"%1\" protocols=tcp latency=0%2 ! rtp%3depay ! %3parse")
                      .arg(options_.source, camera_credentials(), options_.codec);
     } else {
@@ -212,11 +243,14 @@ void VideoStream::build(bool hardware)
         std::scoped_lock lock{mutex_};
         error_ = QString::fromUtf8(failure->message);
         g_error_free(failure);
+        if (pipeline_)
+            gst_object_unref(std::exchange(pipeline_, nullptr));
         return;
     }
     sink_ = gst_bin_get_by_name(GST_BIN(pipeline_), "sink");
     if (auto* decoder = gst_bin_get_by_name(GST_BIN(pipeline_), "decoder")) {
         auto* pad = gst_element_get_static_pad(decoder, "src");
+        gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, &Probe::decoded, this, nullptr);
         gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, &Probe::caps, this, nullptr);
         gst_object_unref(pad);
         gst_object_unref(decoder);
@@ -236,9 +270,15 @@ void VideoStream::build(bool hardware)
 void VideoStream::attach(QQuickItem* item, QQuickWindow* window)
 {
     item_ = item;
+    native_.attach(item);
     window_ = window;
     if (sink_ != nullptr)
         g_object_set(sink_, "widget", item, nullptr);
+}
+
+void VideoStream::attachFrameOwner(QQuickItem* item)
+{
+    native_.attach(item);
 }
 
 void VideoStream::on_resume(Resume resume)
@@ -284,7 +324,10 @@ void VideoStream::play_at(GstClock* clock, std::uint64_t base)
         gst_element_set_start_time(pipeline_, GST_CLOCK_TIME_NONE);
         gst_element_set_base_time(pipeline_, base);
     }
-    gst_element_set_state(pipeline_, GST_STATE_PLAYING);
+    if (gst_element_set_state(pipeline_, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+        std::scoped_lock lock{mutex_};
+        error_ = QStringLiteral("Could not start video pipeline");
+    }
 }
 
 void VideoStream::inject_decoder_fault()
@@ -307,7 +350,7 @@ int VideoStream::on_bus(GstBus*, GstMessage* message, void* data)
         gst_message_parse_error(message, &failure, nullptr);
         const auto reason = QString::fromUtf8(failure->message);
         g_error_free(failure);
-        if (cell->hardware_) {
+        if (cell->hardware_ && !cell->webRtc()) {
             // The watch belongs to the pipeline that fall_back replaces.
             cell->bus_watch_ = 0;
             cell->fall_back(reason);
@@ -403,6 +446,8 @@ void VideoStream::on_frame(std::int64_t pts_ns)
         first_pts_ = pts_ns;
         if (created_)
             first_frame_ms_ = elapsed_ms(*created_);
+        if (auto notify = std::exchange(firstFrame_, {}))
+            notify();
     }
     if (awaiting_seek_.exchange(false)) {
         seek_pts_ = pts_ns;

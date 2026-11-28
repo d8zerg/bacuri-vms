@@ -1,10 +1,585 @@
 {
+  "camera-actions-dark-en": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Save frame",
+            "role": "MenuItem"
+          },
+          {
+            "children": [],
+            "name": "Full screen",
+            "role": "MenuItem"
+          },
+          {
+            "children": [],
+            "name": "Open archive",
+            "role": "MenuItem"
+          },
+          {
+            "children": [],
+            "name": "Export interval",
+            "role": "MenuItem"
+          },
+          {
+            "children": [],
+            "name": "Temporary mark (this window)",
+            "role": "MenuItem"
+          },
+          {
+            "children": [],
+            "name": "PTZ controls",
+            "role": "MenuItem"
+          }
+        ],
+        "name": "Camera actions",
+        "role": "PopupMenu"
+      },
+      {
+        "children": [],
+        "name": "Back",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Observation point",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Gate A",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Camera actions",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Online",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Recording",
+        "role": "StaticText"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Back",
+        "object": "back"
+      },
+      {
+        "name": "Camera actions",
+        "object": "cameraActions"
+      }
+    ],
+    "name": "Observation point | Bacuri VMS",
+    "role": "Window"
+  },
+  "camera-actions-en": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Save frame",
+            "role": "MenuItem"
+          },
+          {
+            "children": [],
+            "name": "Full screen",
+            "role": "MenuItem"
+          },
+          {
+            "children": [],
+            "name": "Open archive",
+            "role": "MenuItem"
+          },
+          {
+            "children": [],
+            "name": "Export interval",
+            "role": "MenuItem"
+          },
+          {
+            "children": [],
+            "name": "Temporary mark (this window)",
+            "role": "MenuItem"
+          },
+          {
+            "children": [],
+            "name": "PTZ controls",
+            "role": "MenuItem"
+          }
+        ],
+        "name": "Camera actions",
+        "role": "PopupMenu"
+      },
+      {
+        "children": [],
+        "name": "Back",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Observation point",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Gate A",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Camera actions",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Online",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Recording",
+        "role": "StaticText"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Back",
+        "object": "back"
+      },
+      {
+        "name": "Camera actions",
+        "object": "cameraActions"
+      }
+    ],
+    "name": "Observation point | Bacuri VMS",
+    "role": "Window"
+  },
+  "command-palette-dark-en": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Observation points",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Search by name or ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Filter options",
+            "role": "CheckBox"
+          }
+        ],
+        "name": "Filters",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Online",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording",
+                "role": "StaticText"
+              }
+            ],
+            "name": "Gate A",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Offline",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording stopped",
+                "role": "StaticText"
+              }
+            ],
+            "name": "South",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Observation points",
+        "role": "List"
+      },
+      {
+        "children": [],
+        "name": "Refresh",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Sign out",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Command palette",
+            "role": "StaticText"
+          },
+          {
+            "children": [],
+            "name": "Close",
+            "role": "Button"
+          },
+          {
+            "children": [],
+            "name": "Search commands and objects",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Gate A · Archive · 2000-01-01 15:15:00 MSK (12:15:00 UTC)",
+            "role": "StaticText"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Camera · Gate A",
+                "role": "ListItem"
+              },
+              {
+                "children": [],
+                "name": "Alarm · Gate A 2026-01-02T12:00:00Z",
+                "role": "ListItem"
+              }
+            ],
+            "name": "Results",
+            "role": "List"
+          }
+        ],
+        "name": "Command palette",
+        "role": "Dialog"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Search by name or ID",
+        "object": "filter"
+      },
+      {
+        "name": "Filter options",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Observation points",
+        "object": "pointList"
+      },
+      {
+        "name": "Refresh",
+        "object": ""
+      },
+      {
+        "name": "Sign out",
+        "object": ""
+      }
+    ],
+    "name": "Observation points | Bacuri VMS",
+    "role": "Window"
+  },
+  "command-palette-en": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Observation points",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Search by name or ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Filter options",
+            "role": "CheckBox"
+          }
+        ],
+        "name": "Filters",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Online",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording",
+                "role": "StaticText"
+              }
+            ],
+            "name": "Gate A",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Offline",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording stopped",
+                "role": "StaticText"
+              }
+            ],
+            "name": "South",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Observation points",
+        "role": "List"
+      },
+      {
+        "children": [],
+        "name": "Refresh",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Sign out",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Command palette",
+            "role": "StaticText"
+          },
+          {
+            "children": [],
+            "name": "Close",
+            "role": "Button"
+          },
+          {
+            "children": [],
+            "name": "Search commands and objects",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Gate A · Archive · 2000-01-01 15:15:00 MSK (12:15:00 UTC)",
+            "role": "StaticText"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Camera · Gate A",
+                "role": "ListItem"
+              },
+              {
+                "children": [],
+                "name": "Alarm · Gate A 2026-01-02T12:00:00Z",
+                "role": "ListItem"
+              }
+            ],
+            "name": "Results",
+            "role": "List"
+          }
+        ],
+        "name": "Command palette",
+        "role": "Dialog"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Search by name or ID",
+        "object": "filter"
+      },
+      {
+        "name": "Filter options",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Observation points",
+        "object": "pointList"
+      },
+      {
+        "name": "Refresh",
+        "object": ""
+      },
+      {
+        "name": "Sign out",
+        "object": ""
+      }
+    ],
+    "name": "Observation points | Bacuri VMS",
+    "role": "Window"
+  },
   "en-dark-state-0": {
     "children": [
       {
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -114,6 +689,10 @@
       }
     ],
     "focusOrder": [
+      {
+        "name": "Command palette",
+        "object": "palette"
+      },
       {
         "name": "New window",
         "object": "newWindow"
@@ -155,6 +734,11 @@
       },
       {
         "children": [],
+        "name": "Command palette",
+        "role": "Button"
+      },
+      {
+        "children": [],
         "name": "New window",
         "role": "Button"
       },
@@ -198,6 +782,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -223,6 +811,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -269,6 +862,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -294,6 +891,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -350,6 +952,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -379,6 +985,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -489,6 +1100,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -526,6 +1141,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -582,6 +1202,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -611,6 +1235,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -721,6 +1350,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -758,6 +1391,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -804,6 +1442,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -829,6 +1471,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -875,6 +1522,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -900,6 +1551,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -956,6 +1612,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -985,6 +1645,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -1095,6 +1760,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -1132,6 +1801,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -1188,6 +1862,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -1220,6 +1898,11 @@
       },
       {
         "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
+      },
+      {
+        "children": [],
         "name": "Новое окно",
         "role": "Button"
       },
@@ -1245,6 +1928,11 @@
       },
       {
         "children": [],
+        "name": "Действия с камерой",
+        "role": "Button"
+      },
+      {
+        "children": [],
         "name": "На связи",
         "role": "StaticText"
       },
@@ -1256,6 +1944,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -1266,6 +1958,10 @@
       {
         "name": "Назад",
         "object": "back"
+      },
+      {
+        "name": "Действия с камерой",
+        "object": "cameraActions"
       }
     ],
     "name": "Точка наблюдения | Bacuri VMS",
@@ -1277,6 +1973,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -1365,6 +2066,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -1406,6 +2111,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -1494,6 +2204,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -1535,6 +2249,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -1639,6 +2358,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -1676,6 +2399,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -1747,6 +2475,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -1787,6 +2519,11 @@
       },
       {
         "children": [],
+        "name": "Command palette",
+        "role": "Button"
+      },
+      {
+        "children": [],
         "name": "New window",
         "role": "Button"
       },
@@ -1812,6 +2549,11 @@
       },
       {
         "children": [],
+        "name": "Camera actions",
+        "role": "Button"
+      },
+      {
+        "children": [],
         "name": "Online",
         "role": "StaticText"
       },
@@ -1828,6 +2570,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -1838,6 +2584,10 @@
       {
         "name": "Back",
         "object": "back"
+      },
+      {
+        "name": "Camera actions",
+        "object": "cameraActions"
       }
     ],
     "name": "Observation point | Bacuri VMS",
@@ -1855,6 +2605,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -1883,6 +2638,11 @@
       },
       {
         "children": [],
+        "name": "Действия с камерой",
+        "role": "Button"
+      },
+      {
+        "children": [],
         "name": "На связи",
         "role": "StaticText"
       },
@@ -1899,6 +2659,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -1909,6 +2673,10 @@
       {
         "name": "Назад",
         "object": "back"
+      },
+      {
+        "name": "Действия с камерой",
+        "object": "cameraActions"
       }
     ],
     "name": "Точка наблюдения | Bacuri VMS",
@@ -1926,6 +2694,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "Graphic"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -2025,6 +2798,10 @@
       }
     ],
     "focusOrder": [
+      {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
       {
         "name": "Новое окно",
         "object": "newWindow"
@@ -2078,6 +2855,11 @@
       },
       {
         "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
+      },
+      {
+        "children": [],
         "name": "Новое окно",
         "role": "Button"
       },
@@ -2175,6 +2957,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -2227,6 +3013,11 @@
       },
       {
         "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
+      },
+      {
+        "children": [],
         "name": "Новое окно",
         "role": "Button"
       },
@@ -2333,6 +3124,10 @@
       }
     ],
     "focusOrder": [
+      {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
       {
         "name": "Новое окно",
         "object": "newWindow"
@@ -2374,6 +3169,11 @@
       },
       {
         "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
+      },
+      {
+        "children": [],
         "name": "Новое окно",
         "role": "Button"
       },
@@ -2417,6 +3217,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -2442,6 +3246,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -2488,6 +3297,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -2513,6 +3326,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -2569,6 +3387,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -2598,6 +3420,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -2708,6 +3535,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -2745,6 +3576,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -2801,6 +3637,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -2830,6 +3670,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -2940,6 +3785,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -2977,6 +3826,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -3023,6 +3877,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -3048,6 +3906,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -3094,6 +3957,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -3119,6 +3986,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -3175,6 +4047,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -3204,6 +4080,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -3314,6 +4195,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -3351,6 +4236,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -3407,6 +4297,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
+      {
         "name": "Новое окно",
         "object": "newWindow"
       },
@@ -3436,6 +4330,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -3519,9 +4418,18 @@
         ],
         "name": "Text size",
         "role": "Grouping"
+      },
+      {
+        "children": [],
+        "name": "Keyboard shortcuts",
+        "role": "Button"
       }
     ],
     "focusOrder": [
+      {
+        "name": "Command palette",
+        "object": "palette"
+      },
       {
         "name": "New window",
         "object": "newWindow"
@@ -3545,6 +4453,10 @@
       {
         "name": "100%",
         "object": "scaleSetting-0"
+      },
+      {
+        "name": "Keyboard shortcuts",
+        "object": "shortcutDisclosure"
       }
     ],
     "name": "Settings | Bacuri VMS",
@@ -3556,6 +4468,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "Graphic"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -3639,9 +4556,18 @@
         ],
         "name": "Размер текста",
         "role": "Grouping"
+      },
+      {
+        "children": [],
+        "name": "Сочетания клавиш",
+        "role": "Button"
       }
     ],
     "focusOrder": [
+      {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
       {
         "name": "Новое окно",
         "object": "newWindow"
@@ -3665,6 +4591,10 @@
       {
         "name": "200%",
         "object": "scaleSetting-3"
+      },
+      {
+        "name": "Сочетания клавиш",
+        "object": "shortcutDisclosure"
       }
     ],
     "name": "Настройки | Bacuri VMS",
@@ -3676,6 +4606,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -3759,9 +4694,18 @@
         ],
         "name": "Размер текста",
         "role": "Grouping"
+      },
+      {
+        "children": [],
+        "name": "Сочетания клавиш",
+        "role": "Button"
       }
     ],
     "focusOrder": [
+      {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
       {
         "name": "Новое окно",
         "object": "newWindow"
@@ -3785,6 +4729,10 @@
       {
         "name": "150%",
         "object": "scaleSetting-2"
+      },
+      {
+        "name": "Сочетания клавиш",
+        "object": "shortcutDisclosure"
       }
     ],
     "name": "Настройки | Bacuri VMS",
@@ -3796,6 +4744,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -3879,9 +4832,18 @@
         ],
         "name": "Размер текста",
         "role": "Grouping"
+      },
+      {
+        "children": [],
+        "name": "Сочетания клавиш",
+        "role": "Button"
       }
     ],
     "focusOrder": [
+      {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
       {
         "name": "Новое окно",
         "object": "newWindow"
@@ -3905,9 +4867,707 @@
       {
         "name": "100%",
         "object": "scaleSetting-0"
+      },
+      {
+        "name": "Сочетания клавиш",
+        "object": "shortcutDisclosure"
       }
     ],
     "name": "Настройки | Bacuri VMS",
+    "role": "Window"
+  },
+  "shortcut-table-en": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Back",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "English",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Русский",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Interface language",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "System",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Light",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Dark",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Theme",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "100%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "125%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "150%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "200%",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Text size",
+        "role": "Grouping"
+      },
+      {
+        "children": [],
+        "name": "Keyboard shortcuts",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Action",
+            "role": "ColumnHeader"
+          },
+          {
+            "children": [],
+            "name": "Shortcut",
+            "role": "ColumnHeader"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Command palette",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Command palette",
+                "role": "Button"
+              }
+            ],
+            "name": "Command palette",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "New window",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for New window",
+                "role": "Button"
+              }
+            ],
+            "name": "New window",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Close window",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Close window",
+                "role": "Button"
+              }
+            ],
+            "name": "Close window",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Back",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Back",
+                "role": "Button"
+              }
+            ],
+            "name": "Back",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Settings",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Settings",
+                "role": "Button"
+              }
+            ],
+            "name": "Settings",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Find",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Find",
+                "role": "Button"
+              }
+            ],
+            "name": "Find",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Refresh",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Refresh",
+                "role": "Button"
+              }
+            ],
+            "name": "Refresh",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Sign out",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Sign out",
+                "role": "Button"
+              }
+            ],
+            "name": "Sign out",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Keyboard shortcuts",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Keyboard shortcuts",
+                "role": "Button"
+              }
+            ],
+            "name": "Keyboard shortcuts",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Publish site keyboard profile",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Publish site keyboard profile",
+                "role": "Button"
+              }
+            ],
+            "name": "Publish site keyboard profile",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Undo view change",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Undo view change",
+                "role": "Button"
+              }
+            ],
+            "name": "Undo view change",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Camera actions",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Camera actions",
+                "role": "Button"
+              }
+            ],
+            "name": "Camera actions",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Full screen",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Full screen",
+                "role": "Button"
+              }
+            ],
+            "name": "Full screen",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Pan left",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Pan left",
+                "role": "Button"
+              }
+            ],
+            "name": "Pan left",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Pan right",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Pan right",
+                "role": "Button"
+              }
+            ],
+            "name": "Pan right",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Tilt up",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Tilt up",
+                "role": "Button"
+              }
+            ],
+            "name": "Tilt up",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Tilt down",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Tilt down",
+                "role": "Button"
+              }
+            ],
+            "name": "Tilt down",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Zoom in",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Zoom in",
+                "role": "Button"
+              }
+            ],
+            "name": "Zoom in",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Zoom out",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Zoom out",
+                "role": "Button"
+              }
+            ],
+            "name": "Zoom out",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Save frame",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Save frame",
+                "role": "Button"
+              }
+            ],
+            "name": "Save frame",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "PTZ controls",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for PTZ controls",
+                "role": "Button"
+              }
+            ],
+            "name": "PTZ controls",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Previous archive minute",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Previous archive minute",
+                "role": "Button"
+              }
+            ],
+            "name": "Previous archive minute",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Next archive minute",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Next archive minute",
+                "role": "Button"
+              }
+            ],
+            "name": "Next archive minute",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Open archive",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Open archive",
+                "role": "Button"
+              }
+            ],
+            "name": "Open archive",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Temporary mark (this window)",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Temporary mark (this window)",
+                "role": "Button"
+              }
+            ],
+            "name": "Temporary mark (this window)",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Export jobs",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Export jobs",
+                "role": "Button"
+              }
+            ],
+            "name": "Export jobs",
+            "role": "Row"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Export interval",
+                "role": "Cell"
+              },
+              {
+                "children": [],
+                "name": "Change shortcut for Export interval",
+                "role": "Button"
+              }
+            ],
+            "name": "Export interval",
+            "role": "Row"
+          }
+        ],
+        "name": "Keyboard shortcuts",
+        "role": "Table"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Back",
+        "object": "back"
+      },
+      {
+        "name": "English",
+        "object": "languageSetting-0"
+      },
+      {
+        "name": "Light",
+        "object": "themeSetting-1"
+      },
+      {
+        "name": "100%",
+        "object": "scaleSetting-0"
+      },
+      {
+        "name": "Keyboard shortcuts",
+        "object": "shortcutDisclosure"
+      },
+      {
+        "name": "Change shortcut for Command palette",
+        "object": "shortcut-palette"
+      },
+      {
+        "name": "Change shortcut for New window",
+        "object": "shortcut-new"
+      },
+      {
+        "name": "Change shortcut for Close window",
+        "object": "shortcut-close"
+      },
+      {
+        "name": "Change shortcut for Back",
+        "object": "shortcut-back"
+      },
+      {
+        "name": "Change shortcut for Settings",
+        "object": "shortcut-settings"
+      },
+      {
+        "name": "Change shortcut for Find",
+        "object": "shortcut-find"
+      },
+      {
+        "name": "Change shortcut for Refresh",
+        "object": "shortcut-refresh"
+      },
+      {
+        "name": "Change shortcut for Sign out",
+        "object": "shortcut-sign-out"
+      },
+      {
+        "name": "Change shortcut for Keyboard shortcuts",
+        "object": "shortcut-bindings"
+      },
+      {
+        "name": "Change shortcut for Publish site keyboard profile",
+        "object": "shortcut-publish-keymap"
+      },
+      {
+        "name": "Change shortcut for Undo view change",
+        "object": "shortcut-undo"
+      },
+      {
+        "name": "Change shortcut for Camera actions",
+        "object": "shortcut-context"
+      },
+      {
+        "name": "Change shortcut for Full screen",
+        "object": "shortcut-expand"
+      },
+      {
+        "name": "Change shortcut for Pan left",
+        "object": "shortcut-ptz-left"
+      },
+      {
+        "name": "Change shortcut for Pan right",
+        "object": "shortcut-ptz-right"
+      },
+      {
+        "name": "Change shortcut for Tilt up",
+        "object": "shortcut-ptz-up"
+      },
+      {
+        "name": "Change shortcut for Tilt down",
+        "object": "shortcut-ptz-down"
+      },
+      {
+        "name": "Change shortcut for Zoom in",
+        "object": "shortcut-ptz-zoom_in"
+      },
+      {
+        "name": "Change shortcut for Zoom out",
+        "object": "shortcut-ptz-zoom_out"
+      },
+      {
+        "name": "Change shortcut for Save frame",
+        "object": "shortcut-snapshot"
+      },
+      {
+        "name": "Change shortcut for PTZ controls",
+        "object": "shortcut-ptz"
+      },
+      {
+        "name": "Change shortcut for Previous archive minute",
+        "object": "shortcut-archive-earlier"
+      },
+      {
+        "name": "Change shortcut for Next archive minute",
+        "object": "shortcut-archive-later"
+      },
+      {
+        "name": "Change shortcut for Open archive",
+        "object": "shortcut-archive"
+      },
+      {
+        "name": "Change shortcut for Temporary mark (this window)",
+        "object": "shortcut-bookmark"
+      },
+      {
+        "name": "Change shortcut for Export jobs",
+        "object": "shortcut-exports"
+      },
+      {
+        "name": "Change shortcut for Export interval",
+        "object": "shortcut-export"
+      }
+    ],
+    "name": "Settings | Bacuri VMS",
     "role": "Window"
   },
   "sign-in-error-en": {
@@ -3916,6 +5576,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Command palette",
+        "role": "Button"
       },
       {
         "children": [],
@@ -3971,6 +5636,10 @@
     ],
     "focusOrder": [
       {
+        "name": "Command palette",
+        "object": "palette"
+      },
+      {
         "name": "New window",
         "object": "newWindow"
       },
@@ -3996,6 +5665,11 @@
         "children": [],
         "name": "Bacuri VMS",
         "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Палитра команд",
+        "role": "Button"
       },
       {
         "children": [],
@@ -4050,6 +5724,10 @@
       }
     ],
     "focusOrder": [
+      {
+        "name": "Палитра команд",
+        "object": "palette"
+      },
       {
         "name": "Новое окно",
         "object": "newWindow"

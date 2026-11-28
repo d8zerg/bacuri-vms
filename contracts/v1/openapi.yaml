@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Bacuri VMS API
-  version: 1.12.0
+  version: 1.13.0
 servers:
   - url: /api/v1
 security:
@@ -2835,6 +2835,73 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /sites/{siteId}/points/{pointId}/snapshot-receipts:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+      - $ref: '#/components/parameters/Point'
+    post:
+      operationId: recordSnapshotCapture
+      description: Check current unrestricted export rights and the access revision and audit the native frame before the client publishes its PNG.
+      parameters:
+        - $ref: '#/components/parameters/Csrf'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [access_revision, pts_ns, width, height, sha256_rgba8]
+              properties:
+                access_revision: {type: string}
+                pts_ns: {type: string, pattern: '^[0-9]{1,20}$'}
+                width: {type: integer, minimum: 1, maximum: 65535}
+                height: {type: integer, minimum: 1, maximum: 65535}
+                sha256_rgba8: {type: string, pattern: '^[a-f0-9]{64}$'}
+      responses:
+        '200':
+          description: Identifier of the capture audit event.
+          content:
+            application/json:
+              schema: {type: object, required: [receipt], properties: {receipt: {$ref: '#/components/schemas/Id'}}}
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/RevisionConflict' }
+        default: { $ref: '#/components/responses/RequestFailure' }
+  /sites/{siteId}/keyboard-profile:
+    parameters:
+      - $ref: '#/components/parameters/Site'
+    put:
+      parameters:
+        - $ref: '#/components/parameters/Csrf'
+      operationId: publishKeyboardProfile
+      description: Publish default keyboard bindings for the site as an administrator. The session includes the current defaults and revision.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [revision, bindings]
+              properties:
+                revision: {type: string, pattern: '^[0-9]+$'}
+                bindings: {type: object, maxProperties: 128, propertyNames: {pattern: '^[a-z0-9-]{1,64}$'}, additionalProperties: {type: string, minLength: 1, maxLength: 64}}
+      responses:
+        '200':
+          description: Published revision.
+          content:
+            application/json:
+              schema: {type: object, required: [revision], properties: {revision: {type: string}}}
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/RevisionConflict' }
+        default: { $ref: '#/components/responses/RequestFailure' }
   /sites/{siteId}/points/{pointId}/media-sessions:
     parameters:
       - $ref: '#/components/parameters/Site'
@@ -3080,6 +3147,17 @@ components:
               - type: object
                 properties:
                   code: { enum: [invalid_request, method_not_allowed, payload_too_large, headers_too_large, expectation_failed, dependency_unavailable, internal_error] }
+    RevisionConflict:
+      description: The revision changed or an idempotency key was reused with different contents.
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: object
+                properties:
+                  status: {const: 409}
+                  code: {const: revision_conflict}
     CameraConflict:
       description: Conflicting identity, revision or request contents.
       content:
@@ -4649,6 +4727,9 @@ components:
             required: [site_id, role]
             properties:
               site_id: { $ref: '#/components/schemas/Id' }
+              time_zone: {type: string, description: IANA time zone configured for the site.}
+              keymap: {type: object, additionalProperties: {type: string}, description: Site keyboard defaults keyed by command identifier.}
+              keymap_revision: {type: string, pattern: '^[0-9]+$'}
               node_id: {type: string, format: uuid, description: Local media node for this site administrator.}
               role: { type: string, enum: [administrator, operator] }
         expires_at: { $ref: '#/components/schemas/UtcTime' }
@@ -4693,6 +4774,9 @@ components:
             required: [site_id, role]
             properties:
               site_id: { $ref: '#/components/schemas/Id' }
+              time_zone: {type: string, description: IANA time zone configured for the site.}
+              keymap: {type: object, additionalProperties: {type: string}, description: Site keyboard defaults keyed by command identifier.}
+              keymap_revision: {type: string, pattern: '^[0-9]+$'}
               node_id: {type: string, format: uuid, description: Local media node for this site administrator.}
               role: { type: string, enum: [administrator, operator] }
         expires_at: { $ref: '#/components/schemas/UtcTime' }
@@ -5017,6 +5101,8 @@ components:
             archive: { type: boolean }
             record: { type: boolean }
             talk: { type: boolean }
+        can_snapshot: {type: boolean, description: Native frame export is permitted with an audit receipt.}
+        can_preview: {type: boolean, description: The point permits a live palette thumbnail.}
         can_record: { type: boolean }
         can_export: { type: boolean }
         last_recorded_at: { $ref: '#/components/schemas/UtcTime' }

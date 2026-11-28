@@ -40,7 +40,7 @@ class StreamGroup : public QObject
         return streams_;
     }
     // Prerolls and starts the grid after the window has drawn its first frame.
-    void start();
+    void start(std::function<void()> liveStarted = {});
     void seek_to_frame(std::int64_t frame);
     // Start and seek durations of the whole grid and the spread of shown frames between cells.
     QJsonObject report() const;

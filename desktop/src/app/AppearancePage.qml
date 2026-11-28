@@ -6,6 +6,9 @@ import Bacuri.Vms.Client.Ui
 
 KitPanel {
     id: page
+    required property WindowCommands registry
+    readonly property alias capturing: shortcuts.capturing
+    function openShortcuts() { shortcuts.openSection(); }
     readonly property var themes: ["system", "light", "dark"]
     readonly property var scales: [1, 1.25, 1.5, 2]
 
@@ -22,8 +25,7 @@ KitPanel {
 
     contentItem: Item {
         implicitWidth: Math.ceil(grid.pairedWidth)
-        implicitHeight: grid.implicitHeight
-
+        implicitHeight: grid.implicitHeight + Tokens.space3 + shortcuts.implicitHeight
         GridLayout {
             id: grid
             readonly property real pairedWidth: Math.max(languageLabel.implicitWidth, themeLabel.implicitWidth, scaleLabel.implicitWidth)
@@ -70,6 +72,13 @@ KitPanel {
                 currentIndex: page.scales.indexOf(Preferences.textScale)
                 onSelected: index => Preferences.textScale = page.scales[index]
             }
+        }
+
+        ShortcutSettings {
+            id: shortcuts
+            y: grid.implicitHeight + Tokens.space3
+            width: page.availableWidth
+            registry: page.registry
         }
     }
 }

@@ -1,6 +1,30 @@
 #include "catalog_workspace.hpp"
 namespace bacuri::vms::client
 {
+void CatalogWorkspace::loadCommandObjects()
+{
+    if (state() != Ready || !points()->count()) {
+        setCommandObjects({});
+        return;
+    }
+    setCommandObjects({QVariantMap{{"kind", "layout"},
+                                   {"id", "entrances"},
+                                   {"site", "sample"},
+                                   {"name", "Entrances"},
+                                   {"data", QVariantMap{{"points", QVariantList{"north", "west"}}}}},
+                       QVariantMap{{"kind", "alert"},
+                                   {"id", "gate"},
+                                   {"site", "sample"},
+                                   {"name", "North terminal"},
+                                   {"data", QVariantMap{{"point_id", "north"},
+                                                        {"observed_at",
+                                                         QDateTime::currentDateTimeUtc().toString(Qt::ISODate)}}}},
+                       QVariantMap{{"kind", "case"},
+                                   {"id", "shift"},
+                                   {"site", "sample"},
+                                   {"name", "CASE-001"},
+                                   {"data", QVariantMap{}}}});
+}
 void CatalogWorkspace::setScenario(int value)
 {
     if (value < 0 || value > 5 || value == scenario_)

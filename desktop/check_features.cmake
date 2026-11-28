@@ -1,0 +1,18 @@
+foreach(feature IN ITEMS live archive export)
+    file(GLOB_RECURSE sources LIST_DIRECTORIES false
+        "${SOURCE_DIR}/${feature}/*.cpp" "${SOURCE_DIR}/${feature}/*.hpp"
+        "${SOURCE_DIR}/${feature}/*.cc" "${SOURCE_DIR}/${feature}/*.h" "${SOURCE_DIR}/${feature}/*.qml")
+    set(prohibited app live archive export alerts maps investigations administration)
+    list(REMOVE_ITEM prohibited "${feature}")
+    foreach(source IN LISTS sources)
+        file(STRINGS "${source}" includes REGEX "^[ 	]*#[ 	]*include[ 	]+|^[ 	]*import[ 	]+")
+        foreach(include IN LISTS includes)
+            string(TOLOWER "${include}" name)
+            foreach(module IN LISTS prohibited)
+                if(name MATCHES "(^|[^a-z0-9_-])${module}/" OR name MATCHES "import[ \t]+bacuri[.]vms[.]client[.]${module}([ \t]|$)")
+                    message(FATAL_ERROR "${source} cannot depend on ${module}: ${include}")
+                endif()
+            endforeach()
+        endforeach()
+    endforeach()
+endforeach()

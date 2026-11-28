@@ -6,6 +6,7 @@ Button {
     id: control
 
     property bool primary: false
+    property string shortcutHint: ""
     property string symbol: ""
     property bool focusIndicator: visualFocus
 
@@ -28,7 +29,7 @@ Button {
     Accessible.name: text
     ToolTip.visible: display === AbstractButton.IconOnly && (hovered || visualFocus)
     ToolTip.delay: 600
-    ToolTip.text: text
+    ToolTip.text: shortcutHint ? text + " (" + shortcutHint + ")" : text
     background: Rectangle {
         implicitWidth: 40
         implicitHeight: 40

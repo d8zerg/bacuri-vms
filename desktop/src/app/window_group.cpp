@@ -2,6 +2,7 @@
 #include "app/navigation.hpp"
 
 #include "settings/preferences.hpp"
+#include "media/video_stream.hpp"
 
 #include <QFontDatabase>
 #include <QGuiApplication>
@@ -18,6 +19,22 @@ WindowGroup::WindowGroup(SignInOptions options, bool catalog)
         font.setFamily("Inter");
         QGuiApplication::setFont(font);
     }
+    connect(workspace_.exports(), &ExportJobs::changed, this, [this] {
+        if (waitingForExports_ && !workspace_.exports()->busy()) {
+            QMetaObject::invokeMethod(
+                this,
+                [this] {
+                    if (waitingForExports_ && !workspace_.exports()->busy()) {
+                        waitingForExports_ = false;
+                        finish();
+                    }
+                },
+                Qt::QueuedConnection);
+        }
+    });
+    static const bool videoItem = VideoStream::registerVideoItem();
+    if (!videoItem)
+        qWarning("The OpenGL video item is unavailable");
     auto* preferences = engine_.singletonInstance<Preferences*>("Bacuri.Vms.Client.Settings", "Preferences");
     connect(preferences, &Preferences::languageChanged, &workspace_, &Workspace::messageChanged);
     if (show_catalog_)
@@ -28,6 +45,10 @@ WindowGroup::WindowGroup(SignInOptions options, bool catalog)
 
 void WindowGroup::finish()
 {
+    if (workspace_.exports()->busy()) {
+        waitingForExports_ = true;
+        return;
+    }
     if (!workspace_.signedIn()) {
         workspace_.cancel();
         QCoreApplication::quit();
@@ -42,6 +63,7 @@ void WindowGroup::finish()
 
 QQuickWindow* WindowGroup::open(const QVariantList& intents)
 {
+    waitingForExports_ = false;
     auto* window = qobject_cast<QQuickWindow*>(
         show_catalog_ ? shell_.create()
                       : shell_.createWithInitialProperties({{"workspace", QVariant::fromValue(&workspace_)}}));

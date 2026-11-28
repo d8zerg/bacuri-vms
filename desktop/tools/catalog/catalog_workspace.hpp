@@ -28,6 +28,7 @@ class CatalogWorkspace : public Workspace
     {
         setScenario(4);
     }
+    void loadCommandObjects() override;
     void setScenario(int value);
 
   private:

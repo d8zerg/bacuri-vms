@@ -14,13 +14,17 @@ class Navigation : public QObject
     Q_PROPERTY(QString pointId READ pointId NOTIFY changed FINAL)
     Q_PROPERTY(QVariantMap focusTarget READ focusTarget NOTIFY changed FINAL)
   public:
-    enum Page { Overview, Point, Settings };
+    enum Page { Overview, Point, Settings, Layout };
     Q_ENUM(Page)
     using QObject::QObject;
     Page page() const;
     bool containsPoint() const;
     Q_INVOKABLE QQuickItem* findTarget(QQuickItem* parent, const QString& id) const;
     QString pointId() const;
+    QString currentId() const
+    {
+        return stack_.last().toMap().value("id").toString();
+    }
     QVariantMap focusTarget() const
     {
         return stack_.last().toMap().value("focus").toMap();

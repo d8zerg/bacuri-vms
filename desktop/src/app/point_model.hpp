@@ -6,6 +6,9 @@
 
 namespace bacuri::vms::client
 {
+QString otherLayout(const QString& word);
+bool oneEdit(QStringView a, QStringView b);
+
 class SearchMatcher
 {
   public:

@@ -1,4 +1,5 @@
 #pragma once
+#include "media/native_frame.hpp"
 
 #include <QJsonObject>
 #include <QPointer>
@@ -21,6 +22,8 @@ class QQuickWindow;
 
 namespace bacuri::vms::client
 {
+enum class StreamSource { file_or_rtsp, webrtc };
+
 enum class DecoderChoice { automatic, hardware, software };
 
 struct StreamOptions {
@@ -33,6 +36,7 @@ struct StreamOptions {
     // and the highest frame rate passed to drawing. Empty and zero mean no limit.
     QSize max_size{};
     int max_rate{};
+    StreamSource transport{StreamSource::file_or_rtsp};
 };
 
 // The hardware decoder of a codec on this station: NVDEC, then VA-API, or empty without one.
@@ -64,6 +68,18 @@ class VideoStream
     // Creates the pipeline and its sink, which also registers the QML video item type.
     void create();
     void attach(QQuickItem* item, QQuickWindow* window);
+    void attachFrameOwner(QQuickItem* item);
+    static bool registerVideoItem();
+    GstElement* webRtcPeer() const;
+    void onFirstFrame(std::function<void()> handler);
+    bool hardwareActive() const
+    {
+        return hardware_;
+    }
+    bool webRtc() const
+    {
+        return options_.transport == StreamSource::webrtc;
+    }
     void on_resume(Resume resume);
 
     // Blocking steps for a worker thread. preroll and seek_paused wait until the first frame of
@@ -92,6 +108,7 @@ class VideoStream
     void on_frame(std::int64_t pts_ns);
     QString decoder_name(bool hardware) const;
 
+    NativeFrame native_;
     int index_;
     StreamOptions options_;
     QString hardware_name_;
@@ -101,6 +118,7 @@ class VideoStream
     QQuickItem* item_{};
     QPointer<QQuickWindow> window_;
     Resume resume_;
+    std::function<void()> firstFrame_;
     bool hardware_{};
     mutable std::mutex mutex_;
     QString decoder_features_;

@@ -8,6 +8,11 @@
       },
       {
         "children": [],
+        "name": "Command palette",
+        "role": "Button"
+      },
+      {
+        "children": [],
         "name": "New window",
         "role": "Button"
       },
@@ -43,6 +48,10 @@
       }
     ],
     "focusOrder": [
+      {
+        "name": "Command palette",
+        "object": "palette"
+      },
       {
         "name": "New window",
         "object": "newWindow"
@@ -72,6 +81,11 @@
       },
       {
         "children": [],
+        "name": "Command palette",
+        "role": "Button"
+      },
+      {
+        "children": [],
         "name": "New window",
         "role": "Button"
       },
@@ -107,6 +121,10 @@
       }
     ],
     "focusOrder": [
+      {
+        "name": "Command palette",
+        "object": "palette"
+      },
       {
         "name": "New window",
         "object": "newWindow"

@@ -39,6 +39,8 @@ export const articles: Article[] = [
       summary:
         "Open a live camera, check the recording indicator and arrange several views on one screen.",
       keywords: [
+        "command palette",
+        "keyboard shortcuts",
         "first shift",
         "live video",
         "black tile",
@@ -50,6 +52,8 @@ export const articles: Article[] = [
       steps: [
         "Open Monitoring, choose Live and select an observation point. Check the point name and wait for a moving image.",
         "Check the recording state beside the point. If it shows a delay or a stop, note the time and open Archive to check the latest recorded frame.",
+        "In the desktop client, press Ctrl+K to search cameras, layouts, alarms, cases, screens and actions. Select a result with the arrow keys and press Enter. Append @ 14:30 to a camera name to open its archive at the site’s local time. The palette shows the UTC equivalent before Enter.",
+        "To change Ctrl+K, expand Keyboard shortcuts in Settings. Select the shortcut cell in the Command palette row and press the new combination. The reset icon in that row restores the default.",
         "Use the multi-camera view to choose a layout. Expand a camera to examine it, then press Escape to return to the grid.",
         "If the site reports a capacity limit, close an unused view. If the bandwidth limit is reached, choose the secondary stream under Live quality and open the view again.",
       ],
@@ -70,6 +74,8 @@ export const articles: Article[] = [
       summary:
         "Откройте эфир камеры, проверьте состояние записи и разместите несколько камер на одном экране.",
       keywords: [
+        "палитра команд",
+        "сочетания клавиш",
         "первое дежурство",
         "живое видео",
         "чёрная ячейка",
@@ -79,6 +85,8 @@ export const articles: Article[] = [
         "заняты все соединения",
       ],
       steps: [
+        "В настольном клиенте нажмите Ctrl+K для поиска камер, раскладок, тревог, дел, экранов и действий. Выберите результат стрелками и нажмите Enter. Добавьте @ 14:30 к имени камеры, чтобы открыть архив по местному времени площадки. До нажатия Enter палитра покажет соответствующее время UTC.",
+        "Чтобы изменить Ctrl+K, разверните «Сочетания клавиш» в настройках. В строке «Палитра команд» выберите ячейку сочетания и нажмите новые клавиши. Значок сброса в этой строке вернёт исходное назначение.",
         "Откройте «Мониторинг», выберите «Эфир» и точку наблюдения. Сверьте название точки и дождитесь движущегося изображения.",
         "Проверьте состояние записи у точки. Если видна задержка или остановка, отметьте время и откройте «Архив», чтобы проверить последний записанный кадр.",
         "Откройте многоканальный эфир и выберите раскладку. Разверните камеру для осмотра, затем нажмите Escape для возврата к сетке.",

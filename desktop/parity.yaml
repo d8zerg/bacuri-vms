@@ -5,9 +5,9 @@
 
 reference:
   # Revision of the public contracts the register was reconciled with.
-  api_version: 1.12.0
+  api_version: 1.13.0
   contracts:
-    contracts/v1/openapi.yaml: c7ec32ce5bc9c0c020d989bbb45c9d7c11f1e13fc8479e9f46db692ded18f25e
+    contracts/v1/openapi.yaml: 198b3ce06018590186f067c68d76f1d87b5cf8c74be8c9ebeab4641ce4dc10bb
     contracts/v1/alerts.schema.yaml: 02cfa6ca964a90f60bc6e4c282981010bf7dc09d07c3d009c641af83d82870b7
     contracts/v1/errors.yaml: 53c1575bb6d61d6c91e149c594f7eb0c70052fec3cfb918e61e93e83c25550a2
 
@@ -88,6 +88,17 @@ functions:
 
 # Changes of the public contracts the desktop client needs. They are handed over to the owners of the platform steps.
 contract_requests:
+  snapshot-audit:
+    provided: recordSnapshotCapture
+    need: An authenticated idempotent snapshot receipt linking actor, site, point, access revision, decoded frame PTS, native dimensions and SHA-256 to a server audit event
+    platform: ["9.1", "10.5"]
+  command-search:
+    need: Permission-filtered paginated server search across alerts and investigation cases with incremental updates, stable identifiers and a resumable change cursor
+    platform: ["7.2", "10.3"]
+  site-keymap:
+    provided: publishKeyboardProfile and site keyboard defaults in the session
+    need: An administrator-managed revisioned site keymap delivered to authenticated operators, with scope validation, per-user overrides and audited publication
+    platform: ["9.1"]
   desktop-session:
     need: Sign-in through the system browser with a one-time short-lived code bound to the application instance and exchanged with PKCE S256 for a client session that is not a browser cookie
     platform: ["8.3", "9.1"]
@@ -919,6 +930,20 @@ scenarios:
     material: Sector against reference marks
 
   # Export
+  snapshot-capture:
+    function: evidence
+    area: export
+    role: operator
+    precondition: A native decoded frame and unrestricted export permission on its point
+    action: Save a frame from the camera menu
+    result: The PNG retains the native dimensions, point, site, PTS, access revision, pixel digest and audit receipt
+    failure: Revoked rights, a stale revision or an absent receipt prevent publication
+    steps: ["2.4"]
+    platform: ["9.1", "10.5"]
+    operations: [recordSnapshotCapture, searchAccessAudit]
+    web: /monitor
+    test: desktop/workstation/snapshot
+    material: Native PNG and the corresponding site audit event
   export-fragment:
     function: evidence
     area: export
@@ -1006,6 +1031,20 @@ scenarios:
     material: Screenshots in both languages
 
   # Workstation functions
+  workstation-site-keymap:
+    function: access
+    area: workstation
+    role: administrator
+    precondition: An authenticated administrator and two operators sharing a workstation
+    action: Publish a revisioned site keymap and remap one binding for one operator
+    result: Both operators receive the site defaults and only the first uses the personal override
+    failure: An unauthorized publication or stale revision leaves the active profile unchanged
+    steps: ["2.4", "5.5"]
+    platform: ["9.1"]
+    operations: [publishKeyboardProfile, getSession]
+    web: /access
+    test: desktop/workstation/site-keymap
+    material: Site profile audit and per-operator binding checks
   workstation-command-line:
     function: layouts
     area: workstation

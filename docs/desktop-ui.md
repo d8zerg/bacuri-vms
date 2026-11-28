@@ -12,6 +12,23 @@ In the observation point list, press Ctrl+F to search by name or ID. The filter 
 
 Run `task desktop:catalog` for the separate Qt Quick component catalog. Choose a state, filter the sample points, open a point or retry a failed load. The catalog uses the production panels, controls, status chips and point rows. Their colors, spacing and type sizes come from the shared design tokens. [Qt Quick components](../desktop/src/ui) · [Catalog](../desktop/tools/catalog)
 
+### Commands and camera actions
+
+Press **Ctrl+K** or select the magnifying glass. Search by camera, layout, alarm, case, screen or action. The palette highlights matches and accepts initials, a one-character typo in longer words, Russian or English keyboard layouts and transliteration such as `vorota` for «Ворота». With a camera or alarm open, its actions and nearby archive events take priority. The workstation remembers selections for each operator and site. Hover over an authorized online camera to see its live preview. Enter transfers the same WebRTC session and OpenGL video item to the camera card. With hardware decoding, frames stay in GPU memory. Software decoding uploads each frame to OpenGL.
+
+| Input or gesture | Result |
+| --- | --- |
+| `Gate A @ 14:30` | Preview the site time and its UTC equivalent before pressing Enter. The workstation time zone is the fallback. A time later than the current local time selects the previous local day. |
+| `-10m`, `вчера 14:30`, `yesterday 2pm`, `14:30 MSK` | Select a relative or explicit time. Use an ISO timestamp with a UTC offset during a daylight-saving transition. |
+| `Export interval @ 14:30+5m` or `14:30/14:35` | Queue the interval. If the interval has started and its end is still in the future, the preview caps the end at the current time. Open **Export jobs** for progress, cancellation or retry. Jobs continue after their window closes. Completed TAR files are saved in Downloads. |
+| A layout name followed by `@ 2` | Apply the saved layout on screen 2. For a temporary grid, select up to four cameras with Ctrl+Space or Ctrl+click, choose the screen, then press Enter. |
+
+Right-click the camera card, press **Shift+F10** or use the **Menu** key to open the ring. The center describes the highlighted action. Click a sector or hold the right button, move and release. The directions are up for a snapshot, upper right for full screen, right for archive, lower right for export, down for a temporary mark and left for PTZ. On a camera with presets, dwell on PTZ or press Right while PTZ is selected to open presets 1-8. The ring uses up to eight presets from the camera catalog. While holding the right button, move left and then change direction to select one. To continue left into preset 7, pause until the preset ring appears and continue the stroke. The center shows the camera’s label, and selecting the preset opens its confirmation. With the camera card focused, hold an advertised arrow direction or +/- to move or zoom and release to stop. PTZ also stops when the window loses activation. The PTZ panel also supports press and release. Focus the archive time and use Left or Right to move one minute.
+
+A snapshot saves the decoded frame at the stream's native resolution. The PNG in Pictures includes the point, site, access revision, frame PTS, SHA-256 of the RGBA pixels and the site's audit receipt. The site verifies view and unrestricted export permissions and generates the audit receipt. Retrying the same capture returns that receipt. A temporary mark belongs to the current window and expires at sign-out or when the window closes.
+
+In **Settings**, expand **Keyboard shortcuts** to edit or reset a binding. The administrator can publish site defaults from the palette. Personal overrides apply across that operator's windows for the site. Hold Ctrl for half a second to show assigned shortcuts. Ctrl+Z restores the previous layout, screen or full-screen state.
+
 ### Workstation verification
 
 Run `task desktop:test` for the Docker suite. The client loads every site in the session, keeps rows, keyboard focus and scroll position during refresh, and searches names and IDs across English and Russian keyboard layouts. The local HTTPS test checks recovery from a failed refresh and signing out from two windows. In the component catalog, **Component preview** opens one control at a time in ready, loading, empty, failure and permission-denied states.

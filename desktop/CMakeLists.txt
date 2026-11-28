@@ -11,9 +11,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_compile_options(-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion)
 
 include(CTest)
-find_package(Qt6 6.8 REQUIRED COMPONENTS DBus Gui Network OpenGL Qml Quick QuickControls2)
+find_package(Qt6 6.8 REQUIRED COMPONENTS WebSockets Concurrent DBus Gui Network OpenGL Qml Quick QuickControls2)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(GST REQUIRED IMPORTED_TARGET gstreamer-1.0>=1.26 gstreamer-video-1.0)
+pkg_check_modules(GST REQUIRED IMPORTED_TARGET gstreamer-1.0>=1.26 gstreamer-video-1.0 gstreamer-webrtc-1.0 gstreamer-sdp-1.0)
 find_package(QMapLibre 3.0 REQUIRED COMPONENTS Core)
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -22,15 +22,16 @@ add_library(bacuri-vms-client-diagnostics STATIC src/diagnostics/frame_stats.cpp
 target_include_directories(bacuri-vms-client-diagnostics PUBLIC src)
 
 # Site: sign-in through the system browser, the desktop session and the gateway for resources of the site.
-add_library(bacuri-vms-client-site STATIC src/site/help.cpp src/site/pkce.cpp src/site/sign_in.cpp src/site/site_proxy.cpp)
+add_library(bacuri-vms-client-site STATIC src/site/help.cpp src/site/pkce.cpp src/site/sign_in.cpp src/site/site_proxy.cpp src/site/site_access.cpp)
 set_target_properties(bacuri-vms-client-site PROPERTIES AUTOMOC ON)
+qt_extract_metatypes(bacuri-vms-client-site)
 target_include_directories(bacuri-vms-client-site PUBLIC src)
 target_link_libraries(bacuri-vms-client-site PUBLIC Qt6::Core Qt6::Gui Qt6::Network)
 
 # Media: video streams from the decoder into Qt Quick on a common timeline, the choice of the hardware
 # decoder, the software mode of a station without a GPU and the fallback to software decoding.
 add_library(bacuri-vms-client-media STATIC
-    src/media/graphics_probe.cpp src/media/stream_group.cpp src/media/video_stream.cpp)
+    src/media/native_frame.cpp src/media/graphics_probe.cpp src/media/stream_group.cpp src/media/video_stream.cpp)
 set_target_properties(bacuri-vms-client-media PROPERTIES AUTOMOC ON)
 target_include_directories(bacuri-vms-client-media PUBLIC src)
 target_link_libraries(bacuri-vms-client-media
@@ -72,7 +73,27 @@ set(qml_dir ${CMAKE_CURRENT_BINARY_DIR}/qml/Bacuri/Vms/Client)
 set(design_dir ${CMAKE_CURRENT_SOURCE_DIR}/../design/bacuri)
 add_subdirectory(src/settings)
 add_subdirectory(src/ui)
+add_subdirectory(src/commands)
+add_subdirectory(src/live)
+add_subdirectory(src/archive)
+add_subdirectory(src/export)
 add_subdirectory(src/app)
+
+set(feature_modules live archive export)
+add_custom_target(desktop-architecture
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/src
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_features.cmake
+    VERBATIM)
+foreach(feature IN LISTS feature_modules)
+    set(target bacuri-vms-client-${feature})
+    add_dependencies(${target} desktop-architecture)
+    get_target_property(dependencies ${target} LINK_LIBRARIES)
+    foreach(dependency IN LISTS dependencies)
+        if(dependency MATCHES "^bacuri-vms-client-(app|live|archive|export|alerts|maps|investigations|administration)(-|$)")
+            message(FATAL_ERROR "${target} cannot link ${dependency}")
+        endif()
+    endforeach()
+endforeach()
 qt_add_executable(bacuri-vms-client src/app/main.cpp)
 target_link_libraries(bacuri-vms-client PRIVATE bacuri-vms-client-app bacuri-vms-client-appplugin)
 add_subdirectory(tools/catalog)
@@ -81,6 +102,8 @@ set_target_properties(bacuri-vms-client PROPERTIES QT_QML_MODULE_NO_IMPORT_SCAN 
 
 if(BUILD_TESTING)
     find_package(Qt6 REQUIRED COMPONENTS Test)
+    add_executable(bacuri-preview-test-peer tests/preview_peer.cpp)
+    target_link_libraries(bacuri-preview-test-peer PRIVATE PkgConfig::GST)
     qt_add_executable(bacuri-vms-client-shell-tests tests/shell_test.cpp)
     set_target_properties(bacuri-vms-client-shell-tests PROPERTIES QT_QML_MODULE_NO_IMPORT_SCAN TRUE)
     target_link_libraries(bacuri-vms-client-shell-tests PRIVATE bacuri-vms-client-app

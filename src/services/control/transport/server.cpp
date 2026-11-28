@@ -230,6 +230,8 @@ void route(const Request& req, Response& res, const std::string& peer, const Ses
                  allow(req, res, {http::verb::get});
                  registry.points(req, res, site);
              })
+        .add("points/{id}/snapshot-receipts",
+             [&](const PathMatch& m) { access::snapshot_receipt(req, res, sessions, site, m.values[0]); })
         .add("points/{id}/recording",
              [&](const PathMatch& m) { recordings::manual_recording(req, res, sessions, site, m.values[0]); })
         .add("points/{id}/video-rule",
