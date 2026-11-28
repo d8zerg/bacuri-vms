@@ -179,7 +179,7 @@ RUN sed -i '/^add_subdirectory(test)$/d' /src/maplibre-native-qt/CMakeLists.txt 
 FROM desktop-base AS desktop
 RUN apt-get -o Acquire::Retries=3 update \
     && apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
-        libicu76 libqt6sql6-sqlite osmium-tool python3-pil python3-pyosmium \
+        at-spi2-core libnss-wrapper python3-dbus python3-gi gir1.2-atspi-2.0 libicu76 libqt6sql6-sqlite osmium-tool python3-pil python3-pyosmium qt6-l10n-tools qt6-svg-plugins \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=maplibre-qt /opt/maplibre-native-qt /opt/maplibre-native-qt
 ENV QMapLibre_DIR=/opt/maplibre-native-qt \

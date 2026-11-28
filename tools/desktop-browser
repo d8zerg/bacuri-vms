@@ -1,0 +1,4 @@
+#!/bin/sh
+exec gdbus call --session --dest org.freedesktop.portal.Desktop \
+    --object-path /org/freedesktop/portal/desktop \
+    --method org.freedesktop.portal.OpenURI.OpenURI '' "$1" '@a{sv} {}' >/dev/null

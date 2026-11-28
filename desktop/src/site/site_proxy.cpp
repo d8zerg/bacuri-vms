@@ -77,9 +77,8 @@ void SiteProxy::accept()
 
 void SiteProxy::forward(QTcpSocket* socket, const QByteArray& path)
 {
-    QNetworkRequest request{QUrl{QString::fromStdString(origin_) + QString::fromLatin1(path)}};
-    request.setRawHeader("Authorization", "Bearer " + token_.toLatin1());
-    request.setSslConfiguration(site_tls(ca_file_));
+    const auto request =
+        site_request(QUrl{QString::fromStdString(origin_) + QString::fromLatin1(path)}, ca_file_, token_);
     auto* reply = network_.get(request);
     ++forwarded_;
     connect(reply, &QNetworkReply::finished, socket, [this, socket, reply] {

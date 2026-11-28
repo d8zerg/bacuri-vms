@@ -30,7 +30,7 @@ Each module is a library under `desktop/src/<module>` with its own tests. Tools 
 
 | Part | Decision |
 | --- | --- |
-| Visual system | The tokens of `design/bacuri/tokens.css` are generated into a QML singleton: colors of both themes, the type scale, spacing, radii, line widths, motion durations and spring parameters. The web and desktop clients therefore share one palette and one set of state colors |
+| Visual system | The DTCG source `design/bacuri/tokens.json` generates the web stylesheet and QML singleton with light, dark and high-contrast palettes, the type scale, spacing, radii, line widths, motion durations and spring parameters. The web and desktop clients therefore share one palette and one set of state colors |
 | Components | Small QML components with an explicit API for panels, fields, buttons, chips, tables and dialogs. A component has states for loading, empty data, failure and lack of permission, a visible keyboard focus and an accessible name |
 | Heavy visuals | The video grid, the timeline, overlays in the frame, view sectors and the spatial scene are C++ items of the scene graph with shaders, not hundreds of QML objects per frame |
 | Interaction | The workstation principles are requirements to every component: the image is shown whole and in its original color, cell positions change only by an action of the operator, input has priority over video, color marks states and is backed by shape or text, motion is short and can be turned off, every frequent action is reachable without searching for a button |

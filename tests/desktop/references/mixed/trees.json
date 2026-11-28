@@ -1,0 +1,130 @@
+{
+  "first-screen": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Site sign-in",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Site address",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Site address",
+        "role": "EditableText"
+      },
+      {
+        "children": [],
+        "name": "Confirm sign-in in your system browser.",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Sign in",
+        "role": "Button"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Site address",
+        "object": "origin"
+      },
+      {
+        "name": "Sign in",
+        "object": ""
+      }
+    ],
+    "name": "Site sign-in | Bacuri VMS",
+    "role": "Window"
+  },
+  "second-screen": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Site sign-in",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Site address",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Site address",
+        "role": "EditableText"
+      },
+      {
+        "children": [],
+        "name": "Confirm sign-in in your system browser.",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Sign in",
+        "role": "Button"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Site address",
+        "object": "origin"
+      },
+      {
+        "name": "Sign in",
+        "object": ""
+      }
+    ],
+    "name": "Site sign-in | Bacuri VMS",
+    "role": "Window"
+  }
+}

@@ -1,0 +1,46 @@
+#!/bin/sh
+# Run the client on the workstation display and open sign-in in the host browser.
+set -eu
+client=$1
+shift
+prefs=${XDG_CONFIG_HOME:-$HOME/.config}
+runtime=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+mkdir -p "$prefs/bacuri.vms"
+service=desktop-workstation-cpu
+if command -v nvidia-smi >/dev/null && nvidia-smi -L >/dev/null 2>&1; then
+    service=desktop-workstation
+fi
+set -- "$service" "build/desktop/gcc/$client" --browser tools/desktop-browser "$@"
+if [ -d "$runtime/at-spi" ]; then
+    set -- -v "$runtime/at-spi:$runtime/at-spi:ro" "$@"
+fi
+bus_dir=$(mktemp -d "$runtime/bacuri-desktop.XXXXXX")
+proxy=
+cleanup() {
+    if [ -n "$proxy" ]; then kill "$proxy" 2>/dev/null || :; wait "$proxy" 2>/dev/null || :; fi
+    rm -rf "$bus_dir"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+portal=org.freedesktop.portal.Desktop
+xdg-dbus-proxy "${DBUS_SESSION_BUS_ADDRESS:-unix:path=$runtime/bus}" "$bus_dir/bus" --filter \
+    "--call=$portal=org.freedesktop.portal.OpenURI.OpenURI" \
+    "--call=$portal=org.freedesktop.portal.Settings.*" \
+    "--call=$portal=org.freedesktop.DBus.Introspectable.Introspect@/org/freedesktop/portal/desktop" \
+    "--call=$portal=org.freedesktop.DBus.Properties.Get" \
+    "--broadcast=$portal=org.freedesktop.portal.Settings.SettingChanged" \
+    --call=org.a11y.Bus=org.a11y.Bus.GetAddress \
+    --call=org.a11y.Bus=org.freedesktop.DBus.Properties.Get@/org/a11y/bus \
+    --broadcast=org.a11y.Bus=org.freedesktop.DBus.Properties.PropertiesChanged@/org/a11y/bus &
+proxy=$!
+for attempt in $(seq 100); do
+    [ -S "$bus_dir/bus" ] && break
+    kill -0 "$proxy" || exit 1
+    sleep 0.02
+done
+test -S "$bus_dir/bus"
+docker compose run --rm --no-deps -T --user "$(id -u):$(id -g)" \
+    -e DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/bacuri-session-bus -v "$bus_dir/bus:/tmp/bacuri-session-bus" \
+    -e XDG_CONFIG_HOME=/tmp/bacuri-config -e XDG_CURRENT_DESKTOP \
+    -v "$prefs/bacuri.vms:/tmp/bacuri-config/bacuri.vms" "$@"

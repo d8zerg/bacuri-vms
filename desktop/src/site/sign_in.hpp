@@ -28,6 +28,7 @@ struct SignInOptions {
 
 // TLS settings of requests to the site: the given certificates, or the system store.
 QSslConfiguration site_tls(const QString& ca_file);
+QNetworkRequest site_request(const QUrl& url, const QString& ca_file, const QString& token = {});
 
 // Sign-in of the desktop client through the system browser. The client listens on a random
 // port of 127.0.0.1, opens the confirmation page of the site with its PKCE challenge, receives

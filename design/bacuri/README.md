@@ -6,9 +6,9 @@ A proposal for design review. Open the [theme comparison](preview.html) in a bro
 
 ## Color
 
-The catalog and the working client use the common [tokens](tokens.css). They define the local Inter files for Cyrillic and Latin, the text roles, the spacing scale and the panel radius. The reference work screens use the same fonts when started without internet access.
+The web stylesheet and Qt Quick singleton are generated from the common [DTCG source](tokens.json), including high-contrast variants of both themes. They define the local Inter files for Cyrillic and Latin, the text roles, the spacing scale and the panel radius. The reference work screens use the same fonts when started without internet access.
 
-The cream background and the milky panels of the light theme follow the shades of the bacuri pulp. The main text of the light theme is almost black, the secondary text is neutral gray. The main action gets a muted sand-yellow fill, the selected section and the alarm get a thin side bar on a slightly tinted background. The saturated gold of the rind is used in the brand mark. Terracotta, an icon and a label mark a warning. Muted olive marks a healthy connection and a confirmation. The color and the proportions of the video frame are kept in both themes. Labels over video use their own opaque backing. Times and identifiers in dense rows are aligned with tabular digits.
+The cream background and the milky panels of the light theme follow the shades of the bacuri pulp. The main text of the light theme is almost black, the secondary text is neutral gray. The main action gets a muted sand-yellow fill, the selected section and the alarm get a thin side bar on a slightly tinted background. The saturated gold of the rind is used in the brand mark. Ochre, an icon and a label mark a warning. Muted olive marks a healthy connection and a confirmation. The color and the proportions of the video frame are kept in both themes. Labels over video use their own opaque backing. Times and identifiers in dense rows are aligned with tabular digits.
 
 The dark theme uses the neutral colors of the classic Dark+ theme of VS Code. The main background and text match `editor.background` and `editor.foreground`, panels `menu.background`, secondary text `input.placeholderForeground`. On a full screen the computed colors of the background, the panel, the heading and the camera profile label are compared. [Dark+ base colors](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_vs.json)
 
@@ -25,10 +25,10 @@ The dark theme uses the neutral colors of the classic Dark+ theme of VS Code. Th
 | Selection background | `#EEE9DA` | `#373428` | Neutral backing of the selected section or alarm |
 | Recorded interval | `#8B8062` | `#9B8D6F` | Solid segment on the archive timeline and in the legend |
 | Keyboard focus | `#6B6044` | `#BBB08E` | Outer outline of 3 CSS pixels with a gap of 3 CSS pixels |
-| Confirmation | `#56603F` | `#BFCBA4` | A circle with a check mark and the exact name of the result |
-| Warning | `#94421E` | `#FFAE86` | Estimated time or an action that needs attention |
-| Critical alarm or failure | `#A13239` | `#FFA3A1` | A bell for an alarm, a plug for a lost connection, a circle with a cross for an error |
-| Information | `#63594F` | `#CFC2B1` | Explanation of a state, cataloging |
+| Confirmation | `#476845` | `#B0E7AC` | A circle with a check mark and the exact name of the result |
+| Warning | `#744900` | `#FFCA65` | Estimated time or an action that needs attention |
+| Critical alarm or failure | `#621324` | `#FF94B5` | A bell for an alarm, a plug for a lost connection, a circle with a cross for an error |
+| Information | `#24366A` | `#B2BCFF` | Explanation of a state, cataloging |
 | Brand pair | `#F2CC61` and `#33271D` | The same pair | The rind ring and the seed-colored backing |
 
 The tokens of hover, press, selected state, status backings and video are part of [tokens.css](tokens.css). The rules apply to a container through `data-theme="light"` or `data-theme="dark"`. On the first start the working client uses the system theme. The switch in the top bar selects the system, dark or light theme. The browser keeps the choice.

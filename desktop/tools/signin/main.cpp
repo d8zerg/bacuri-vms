@@ -20,10 +20,7 @@ using namespace bacuri::vms::client;
 
 QNetworkRequest authorized(const SignInOptions& options, const QString& path, const QString& token)
 {
-    QNetworkRequest request{options.site.resolved(QUrl{path})};
-    request.setRawHeader("Authorization", "Bearer " + token.toLatin1());
-    request.setSslConfiguration(site_tls(options.ca_file));
-    return request;
+    return site_request(options.site.resolved(QUrl{path}), options.ca_file, token);
 }
 } // namespace
 

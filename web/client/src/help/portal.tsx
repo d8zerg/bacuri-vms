@@ -1,5 +1,5 @@
 import errorMessages from "../../../../build/contracts/help-messages.json";
-import { helpVisuals } from "../i18n/help-visuals";
+import { helpVisuals, workstationSettings } from "../i18n/help-visuals";
 import { relatedTopics } from "../i18n/help-related";
 import { DisplaySwitches } from "../ui-kit/DisplaySwitches";
 import { ToolbarDrawer } from "../ui-kit/ToolbarDrawer";
@@ -344,6 +344,18 @@ function Portal() {
                         <li key={key}>{key}</li>
                       ))}
                     </ol>
+                  </figcaption>
+                </figure>
+              )}
+              {article.id === "start-monitoring" && (
+                <figure className="help-visual">
+                  <img
+                    src={workstationSettings[language].src}
+                    alt={workstationSettings[language].alt}
+                    loading="lazy"
+                  />
+                  <figcaption>
+                    {workstationSettings[language].caption}
                   </figcaption>
                 </figure>
               )}

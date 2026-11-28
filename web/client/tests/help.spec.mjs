@@ -489,7 +489,24 @@ test("Every public error maps to a bilingual article and all illustrations load 
           expect(relatedIds).toEqual(catalog.get(id)?.related);
           expect(copy.title).not.toBe(catalog.get(id)?.title);
         }
-        const pictures = paper.locator("figure img");
+        const pictures = paper.locator('figure img[src$=".svg"]');
+        const screenshots = paper.locator('figure img[src$=".png"]');
+        await expect(screenshots).toHaveCount(
+          id === "start-monitoring" ? 1 : 0,
+        );
+        if (id === "start-monitoring") {
+          const screenshot = new URL(
+            await screenshots.getAttribute("src"),
+            url,
+          );
+          expect(screenshot.origin).toBe(origin);
+          expect(screenshot.pathname).toContain("settings-" + lang + "-100");
+          await screenshots.scrollIntoViewIfNeeded();
+          await expect(screenshots).toHaveJSProperty("naturalWidth", 1000);
+          await expect(screenshots).toHaveAccessibleName(
+            lang === "ru" ? "Настройки рабочего места" : "Workstation settings",
+          );
+        }
 
         expect(copy.caption).toMatch(alphabet);
         expect(copy.legend).toHaveLength(3);

@@ -123,9 +123,9 @@ SiteMap open_site_map(const SignInOptions& options)
         return result;
     const auto site = session.site_roles.first().toObject().value("site_id").toString();
     QNetworkAccessManager network;
-    QNetworkRequest request{options.site.resolved(QUrl{QStringLiteral("/api/v1/sites/%1/maps").arg(site)})};
-    request.setRawHeader("Authorization", "Bearer " + session.token.toLatin1());
-    request.setSslConfiguration(site_tls(options.ca_file));
+    const auto request =
+        site_request(options.site.resolved(QUrl{QStringLiteral("/api/v1/sites/%1/maps").arg(site)}),
+                     options.ca_file, session.token);
     auto* reply = network.get(request);
     QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
     loop.exec();

@@ -1,0 +1,4073 @@
+{
+  "en-dark-state-0": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Component catalog",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Catalog state",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Populated",
+        "name": "Catalog state",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Component preview",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Observation points",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Search by name or ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Filter options",
+            "role": "CheckBox"
+          }
+        ],
+        "name": "Filters",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Online",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording",
+                "role": "StaticText"
+              }
+            ],
+            "name": "North terminal / Складской комплекс / Восточная погрузочная галерея, наружный периметр, ворота № 14",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Offline",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording stopped",
+                "role": "StaticText"
+              }
+            ],
+            "name": "West entrance",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Online",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording delayed",
+                "role": "StaticText"
+              }
+            ],
+            "name": "Freight yard",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Observation points",
+        "role": "List"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Catalog state",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Component preview",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Search by name or ID",
+        "object": "filter"
+      },
+      {
+        "name": "Filter options",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Observation points",
+        "object": "pointList"
+      }
+    ],
+    "name": "Component catalog | Bacuri VMS",
+    "role": "Window"
+  },
+  "en-dark-state-1": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Component catalog",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Catalog state",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Waiting",
+        "name": "Catalog state",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Component preview",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Loading observation points…",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Catalog state",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Component preview",
+        "object": "componentPreview"
+      }
+    ],
+    "name": "Component catalog | Bacuri VMS",
+    "role": "Window"
+  },
+  "en-dark-state-2": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Component catalog",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Catalog state",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Empty",
+        "name": "Catalog state",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Component preview",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "No observation points are available.",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Catalog state",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Component preview",
+        "object": "componentPreview"
+      }
+    ],
+    "name": "Component catalog | Bacuri VMS",
+    "role": "Window"
+  },
+  "en-dark-state-3": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Component catalog",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Catalog state",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Failure",
+        "name": "Catalog state",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Component preview",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Unavailable",
+            "role": "StaticText"
+          },
+          {
+            "children": [],
+            "name": "A site service is unavailable. Try again later.",
+            "role": "StatusBar"
+          },
+          {
+            "children": [],
+            "name": "Retry",
+            "role": "Button"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Catalog state",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Component preview",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Retry",
+        "object": "stateAction"
+      }
+    ],
+    "name": "Component catalog | Bacuri VMS",
+    "role": "Window"
+  },
+  "en-dark-state-4": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Component catalog",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Catalog state",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Recovered",
+        "name": "Catalog state",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Component preview",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Observation points",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Search by name or ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Filter options",
+            "role": "CheckBox"
+          }
+        ],
+        "name": "Filters",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Online",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording",
+                "role": "StaticText"
+              }
+            ],
+            "name": "North terminal / Складской комплекс / Восточная погрузочная галерея, наружный периметр, ворота № 14",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Offline",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording stopped",
+                "role": "StaticText"
+              }
+            ],
+            "name": "West entrance",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Online",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording delayed",
+                "role": "StaticText"
+              }
+            ],
+            "name": "Freight yard",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Observation points",
+        "role": "List"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Catalog state",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Component preview",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Search by name or ID",
+        "object": "filter"
+      },
+      {
+        "name": "Filter options",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Observation points",
+        "object": "pointList"
+      }
+    ],
+    "name": "Component catalog | Bacuri VMS",
+    "role": "Window"
+  },
+  "en-dark-state-5": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Component catalog",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Catalog state",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "No permission",
+        "name": "Catalog state",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Component preview",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Unavailable",
+            "role": "StaticText"
+          },
+          {
+            "children": [],
+            "name": "You do not have permission for this action.",
+            "role": "StatusBar"
+          },
+          {
+            "children": [],
+            "name": "Retry",
+            "role": "Button"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Catalog state",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Component preview",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Retry",
+        "object": "stateAction"
+      }
+    ],
+    "name": "Component catalog | Bacuri VMS",
+    "role": "Window"
+  },
+  "en-light-state-0": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Component catalog",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Catalog state",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Populated",
+        "name": "Catalog state",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Component preview",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Observation points",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Search by name or ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Filter options",
+            "role": "CheckBox"
+          }
+        ],
+        "name": "Filters",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Online",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording",
+                "role": "StaticText"
+              }
+            ],
+            "name": "North terminal / Складской комплекс / Восточная погрузочная галерея, наружный периметр, ворота № 14",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Offline",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording stopped",
+                "role": "StaticText"
+              }
+            ],
+            "name": "West entrance",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Online",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording delayed",
+                "role": "StaticText"
+              }
+            ],
+            "name": "Freight yard",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Observation points",
+        "role": "List"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Catalog state",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Component preview",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Search by name or ID",
+        "object": "filter"
+      },
+      {
+        "name": "Filter options",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Observation points",
+        "object": "pointList"
+      }
+    ],
+    "name": "Component catalog | Bacuri VMS",
+    "role": "Window"
+  },
+  "en-light-state-1": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Component catalog",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Catalog state",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Waiting",
+        "name": "Catalog state",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Component preview",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Loading observation points…",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Catalog state",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Component preview",
+        "object": "componentPreview"
+      }
+    ],
+    "name": "Component catalog | Bacuri VMS",
+    "role": "Window"
+  },
+  "en-light-state-2": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Component catalog",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Catalog state",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Empty",
+        "name": "Catalog state",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Component preview",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "No observation points are available.",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Catalog state",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Component preview",
+        "object": "componentPreview"
+      }
+    ],
+    "name": "Component catalog | Bacuri VMS",
+    "role": "Window"
+  },
+  "en-light-state-3": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Component catalog",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Catalog state",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Failure",
+        "name": "Catalog state",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Component preview",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Unavailable",
+            "role": "StaticText"
+          },
+          {
+            "children": [],
+            "name": "A site service is unavailable. Try again later.",
+            "role": "StatusBar"
+          },
+          {
+            "children": [],
+            "name": "Retry",
+            "role": "Button"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Catalog state",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Component preview",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Retry",
+        "object": "stateAction"
+      }
+    ],
+    "name": "Component catalog | Bacuri VMS",
+    "role": "Window"
+  },
+  "en-light-state-4": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Component catalog",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Catalog state",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Recovered",
+        "name": "Catalog state",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Component preview",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Observation points",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Search by name or ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Filter options",
+            "role": "CheckBox"
+          }
+        ],
+        "name": "Filters",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Online",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording",
+                "role": "StaticText"
+              }
+            ],
+            "name": "North terminal / Складской комплекс / Восточная погрузочная галерея, наружный периметр, ворота № 14",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Offline",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording stopped",
+                "role": "StaticText"
+              }
+            ],
+            "name": "West entrance",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Online",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording delayed",
+                "role": "StaticText"
+              }
+            ],
+            "name": "Freight yard",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Observation points",
+        "role": "List"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Catalog state",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Component preview",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Search by name or ID",
+        "object": "filter"
+      },
+      {
+        "name": "Filter options",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Observation points",
+        "object": "pointList"
+      }
+    ],
+    "name": "Component catalog | Bacuri VMS",
+    "role": "Window"
+  },
+  "en-light-state-5": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Component catalog",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Catalog state",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "No permission",
+        "name": "Catalog state",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Component preview",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Unavailable",
+            "role": "StaticText"
+          },
+          {
+            "children": [],
+            "name": "You do not have permission for this action.",
+            "role": "StatusBar"
+          },
+          {
+            "children": [],
+            "name": "Retry",
+            "role": "Button"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Catalog state",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Component preview",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Retry",
+        "object": "stateAction"
+      }
+    ],
+    "name": "Component catalog | Bacuri VMS",
+    "role": "Window"
+  },
+  "filtered-point-ru": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Назад",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Точка наблюдения",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Freight yard",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "На связи",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Запись задерживается",
+        "role": "StaticText"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Назад",
+        "object": "back"
+      }
+    ],
+    "name": "Точка наблюдения | Bacuri VMS",
+    "role": "Window"
+  },
+  "form-en": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Component catalog",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Catalog state",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Populated",
+        "name": "Catalog state",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Component preview",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Observation points",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Search by name or ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Filter options",
+            "role": "CheckBox"
+          },
+          {
+            "children": [],
+            "name": "Reset filters",
+            "role": "Button"
+          },
+          {
+            "children": [],
+            "name": "1 of 3",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "Filters",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Offline",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Recording stopped",
+                "role": "StaticText"
+              }
+            ],
+            "name": "West entrance",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Observation points",
+        "role": "List"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Catalog state",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Component preview",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Search by name or ID",
+        "object": "filter"
+      },
+      {
+        "name": "Filter options",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Reset filters",
+        "object": "filterReset"
+      },
+      {
+        "name": "Observation points",
+        "object": "pointList"
+      }
+    ],
+    "name": "Component catalog | Bacuri VMS",
+    "role": "Window"
+  },
+  "form-ru": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "С данными",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Точки наблюдения",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Поиск по названию или ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Параметры фильтра",
+            "role": "CheckBox"
+          },
+          {
+            "children": [],
+            "name": "Сбросить фильтры",
+            "role": "Button"
+          },
+          {
+            "children": [],
+            "name": "Найдено 1 из 3",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "Фильтры",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Нет связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Запись остановлена",
+                "role": "StaticText"
+              }
+            ],
+            "name": "West entrance",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Точки наблюдения",
+        "role": "List"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Поиск по названию или ID",
+        "object": "filter"
+      },
+      {
+        "name": "Параметры фильтра",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Сбросить фильтры",
+        "object": "filterReset"
+      },
+      {
+        "name": "Точки наблюдения",
+        "object": "pointList"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "large-text": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Восстановлено",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Точки наблюдения",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Поиск по названию или ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Параметры фильтра",
+            "role": "CheckBox"
+          }
+        ],
+        "name": "Фильтры",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "На связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Идёт запись",
+                "role": "StaticText"
+              }
+            ],
+            "name": "North terminal / Складской комплекс / Восточная погрузочная галерея, наружный периметр, ворота № 14",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Нет связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Запись остановлена",
+                "role": "StaticText"
+              }
+            ],
+            "name": "West entrance",
+            "role": "ListItem"
+          },
+          {
+            "children": [],
+            "name": "На связи",
+            "role": "StaticText"
+          },
+          {
+            "children": [],
+            "name": "Запись задерживается",
+            "role": "StaticText"
+          }
+        ],
+        "name": "Точки наблюдения",
+        "role": "List"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Поиск по названию или ID",
+        "object": "filter"
+      },
+      {
+        "name": "Параметры фильтра",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Точки наблюдения",
+        "object": "pointList"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "no-filter-results-ru": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "С данными",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Точки наблюдения",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Поиск по названию или ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Параметры фильтра",
+            "role": "CheckBox"
+          },
+          {
+            "children": [],
+            "name": "Сбросить фильтры",
+            "role": "Button"
+          },
+          {
+            "children": [],
+            "name": "Найдено 0 из 3 · Связь: На связи · Состояние записи: Запись задерживается",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "Фильтры",
+        "role": "Grouping"
+      },
+      {
+        "children": [],
+        "name": "Нет точек наблюдения, подходящих под фильтры.",
+        "role": "StatusBar"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Поиск по названию или ID",
+        "object": "filter"
+      },
+      {
+        "name": "Параметры фильтра",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Сбросить фильтры",
+        "object": "filterReset"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "playback-en": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Back",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Observation point",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "North terminal / Складской комплекс / Восточная погрузочная галерея, наружный периметр, ворота № 14",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Online",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Recording",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Alarm",
+        "role": "StaticText"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Back",
+        "object": "back"
+      }
+    ],
+    "name": "Observation point | Bacuri VMS",
+    "role": "Window",
+    "videoRect": [
+      84,
+      303,
+      832,
+      468
+    ]
+  },
+  "playback-ru": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Назад",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Точка наблюдения",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "North terminal / Складской комплекс / Восточная погрузочная галерея, наружный периметр, ворота № 14",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "На связи",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Идёт запись",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Тревога",
+        "role": "StaticText"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Назад",
+        "object": "back"
+      }
+    ],
+    "name": "Точка наблюдения | Bacuri VMS",
+    "role": "Window",
+    "videoRect": [
+      84,
+      303,
+      832,
+      468
+    ]
+  },
+  "point-filters-narrow-ru": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "Graphic"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "С данными",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Точки наблюдения",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Поиск по названию или ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Параметры фильтра",
+            "role": "CheckBox"
+          },
+          {
+            "children": [],
+            "name": "Сбросить фильтры",
+            "role": "Button"
+          },
+          {
+            "children": [],
+            "description": "На связи",
+            "name": "Связь",
+            "role": "ComboBox"
+          },
+          {
+            "children": [],
+            "description": "Запись задерживается",
+            "name": "Состояние записи",
+            "role": "ComboBox"
+          },
+          {
+            "children": [],
+            "name": "Найдено 1 из 3",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "Фильтры",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "На связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Запись задерживается",
+                "role": "StaticText"
+              }
+            ],
+            "name": "Freight yard",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Точки наблюдения",
+        "role": "List"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Поиск по названию или ID",
+        "object": "filter"
+      },
+      {
+        "name": "Параметры фильтра",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Сбросить фильтры",
+        "object": "filterReset"
+      },
+      {
+        "name": "Связь",
+        "object": "filter-connection"
+      },
+      {
+        "name": "Состояние записи",
+        "object": "filter-recording"
+      },
+      {
+        "name": "Точки наблюдения",
+        "object": "pointList"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "point-filters-ru": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "С данными",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Точки наблюдения",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Поиск по названию или ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Параметры фильтра",
+            "role": "CheckBox"
+          },
+          {
+            "children": [],
+            "name": "Сбросить фильтры",
+            "role": "Button"
+          },
+          {
+            "children": [],
+            "description": "На связи",
+            "name": "Связь",
+            "role": "ComboBox"
+          },
+          {
+            "children": [],
+            "description": "Запись задерживается",
+            "name": "Состояние записи",
+            "role": "ComboBox"
+          },
+          {
+            "children": [],
+            "name": "Найдено 1 из 3",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "Фильтры",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "На связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Запись задерживается",
+                "role": "StaticText"
+              }
+            ],
+            "name": "Freight yard",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Точки наблюдения",
+        "role": "List"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Поиск по названию или ID",
+        "object": "filter"
+      },
+      {
+        "name": "Параметры фильтра",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Сбросить фильтры",
+        "object": "filterReset"
+      },
+      {
+        "name": "Связь",
+        "object": "filter-connection"
+      },
+      {
+        "name": "Состояние записи",
+        "object": "filter-recording"
+      },
+      {
+        "name": "Точки наблюдения",
+        "object": "pointList"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "ru-dark-state-0": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "С данными",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Точки наблюдения",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Поиск по названию или ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Параметры фильтра",
+            "role": "CheckBox"
+          }
+        ],
+        "name": "Фильтры",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "На связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Идёт запись",
+                "role": "StaticText"
+              }
+            ],
+            "name": "North terminal / Складской комплекс / Восточная погрузочная галерея, наружный периметр, ворота № 14",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Нет связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Запись остановлена",
+                "role": "StaticText"
+              }
+            ],
+            "name": "West entrance",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "На связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Запись задерживается",
+                "role": "StaticText"
+              }
+            ],
+            "name": "Freight yard",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Точки наблюдения",
+        "role": "List"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Поиск по названию или ID",
+        "object": "filter"
+      },
+      {
+        "name": "Параметры фильтра",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Точки наблюдения",
+        "object": "pointList"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "ru-dark-state-1": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Ожидание",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Загрузка точек наблюдения…",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "ru-dark-state-2": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Пустая выборка",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Нет доступных точек наблюдения.",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "ru-dark-state-3": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Ошибка",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Недоступно",
+            "role": "StaticText"
+          },
+          {
+            "children": [],
+            "name": "Служба площадки недоступна. Повторите позже.",
+            "role": "StatusBar"
+          },
+          {
+            "children": [],
+            "name": "Повторить",
+            "role": "Button"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Повторить",
+        "object": "stateAction"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "ru-dark-state-4": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Восстановлено",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Точки наблюдения",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Поиск по названию или ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Параметры фильтра",
+            "role": "CheckBox"
+          }
+        ],
+        "name": "Фильтры",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "На связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Идёт запись",
+                "role": "StaticText"
+              }
+            ],
+            "name": "North terminal / Складской комплекс / Восточная погрузочная галерея, наружный периметр, ворота № 14",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Нет связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Запись остановлена",
+                "role": "StaticText"
+              }
+            ],
+            "name": "West entrance",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "На связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Запись задерживается",
+                "role": "StaticText"
+              }
+            ],
+            "name": "Freight yard",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Точки наблюдения",
+        "role": "List"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Поиск по названию или ID",
+        "object": "filter"
+      },
+      {
+        "name": "Параметры фильтра",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Точки наблюдения",
+        "object": "pointList"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "ru-dark-state-5": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Нет разрешения",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Недоступно",
+            "role": "StaticText"
+          },
+          {
+            "children": [],
+            "name": "Недостаточно прав для этого действия.",
+            "role": "StatusBar"
+          },
+          {
+            "children": [],
+            "name": "Повторить",
+            "role": "Button"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Повторить",
+        "object": "stateAction"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "ru-light-state-0": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "С данными",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Точки наблюдения",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Поиск по названию или ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Параметры фильтра",
+            "role": "CheckBox"
+          }
+        ],
+        "name": "Фильтры",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "На связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Идёт запись",
+                "role": "StaticText"
+              }
+            ],
+            "name": "North terminal / Складской комплекс / Восточная погрузочная галерея, наружный периметр, ворота № 14",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Нет связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Запись остановлена",
+                "role": "StaticText"
+              }
+            ],
+            "name": "West entrance",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "На связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Запись задерживается",
+                "role": "StaticText"
+              }
+            ],
+            "name": "Freight yard",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Точки наблюдения",
+        "role": "List"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Поиск по названию или ID",
+        "object": "filter"
+      },
+      {
+        "name": "Параметры фильтра",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Точки наблюдения",
+        "object": "pointList"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "ru-light-state-1": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Ожидание",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Загрузка точек наблюдения…",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "ru-light-state-2": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Пустая выборка",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Нет доступных точек наблюдения.",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "ru-light-state-3": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Ошибка",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Недоступно",
+            "role": "StaticText"
+          },
+          {
+            "children": [],
+            "name": "Служба площадки недоступна. Повторите позже.",
+            "role": "StatusBar"
+          },
+          {
+            "children": [],
+            "name": "Повторить",
+            "role": "Button"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Повторить",
+        "object": "stateAction"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "ru-light-state-4": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Восстановлено",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Точки наблюдения",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Поиск по названию или ID",
+            "role": "EditableText"
+          },
+          {
+            "children": [],
+            "name": "Параметры фильтра",
+            "role": "CheckBox"
+          }
+        ],
+        "name": "Фильтры",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "На связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Идёт запись",
+                "role": "StaticText"
+              }
+            ],
+            "name": "North terminal / Складской комплекс / Восточная погрузочная галерея, наружный периметр, ворота № 14",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "Нет связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Запись остановлена",
+                "role": "StaticText"
+              }
+            ],
+            "name": "West entrance",
+            "role": "ListItem"
+          },
+          {
+            "children": [
+              {
+                "children": [],
+                "name": "На связи",
+                "role": "StaticText"
+              },
+              {
+                "children": [],
+                "name": "Запись задерживается",
+                "role": "StaticText"
+              }
+            ],
+            "name": "Freight yard",
+            "role": "ListItem"
+          }
+        ],
+        "name": "Точки наблюдения",
+        "role": "List"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Поиск по названию или ID",
+        "object": "filter"
+      },
+      {
+        "name": "Параметры фильтра",
+        "object": "filterOptions"
+      },
+      {
+        "name": "Точки наблюдения",
+        "object": "pointList"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "ru-light-state-5": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Каталог компонентов",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Состояние каталога",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "description": "Нет разрешения",
+        "name": "Состояние каталога",
+        "role": "ComboBox"
+      },
+      {
+        "children": [],
+        "name": "Просмотр компонентов",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Недоступно",
+            "role": "StaticText"
+          },
+          {
+            "children": [],
+            "name": "Недостаточно прав для этого действия.",
+            "role": "StatusBar"
+          },
+          {
+            "children": [],
+            "name": "Повторить",
+            "role": "Button"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Состояние каталога",
+        "object": "catalogScenario"
+      },
+      {
+        "name": "Просмотр компонентов",
+        "object": "componentPreview"
+      },
+      {
+        "name": "Повторить",
+        "object": "stateAction"
+      }
+    ],
+    "name": "Каталог компонентов | Bacuri VMS",
+    "role": "Window"
+  },
+  "settings-en-100": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Back",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "English",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Русский",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Interface language",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "System",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Light",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Dark",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Theme",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "100%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "125%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "150%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "200%",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Text size",
+        "role": "Grouping"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Back",
+        "object": "back"
+      },
+      {
+        "name": "English",
+        "object": "languageSetting-0"
+      },
+      {
+        "name": "System",
+        "object": "themeSetting-0"
+      },
+      {
+        "name": "100%",
+        "object": "scaleSetting-0"
+      }
+    ],
+    "name": "Settings | Bacuri VMS",
+    "role": "Window"
+  },
+  "settings-narrow-ru": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "Graphic"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Назад",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "English",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Русский",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Язык интерфейса",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Системная",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Светлая",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Тёмная",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Тема",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "100%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "125%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "150%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "200%",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Размер текста",
+        "role": "Grouping"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Назад",
+        "object": "back"
+      },
+      {
+        "name": "Русский",
+        "object": "languageSetting-1"
+      },
+      {
+        "name": "Тёмная",
+        "object": "themeSetting-2"
+      },
+      {
+        "name": "200%",
+        "object": "scaleSetting-3"
+      }
+    ],
+    "name": "Настройки | Bacuri VMS",
+    "role": "Window"
+  },
+  "settings-ru": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Назад",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "English",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Русский",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Язык интерфейса",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Системная",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Светлая",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Тёмная",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Тема",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "100%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "125%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "150%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "200%",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Размер текста",
+        "role": "Grouping"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Назад",
+        "object": "back"
+      },
+      {
+        "name": "Русский",
+        "object": "languageSetting-1"
+      },
+      {
+        "name": "Тёмная",
+        "object": "themeSetting-2"
+      },
+      {
+        "name": "150%",
+        "object": "scaleSetting-2"
+      }
+    ],
+    "name": "Настройки | Bacuri VMS",
+    "role": "Window"
+  },
+  "settings-ru-100": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Назад",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "StaticText"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "English",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Русский",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Язык интерфейса",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Системная",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Светлая",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "Тёмная",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Тема",
+        "role": "Grouping"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "100%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "125%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "150%",
+            "role": "RadioButton"
+          },
+          {
+            "children": [],
+            "name": "200%",
+            "role": "RadioButton"
+          }
+        ],
+        "name": "Размер текста",
+        "role": "Grouping"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Назад",
+        "object": "back"
+      },
+      {
+        "name": "Русский",
+        "object": "languageSetting-1"
+      },
+      {
+        "name": "Системная",
+        "object": "themeSetting-0"
+      },
+      {
+        "name": "100%",
+        "object": "scaleSetting-0"
+      }
+    ],
+    "name": "Настройки | Bacuri VMS",
+    "role": "Window"
+  },
+  "sign-in-error-en": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "New window",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Settings",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Site sign-in",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Site address",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Site address",
+        "role": "EditableText"
+      },
+      {
+        "children": [],
+        "name": "Confirm sign-in in your system browser.",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Sign in",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Unavailable",
+            "role": "StaticText"
+          },
+          {
+            "children": [],
+            "name": "Enter the HTTPS address of the site.",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "New window",
+        "object": "newWindow"
+      },
+      {
+        "name": "Settings",
+        "object": "settings"
+      },
+      {
+        "name": "Site address",
+        "object": "origin"
+      },
+      {
+        "name": "Sign in",
+        "object": ""
+      }
+    ],
+    "name": "Site sign-in | Bacuri VMS",
+    "role": "Window"
+  },
+  "sign-in-error-ru": {
+    "children": [
+      {
+        "children": [],
+        "name": "Bacuri VMS",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Новое окно",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Настройки",
+        "role": "Button"
+      },
+      {
+        "children": [],
+        "name": "Вход на площадку",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Адрес площадки",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Адрес площадки",
+        "role": "EditableText"
+      },
+      {
+        "children": [],
+        "name": "Подтвердите вход в системном браузере.",
+        "role": "StaticText"
+      },
+      {
+        "children": [],
+        "name": "Войти",
+        "role": "Button"
+      },
+      {
+        "children": [
+          {
+            "children": [],
+            "name": "Недоступно",
+            "role": "StaticText"
+          },
+          {
+            "children": [],
+            "name": "Введите HTTPS-адрес площадки.",
+            "role": "StatusBar"
+          }
+        ],
+        "name": "",
+        "role": "Pane"
+      }
+    ],
+    "focusOrder": [
+      {
+        "name": "Новое окно",
+        "object": "newWindow"
+      },
+      {
+        "name": "Настройки",
+        "object": "settings"
+      },
+      {
+        "name": "Адрес площадки",
+        "object": "origin"
+      },
+      {
+        "name": "Войти",
+        "object": ""
+      }
+    ],
+    "name": "Вход на площадку | Bacuri VMS",
+    "role": "Window"
+  }
+}

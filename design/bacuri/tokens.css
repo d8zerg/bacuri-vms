@@ -13,24 +13,29 @@
 }
 
 :root {
-  --space-1: .375rem;
-  --space-2: .625rem;
-  --space-3: .875rem;
+  color-scheme: light dark;
+  accent-color: var(--action);
+  --space-1: 0.375rem;
+  --space-2: 0.625rem;
+  --space-3: 0.875rem;
   --space-4: 1.125rem;
   --space-5: 1.5rem;
   --space-6: 2rem;
-  --radius: .75rem;
+  --radius: 0.75rem;
+  --motion-short: 100ms;
+  --line-thin: 1px;
+  --line-focus: 2px;
   --font: Inter, system-ui, -apple-system, sans-serif;
   --numerals: ui-monospace, "Liberation Mono", monospace;
   --text-body: 1rem;
-  --text-page-title: clamp(1.65rem, 2.7vw, 2.25rem);
+  --text-page-title-min: 1.65rem;
+  --text-page-title-max: 2.25rem;
+  --text-page-title-viewport: 2.7;
   --text-panel-title: 1.0625rem;
-  --text-control: .875rem;
-  --text-meta: .875rem;
-  --text-caption: .8125rem;
+  --text-control: 0.875rem;
+  --text-meta: 0.875rem;
+  --text-caption: 0.8125rem;
   --leading-body: 1.45;
-  color-scheme: light dark;
-  accent-color: var(--action);
   --rind: #f2cc61;
   --seed: #33271d;
   --video: #12110f;
@@ -49,16 +54,50 @@
   --action-hover: light-dark(#d7cdaf, #5b5540);
   --action-pressed: light-dark(#cbbe9b, #645c44);
   --selected: light-dark(#eee9da, #373428);
-  --recorded: light-dark(#8b8062, #9B8D6F);
+  --recorded: light-dark(#8b8062, #9b8d6f);
   --focus: light-dark(#6b6044, #bbb08e);
-  --success: light-dark(#56603f, #bfcba4);
+  --success: light-dark(#476845, #b0e7ac);
   --success-bg: light-dark(#eff1e6, #2c3023);
-  --warning: light-dark(#94421e, #ffae86);
+  --warning: light-dark(#744900, #ffca65);
   --warning-bg: light-dark(#fbede3, #432b20);
-  --danger: light-dark(#a13239, #ffa3a1);
+  --danger: light-dark(#621324, #ff94b5);
   --danger-bg: light-dark(#f9e9e6, #452927);
-  --info: light-dark(#63594f, #cfc2b1);
+  --info: light-dark(#24366a, #b2bcff);
   --info-bg: light-dark(#efeae3, #353029);
+  --text-page-title: clamp(var(--text-page-title-min), calc(var(--text-page-title-viewport) * 1vw), var(--text-page-title-max));
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --rind: light-dark(#f2cc61, #f2cc61);
+    --seed: light-dark(#33271d, #33271d);
+    --video: light-dark(#12110f, #12110f);
+    --overlay: light-dark(#26211d, #26211d);
+    --on-video: light-dark(#fff9ec, #fff9ec);
+    --canvas: light-dark(#ffffff, #000000);
+    --surface: light-dark(#ffffff, #000000);
+    --raised: light-dark(#ffffff, #000000);
+    --ink: light-dark(#000000, #ffffff);
+    --muted: light-dark(#000000, #ffffff);
+    --line: light-dark(#000000, #ffffff);
+    --control: light-dark(#000000, #ffffff);
+    --action: light-dark(#000000, #ffffff);
+    --action-fill: light-dark(#e1d8bb, #504a37);
+    --on-action: light-dark(#000000, #ffffff);
+    --action-hover: light-dark(#d7cdaf, #5b5540);
+    --action-pressed: light-dark(#cbbe9b, #645c44);
+    --selected: light-dark(#eee9da, #373428);
+    --recorded: light-dark(#8b8062, #9b8d6f);
+    --focus: light-dark(#000000, #ffffff);
+    --success: light-dark(#476845, #b0e7ac);
+    --success-bg: light-dark(#ffffff, #000000);
+    --warning: light-dark(#744900, #ffca65);
+    --warning-bg: light-dark(#ffffff, #000000);
+    --danger: light-dark(#621324, #ff94b5);
+    --danger-bg: light-dark(#ffffff, #000000);
+    --info: light-dark(#24366a, #b2bcff);
+    --info-bg: light-dark(#ffffff, #000000);
+  }
 }
 
 [data-theme="light"],

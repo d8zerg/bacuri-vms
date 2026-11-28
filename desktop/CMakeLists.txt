@@ -11,7 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_compile_options(-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion)
 
 include(CTest)
-find_package(Qt6 6.8 REQUIRED COMPONENTS Gui Network OpenGL Qml Quick)
+find_package(Qt6 6.8 REQUIRED COMPONENTS DBus Gui Network OpenGL Qml Quick QuickControls2)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GST REQUIRED IMPORTED_TARGET gstreamer-1.0>=1.26 gstreamer-video-1.0)
 find_package(QMapLibre 3.0 REQUIRED COMPONENTS Core)
@@ -67,7 +67,29 @@ target_link_libraries(bacuri-vms-client-bench PRIVATE
 qt_add_executable(bacuri-vms-client-signin tools/signin/main.cpp)
 target_link_libraries(bacuri-vms-client-signin PRIVATE bacuri-vms-client-site)
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(qml_dir ${CMAKE_CURRENT_BINARY_DIR}/qml/Bacuri/Vms/Client)
+set(design_dir ${CMAKE_CURRENT_SOURCE_DIR}/../design/bacuri)
+add_subdirectory(src/settings)
+add_subdirectory(src/ui)
+add_subdirectory(src/app)
+qt_add_executable(bacuri-vms-client src/app/main.cpp)
+target_link_libraries(bacuri-vms-client PRIVATE bacuri-vms-client-app bacuri-vms-client-appplugin)
+add_subdirectory(tools/catalog)
+# Project QML plugins are linked explicitly. Debian supplies the Qt imports as runtime plugins.
+set_target_properties(bacuri-vms-client PROPERTIES QT_QML_MODULE_NO_IMPORT_SCAN TRUE)
+
 if(BUILD_TESTING)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    qt_add_executable(bacuri-vms-client-shell-tests tests/shell_test.cpp)
+    set_target_properties(bacuri-vms-client-shell-tests PROPERTIES QT_QML_MODULE_NO_IMPORT_SCAN TRUE)
+    target_link_libraries(bacuri-vms-client-shell-tests PRIVATE bacuri-vms-client-app
+        bacuri-vms-client-catalog-uiplugin bacuri-vms-client-media Qt6::Test)
+    foreach(scale 1 1.25 1.5 2 mixed)
+        add_test(NAME workstation.shell.${scale} COMMAND sh ${PROJECT_SOURCE_DIR}/../tests/desktop/shell.sh
+            $<TARGET_FILE:bacuri-vms-client-shell-tests> ${scale} ${PROJECT_BINARY_DIR}/../reports/shell)
+        set_tests_properties(workstation.shell.${scale} PROPERTIES TIMEOUT 60)
+    endforeach()
     find_package(GTest REQUIRED)
     add_executable(bacuri-vms-client-tests tests/frame_stats_test.cpp tests/sign_in_test.cpp)
     target_link_libraries(bacuri-vms-client-tests PRIVATE

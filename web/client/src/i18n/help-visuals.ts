@@ -1,3 +1,5 @@
+import settingsEn from "../help/screenshots/settings-en-100.png";
+import settingsRu from "../help/screenshots/settings-ru-100.png";
 import nodeAcceleration from "../help/illustrations/node-acceleration.svg";
 import alarmTimeline from "../help/illustrations/alarm-timeline.svg";
 import archiveBackfill from "../help/illustrations/archive-backfill.svg";
@@ -20,6 +22,21 @@ import storageRetention from "../help/illustrations/storage-retention.svg";
 import syncArchive from "../help/illustrations/sync-archive.svg";
 import upgradeRollback from "../help/illustrations/upgrade-rollback.svg";
 import videoRule from "../help/illustrations/video-rule.svg";
+
+export const workstationSettings = {
+  en: {
+    src: settingsEn,
+    alt: "Workstation settings",
+    caption:
+      "Open workstation settings to choose the language, theme and text size for all windows.",
+  },
+  ru: {
+    src: settingsRu,
+    alt: "Настройки рабочего места",
+    caption:
+      "В настройках рабочего места можно выбрать язык, тему и размер текста для всех окон.",
+  },
+};
 
 type FigureText = {
   caption: string;

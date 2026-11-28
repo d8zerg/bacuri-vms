@@ -157,6 +157,16 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
       - ${XAUTHORITY:-/dev/null}:/tmp/bacuri-xauthority:ro
 
+  desktop-workstation:
+    init: true
+    extends: {service: desktop-gpu}
+    network_mode: host
+
+  desktop-workstation-cpu:
+    init: true
+    extends: {service: desktop-cpu}
+    network_mode: host
+
   quality:
     profiles: ["tools"]
     build:

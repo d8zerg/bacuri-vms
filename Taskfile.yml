@@ -537,9 +537,28 @@ tasks:
     cmd: '{{.COMPOSE_RUN}} -T -w /workspace/desktop desktop sh -c "cmake --preset desktop && cmake --build --preset desktop"'
 
   desktop:test:
-    desc: Run the desktop client unit tests
+    desc: Run the desktop unit and workstation UI tests
     deps: [desktop:build]
     cmd: '{{.COMPOSE_RUN}} -T -w /workspace/desktop desktop ctest --preset desktop'
+
+  desktop:shell:stand:
+    desc: Check the Qt workstation on the Linux stand display with the reference recording
+    deps: [desktop:build]
+    cmds:
+      - test -f build/desktop/reference/h264-1080p25.mp4 || task desktop:reference
+      - >-
+        {{.COMPOSE_RUN}} -T desktop-gpu sh tests/desktop/shell.sh
+        build/desktop/gcc/bacuri-vms-client-shell-tests workstation build/desktop/reports/shell
+
+  desktop:run:
+    desc: Open the Qt workstation on the local Linux display
+    deps: [desktop:build]
+    cmd: sh tools/desktop-run bacuri-vms-client {{.CLI_ARGS}}
+
+  desktop:catalog:
+    desc: Open the desktop component catalog on the local Linux display
+    deps: [desktop:build]
+    cmd: sh tools/desktop-run bacuri-vms-client-catalog
 
   desktop:video:
     desc: Measure the client bench on the stand display with hardware and software decoding, 1 to 16 cells
@@ -595,7 +614,7 @@ tasks:
 
   web:build:
     desc: Build the typed HTTPS workspace and isolated performance reference
-    deps: [api:types]
+    deps: [api:types, ui-kit:tokens]
     cmds:
       - docker compose build ui-kit-check
       - mkdir -p build/web-client build/workspace-fixture
@@ -685,8 +704,14 @@ tasks:
         vars: {PRESET: '{{.PRESET}}'}
     cmd: bash tools/check-workspace {{.PRESET | shellQuote}} {{.WORKSPACE_CHECK | default "full" | shellQuote}}
 
+  ui-kit:tokens:
+    internal: true
+    deps: [dev:image]
+    run: once
+    cmd: '{{.BUILD_RUN}} python3 tools/desktop_tokens.py design/bacuri/tokens.json --check-css design/bacuri/tokens.css'
+
   ui-kit:check:
-    deps: [api:types]
+    deps: [api:types, ui-kit:tokens]
     desc: Build the React UI Kit and Storybook, check types, keyboard, accessibility, browser coverage and fixture contract
     run: once
     cmds:
@@ -703,7 +728,7 @@ tasks:
         {{.BUILD_RUN}} python3 tests/contracts/fixtures.py "$results/fixture-responses.json"
 
   ui-kit:up:
-    deps: [api:types]
+    deps: [api:types, ui-kit:tokens]
     desc: Build and serve the local Storybook catalog
     cmds:
       - docker compose build ui-kit-check

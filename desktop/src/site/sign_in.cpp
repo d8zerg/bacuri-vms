@@ -39,6 +39,15 @@ QSslConfiguration site_tls(const QString& ca_file)
     return tls;
 }
 
+QNetworkRequest site_request(const QUrl& url, const QString& ca_file, const QString& token)
+{
+    QNetworkRequest request(url);
+    request.setSslConfiguration(site_tls(ca_file));
+    if (!token.isEmpty())
+        request.setRawHeader("Authorization", "Bearer " + token.toLatin1());
+    return request;
+}
+
 SignIn::SignIn(SignInOptions options, QObject* parent)
     : QObject{parent}, options_{std::move(options)}, pkce_{new_pkce()}
 {
@@ -108,9 +117,9 @@ void SignIn::accept()
 
 void SignIn::exchange(const QString& code)
 {
-    QNetworkRequest request{options_.site.resolved(QUrl{QStringLiteral("/api/v1/session/desktop")})};
+    auto request =
+        site_request(options_.site.resolved(QUrl{QStringLiteral("/api/v1/session/desktop")}), options_.ca_file);
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
-    request.setSslConfiguration(site_tls(options_.ca_file));
     const QJsonObject body{{"code", code}, {"code_verifier", pkce_.verifier}, {"redirect_uri", redirect_}};
     auto* reply = network_.post(request, QJsonDocument{body}.toJson(QJsonDocument::Compact));
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
